@@ -1,0 +1,10 @@
+[package]
+name = "txtx-vm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hex = "0.4.3"
+daggy = "0.8.0"
+uuid = { version = "1.7.0", features = ["v4"] }
+txtx-ext-kit = { path = "../txtx-ext-kit" }

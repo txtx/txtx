@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+    ],
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "git.ignoreLimitWarning": true
+}

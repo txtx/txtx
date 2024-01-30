@@ -1,0 +1,7 @@
+module "package_1_module_1" {
+    description = "Descritption coming from ${variable.package_1_variable_1}"
+}
+
+module "package_1_module_2" {
+    description = variable.package_1_variable_2
+}

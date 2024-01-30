@@ -1,0 +1,17 @@
+{
+    "manuals": {
+        "manual_v1": "./man/common/package_1",
+        "manual_v2": "./man/common/package_2",
+        "manual_v3": "./man/common/package_3"
+    },
+    "txvars": {
+        "package_1_variable_2": {
+            "description": "Variable 2 from Package 1 loading its value from protocol.json (description overloaded)",
+            "value": "package_1_variable_2::protocol.mainnet.json"
+        },
+        "package_2_variable_2": {
+            "description": "Variable 2 from Package 2 loading its value from protocol.json (description overloaded)",
+            "value": "package_2_variable_2::protocol.mainnet.json"
+        }
+    }
+}

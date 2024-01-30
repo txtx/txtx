@@ -1,0 +1,51 @@
+module "manual" {
+  name = "Package 3"
+  description = "Lorem ipsum dolor sit amet"
+}
+
+import "package_2" {
+    path = "../package_2"
+}
+
+// ext bitcoin:tx "test" {
+//     bytes = ext.vaa_guardian_rotation_3
+// }
+
+// ext ordinals:inscription "inscription_1" {
+// }
+
+// ext bitcoin:tx "test" {
+//     bytes = ext.vaa_guardian_rotation_3
+// }
+
+// 1) How do we use extenstion
+// 2) How does the explainability work?
+// 3) How does the signing work?
+// 4) Can we engineer a 'mdx' extension?
+// 5) How do developers compose, publish and share their manuals?
+
+// import "@uniswap/uniswap_v4/swap" {
+//     as = "uniswapv_v4_swap" 
+//     registry = "registry.txtx.link"
+// }
+
+// ext ethereum:tx "swap_usdc_eth" {
+//     bytes = uniswap_v4_swap.ouptput.contract_call {
+//         base = "USDC"
+//         quote = "ETH"
+//         amount = 100
+//     }
+// }
+
+// ext registry:uniswap/uniswap_v4/swap "uniswap_v4_swap" {
+//     base = "USDC"
+//     quote = "ETH"
+//     amount = 100
+// }
+
+// ext stacks:clarity_value "vaa_guardian_rotation_3" {
+//     description = "Encode 3rd Guardian Rotation"
+//     buffer = $wormhole.vaa_guardian_rotation_3
+// }
+
+// ext.vaa_guardian_rotation_3

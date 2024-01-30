@@ -1,0 +1,20 @@
+module "manual" {
+  name = "Package 2"
+  description = "Lorem ipsum dolor sit amet"
+}
+
+output "package_2_output_1" {
+  value = variable.package_2_variable_1
+}
+
+output "package_2_output_2" {
+  value = variable.package_2_variable_2
+}
+
+output "package_2_output_3" {
+  value = variable.package_2_variable_3
+}
+
+output "package_2_output_4" {
+  value = variable.package_2_variable_4
+}

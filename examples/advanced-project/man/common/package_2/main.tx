@@ -1,0 +1,7 @@
+import "package_1" {
+    path = "../package_1"
+}
+
+module "package_2_module_1" {
+    description = "Descritption coming from ${package_1.variable.package_1_variable_1}"
+}

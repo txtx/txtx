@@ -1,0 +1,2 @@
+[alias]
+txtx-install = "install --path components/txtx-cli --locked --force"

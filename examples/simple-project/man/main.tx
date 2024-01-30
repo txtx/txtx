@@ -1,0 +1,49 @@
+module "manual" {
+  name = "Manual 101"
+  description = "Lorem ipsum dolor sit amet"
+}
+
+variable "bit_commitment_preimage_0" {
+  description = "Bit commitment preimage for value 0"
+  default = "0x"
+}
+
+variable "bit_commitment_preimage_1" {
+  description = "Bit commitment preimage for value 1"
+  default = test
+}
+
+variable "bit_commitment_hash_0" {
+  description = "Bit commitment hash for value 0"
+  default = "0x00"
+}
+
+variable "bit_commitment_hash_1" {
+  description = "Bit commitment hash for value 1"
+  default = variable.bit_commitment_preimage_0
+}
+
+encode "bitcoin_script" "bitvm_circuit_and" {
+
+  description = "Gate AND"
+
+  stack = [
+    variable.bit_commitment_preimage_0,
+    variable.bit_commitment_preimage_1
+  ]
+
+  instructions = [
+    "OP_TOALTSTACK",
+    "OP_DUP",
+    "OP_TOALTSTACK",
+    variable.bit_commitment_hash_0,
+    variable.bit_commitment_hash_1,
+    "OP_FROMALTSTACK",
+    "OP_ROLL",
+    "OP_FROMALTSTACK",
+    "OP_HASH160",
+    "OP_EQUALVERIFY",
+    "OP_2DROP",
+    "OP_DROP",
+  ]
+}

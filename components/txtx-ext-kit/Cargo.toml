@@ -1,0 +1,12 @@
+[package]
+name = "txtx-ext-kit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hcl-edit = "0.7.5"
+serde = "1"
+serde_derive = "1"
+url = { version = "2.2.2", features = ["serde"] }
