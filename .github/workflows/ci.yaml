@@ -31,7 +31,8 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup target add wasm32-unknown-unknown
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Cache cargo
@@ -42,5 +43,11 @@ jobs:
             ./target/wasm32-unknown-unknown/release/
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
-      - name: Build - Cargo
-        run: cargo build --release --locked --target wasm32-unknown-unknown
+      - name: Build WASM for txtx-vm
+        run: cargo build --package txtx-vm --release --locked --target wasm32-unknown-unknown --features wasm
+
+      - name: Build WASM for txtx-ext-kit
+        run: cargo build --package txtx-ext-kit --release --locked --target wasm32-unknown-unknown --features wasm
+
+      - name: Build WASM for txtx-ext-bitcoin
+        run: cargo build --package txtx-ext-bitcoin --release --locked --target wasm32-unknown-unknown --features wasm
