@@ -43,4 +43,4 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Build - Cargo
-        run: cargo build --release --locked --target wasm32-unknown-unknown
+        run: cargo build --release --locked --target wasm32-unknown-unknown --features wasm
