@@ -6,8 +6,8 @@ use crate::errors::ConstructErrors;
 use daggy::Dag;
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
-use txtx_ext_kit::hcl::expr::{Expression, TraversalOperator};
-use txtx_ext_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
+use txtx_addon_kit::helpers::fs::FileLocation;
 
 #[derive(Debug)]
 pub struct SourceTree {

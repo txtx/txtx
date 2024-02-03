@@ -1,4 +1,4 @@
-use txtx_ext_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 #[derive(Debug)]
 pub enum DiscoveryError {

@@ -2,7 +2,7 @@
 members = [
     "components/txtx-cli",
     "components/txtx-core",
-    "components/txtx-ext-kit",
+    "components/txtx-addon-kit",
     "components/txtx-ext-bitcoin"
 ]
 default-members = ["components/txtx-cli"]

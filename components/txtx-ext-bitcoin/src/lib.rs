@@ -1,4 +1,4 @@
-use txtx_ext_kit::Codec;
+use txtx_addon_kit::Codec;
 
 pub struct BitcoinCodec {}
 

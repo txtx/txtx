@@ -2,12 +2,12 @@ pub mod errors;
 pub mod types;
 pub mod visitor;
 
-pub use txtx_ext_kit as kit;
+pub use txtx_addon_kit as kit;
 // use visitor::run_edge_indexer;
 
 use std::collections::HashMap;
 
-use txtx_ext_kit::Codec;
+use txtx_addon_kit::Codec;
 use types::Manual;
 use visitor::run_constructs_indexer;
 use visitor::run_constructs_processor;

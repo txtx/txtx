@@ -4,8 +4,8 @@ use crate::{
     errors::{ConstructErrors, DiscoveryError},
     types::{Manual, PreConstructData},
 };
-use txtx_ext_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
-use txtx_ext_kit::{
+use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
+use txtx_addon_kit::{
     hcl::{self, structure::BlockLabel, Span},
     helpers::{
         fs::{get_txtx_files_paths, FileLocation},

@@ -1,10 +1,10 @@
-use txtx_ext_kit::hcl::{expr::Expression, structure::Block};
-use txtx_ext_kit::helpers::fs::FileLocation;
-use txtx_ext_kit::helpers::hcl::{
+use txtx_addon_kit::hcl::{expr::Expression, structure::Block};
+use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::helpers::hcl::{
     collect_dependencies_from_expression, visit_label, visit_optional_untyped_attribute,
     VisitorError,
 };
-use txtx_ext_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 #[derive(Clone, Debug)]
 pub struct ExtConstruct {

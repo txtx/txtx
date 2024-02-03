@@ -1,6 +1,6 @@
 use crate::types::{ImportConstruct, ModuleConstruct, OutputConstruct, VariableConstruct};
 use std::ops::Range;
-use txtx_ext_kit::hcl::{expr::Expression, structure::Block};
+use txtx_addon_kit::hcl::{expr::Expression, structure::Block};
 use uuid::Uuid;
 
 use self::ext::ExtConstruct;

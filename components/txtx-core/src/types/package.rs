@@ -1,7 +1,7 @@
 use super::ConstructUuid;
 use daggy::{Dag, NodeIndex};
 use std::collections::{HashMap, HashSet};
-use txtx_ext_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::helpers::fs::FileLocation;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
