@@ -8,7 +8,7 @@ name = "txtx"
 path = "src/main.rs"
 
 [dependencies]
-txtx-vm = { path = "../txtx-vm" }
+txtx-core = { path = "../txtx-core" }
 txtx-ext-bitcoin = { path = "../txtx-ext-bitcoin" }
 txtx-gql = { path = "../txtx-gql" }
 hiro-system-kit = "0.3.1"

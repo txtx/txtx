@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use serde_json::Value;
-use txtx_vm::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use txtx_vm::types::{Manual, SourceTree};
+use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use txtx_core::types::{Manual, SourceTree};
 
 pub mod generator;
 

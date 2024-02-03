@@ -1,6 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_vm::types::{ConstructUuid, ModuleConstruct};
+use txtx_core::types::{ConstructUuid, ModuleConstruct};
 
 pub struct Module {
     pub uuid: ConstructUuid,

@@ -2,7 +2,7 @@ use std::sync::mpsc::channel;
 
 use txtx_ext_bitcoin::BitcoinCodec;
 use txtx_gql::Context as GqlContext;
-use txtx_vm::{simulate_manual, CodecManager};
+use txtx_core::{simulate_manual, CodecManager};
 
 use crate::{
     manifest::{read_manifest_at_path, read_manuals_from_manifest},

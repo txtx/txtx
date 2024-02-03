@@ -2370,10 +2370,21 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "toml",
+ "txtx-core",
  "txtx-ext-bitcoin",
  "txtx-gql",
- "txtx-vm",
  "unicode-width",
+]
+
+[[package]]
+name = "txtx-core"
+version = "0.1.0"
+dependencies = [
+ "daggy",
+ "getrandom",
+ "hex",
+ "txtx-ext-kit",
+ "uuid",
 ]
 
 [[package]]
@@ -2403,18 +2414,7 @@ dependencies = [
  "juniper",
  "juniper_codegen",
  "juniper_rocket",
- "txtx-vm",
- "uuid",
-]
-
-[[package]]
-name = "txtx-vm"
-version = "0.1.0"
-dependencies = [
- "daggy",
- "getrandom",
- "hex",
- "txtx-ext-kit",
+ "txtx-core",
  "uuid",
 ]
 

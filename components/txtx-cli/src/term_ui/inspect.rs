@@ -10,7 +10,7 @@ use ratatui::{
     style::palette::{self, tailwind},
     widgets::*,
 };
-use txtx_vm::types::Manual;
+use txtx_core::types::Manual;
 
 const INFO_TEXT: &str = "(Esc) quit | (↑) move up | (↓) move down";
 

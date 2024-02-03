@@ -5,7 +5,7 @@ use crate::types::variable::Variable;
 
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_vm::types::ConstructUuid;
+use txtx_core::types::ConstructUuid;
 use uuid::Uuid;
 
 pub struct Query;

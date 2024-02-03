@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;
-use txtx_vm::types::Manual;
+use txtx_core::types::Manual;
 
 pub mod mutation;
 pub mod query;

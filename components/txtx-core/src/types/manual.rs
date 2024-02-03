@@ -135,6 +135,26 @@ impl Manual {
             }
             println!("");
         }
+        // for (module_name, (root_node, graph)) in self.constructs_graph.iter() {
+        //     let mut walker = graph.children(*root_node).iter(&graph);
+        //     while let Some((_edge, node)) = walker.next() {
+        //         let construct_uuid = graph
+        //             .node_weight(node)
+        //             .expect("unable to retrieve construct uuid");
+        //         if let Some(construct) = self.constructs.get(construct_uuid) {
+        //             println!(
+        //                 "- {}/{}: {:?}",
+        //                 module_name,
+        //                 construct.get_construct_uri(),
+        //                 construct
+        //                     .collect_dependencies()
+        //                     .into_iter()
+        //                     .map(|e| e.to_string())
+        //                     .collect::<Vec<String>>()
+        //             );
+        //         }
+        //     }
+        // }
     }
 
     pub fn index_construct(
@@ -302,6 +322,26 @@ impl Manual {
                 continue;
             }
         }
+
+        // Look for namespaces registered by codecs
+
+        // Dependency detector:
+        // When a traversal expression is detected:
+        // Desugar / Fully qualify the path of the variable:
+        // - mod1
+        //   - var1
+        //   - modA
+        //     - var1A
+        //     - out1A
+        //   - modB (can import modA, can't import mod2)
+        //     - var1B
+        //     - out1B
+        // - mod2
+
+        // Algorithm to resolve a reference: module..variable.test
+        // Check reserved key words (for_each, etc)
+        // Traverse each component, looking for a known namespace
+        //
 
         Ok(None)
     }

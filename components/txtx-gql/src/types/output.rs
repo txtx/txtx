@@ -1,6 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_vm::types::{ConstructUuid, OutputConstruct};
+use txtx_core::types::{ConstructUuid, OutputConstruct};
 
 pub struct Output {
     pub uuid: ConstructUuid,

@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "components/txtx-cli",
-    "components/txtx-vm",
+    "components/txtx-core",
     "components/txtx-ext-kit",
     "components/txtx-ext-bitcoin"
 ]

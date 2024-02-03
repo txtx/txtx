@@ -43,8 +43,8 @@ jobs:
             ./target/wasm32-unknown-unknown/release/
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
-      - name: Build WASM for txtx-vm
-        run: cargo build --package txtx-vm --release --locked --target wasm32-unknown-unknown --features wasm
+      - name: Build WASM for txtx-core
+        run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm
 
       - name: Build WASM for txtx-ext-kit
         run: cargo build --package txtx-ext-kit --release --locked --target wasm32-unknown-unknown --features wasm
