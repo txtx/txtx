@@ -324,3 +324,20 @@ pub fn get_manifest_location(path: Option<String>) -> Option<FileLocation> {
         }
     }
 }
+
+pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+    let paths = std::fs::read_dir(dir)?
+        .filter_map(|res| res.ok())
+        .map(|dir_entry| dir_entry.path())
+        .filter_map(|path| {
+            if path.extension().map_or(false, |ext| {
+                ["tx", "txvars"].contains(&ext.to_str().unwrap())
+            }) {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    Ok(paths)
+}
