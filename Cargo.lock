@@ -3132,7 +3132,7 @@ name = "txtx-ext-ethereum"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "rand",
+ "getrandom",
  "sha2",
  "txtx-ext-kit",
 ]
