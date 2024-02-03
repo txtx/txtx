@@ -15,8 +15,11 @@ pub fn simulate_manual(
     manual: &mut Manual,
     codec_manager: &mut CodecManager,
 ) -> Result<(), String> {
-    let _ = run_node_indexer(manual)?;
-    let _ = run_node_processor(codec_manager, manual)?;
+    manual
+        .errors
+        .iter()
+        .enumerate()
+        .for_each(|(i, e)| println!("Error {}: {:?}", i + 1, e));
     Ok(())
 }
 
