@@ -5,11 +5,11 @@ use uuid::Uuid;
 
 use self::ext::ExtConstruct;
 
+pub mod ext;
 pub mod import;
 pub mod module;
 pub mod output;
 pub mod variable;
-pub mod ext;
 
 #[derive(Debug)]
 pub enum PreConstructData {
@@ -56,7 +56,6 @@ impl PreConstructData {
             _ => None,
         }
     }
-
 }
 
 #[derive(Debug)]

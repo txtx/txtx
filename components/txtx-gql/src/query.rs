@@ -1,7 +1,7 @@
+use crate::types::manual::ManualDescription;
 use crate::types::module::Module;
 use crate::types::output::Output;
 use crate::types::variable::Variable;
-use crate::types::manual::ManualDescription;
 
 use crate::Context;
 use juniper_codegen::graphql_object;
@@ -174,11 +174,14 @@ impl Query {
             let metadata = manual.get_metadata_module();
             manuals.push(ManualDescription {
                 identifier: id.clone(),
-                name: metadata.and_then(|m| m.name.as_ref()).and_then(|n| Some(n.to_string())),
-                description: metadata.and_then(|m| m.description.as_ref()).and_then(|n| Some(n.to_string())),
+                name: metadata
+                    .and_then(|m| m.name.as_ref())
+                    .and_then(|n| Some(n.to_string())),
+                description: metadata
+                    .and_then(|m| m.description.as_ref())
+                    .and_then(|n| Some(n.to_string())),
             })
         }
         manuals
     }
-
 }
