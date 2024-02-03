@@ -51,6 +51,20 @@ pub fn visit_optional_string_attribute(
     }
 }
 
+pub fn visit_required_string_literal_attribute(
+    field_name: &str,
+    block: &Block,
+) -> Result<String, VisitorError> {
+    let Some(attribute) = block.body.get_attribute(field_name) else {
+        return Err(VisitorError::MissingAttribute(field_name.to_string()));
+    };
+
+    match attribute.value.clone() {
+        Expression::String(value) => Ok(value.to_string()),
+        _ => Err(VisitorError::TypeExpected("string".into())),
+    }
+}
+
 pub fn visit_optional_untyped_attribute(
     field_name: &str,
     block: &Block,
