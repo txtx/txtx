@@ -1,0 +1,5 @@
+
+ethereum transaction "my_tx" {
+  from = variable.from_address
+  to = ethereum.address.my_address
+}

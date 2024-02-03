@@ -1,0 +1,13 @@
+variable "address_again" {
+  value = "test"
+}
+
+variable "from_address" {
+    description = "A from address"
+    default = "from_address::default"
+    value = variable.address_again
+}
+
+ethereum address "my_address" {
+    value = "d8da6bf26964af9d7eed9e03e53415d37aa96045"
+}
