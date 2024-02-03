@@ -1,15 +1,18 @@
 use crate::types::{ImportConstruct, ModuleConstruct, OutputConstruct, VariableConstruct};
 use std::ops::Range;
-use txtx_ext_kit::hcl::{expr::Expression, structure::Block};
+use txtx_ext_kit::{
+    hcl::{expr::Expression, structure::Block},
+    ExtensionConstruct,
+};
 use uuid::Uuid;
 
-use self::ext::ExtConstruct;
+use self::ext::ExtPreConstructData;
 
+pub mod ext;
 pub mod import;
 pub mod module;
 pub mod output;
 pub mod variable;
-pub mod ext;
 
 #[derive(Debug)]
 pub enum PreConstructData {
@@ -17,7 +20,7 @@ pub enum PreConstructData {
     Module(Block),
     Output(Block),
     Import(Block),
-    Ext(Block),
+    Ext(ExtPreConstructData),
     Root,
 }
 
@@ -50,13 +53,12 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_ext(&self) -> Option<&Block> {
+    pub fn as_ext(&self) -> Option<&ExtPreConstructData> {
         match self {
             PreConstructData::Ext(data) => Some(&data),
             _ => None,
         }
     }
-
 }
 
 #[derive(Debug)]
@@ -73,7 +75,7 @@ pub enum ConstructData {
     Output(OutputConstruct),
     Module(ModuleConstruct),
     Import(ImportConstruct),
-    Ext(ExtConstruct),
+    Ext(Box<dyn ExtensionConstruct>),
 }
 
 impl ConstructData {
@@ -83,7 +85,7 @@ impl ConstructData {
             ConstructData::Output(data) => data.name.as_str(),
             ConstructData::Module(data) => data.id.as_str(),
             ConstructData::Import(data) => data.name.as_str(),
-            ConstructData::Ext(data) => data.name.as_str(),
+            ConstructData::Ext(data) => &data.get_name(),
         }
     }
 
@@ -122,6 +124,13 @@ impl ConstructData {
     pub fn as_module(&self) -> Option<&ModuleConstruct> {
         match self {
             ConstructData::Module(data) => Some(&data),
+            _ => None,
+        }
+    }
+
+    pub fn as_ext(&self) -> Option<&Box<dyn ExtensionConstruct>> {
+        match self {
+            ConstructData::Ext(data) => Some(&data),
             _ => None,
         }
     }

@@ -1,5 +1,9 @@
-use super::{ConstructData, ConstructUuid, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
+use super::{
+    ConstructData, ConstructUuid, ModuleConstruct, Package, PackageUuid, PreConstruct,
+    PreConstructData,
+};
 use crate::errors::ConstructErrors;
+use crate::ExtensionManager;
 use daggy::Dag;
 use std::{collections::HashMap, ops::Range};
 use txtx_ext_kit::hcl::expr::{Expression, TraversalOperator};
@@ -51,10 +55,13 @@ impl Manual {
     }
 
     pub fn get_metadata_module(&self) -> Option<&ModuleConstruct> {
-        self.manual_metadata_construct_uuid.as_ref().and_then(|c| self.constructs.get(&c)).and_then(|c| c.as_module())
+        self.manual_metadata_construct_uuid
+            .as_ref()
+            .and_then(|c| self.constructs.get(&c))
+            .and_then(|c| c.as_module())
     }
 
-    pub fn inspect_constructs(&self) {
+    pub fn inspect_constructs(&self, extension_manager: &ExtensionManager) {
         for (package_uuid, package) in self.packages.iter() {
             println!("{} ({})", package.name, package.location.to_string());
             if !package.imports_uuids.is_empty() {
@@ -75,7 +82,8 @@ impl Manual {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_variable().unwrap().name);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.resolve_construct_reference(package_uuid, dep, &extension_manager);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -94,7 +102,8 @@ impl Manual {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_module().unwrap().id);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.resolve_construct_reference(package_uuid, dep, &extension_manager);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -107,14 +116,36 @@ impl Manual {
                 }
             }
 
-            if !package.variables_uuids.is_empty() {
+            if !package.outputs_uuids.is_empty() {
                 println!("Outputs:");
             }
             for construct_uuid in package.outputs_uuids.iter() {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_output().unwrap().name);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.resolve_construct_reference(package_uuid, dep, &extension_manager);
+                    if let Ok(Some(resolved_construct_uuid)) = result {
+                        println!(
+                            "  -> {} resolving to {}",
+                            dep,
+                            resolved_construct_uuid.value()
+                        );
+                    } else {
+                        println!("  -> {} (unable to resolve)", dep,);
+                    }
+                }
+            }
+
+            if !package.exts_uuids.is_empty() {
+                println!("Extensions:");
+            }
+            for construct_uuid in package.exts_uuids.iter() {
+                let construct = self.constructs.get(construct_uuid).unwrap();
+                println!("- {}", construct.as_ext().unwrap().get_name());
+                for dep in construct.collect_dependencies().iter() {
+                    let result =
+                        self.resolve_construct_reference(package_uuid, dep, &extension_manager);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -157,6 +188,7 @@ impl Manual {
         };
 
         let construct_uuid = ConstructUuid::new();
+        // todo: should we be returning a discovery error if the name is already added to a uuid lookup?
         // Update module
         match data {
             PreConstructData::Module(_) => {
@@ -186,11 +218,18 @@ impl Manual {
                     .imports_uuids_lookup
                     .insert(name.clone(), construct_uuid.clone());
             }
-            PreConstructData::Ext(_) => {
-                package.imports_uuids.insert(construct_uuid.clone());
-                package
-                    .imports_uuids_lookup
-                    .insert(name.clone(), construct_uuid.clone());
+            PreConstructData::Ext(ref data) => {
+                package.exts_uuids.insert(construct_uuid.clone());
+                if let Some(ext_uuids_lookup) =
+                    package.exts_uuids_lookup.get_mut(&data.extension_name)
+                {
+                    ext_uuids_lookup.insert(name.clone(), construct_uuid.clone());
+                } else {
+                    package.exts_uuids_lookup.insert(
+                        data.extension_name.clone(),
+                        HashMap::from([(name.clone(), construct_uuid.clone())]),
+                    );
+                }
             }
             PreConstructData::Root => unreachable!(),
         }
@@ -221,10 +260,12 @@ impl Manual {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
+        extension_manager: &ExtensionManager,
     ) -> Result<Option<ConstructUuid>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
+
         let Some(namespace) = traversal.expr.as_variable() else {
             return Ok(None);
         };
@@ -260,6 +301,22 @@ impl Manual {
                     module.variables_uuids_lookup.get(&subsequent_component)
                 {
                     return Ok(Some(construct_uuid.clone()));
+                }
+            }
+            let namespace_str = namespace.as_str();
+            // Look for variables
+            if extension_manager
+                .registered_extensions
+                .get(namespace_str)
+                .is_some()
+            {
+                if let Some(constructs_for_extension) = module.exts_uuids_lookup.get(namespace_str)
+                {
+                    if let Some(construct_uuid) =
+                        constructs_for_extension.get(&subsequent_component)
+                    {
+                        return Ok(Some(construct_uuid.clone()));
+                    }
                 }
             }
         }

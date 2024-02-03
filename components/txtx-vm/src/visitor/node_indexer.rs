@@ -1,11 +1,15 @@
 use crate::{
     errors::{ConstructErrors, DiscoveryError},
-    types::{Manual, PreConstructData},
+    types::{ExtPreConstructData, Manual, PreConstructData},
+    ExtensionManager,
 };
 use txtx_ext_kit::hcl::{self, structure::BlockLabel, Span};
 use txtx_ext_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
 
-pub fn run_node_indexer(manual: &mut Manual) -> Result<bool, String> {
+pub fn run_node_indexer(
+    manual: &mut Manual,
+    ext_manager: &mut ExtensionManager,
+) -> Result<bool, String> {
     let mut has_errored = false;
 
     let Some(source_tree) = manual.source_tree.take() else {
@@ -138,8 +142,8 @@ pub fn run_node_indexer(manual: &mut Manual) -> Result<bool, String> {
                         &module_uri,
                     );
                 }
-                "ext" => {
-                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+                ext_name => {
+                    let Some(extension) = ext_manager.registered_extensions.get(ext_name) else {
                         manual.errors.push(ConstructErrors::Discovery(
                             DiscoveryError::ExtConstruct(Diagnostic {
                                 location: location.clone(),
@@ -149,7 +153,7 @@ pub fn run_node_indexer(manual: &mut Manual) -> Result<bool, String> {
                                     column_start: 0,
                                     column_end: 0,
                                 },
-                                message: "import name missing".to_string(),
+                                message: format!("construct or extension unknown: {}", ext_name),
                                 level: DiagnosticLevel::Error,
                                 documentation: None,
                                 example: None,
@@ -159,32 +163,62 @@ pub fn run_node_indexer(manual: &mut Manual) -> Result<bool, String> {
                         has_errored = true;
                         continue;
                     };
+
+                    let Some(BlockLabel::Ident(construct_name)) = block.labels.first() else {
+                        manual.errors.push(ConstructErrors::Discovery(
+                            DiscoveryError::ExtConstruct(Diagnostic {
+                                location: location.clone(),
+                                span: DiagnosticSpan {
+                                    line_start: 0,
+                                    line_end: 0,
+                                    column_start: 0,
+                                    column_end: 0,
+                                },
+                                message: format!(
+                                    "construct name missing for extension {}",
+                                    ext_name
+                                ),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            }),
+                        ));
+                        has_errored = true;
+                        continue;
+                    };
+
+                    if !extension.supports_construct(&construct_name.value().to_string()) {
+                        manual.errors.push(ConstructErrors::Discovery(
+                            DiscoveryError::ExtConstruct(Diagnostic {
+                                location: location.clone(),
+                                span: DiagnosticSpan {
+                                    line_start: 0,
+                                    line_end: 0,
+                                    column_start: 0,
+                                    column_end: 0,
+                                },
+                                message: "construct not supported by extension".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            }),
+                        ));
+                        has_errored = true;
+                        continue;
+                    }
                     manual.index_node(
-                        name.to_string(),
+                        construct_name.to_string(),
                         location.clone(),
-                        PreConstructData::Ext(block),
+                        PreConstructData::Ext(ExtPreConstructData {
+                            block: block.clone(),
+                            extension_name: ext_name.to_string(),
+                            construct_name: construct_name.value().to_string(),
+                        }),
                         span,
                         &module_uri,
                     );
-                }
-                _ => {
-                    manual.errors.push(ConstructErrors::Discovery(
-                        DiscoveryError::UnknownConstruct(Diagnostic {
-                            location: location.clone(),
-                            span: DiagnosticSpan {
-                                line_start: 0,
-                                line_end: 0,
-                                column_start: 0,
-                                column_end: 0,
-                            },
-                            message: "construct unknown".to_string(),
-                            level: DiagnosticLevel::Error,
-                            documentation: None,
-                            example: None,
-                            parent_diagnostic: None,
-                        }),
-                    ));
-                    has_errored = true;
                 }
             }
         }

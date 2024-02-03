@@ -2,11 +2,11 @@ use crate::{
     types::{
         ConstructData, ImportConstruct, Manual, ModuleConstruct, OutputConstruct, VariableConstruct,
     },
-    CodecManager,
+    ExtensionManager,
 };
 
 pub fn run_node_processor(
-    _codec_manager: &mut CodecManager,
+    extension_manager: &mut ExtensionManager,
     manual: &mut Manual,
 ) -> Result<(), String> {
     // Iterate over explicit modules, add root constructs
@@ -53,6 +53,28 @@ pub fn run_node_processor(
                 ImportConstruct::from_block(&pre_construct.data.as_import().unwrap(), &location)
                     .unwrap();
             new_constructs.push((construct_uuid.clone(), ConstructData::Import(construct)));
+        }
+
+        for construct_uuid in package.exts_uuids.iter() {
+            let pre_construct = manual.pre_constructs.get(construct_uuid).unwrap();
+            let (_, location) = manual.constructs_locations.get(construct_uuid).unwrap();
+            let data = pre_construct.data.as_ext().unwrap();
+            let Some(construct) = extension_manager
+                .from_block(
+                    data.extension_name.clone(),
+                    data.construct_name.clone(),
+                    &data.block,
+                    &location,
+                )
+                .map_err(|e| format!("{:?}", e))?
+            else {
+                return Err(format!(
+                    "Could not get construct {} for extension {}",
+                    data.construct_name, data.extension_name
+                ));
+            };
+
+            new_constructs.push((construct_uuid.clone(), ConstructData::Ext(construct)));
         }
     }
 

@@ -1,8 +1,8 @@
 use std::sync::mpsc::channel;
 
-use txtx_ext_bitcoin::BitcoinCodec;
+use txtx_ext_ethereum::EthereumExtension;
 use txtx_gql::Context as GqlContext;
-use txtx_vm::{simulate_manual, CodecManager};
+use txtx_vm::{simulate_manual, ExtensionManager};
 
 use crate::{
     manifest::{read_manifest_at_path, read_manuals_from_manifest},
@@ -33,13 +33,13 @@ pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Resu
         .ok()
         .and_then(|mut m| m.remove(&manual_name))
         .unwrap();
-    let bitcoin_codec = BitcoinCodec::new();
-    let mut codec_manager = CodecManager::new();
-    codec_manager.register(Box::new(bitcoin_codec));
-    simulate_manual(&mut manual, &mut codec_manager)?;
+    let ethereum_extension = EthereumExtension::new();
+    let mut extension_manager = ExtensionManager::new();
+    extension_manager.register(Box::new(ethereum_extension));
+    simulate_manual(&mut manual, &mut extension_manager)?;
 
     if cmd.no_tui {
-        manual.inspect_constructs();
+        manual.inspect_constructs(&extension_manager);
     } else {
         let _ = term_ui::inspect::main(manual);
     }
@@ -55,10 +55,10 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
     let manifest = read_manifest_at_path(&manifest_file_path)?;
     let mut manuals = read_manuals_from_manifest(&manifest, None)?;
     for (_, manual) in manuals.iter_mut() {
-        let bitcoin_codec = BitcoinCodec::new();
-        let mut codec_manager = CodecManager::new();
-        codec_manager.register(Box::new(bitcoin_codec));
-        simulate_manual(manual, &mut codec_manager)?;
+        let ethereum_extension = EthereumExtension::new();
+        let mut extension_manager = ExtensionManager::new();
+        extension_manager.register(Box::new(ethereum_extension));
+        simulate_manual(manual, &mut extension_manager)?;
     }
     let (tx, rx) = channel();
 

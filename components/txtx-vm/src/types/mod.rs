@@ -2,6 +2,7 @@ mod construct;
 mod manual;
 mod package;
 
+pub use construct::ext::ExtPreConstructData;
 pub use construct::import::ImportConstruct;
 pub use construct::module::ModuleConstruct;
 pub use construct::output::OutputConstruct;

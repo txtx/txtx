@@ -37,7 +37,7 @@ pub struct Package {
     pub imports_uuids: HashSet<ConstructUuid>,
     pub imports_uuids_lookup: HashMap<String, ConstructUuid>,
     pub exts_uuids: HashSet<ConstructUuid>,
-    pub exts_uuids_lookup: HashMap<String, ConstructUuid>,
+    pub exts_uuids_lookup: HashMap<String, HashMap<String, ConstructUuid>>,
 }
 
 impl Package {
