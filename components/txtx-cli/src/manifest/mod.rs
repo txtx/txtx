@@ -1,5 +1,5 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::{collections::BTreeMap, path::PathBuf};
 
 use serde_json::Value;
 use txtx_vm::kit::helpers::fs::{get_txtx_files_paths, FileLocation};

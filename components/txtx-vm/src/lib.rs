@@ -3,7 +3,7 @@ pub mod types;
 pub mod visitor;
 
 pub use txtx_ext_kit as kit;
-use visitor::run_edge_indexer;
+// use visitor::run_edge_indexer;
 
 use std::collections::HashMap;
 
@@ -18,7 +18,7 @@ pub fn simulate_manual(
 ) -> Result<(), String> {
     let _ = run_constructs_indexer(manual)?;
     let _ = run_constructs_processor(codec_manager, manual)?;
-    let edges = run_edge_indexer(manual)?;
+    // let edges = run_edge_indexer(manual)?;
 
     Ok(())
 }

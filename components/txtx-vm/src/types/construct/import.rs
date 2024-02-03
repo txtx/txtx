@@ -37,7 +37,7 @@ impl ImportConstruct {
         let diagnostics = vec![];
 
         let mut parent_location = location.get_parent_location().unwrap(); // todo(lgalabru)
-        parent_location.append_path(&path);
+        parent_location.append_path(&path).unwrap();
         let package_uuid = packages_uuids.get(&parent_location).unwrap(); // todo(lgalabru)
 
         Ok(ImportConstruct {

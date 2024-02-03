@@ -6,8 +6,7 @@ use crate::errors::ConstructErrors;
 use daggy::Dag;
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
-use txtx_ext_kit::hcl::expr::{Expression, Traversal, TraversalOperator};
-use txtx_ext_kit::hcl::visit::visit_traversal_operator;
+use txtx_ext_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_ext_kit::helpers::fs::FileLocation;
 
 #[derive(Debug)]
@@ -254,7 +253,6 @@ impl Manual {
         }
 
         while let Some(component) = components.pop_front() {
-
             println!("{component}");
 
             // Look for modules
@@ -262,8 +260,7 @@ impl Manual {
                 let Some(module_name) = components.pop_front() else {
                     continue;
                 };
-                if let Some(construct_uuid) =
-                current_package.modules_uuids_lookup.get(&module_name)
+                if let Some(construct_uuid) = current_package.modules_uuids_lookup.get(&module_name)
                 {
                     return Ok(Some(construct_uuid.clone()));
                 }
@@ -274,8 +271,7 @@ impl Manual {
                 let Some(output_name) = components.pop_front() else {
                     continue;
                 };
-                if let Some(construct_uuid) =
-                current_package.outputs_uuids_lookup.get(&output_name)
+                if let Some(construct_uuid) = current_package.outputs_uuids_lookup.get(&output_name)
                 {
                     return Ok(Some(construct_uuid.clone()));
                 }
@@ -287,7 +283,7 @@ impl Manual {
                     continue;
                 };
                 if let Some(construct_uuid) =
-                current_package.variables_uuids_lookup.get(&variable_name)
+                    current_package.variables_uuids_lookup.get(&variable_name)
                 {
                     return Ok(Some(construct_uuid.clone()));
                 }
@@ -303,7 +299,7 @@ impl Manual {
 
             if let Some(imported_package) = imported_package {
                 current_package = imported_package;
-                continue
+                continue;
             }
         }
 
