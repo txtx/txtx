@@ -48,6 +48,3 @@ jobs:
 
       - name: Build WASM for txtx-ext-kit
         run: cargo build --package txtx-ext-kit --release --locked --target wasm32-unknown-unknown --features wasm
-
-      - name: Build WASM for txtx-ext-bitcoin
-        run: cargo build --package txtx-ext-bitcoin --release --locked --target wasm32-unknown-unknown --features wasm
