@@ -1,13 +1,13 @@
 [package]
-name = "txtx-core"
+name = "txtx-addon-network-bitcoin"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hex = "0.4.3"
-daggy = "0.8.0"
+sha2 = "0.10.8"
+# strum = "0.25.0"
+# strum_macros = "0.25.3"
 txtx-addon-kit = { path = "../txtx-addon-kit" }
-getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 wasm = ["txtx-addon-kit/wasm"]

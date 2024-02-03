@@ -2,52 +2,56 @@ pub mod errors;
 pub mod types;
 pub mod visitor;
 
+use kit::AddonContext;
 pub use txtx_addon_kit as kit;
+use types::PackageUuid;
 // use visitor::run_edge_indexer;
 
 use std::collections::HashMap;
 
-use txtx_addon_kit::Codec;
+use txtx_addon_kit::Addon;
 use types::Manual;
 use visitor::run_constructs_indexer;
 use visitor::run_constructs_processor;
 
-pub fn simulate_manual(
-    manual: &mut Manual,
-    codec_manager: &mut CodecManager,
-) -> Result<(), String> {
-    let _ = run_constructs_indexer(manual)?;
-    let _ = run_constructs_processor(codec_manager, manual)?;
+pub fn simulate_manual(manual: &mut Manual, addons_ctx: &mut AddonsContext) -> Result<(), String> {
+    let _ = run_constructs_indexer(manual, addons_ctx)?;
+    let _ = run_constructs_processor(manual, addons_ctx)?;
     // let edges = run_edge_indexer(manual)?;
-
     Ok(())
 }
 
-pub struct CodecManager {
-    registered_constructs: HashMap<String, usize>,
-    registered_codecs: HashMap<usize, Box<dyn Codec>>,
+pub struct AddonsContext {
+    addons: HashMap<String, Box<dyn Addon>>,
+    contexts: HashMap<(PackageUuid, String), Box<dyn AddonContext>>,
 }
 
-impl CodecManager {
+impl AddonsContext {
     pub fn new() -> Self {
         Self {
-            registered_constructs: HashMap::new(),
-            registered_codecs: HashMap::new(),
+            addons: HashMap::new(),
+            contexts: HashMap::new(),
         }
     }
 
-    pub fn register(&mut self, codec: Box<dyn Codec>) {
-        let codec_id = self.registered_codecs.len();
-        // Register decoders
-        for decoder in codec.get_supported_decoders().into_iter() {
-            self.registered_constructs.insert(decoder, codec_id);
+    pub fn register(&mut self, addon: Box<dyn Addon>) {
+        self.addons.insert(addon.get_namespace().to_string(), addon);
+    }
+
+    pub fn get_functions_to_register(&mut self) -> Vec<String> {
+        let mut functions = vec![];
+        for (_, addon) in self.addons.iter() {
+            functions.append(&mut addon.get_functions());
         }
-        // Register encoders
-        for encoder in codec.get_supported_encoders().into_iter() {
-            self.registered_constructs.insert(encoder, codec_id);
-        }
-        self.registered_constructs
-            .insert(codec.get_supported_network(), codec_id);
-        self.registered_codecs.insert(codec_id, codec);
+        functions
+    }
+
+    pub fn instantiate_context(&mut self, namespace: &str, package_uuid: &PackageUuid) {
+        let Some(addon) = self.addons.get(namespace) else {
+            return;
+        };
+        let ctx = addon.create_context();
+        self.contexts
+            .insert((package_uuid.clone(), namespace.to_string()), ctx);
     }
 }

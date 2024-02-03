@@ -1,7 +1,9 @@
 use crate::types::{ImportConstruct, ModuleConstruct, OutputConstruct, VariableConstruct};
 use std::ops::Range;
-use txtx_addon_kit::hcl::{expr::Expression, structure::Block};
-use uuid::Uuid;
+use txtx_addon_kit::{
+    hcl::{expr::Expression, structure::Block},
+    types::ConstructUuid,
+};
 
 use self::ext::ExtConstruct;
 
@@ -17,7 +19,7 @@ pub enum PreConstructData {
     Module(Block),
     Output(Block),
     Import(Block),
-    Ext(Block),
+    Addon(Block),
     Root,
 }
 
@@ -50,9 +52,9 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_ext(&self) -> Option<&Block> {
+    pub fn as_addon(&self) -> Option<&Block> {
         match self {
-            PreConstructData::Ext(data) => Some(&data),
+            PreConstructData::Addon(data) => Some(&data),
             _ => None,
         }
     }
@@ -133,25 +135,4 @@ pub struct Construct {
     pub name: String,
     pub data: ConstructData,
     pub span: Range<usize>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum ConstructUuid {
-    Local(Uuid),
-}
-
-impl ConstructUuid {
-    pub fn new() -> Self {
-        Self::Local(Uuid::new_v4())
-    }
-
-    pub fn from_uuid(uuid: &Uuid) -> Self {
-        Self::Local(uuid.clone())
-    }
-
-    pub fn value(&self) -> Uuid {
-        match &self {
-            Self::Local(v) => v.clone(),
-        }
-    }
 }

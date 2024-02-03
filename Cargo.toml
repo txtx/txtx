@@ -3,7 +3,8 @@ members = [
     "components/txtx-cli",
     "components/txtx-core",
     "components/txtx-addon-kit",
-    "components/txtx-ext-bitcoin"
+    # "components/txtx-addon-network-bitcoin",
+    "components/txtx-addon-network-stacks"
 ]
 default-members = ["components/txtx-cli"]
 resolver = "2"

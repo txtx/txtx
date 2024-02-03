@@ -2,12 +2,12 @@ use crate::{
     types::{
         ConstructData, ImportConstruct, Manual, ModuleConstruct, OutputConstruct, VariableConstruct,
     },
-    CodecManager,
+    AddonsContext,
 };
 
 pub fn run_constructs_processor(
-    _codec_manager: &mut CodecManager,
     manual: &mut Manual,
+    _addons_ctx: &mut AddonsContext,
 ) -> Result<(), String> {
     // Iterate over explicit modules, add root constructs
     // Constructs paths, ensure uniqueness

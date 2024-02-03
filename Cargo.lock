@@ -2360,6 +2360,15 @@ dependencies = [
  "serde",
  "serde_derive",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "txtx-addon-network-stacks"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "txtx-addon-kit",
 ]
 
 [[package]]
@@ -2380,8 +2389,8 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "toml",
+ "txtx-addon-network-stacks",
  "txtx-core",
- "txtx-ext-bitcoin",
  "txtx-gql",
  "unicode-width",
 ]
@@ -2393,15 +2402,6 @@ dependencies = [
  "daggy",
  "getrandom",
  "hex",
- "txtx-addon-kit",
- "uuid",
-]
-
-[[package]]
-name = "txtx-ext-bitcoin"
-version = "0.1.0"
-dependencies = [
- "sha2",
  "txtx-addon-kit",
 ]
 

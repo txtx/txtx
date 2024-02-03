@@ -1,6 +1,7 @@
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use std::borrow::BorrowMut;
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::str::FromStr;
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
@@ -18,11 +19,25 @@ pub trait FileAccessor {
     fn write_file(&self, path: String, content: &[u8]) -> FileAccessorResult<()>;
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum FileLocation {
     FileSystem { path: PathBuf },
     Url { url: Url },
+}
+
+impl Hash for FileLocation {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::FileSystem { path } => {
+                let canonicalized_path = path.canonicalize().unwrap_or(path.clone());
+                canonicalized_path.hash(state);
+            }
+            Self::Url { url } => {
+                url.hash(state);
+            }
+        }
+    }
 }
 
 impl Display for FileLocation {

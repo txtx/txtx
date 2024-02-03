@@ -1,13 +1,11 @@
-use super::{
-    ConstructData, ConstructUuid, ModuleConstruct, Package, PackageUuid, PreConstruct,
-    PreConstructData,
-};
+use super::{ConstructData, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
 use crate::errors::ConstructErrors;
 use daggy::Dag;
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::ConstructUuid;
 
 #[derive(Debug)]
 pub struct SourceTree {
@@ -214,10 +212,10 @@ impl Manual {
                     .imports_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
             }
-            PreConstructData::Ext(_) => {
-                package.exts_uuids.insert(construct_uuid.clone());
+            PreConstructData::Addon(_) => {
+                package.addons_uuids.insert(construct_uuid.clone());
                 package
-                    .exts_uuids_lookup
+                    .addons_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
             }
             PreConstructData::Root => unreachable!(),
@@ -323,7 +321,7 @@ impl Manual {
             }
         }
 
-        // Look for namespaces registered by codecs
+        // Look for namespaces registered by addons
 
         // Dependency detector:
         // When a traversal expression is detected:

@@ -1,8 +1,8 @@
 use std::sync::mpsc::channel;
 
-use txtx_ext_bitcoin::BitcoinCodec;
+use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_core::{simulate_manual, AddonsContext};
 use txtx_gql::Context as GqlContext;
-use txtx_core::{simulate_manual, CodecManager};
 
 use crate::{
     manifest::{read_manifest_at_path, read_manuals_from_manifest},
@@ -32,11 +32,14 @@ pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Resu
     let mut manual = read_manuals_from_manifest(&manifest, Some(&vec![manual_name.clone()]))
         .ok()
         .and_then(|mut m| m.remove(&manual_name))
-        .unwrap();
-    let bitcoin_codec = BitcoinCodec::new();
-    let mut codec_manager = CodecManager::new();
-    codec_manager.register(Box::new(bitcoin_codec));
-    simulate_manual(&mut manual, &mut codec_manager)?;
+        .ok_or(format!(
+            "unable to find entry '{}' in manifest {}",
+            manual_name, manifest_file_path
+        ))?;
+    let stacks_addon = StacksNetworkAddon::new();
+    let mut addons_ctx = AddonsContext::new();
+    addons_ctx.register(Box::new(stacks_addon));
+    simulate_manual(&mut manual, &mut addons_ctx)?;
 
     if cmd.no_tui {
         manual.inspect_constructs();
@@ -55,10 +58,10 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
     let manifest = read_manifest_at_path(&manifest_file_path)?;
     let mut manuals = read_manuals_from_manifest(&manifest, None)?;
     for (_, manual) in manuals.iter_mut() {
-        let bitcoin_codec = BitcoinCodec::new();
-        let mut codec_manager = CodecManager::new();
-        codec_manager.register(Box::new(bitcoin_codec));
-        simulate_manual(manual, &mut codec_manager)?;
+        let stacks_addon = StacksNetworkAddon::new();
+        let mut addon_router = AddonsContext::new();
+        addon_router.register(Box::new(stacks_addon));
+        simulate_manual(manual, &mut addon_router)?;
     }
     let (tx, rx) = channel();
 

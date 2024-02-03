@@ -2,7 +2,7 @@ use super::ConstructUuid;
 use daggy::{Dag, NodeIndex};
 use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use uuid::Uuid;
+use txtx_addon_kit::uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackageUuid {
@@ -36,8 +36,8 @@ pub struct Package {
     pub modules_uuids_lookup: HashMap<String, ConstructUuid>,
     pub imports_uuids: HashSet<ConstructUuid>,
     pub imports_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub exts_uuids: HashSet<ConstructUuid>,
-    pub exts_uuids_lookup: HashMap<String, ConstructUuid>,
+    pub addons_uuids: HashSet<ConstructUuid>,
+    pub addons_uuids_lookup: HashMap<String, ConstructUuid>,
 }
 
 impl Package {
@@ -59,8 +59,8 @@ impl Package {
             modules_uuids_lookup: HashMap::new(),
             imports_uuids: HashSet::new(),
             imports_uuids_lookup: HashMap::new(),
-            exts_uuids: HashSet::new(),
-            exts_uuids_lookup: HashMap::new(),
+            addons_uuids: HashSet::new(),
+            addons_uuids_lookup: HashMap::new(),
         }
     }
 }

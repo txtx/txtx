@@ -10,6 +10,7 @@ hcl-edit = "0.7.5"
 serde = "1"
 serde_derive = "1"
 url = { version = "2.2.2", features = ["serde"] }
+uuid = { version = "1.7.0", features = ["v4"] }
 
 [features]
 wasm = []

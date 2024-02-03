@@ -7,7 +7,7 @@ pub enum DiscoveryError {
     OutputConstruct(Diagnostic),
     ModuleConstruct(Diagnostic),
     ImportConstruct(Diagnostic),
-    ExtConstruct(Diagnostic),
+    AddonConstruct(Diagnostic),
 }
 
 #[derive(Debug)]

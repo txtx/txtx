@@ -1,5 +1,5 @@
 [package]
-name = "txtx-ext-bitcoin"
+name = "txtx-addon-network-stacks"
 version = "0.1.0"
 edition = "2021"
 

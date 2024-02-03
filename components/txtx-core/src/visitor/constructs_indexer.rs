@@ -3,6 +3,7 @@ use std::collections::{HashSet, VecDeque};
 use crate::{
     errors::{ConstructErrors, DiscoveryError},
     types::{Manual, PreConstructData},
+    AddonsContext,
 };
 use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
 use txtx_addon_kit::{
@@ -13,7 +14,10 @@ use txtx_addon_kit::{
     },
 };
 
-pub fn run_constructs_indexer(manual: &mut Manual) -> Result<bool, String> {
+pub fn run_constructs_indexer(
+    manual: &mut Manual,
+    addons_ctx: &mut AddonsContext,
+) -> Result<bool, String> {
     let mut has_errored = false;
 
     let Some(source_tree) = manual.source_tree.take() else {
@@ -95,11 +99,6 @@ pub fn run_constructs_indexer(manual: &mut Manual) -> Result<bool, String> {
                             }
                         }
                     }
-
-                    println!(
-                        "PACKAGE {} ({:?}) will be imported by {}",
-                        package_name, location, package_name
-                    );
 
                     manual.index_construct(
                         name.to_string(),
@@ -200,10 +199,10 @@ pub fn run_constructs_indexer(manual: &mut Manual) -> Result<bool, String> {
                         &package_location,
                     );
                 }
-                "ext" => {
+                "addon" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         manual.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::ExtConstruct(Diagnostic {
+                            DiscoveryError::AddonConstruct(Diagnostic {
                                 location: location.clone(),
                                 span: DiagnosticSpan {
                                     line_start: 0,
@@ -224,7 +223,7 @@ pub fn run_constructs_indexer(manual: &mut Manual) -> Result<bool, String> {
                     manual.index_construct(
                         name.to_string(),
                         location.clone(),
-                        PreConstructData::Ext(block),
+                        PreConstructData::Addon(block),
                         span,
                         &package_name,
                         &package_location,
