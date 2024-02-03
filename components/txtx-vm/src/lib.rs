@@ -3,20 +3,23 @@ pub mod types;
 pub mod visitor;
 
 pub use txtx_ext_kit as kit;
+use visitor::run_edge_indexer;
 
 use std::collections::HashMap;
 
 use txtx_ext_kit::Codec;
 use types::Manual;
-use visitor::run_node_indexer;
-use visitor::run_node_processor;
+use visitor::run_constructs_indexer;
+use visitor::run_constructs_processor;
 
 pub fn simulate_manual(
     manual: &mut Manual,
     codec_manager: &mut CodecManager,
 ) -> Result<(), String> {
-    let _ = run_node_indexer(manual)?;
-    let _ = run_node_processor(codec_manager, manual)?;
+    let _ = run_constructs_indexer(manual)?;
+    let _ = run_constructs_processor(codec_manager, manual)?;
+    let edges = run_edge_indexer(manual)?;
+
     Ok(())
 }
 

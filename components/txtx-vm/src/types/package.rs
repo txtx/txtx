@@ -41,14 +41,14 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn new(module_uri: &(String, FileLocation)) -> Self {
+    pub fn new(package_name: &str, package_location: &FileLocation) -> Self {
         let uuid = PackageUuid::new();
         let mut constructs_graph = Dag::new();
         let constructs_graph_root = constructs_graph.add_node(uuid.value());
         Self {
             uuid,
-            name: module_uri.0.clone(),
-            location: module_uri.1.clone(),
+            name: package_name.to_string(),
+            location: package_location.clone(),
             constructs_graph,
             constructs_graph_root,
             variables_uuids: HashSet::new(),

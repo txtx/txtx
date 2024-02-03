@@ -1,0 +1,8 @@
+
+import "package_1" {
+    path = "../common/package_1"
+}
+
+variable "manual_v1_name" {
+    value = package_1.output.package_1_output_1
+}

@@ -1,6 +1,6 @@
 {
     "manuals": {
-        "manual_v1": "./man/common/package_1",
+        "manual_v1": "./man/v1",
         "manual_v2": "./man/common/package_2",
         "manual_v3": "./man/common/package_3"
     },

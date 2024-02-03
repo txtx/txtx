@@ -5,7 +5,7 @@ use crate::{
     CodecManager,
 };
 
-pub fn run_node_processor(
+pub fn run_constructs_processor(
     _codec_manager: &mut CodecManager,
     manual: &mut Manual,
 ) -> Result<(), String> {
@@ -49,9 +49,12 @@ pub fn run_node_processor(
             let pre_construct = manual.pre_constructs.get(construct_uuid).unwrap();
             let (_, location) = manual.constructs_locations.get(construct_uuid).unwrap();
 
-            let construct =
-                ImportConstruct::from_block(&pre_construct.data.as_import().unwrap(), &location)
-                    .unwrap();
+            let construct = ImportConstruct::from_block(
+                &pre_construct.data.as_import().unwrap(),
+                &location,
+                &manual.packages_uuid_lookup,
+            )
+            .unwrap();
             new_constructs.push((construct_uuid.clone(), ConstructData::Import(construct)));
         }
     }

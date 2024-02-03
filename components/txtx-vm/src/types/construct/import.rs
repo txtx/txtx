@@ -1,23 +1,29 @@
+use std::collections::HashMap;
+
 use txtx_ext_kit::hcl::{expr::Expression, structure::Block};
 use txtx_ext_kit::helpers::fs::FileLocation;
 use txtx_ext_kit::helpers::hcl::{
     collect_dependencies_from_expression, visit_label, visit_optional_untyped_attribute,
-    VisitorError,
+    visit_required_string_literal_attribute, VisitorError,
 };
 use txtx_ext_kit::types::diagnostics::Diagnostic;
+
+use crate::types::PackageUuid;
 
 #[derive(Clone, Debug)]
 pub struct ImportConstruct {
     pub name: String,
     pub description: Option<Expression>,
-    pub path: Option<Expression>,
+    pub path: String,
     pub diagnostics: Vec<Diagnostic>,
+    pub package_uuid: PackageUuid,
 }
 
 impl ImportConstruct {
     pub fn from_block(
         block: &Block,
-        _location: &FileLocation,
+        location: &FileLocation,
+        packages_uuids: &HashMap<FileLocation, PackageUuid>,
     ) -> Result<ImportConstruct, VisitorError> {
         // Retrieve name
         let name = visit_label(0, "name", &block)?;
@@ -26,15 +32,20 @@ impl ImportConstruct {
         let description = visit_optional_untyped_attribute("description", &block)?;
 
         // Retrieve path
-        let path = visit_optional_untyped_attribute("path", &block)?;
+        let path = visit_required_string_literal_attribute("path", &block)?;
 
         let diagnostics = vec![];
+
+        let mut parent_location = location.get_parent_location().unwrap(); // todo(lgalabru)
+        parent_location.append_path(&path);
+        let package_uuid = packages_uuids.get(&parent_location).unwrap(); // todo(lgalabru)
 
         Ok(ImportConstruct {
             name,
             description,
             path,
             diagnostics,
+            package_uuid: package_uuid.clone(),
         })
     }
 
