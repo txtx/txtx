@@ -8,7 +8,7 @@ hex = "0.4.3"
 daggy = "0.8.0"
 uuid = { version = "1.7.0", features = ["v4"] }
 txtx-ext-kit = { path = "../txtx-ext-kit" }
-getrandom = { version = "0.2", features = ["js"] }
+# getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 wasm = ["txtx-ext-kit/wasm"]
