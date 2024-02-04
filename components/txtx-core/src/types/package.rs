@@ -26,8 +26,6 @@ pub struct Package {
     pub uuid: PackageUuid,
     pub name: String,
     pub location: FileLocation,
-    pub constructs_graph_root: NodeIndex<u32>,
-    pub constructs_graph: Dag<Uuid, u32, u32>,
     pub variables_uuids: HashSet<ConstructUuid>,
     pub variables_uuids_lookup: HashMap<String, ConstructUuid>,
     pub outputs_uuids: HashSet<ConstructUuid>,
@@ -43,14 +41,10 @@ pub struct Package {
 impl Package {
     pub fn new(package_name: &str, package_location: &FileLocation) -> Self {
         let uuid = PackageUuid::new();
-        let mut constructs_graph = Dag::new();
-        let constructs_graph_root = constructs_graph.add_node(uuid.value());
         Self {
             uuid,
             name: package_name.to_string(),
             location: package_location.clone(),
-            constructs_graph,
-            constructs_graph_root,
             variables_uuids: HashSet::new(),
             variables_uuids_lookup: HashMap::new(),
             outputs_uuids: HashSet::new(),

@@ -1,6 +1,7 @@
 use super::{ConstructData, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
 use crate::errors::ConstructErrors;
-use daggy::Dag;
+use daggy::{Dag, NodeIndex};
+use txtx_addon_kit::uuid::Uuid;
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
@@ -30,7 +31,11 @@ pub struct Manual {
     pub packages_uuid_lookup: HashMap<FileLocation, PackageUuid>,
     pub manual_metadata_construct_uuid: Option<ConstructUuid>,
     pub packages: HashMap<PackageUuid, Package>,
-    pub packages_graph: Dag<PackageUuid, u32, u32>,
+    pub graph_root: NodeIndex<u32>,
+    pub packages_graph: Dag<Uuid, u32, u32>,
+    pub constructs_graph: Dag<Uuid, u32, u32>,
+    pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
+    pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub pre_constructs: HashMap<ConstructUuid, PreConstruct>,
     pub constructs: HashMap<ConstructUuid, ConstructData>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
@@ -39,11 +44,21 @@ pub struct Manual {
 
 impl Manual {
     pub fn new(source_tree: Option<SourceTree>) -> Self {
+        let uuid = PackageUuid::new();
+        let mut packages_graph = Dag::new();
+        let graph_root = packages_graph.add_node(uuid.value());
+        let mut constructs_graph = Dag::new();
+        let graph_root = constructs_graph.add_node(uuid.value());
+
         Self {
             source_tree,
             packages: HashMap::new(),
             packages_uuid_lookup: HashMap::new(),
-            packages_graph: Dag::new(),
+            packages_graph,
+            constructs_graph,
+            constructs_graph_nodes: HashMap::new(),
+            packages_graph_nodes: HashMap::new(),
+            graph_root,
             manual_metadata_construct_uuid: None,
             errors: vec![],
             pre_constructs: HashMap::new(),
@@ -133,26 +148,6 @@ impl Manual {
             }
             println!("");
         }
-        // for (module_name, (root_node, graph)) in self.constructs_graph.iter() {
-        //     let mut walker = graph.children(*root_node).iter(&graph);
-        //     while let Some((_edge, node)) = walker.next() {
-        //         let construct_uuid = graph
-        //             .node_weight(node)
-        //             .expect("unable to retrieve construct uuid");
-        //         if let Some(construct) = self.constructs.get(construct_uuid) {
-        //             println!(
-        //                 "- {}/{}: {:?}",
-        //                 module_name,
-        //                 construct.get_construct_uri(),
-        //                 construct
-        //                     .collect_dependencies()
-        //                     .into_iter()
-        //                     .map(|e| e.to_string())
-        //                     .collect::<Vec<String>>()
-        //             );
-        //         }
-        //     }
-        // }
     }
 
     pub fn index_construct(
@@ -163,22 +158,22 @@ impl Manual {
         construct_span: Range<usize>,
         package_name: &String,
         package_location: &FileLocation,
-    ) {
+    ) -> Result<PackageUuid, String> {
         // Retrieve existing module_uuid, create otherwise
         let package_uuid = loop {
-            match self.packages_uuid_lookup.get(&package_location) {
-                Some(uuid) => break uuid,
-                None => {
-                    let package = Package::new(&package_name, &package_location);
-                    self.packages_uuid_lookup
-                        .insert(package_location.clone(), package.uuid.clone());
-                    self.packages.insert(package.uuid.clone(), package);
-                    continue;
-                }
+            if let Some(uuid) = self.packages_uuid_lookup.get(&package_location) {
+                break uuid.clone();
             }
+            let package = Package::new(&package_name, &package_location);
+            self.packages_uuid_lookup
+                .insert(package_location.clone(), package.uuid.clone());
+            let package_uuid = package.uuid.clone();
+            self.packages.insert(package_uuid.clone(), package);
+            self.packages_graph.add_child(self.graph_root, 0, package_uuid.value());
+            continue;
         };
 
-        let Some(package) = self.packages.get_mut(package_uuid) else {
+        let Some(package) = self.packages.get_mut(&package_uuid) else {
             unreachable!()
         };
 
@@ -220,12 +215,12 @@ impl Manual {
             }
             PreConstructData::Root => unreachable!(),
         }
-        package.constructs_graph.add_child(
-            package.constructs_graph_root.clone(),
+        let (_, node_index) = self.constructs_graph.add_child(
+            self.graph_root.clone(),
             0,
             construct_uuid.value(),
         );
-
+        self.constructs_graph_nodes.insert(construct_uuid.value(), node_index);
         // Update plan
         let pre_construct = PreConstruct {
             uuid: construct_uuid.clone(),
@@ -239,6 +234,7 @@ impl Manual {
             construct_uuid.clone(),
             (package_uuid.clone(), construct_location),
         );
+        Ok(package_uuid)
     }
 
     pub fn add_construct(&mut self, uuid: &ConstructUuid, construct: ConstructData) {
