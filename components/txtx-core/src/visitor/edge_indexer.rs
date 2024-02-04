@@ -28,11 +28,7 @@ pub fn run_edge_indexer(
             for dep in construct.collect_dependencies().iter() {
                 let result = manual.resolve_construct_reference(package_uuid, dep);
                 if let Ok(Some(resolved_construct_uuid)) = result {
-                    println!(
-                        "  -> {} resolving to {}",
-                        dep,
-                        resolved_construct_uuid.value()
-                    );
+                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);
                 }
@@ -43,11 +39,7 @@ pub fn run_edge_indexer(
             for dep in construct.collect_dependencies().iter() {
                 let result = manual.resolve_construct_reference(package_uuid, dep);
                 if let Ok(Some(resolved_construct_uuid)) = result {
-                    println!(
-                        "  -> {} resolving to {}",
-                        dep,
-                        resolved_construct_uuid.value()
-                    );
+                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);
                 }

@@ -3,22 +3,35 @@ module "manual" {
   description = "Lorem ipsum dolor sit amet"
 }
 
-variable "say_hello" {
+variable "hello" {
   description = "Greeting variable"
   value = "Hello"
 }
 
-variable "to" {
+variable "world" {
   description = "Destination"
   value = "World"
 }
 
-output "say_hello_world" {
-  description = "Combining variables"
-  value = "${variable.say_hello}, ${variable.to}! ${stacks_encode_ok(1)}"
+variable "json_input" {
+  description = "Input json"
+  value = "{ \"message\": \"Hello, World!\" }"
 }
 
-output "output_no_deps" {
-  description = "Destination"
-  value = "ok"
+module "concatenate_inputs" {
+  description = "${variable.hello}, ${variable.world}!"
+}
+
+module "query_json_input" {
+  description = json_query(variable.json_input)
+}
+
+output "message_from_concatenation" {
+  description = "Combining variables"
+  value = module.concatenate_inputs
+}
+
+output "message_from_jq" {
+  description = "Combining variables"
+  value = module.query_json_input
 }
