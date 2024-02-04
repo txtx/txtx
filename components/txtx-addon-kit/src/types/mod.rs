@@ -1,6 +1,7 @@
 use uuid::Uuid;
 
 pub mod diagnostics;
+pub mod functions;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstructUuid {

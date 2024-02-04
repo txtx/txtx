@@ -1,11 +1,18 @@
+#[macro_use]
+extern crate lazy_static;
+
 pub mod errors;
 pub mod types;
 pub mod visitor;
+pub mod functions;
+pub mod runtime;
 
+use kit::hcl::structure::Block;
+use kit::types::functions::NativeFunction;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
 use types::PackageUuid;
-// use visitor::run_edge_indexer;
+use visitor::run_edge_indexer;
 
 use std::collections::HashMap;
 
@@ -17,7 +24,7 @@ use visitor::run_constructs_processor;
 pub fn simulate_manual(manual: &mut Manual, addons_ctx: &mut AddonsContext) -> Result<(), String> {
     let _ = run_constructs_indexer(manual, addons_ctx)?;
     let _ = run_constructs_processor(manual, addons_ctx)?;
-    // let edges = run_edge_indexer(manual)?;
+    let edges = run_edge_indexer(manual, addons_ctx)?;
     Ok(())
 }
 
@@ -38,20 +45,39 @@ impl AddonsContext {
         self.addons.insert(addon.get_namespace().to_string(), addon);
     }
 
-    pub fn get_functions_to_register(&mut self) -> Vec<String> {
+    pub fn consolidate_functions_to_register(&mut self) -> Vec<NativeFunction> {
         let mut functions = vec![];
         for (_, addon) in self.addons.iter() {
-            functions.append(&mut addon.get_functions());
+            let native_functions = addon.get_native_functions();
+            functions.append(&mut addon.get_native_functions());
         }
         functions
     }
 
-    pub fn instantiate_context(&mut self, namespace: &str, package_uuid: &PackageUuid) {
-        let Some(addon) = self.addons.get(namespace) else {
-            return;
-        };
-        let ctx = addon.create_context();
-        self.contexts
-            .insert((package_uuid.clone(), namespace.to_string()), ctx);
+    fn find_or_create_context(
+        &mut self,
+        namespace: &str,
+        package_uuid: &PackageUuid,
+    ) -> Result<&Box<dyn AddonContext>, String> {
+        let key = (package_uuid.clone(), namespace.to_string());
+        if self.contexts.get(&key).is_none() {
+            let Some(addon) = self.addons.get(namespace) else {
+                return Err(format!("addon '{}' unknown", namespace));
+            };
+            let ctx = addon.create_context();
+            self.contexts.insert(key.clone(), ctx);
+        }
+        return Ok(self.contexts.get(&key).unwrap());
+    }
+
+    pub fn index_construct(
+        &mut self,
+        namespace: &str,
+        package_uuid: &PackageUuid,
+        block: &Block,
+    ) -> Result<bool, String> {
+        let ctx = self.find_or_create_context(namespace, package_uuid)?;
+        // ctx.index_pre_construct(name, block, location);
+        Ok(true)
     }
 }

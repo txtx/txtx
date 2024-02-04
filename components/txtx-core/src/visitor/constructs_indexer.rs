@@ -200,7 +200,12 @@ pub fn run_constructs_indexer(
                     );
                 }
                 "addon" => {
-                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+                    // Read namespece then send the block to the
+                    let (
+                        Some(BlockLabel::String(namespace)),
+                        Some(BlockLabel::String(construct_name)),
+                    ) = (block.labels.first(), block.labels.last())
+                    else {
                         manual.errors.push(ConstructErrors::Discovery(
                             DiscoveryError::AddonConstruct(Diagnostic {
                                 location: location.clone(),
@@ -210,7 +215,7 @@ pub fn run_constructs_indexer(
                                     column_start: 0,
                                     column_end: 0,
                                 },
-                                message: "import name missing".to_string(),
+                                message: "addon syntax invalid".to_string(),
                                 level: DiagnosticLevel::Error,
                                 documentation: None,
                                 example: None,
@@ -220,14 +225,16 @@ pub fn run_constructs_indexer(
                         has_errored = true;
                         continue;
                     };
-                    manual.index_construct(
-                        name.to_string(),
+                    // addons_ctx.
+                    let package_uuid = manual.index_construct(
+                        construct_name.to_string(),
                         location.clone(),
                         PreConstructData::Addon(block),
                         span,
                         &package_name,
                         &package_location,
-                    );
+                    )?;
+                    // addons_ctx.
                 }
                 _ => {
                     manual.errors.push(ConstructErrors::Discovery(

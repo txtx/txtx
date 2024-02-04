@@ -8,6 +8,8 @@ hex = "0.4.3"
 daggy = "0.8.0"
 txtx-addon-kit = { path = "../txtx-addon-kit" }
 getrandom = { version = "0.2", features = ["js"] }
+lazy_static = "1.4.0"
+jaq-core = "1.2.1"
 
 [features]
 wasm = ["txtx-addon-kit/wasm"]

@@ -1,28 +1,36 @@
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
+extern crate txtx_addon_kit;
+
+mod functions;
+
 use std::collections::HashMap;
 
 use txtx_addon_kit::{
     hcl::{expr::Expression, structure::Block},
     helpers::{fs::FileLocation, hcl::VisitorError},
-    types::{diagnostics::Diagnostic, ConstructUuid},
+    types::{diagnostics::Diagnostic, functions::NativeFunction, ConstructUuid},
     Addon, AddonConstruct, AddonContext,
 };
 
 #[derive(Debug)]
 pub struct StacksNetworkAddon;
 
+impl StacksNetworkAddon {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl Addon for StacksNetworkAddon {
     fn get_namespace(&self) -> &str {
         "stacks"
     }
 
-    fn get_functions(&self) -> Vec<String> {
-        vec![
-            "stacks_encode_buffer".to_string(),
-            "stacks_encode_list".to_string(),
-            "stacks_encode_uint".to_string(),
-            "stacks_encode_int".to_string(),
-            "stacks_encode_tuple".to_string(),
-        ]
+    fn get_native_functions(&self) -> Vec<NativeFunction> {
+        functions::STACKS_NATIVE_FUNCTIONS.clone()
     }
 
     fn get_constructs_types(&self) -> Vec<String> {
@@ -59,7 +67,7 @@ impl AddonContext for StacksNetworkAddonContext {
 
     fn index_pre_construct(
         self: &Self,
-        _name: &String,
+        _construct_name: &String,
         _block: &Block,
         _location: &FileLocation,
     ) -> Result<ConstructUuid, Diagnostic> {

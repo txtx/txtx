@@ -7,9 +7,10 @@ use hcl::{expr::Expression, structure::Block};
 pub use hcl_edit as hcl;
 use helpers::{fs::FileLocation, hcl::VisitorError};
 use std::fmt::Debug;
-use types::{diagnostics::Diagnostic, ConstructUuid};
+use types::{diagnostics::Diagnostic, functions::NativeFunction, ConstructUuid};
 
 pub mod helpers;
+pub mod macros;
 pub mod types;
 
 ///
@@ -17,7 +18,7 @@ pub trait Addon: Debug {
     ///
     fn get_namespace(self: &Self) -> &str;
     ///
-    fn get_functions(self: &Self) -> Vec<String>;
+    fn get_native_functions(self: &Self) -> Vec<NativeFunction>;
     ///
     fn get_constructs_types(&self) -> Vec<String>;
     ///
@@ -34,7 +35,7 @@ pub trait AddonContext: Debug + Sync + Send {
     ///
     fn index_pre_construct(
         self: &Self,
-        name: &String,
+        construct_name: &String,
         block: &Block,
         location: &FileLocation,
     ) -> Result<ConstructUuid, Diagnostic>;
