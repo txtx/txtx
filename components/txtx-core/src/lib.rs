@@ -2,13 +2,13 @@
 extern crate lazy_static;
 
 pub mod errors;
-pub mod types;
-pub mod visitor;
 pub mod functions;
 pub mod runtime;
+pub mod types;
+pub mod visitor;
 
 use kit::hcl::structure::Block;
-use kit::types::functions::NativeFunction;
+use kit::types::functions::FunctionDeclaration;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
 use types::PackageUuid;
@@ -25,6 +25,7 @@ pub fn simulate_manual(manual: &mut Manual, addons_ctx: &mut AddonsContext) -> R
     let _ = run_constructs_indexer(manual, addons_ctx)?;
     let _ = run_constructs_processor(manual, addons_ctx)?;
     let edges = run_edge_indexer(manual, addons_ctx)?;
+    runtime::run(manual, addons_ctx)?;
     Ok(())
 }
 
@@ -45,7 +46,7 @@ impl AddonsContext {
         self.addons.insert(addon.get_namespace().to_string(), addon);
     }
 
-    pub fn consolidate_functions_to_register(&mut self) -> Vec<NativeFunction> {
+    pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionDeclaration> {
         let mut functions = vec![];
         for (_, addon) in self.addons.iter() {
             let native_functions = addon.get_native_functions();

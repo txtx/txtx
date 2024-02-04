@@ -7,7 +7,7 @@ use hcl::{expr::Expression, structure::Block};
 pub use hcl_edit as hcl;
 use helpers::{fs::FileLocation, hcl::VisitorError};
 use std::fmt::Debug;
-use types::{diagnostics::Diagnostic, functions::NativeFunction, ConstructUuid};
+use types::{diagnostics::Diagnostic, functions::FunctionDeclaration, ConstructUuid};
 
 pub mod helpers;
 pub mod macros;
@@ -18,9 +18,9 @@ pub trait Addon: Debug {
     ///
     fn get_namespace(self: &Self) -> &str;
     ///
-    fn get_native_functions(self: &Self) -> Vec<NativeFunction>;
+    fn get_native_functions(self: &Self) -> Vec<FunctionDeclaration>;
     ///
-    fn get_constructs_types(&self) -> Vec<String>;
+    fn get_constructs_types(self: &Self) -> Vec<String>;
     ///
     fn create_context(self: &Self) -> Box<dyn AddonContext>;
 }
@@ -39,6 +39,11 @@ pub trait AddonContext: Debug + Sync + Send {
         block: &Block,
         location: &FileLocation,
     ) -> Result<ConstructUuid, Diagnostic>;
+    ///
+    fn resolve_construct_dependencies(
+        self: &Self,
+        construct_uuid: &ConstructUuid,
+    ) -> Vec<ConstructUuid>;
 }
 
 ///

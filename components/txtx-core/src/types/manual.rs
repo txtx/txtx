@@ -1,12 +1,12 @@
 use super::{ConstructData, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
 use crate::errors::ConstructErrors;
 use daggy::{Dag, NodeIndex};
-use txtx_addon_kit::uuid::Uuid;
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::uuid::Uuid;
 
 #[derive(Debug)]
 pub struct SourceTree {
@@ -169,7 +169,8 @@ impl Manual {
                 .insert(package_location.clone(), package.uuid.clone());
             let package_uuid = package.uuid.clone();
             self.packages.insert(package_uuid.clone(), package);
-            self.packages_graph.add_child(self.graph_root, 0, package_uuid.value());
+            self.packages_graph
+                .add_child(self.graph_root, 0, package_uuid.value());
             continue;
         };
 
@@ -215,12 +216,11 @@ impl Manual {
             }
             PreConstructData::Root => unreachable!(),
         }
-        let (_, node_index) = self.constructs_graph.add_child(
-            self.graph_root.clone(),
-            0,
-            construct_uuid.value(),
-        );
-        self.constructs_graph_nodes.insert(construct_uuid.value(), node_index);
+        let (_, node_index) =
+            self.constructs_graph
+                .add_child(self.graph_root.clone(), 100, construct_uuid.value());
+        self.constructs_graph_nodes
+            .insert(construct_uuid.value(), node_index);
         // Update plan
         let pre_construct = PreConstruct {
             uuid: construct_uuid.clone(),
