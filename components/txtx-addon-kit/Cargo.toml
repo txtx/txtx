@@ -11,6 +11,7 @@ serde = "1"
 serde_derive = "1"
 url = { version = "2.2.2", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["v4"] }
+getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 wasm = []
