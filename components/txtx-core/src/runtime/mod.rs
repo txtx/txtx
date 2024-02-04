@@ -1,26 +1,41 @@
+use std::collections::{BTreeSet, VecDeque};
+
 use crate::{types::Manual, AddonsContext};
-use daggy::Walker;
+use daggy::{petgraph::data::DataMap, Walker};
 use txtx_addon_kit::types::ConstructUuid;
 
 pub fn run(manual: &Manual, _addons_ctx: &AddonsContext) -> Result<(), String> {
-    println!("Executing graph");
     let root = manual.graph_root;
-    println!("{:?}", manual.constructs_graph);
-    // let mut walker = manual.constructs_graph.children(root).iter(&manual.constructs_graph);
+    let g = &manual.constructs_graph;
 
-    let mut walker = manual
-        .constructs_graph
-        .recursive_walk(root, |g, n| g.children(n).iter(g).find(|&(e, n)| true));
+    let mut nodes_to_visit = VecDeque::new();
+    let mut visited_nodes_to_process = BTreeSet::new();
 
-    while let Some((_edge, node)) = walker.walk_next(&manual.constructs_graph) {
-        let uuid = manual
-            .constructs_graph
-            .node_weight(node)
-            .expect("unable to retrieve construct uuid");
-        let construct_uuid = ConstructUuid::Local(*uuid);
-        if let Some(construct) = manual.constructs.get(&construct_uuid) {
-            println!("- {}", construct.get_construct_uri(),);
+    nodes_to_visit.push_front(root);
+    while let Some(node) = nodes_to_visit.pop_front() {
+        // All the parents must have been visited first
+        for (_, parent) in g.parents(node).iter(&g) {
+            if !visited_nodes_to_process.contains(&parent) {
+                nodes_to_visit.push_back(node)
+            }
         }
+        // Enqueue all the children
+        for (_, child) in g.children(node).iter(&g) {
+            nodes_to_visit.push_back(child);
+        }
+        // Mark node as visited
+        visited_nodes_to_process.insert(node);
+    }
+
+    visited_nodes_to_process.remove(&root);
+    for node in visited_nodes_to_process.into_iter() {
+        let uuid = g.node_weight(node).expect("unable to retrieve construct");
+        let construct_uuid = ConstructUuid::Local(uuid.clone());
+        let construct = manual
+            .constructs
+            .get(&construct_uuid)
+            .expect("unable to retrieve construct");
+        println!("{}", construct.get_construct_uri());
     }
 
     Ok(())

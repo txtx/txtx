@@ -20,7 +20,6 @@ pub fn run_edge_indexer(
         for construct_uuid in package.imports_uuids.iter() {
             let construct = manual.constructs.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
-                println!("  -> {}", dep);
             }
         }
         for construct_uuid in package.variables_uuids.iter() {

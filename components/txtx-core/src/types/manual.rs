@@ -267,8 +267,6 @@ impl Manual {
         }
 
         while let Some(component) = components.pop_front() {
-            println!("{component}");
-
             // Look for modules
             if component.eq_ignore_ascii_case("module") {
                 let Some(module_name) = components.pop_front() else {
