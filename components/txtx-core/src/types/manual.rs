@@ -46,7 +46,7 @@ impl Manual {
     pub fn new(source_tree: Option<SourceTree>) -> Self {
         let uuid = PackageUuid::new();
         let mut packages_graph = Dag::new();
-        let graph_root = packages_graph.add_node(uuid.value());
+        let _ = packages_graph.add_node(uuid.value());
         let mut constructs_graph = Dag::new();
         let graph_root = constructs_graph.add_node(uuid.value());
 
@@ -316,27 +316,6 @@ impl Manual {
                 continue;
             }
         }
-
-        // Look for namespaces registered by addons
-
-        // Dependency detector:
-        // When a traversal expression is detected:
-        // Desugar / Fully qualify the path of the variable:
-        // - mod1
-        //   - var1
-        //   - modA
-        //     - var1A
-        //     - out1A
-        //   - modB (can import modA, can't import mod2)
-        //     - var1B
-        //     - out1B
-        // - mod2
-
-        // Algorithm to resolve a reference: module..variable.test
-        // Check reserved key words (for_each, etc)
-        // Traverse each component, looking for a known namespace
-        //
-
         Ok(None)
     }
 }

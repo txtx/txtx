@@ -61,7 +61,10 @@ pub fn run_edge_indexer(
     for (src, dst) in constructs_edges.iter() {
         let src_node_index = manual.constructs_graph_nodes.get(&src.value()).unwrap();
         let dst_node_index = manual.constructs_graph_nodes.get(&dst.value()).unwrap();
-        if let Some(edge_to_root) = manual.constructs_graph.find_edge(manual.graph_root, src_node_index.clone()) {
+        if let Some(edge_to_root) = manual
+            .constructs_graph
+            .find_edge(manual.graph_root, src_node_index.clone())
+        {
             manual.constructs_graph.remove_edge(edge_to_root);
         }
         manual

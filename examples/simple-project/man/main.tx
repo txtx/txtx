@@ -23,7 +23,7 @@ module "concatenate_inputs" {
 }
 
 module "query_json_input" {
-  description = json_query(variable.json_input)
+  description = json_query(variable.json_input, ".message")
 }
 
 output "message_from_concatenation" {
