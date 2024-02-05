@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use txtx_addon_kit::hcl::{expr::Expression, structure::Block};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::helpers::hcl::{
-    collect_dependencies_from_expression, visit_label, visit_optional_untyped_attribute,
+    collect_constructs_references_from_expression, visit_label, visit_optional_untyped_attribute,
     VisitorError,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -48,8 +48,16 @@ impl ModuleConstruct {
         let mut dependencies = vec![];
 
         if let Some(ref expr) = self.description {
-            collect_dependencies_from_expression(expr, &mut dependencies)
+            collect_constructs_references_from_expression(expr, &mut dependencies)
         }
         dependencies
+    }
+
+    pub fn eval_inputs(&self) {
+        let mut dependencies = vec![];
+
+        if let Some(ref expr) = self.description {
+            collect_constructs_references_from_expression(expr, &mut dependencies)
+        }
     }
 }

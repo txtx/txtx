@@ -6,8 +6,13 @@ pub use uuid;
 use hcl::{expr::Expression, structure::Block};
 pub use hcl_edit as hcl;
 use helpers::{fs::FileLocation, hcl::VisitorError};
-use std::fmt::Debug;
-use types::{diagnostics::Diagnostic, functions::FunctionDeclaration, ConstructUuid};
+use std::{collections::HashMap, fmt::Debug};
+use types::{
+    commands::{CommandExecutionResult, CommandSpecification},
+    diagnostics::Diagnostic,
+    functions::FunctionSpecification,
+    ConstructUuid,
+};
 
 pub mod helpers;
 pub mod macros;
@@ -18,9 +23,9 @@ pub trait Addon: Debug {
     ///
     fn get_namespace(self: &Self) -> &str;
     ///
-    fn get_native_functions(self: &Self) -> Vec<FunctionDeclaration>;
+    fn get_functions(self: &Self) -> Vec<FunctionSpecification>;
     ///
-    fn get_constructs_types(self: &Self) -> Vec<String>;
+    fn get_commands(self: &Self) -> Vec<CommandSpecification>;
     ///
     fn create_context(self: &Self) -> Box<dyn AddonContext>;
 }
@@ -60,4 +65,6 @@ pub trait AddonConstruct: Debug + Sync + Send {
         Self: Sized;
     ///
     fn collect_dependencies(self: &Self) -> Vec<Expression>;
+    ///
+    fn eval(self: &Self, dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>);
 }

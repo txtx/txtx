@@ -1,9 +1,11 @@
+use txtx_addon_kit::types::ConstructUuid;
+
 use crate::{
-    types::{ConstructUuid, Manual, PackageUuid},
+    types::{Manual, PackageUuid},
     AddonsContext,
 };
 
-pub fn run_edge_indexer(
+pub fn run_constructs_dependencies_indexing(
     manual: &mut Manual,
     _addons_ctx: &mut AddonsContext,
 ) -> Result<
@@ -19,13 +21,13 @@ pub fn run_edge_indexer(
     for (package_uuid, package) in manual.packages.iter() {
         for construct_uuid in package.imports_uuids.iter() {
             let construct = manual.constructs.get(construct_uuid).unwrap();
-            for dep in construct.collect_dependencies().iter() {
-            }
+            for dep in construct.collect_dependencies().iter() {}
         }
         for construct_uuid in package.variables_uuids.iter() {
             let construct = manual.constructs.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
-                let result = manual.resolve_construct_reference(package_uuid, dep);
+                let result =
+                    manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
                 if let Ok(Some(resolved_construct_uuid)) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
@@ -36,7 +38,8 @@ pub fn run_edge_indexer(
         for construct_uuid in package.modules_uuids.iter() {
             let construct = manual.constructs.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
-                let result = manual.resolve_construct_reference(package_uuid, dep);
+                let result =
+                    manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
                 if let Ok(Some(resolved_construct_uuid)) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
@@ -47,7 +50,8 @@ pub fn run_edge_indexer(
         for construct_uuid in package.outputs_uuids.iter() {
             let construct = manual.constructs.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
-                let result = manual.resolve_construct_reference(package_uuid, dep);
+                let result =
+                    manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
                 if let Ok(Some(resolved_construct_uuid)) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {

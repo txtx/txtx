@@ -1,6 +1,6 @@
-use super::ConstructUuid;
 use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

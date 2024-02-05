@@ -5,7 +5,7 @@ use crate::{
     AddonsContext,
 };
 
-pub fn run_constructs_processor(
+pub fn run_constructs_checks(
     manual: &mut Manual,
     _addons_ctx: &mut AddonsContext,
 ) -> Result<(), String> {

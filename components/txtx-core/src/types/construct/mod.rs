@@ -5,9 +5,9 @@ use txtx_addon_kit::{
     types::ConstructUuid,
 };
 
-use self::ext::ExtConstruct;
+use self::addon::AddonConstruct;
 
-pub mod ext;
+pub mod addon;
 pub mod import;
 pub mod module;
 pub mod output;
@@ -74,7 +74,7 @@ pub enum ConstructData {
     Output(OutputConstruct),
     Module(ModuleConstruct),
     Import(ImportConstruct),
-    Ext(ExtConstruct),
+    Ext(AddonConstruct),
 }
 
 impl ConstructData {
@@ -97,6 +97,16 @@ impl ConstructData {
             ConstructData::Ext(data) => data.collect_dependencies(),
         };
         deps
+    }
+
+    pub fn eval_inputs(&self) {
+        let deps = match self {
+            ConstructData::Variable(data) => data.eval_inputs(),
+            ConstructData::Output(data) => data.eval_inputs(),
+            ConstructData::Module(data) => data.eval_inputs(),
+            ConstructData::Import(data) => data.eval_inputs(),
+            ConstructData::Ext(data) => data.eval_inputs(),
+        };
     }
 
     pub fn as_import(&self) -> Option<&ImportConstruct> {

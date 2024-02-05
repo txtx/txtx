@@ -1,36 +1,24 @@
-#[derive(Clone)]
-pub enum Value {
-    String(String),
-    Number(i64),
-    Bool(bool),
-}
+use super::typing::{Typing, Value};
 
 #[derive(Clone)]
-pub enum Typing {
-    String,
-    Number,
-    Bool,
-}
-
-#[derive(Clone)]
-pub struct NativeFunctionInput {
+pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
     pub typing: Typing,
 }
 
 #[derive(Clone)]
-pub struct NativeFunctionOutput {
+pub struct FunctionOutput {
     pub documentation: String,
     pub typing: Typing,
 }
 
 #[derive(Clone)]
-pub struct FunctionDeclaration {
+pub struct FunctionSpecification {
     pub name: String,
     pub documentation: String,
-    pub inputs: Vec<NativeFunctionInput>,
-    pub output: NativeFunctionOutput,
+    pub inputs: Vec<FunctionInput>,
+    pub output: FunctionOutput,
     pub example: String,
     pub snippet: String,
     pub runner: FunctionRunner,
@@ -44,12 +32,12 @@ pub struct TypingDeclaration {
     pub check: TypingChecker,
 }
 
-type FunctionRunner = fn(&FunctionDeclaration, Vec<Value>) -> Value;
-type FunctionChecker = fn(&FunctionDeclaration, Vec<Typing>) -> Typing;
+type FunctionRunner = fn(&FunctionSpecification, Vec<Value>) -> Value;
+type FunctionChecker = fn(&FunctionSpecification, Vec<Typing>) -> Typing;
 
 pub trait FunctionImplementation {
-    fn check(ctx: &FunctionDeclaration, args: Vec<Typing>) -> Typing;
-    fn run(ctx: &FunctionDeclaration, args: Vec<Value>) -> Value;
+    fn check(ctx: &FunctionSpecification, args: Vec<Typing>) -> Typing;
+    fn run(ctx: &FunctionSpecification, args: Vec<Value>) -> Value;
 }
 
 type TypingChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);

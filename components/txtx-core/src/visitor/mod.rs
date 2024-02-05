@@ -1,7 +1,7 @@
+mod constructs_checks;
+mod constructs_dependencies_indexing;
 mod constructs_indexer;
-mod constructs_processor;
-mod edge_indexer;
 
-pub use constructs_indexer::run_constructs_indexer;
-pub use constructs_processor::run_constructs_processor;
-pub use edge_indexer::run_edge_indexer;
+pub use constructs_checks::run_constructs_checks;
+pub use constructs_dependencies_indexing::run_constructs_dependencies_indexing;
+pub use constructs_indexer::run_constructs_indexing;

@@ -1,24 +1,24 @@
 use txtx_addon_kit::hcl::{expr::Expression, structure::Block};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::helpers::hcl::{
-    collect_dependencies_from_expression, visit_label, visit_optional_untyped_attribute,
+    collect_constructs_references_from_expression, visit_label, visit_optional_untyped_attribute,
     VisitorError,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 #[derive(Clone, Debug)]
-pub struct ExtConstruct {
+pub struct AddonConstruct {
     pub name: String,
     pub description: Option<Expression>,
     pub path: Option<Expression>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
-impl ExtConstruct {
+impl AddonConstruct {
     pub fn from_block(
         block: &Block,
         _location: &FileLocation,
-    ) -> Result<ExtConstruct, VisitorError> {
+    ) -> Result<AddonConstruct, VisitorError> {
         // Retrieve name
         let name = visit_label(1, "name", &block)?;
 
@@ -30,7 +30,7 @@ impl ExtConstruct {
 
         let diagnostics = vec![];
 
-        Ok(ExtConstruct {
+        Ok(AddonConstruct {
             name,
             description,
             path,
@@ -42,8 +42,16 @@ impl ExtConstruct {
         let mut dependencies = vec![];
 
         if let Some(ref expr) = self.description {
-            collect_dependencies_from_expression(expr, &mut dependencies)
+            collect_constructs_references_from_expression(expr, &mut dependencies)
         }
         dependencies
+    }
+
+    pub fn eval_inputs(&self) {
+        let mut dependencies = vec![];
+
+        if let Some(ref expr) = self.description {
+            collect_constructs_references_from_expression(expr, &mut dependencies)
+        }
     }
 }

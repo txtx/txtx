@@ -4,7 +4,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-mod constructs;
+// mod constructs;
 mod functions;
 
 use std::collections::HashMap;
@@ -12,7 +12,12 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     hcl::{expr::Expression, structure::Block},
     helpers::{fs::FileLocation, hcl::VisitorError},
-    types::{diagnostics::Diagnostic, functions::FunctionDeclaration, ConstructUuid},
+    types::{
+        commands::{CommandExecutionResult, CommandSpecification},
+        diagnostics::Diagnostic,
+        functions::FunctionSpecification,
+        ConstructUuid,
+    },
     Addon, AddonConstruct, AddonContext,
 };
 
@@ -30,16 +35,12 @@ impl Addon for StacksNetworkAddon {
         "stacks"
     }
 
-    fn get_native_functions(&self) -> Vec<FunctionDeclaration> {
+    fn get_functions(&self) -> Vec<FunctionSpecification> {
         functions::STACKS_FUNCTIONS.clone()
     }
 
-    fn get_constructs_types(&self) -> Vec<String> {
-        vec![
-            "transaction".to_string(),
-            "call_contract".to_string(),
-            "deploy_contract".to_string(),
-        ]
+    fn get_commands(&self) -> Vec<CommandSpecification> {
+        unimplemented!()
     }
 
     fn create_context(&self) -> Box<dyn AddonContext> {
@@ -119,4 +120,6 @@ impl AddonConstruct for StacksNetworkConstructs {
     fn collect_dependencies(self: &Self) -> Vec<Expression> {
         unimplemented!()
     }
+
+    fn eval(self: &Self, dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>) {}
 }

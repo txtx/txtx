@@ -104,41 +104,44 @@ pub fn build_diagnostics_for_unused_fields(
     diagnostics
 }
 
-pub fn collect_dependencies_from_expression(expr: &Expression, dependencies: &mut Vec<Expression>) {
+pub fn collect_constructs_references_from_expression(
+    expr: &Expression,
+    dependencies: &mut Vec<Expression>,
+) {
     match expr {
         Expression::Variable(_) => {
             dependencies.push(expr.clone());
         }
         Expression::Array(elements) => {
             for element in elements.iter() {
-                collect_dependencies_from_expression(element, dependencies);
+                collect_constructs_references_from_expression(element, dependencies);
             }
         }
         Expression::BinaryOp(op) => {
-            collect_dependencies_from_expression(&op.lhs_expr, dependencies);
-            collect_dependencies_from_expression(&op.rhs_expr, dependencies);
+            collect_constructs_references_from_expression(&op.lhs_expr, dependencies);
+            collect_constructs_references_from_expression(&op.rhs_expr, dependencies);
         }
         Expression::Bool(_)
         | Expression::Null(_)
         | Expression::Number(_)
         | Expression::String(_) => return,
         Expression::Conditional(cond) => {
-            collect_dependencies_from_expression(&cond.cond_expr, dependencies);
-            collect_dependencies_from_expression(&cond.false_expr, dependencies);
-            collect_dependencies_from_expression(&cond.true_expr, dependencies);
+            collect_constructs_references_from_expression(&cond.cond_expr, dependencies);
+            collect_constructs_references_from_expression(&cond.false_expr, dependencies);
+            collect_constructs_references_from_expression(&cond.true_expr, dependencies);
         }
         Expression::ForExpr(for_expr) => {
-            collect_dependencies_from_expression(&for_expr.value_expr, dependencies);
+            collect_constructs_references_from_expression(&for_expr.value_expr, dependencies);
             if let Some(ref key_expr) = for_expr.key_expr {
-                collect_dependencies_from_expression(&key_expr, dependencies);
+                collect_constructs_references_from_expression(&key_expr, dependencies);
             }
             if let Some(ref cond) = for_expr.cond {
-                collect_dependencies_from_expression(&cond.expr, dependencies);
+                collect_constructs_references_from_expression(&cond.expr, dependencies);
             }
         }
         Expression::FuncCall(expr) => {
             for arg in expr.args.iter() {
-                collect_dependencies_from_expression(arg, dependencies);
+                collect_constructs_references_from_expression(arg, dependencies);
             }
         }
         Expression::HeredocTemplate(expr) => {
@@ -146,7 +149,10 @@ pub fn collect_dependencies_from_expression(expr: &Expression, dependencies: &mu
                 match element {
                     Element::Directive(_) | Element::Literal(_) => {}
                     Element::Interpolation(interpolation) => {
-                        collect_dependencies_from_expression(&interpolation.expr, dependencies);
+                        collect_constructs_references_from_expression(
+                            &interpolation.expr,
+                            dependencies,
+                        );
                     }
                 }
             }
@@ -155,22 +161,25 @@ pub fn collect_dependencies_from_expression(expr: &Expression, dependencies: &mu
             for (k, v) in obj.iter() {
                 match k {
                     ObjectKey::Expression(expr) => {
-                        collect_dependencies_from_expression(&expr, dependencies);
+                        collect_constructs_references_from_expression(&expr, dependencies);
                     }
                     ObjectKey::Ident(_) => {}
                 }
-                collect_dependencies_from_expression(&v.expr(), dependencies);
+                collect_constructs_references_from_expression(&v.expr(), dependencies);
             }
         }
         Expression::Parenthesis(expr) => {
-            collect_dependencies_from_expression(&expr.inner(), dependencies);
+            collect_constructs_references_from_expression(&expr.inner(), dependencies);
         }
         Expression::StringTemplate(template) => {
             for element in template.iter() {
                 match element {
                     Element::Directive(_) | Element::Literal(_) => {}
                     Element::Interpolation(interpolation) => {
-                        collect_dependencies_from_expression(&interpolation.expr, dependencies);
+                        collect_constructs_references_from_expression(
+                            &interpolation.expr,
+                            dependencies,
+                        );
                     }
                 }
             }
@@ -182,7 +191,7 @@ pub fn collect_dependencies_from_expression(expr: &Expression, dependencies: &mu
             dependencies.push(expr.clone());
         }
         Expression::UnaryOp(op) => {
-            collect_dependencies_from_expression(&op.expr, dependencies);
+            collect_constructs_references_from_expression(&op.expr, dependencies);
         }
     }
 }

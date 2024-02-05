@@ -2,30 +2,31 @@
 extern crate lazy_static;
 
 pub mod errors;
-pub mod functions;
-pub mod runtime;
+pub mod eval;
+pub mod std;
 pub mod types;
 pub mod visitor;
 
+use ::std::collections::HashMap;
+
 use kit::hcl::structure::Block;
-use kit::types::functions::FunctionDeclaration;
+use kit::types::functions::FunctionSpecification;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
 use types::PackageUuid;
-use visitor::run_edge_indexer;
+use visitor::run_constructs_dependencies_indexing;
 
-use std::collections::HashMap;
-
+use eval::run_constructs_evaluation;
 use txtx_addon_kit::Addon;
 use types::Manual;
-use visitor::run_constructs_indexer;
-use visitor::run_constructs_processor;
+use visitor::run_constructs_checks;
+use visitor::run_constructs_indexing;
 
 pub fn simulate_manual(manual: &mut Manual, addons_ctx: &mut AddonsContext) -> Result<(), String> {
-    let _ = run_constructs_indexer(manual, addons_ctx)?;
-    let _ = run_constructs_processor(manual, addons_ctx)?;
-    let edges = run_edge_indexer(manual, addons_ctx)?;
-    runtime::run(manual, addons_ctx)?;
+    let _ = run_constructs_indexing(manual, addons_ctx)?;
+    let _ = run_constructs_checks(manual, addons_ctx)?;
+    let _ = run_constructs_dependencies_indexing(manual, addons_ctx)?;
+    let _ = run_constructs_evaluation(manual, addons_ctx)?;
     Ok(())
 }
 
@@ -46,11 +47,11 @@ impl AddonsContext {
         self.addons.insert(addon.get_namespace().to_string(), addon);
     }
 
-    pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionDeclaration> {
+    pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionSpecification> {
         let mut functions = vec![];
         for (_, addon) in self.addons.iter() {
-            let native_functions = addon.get_native_functions();
-            functions.append(&mut addon.get_native_functions());
+            let mut addon_functions = addon.get_functions();
+            functions.append(&mut addon_functions);
         }
         functions
     }

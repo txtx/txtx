@@ -14,7 +14,7 @@ use txtx_addon_kit::{
     },
 };
 
-pub fn run_constructs_indexer(
+pub fn run_constructs_indexing(
     manual: &mut Manual,
     addons_ctx: &mut AddonsContext,
 ) -> Result<bool, String> {
@@ -234,6 +234,8 @@ pub fn run_constructs_indexer(
                         &package_name,
                         &package_location,
                     )?;
+
+                    // addons_ctx.instantiate_context(namespace, package_uuid);
                     // addons_ctx.
                 }
                 _ => {

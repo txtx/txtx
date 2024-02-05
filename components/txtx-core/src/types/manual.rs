@@ -1,10 +1,12 @@
 use super::{ConstructData, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
 use crate::errors::ConstructErrors;
+use crate::std::commands;
 use daggy::{Dag, NodeIndex};
 use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::commands::{CommandInstance, CommandSpecification};
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::uuid::Uuid;
 
@@ -38,6 +40,7 @@ pub struct Manual {
     pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub pre_constructs: HashMap<ConstructUuid, PreConstruct>,
     pub constructs: HashMap<ConstructUuid, ConstructData>,
+    pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
 }
@@ -64,6 +67,7 @@ impl Manual {
             pre_constructs: HashMap::new(),
             constructs_locations: HashMap::new(),
             constructs: HashMap::new(),
+            commands_instances: HashMap::new(),
         }
     }
 
@@ -95,7 +99,8 @@ impl Manual {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_variable().unwrap().name);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -114,7 +119,8 @@ impl Manual {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_module().unwrap().id);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -134,7 +140,8 @@ impl Manual {
                 let construct = self.constructs.get(construct_uuid).unwrap();
                 println!("- {}", construct.as_output().unwrap().name);
                 for dep in construct.collect_dependencies().iter() {
-                    let result = self.resolve_construct_reference(package_uuid, dep);
+                    let result =
+                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
                     if let Ok(Some(resolved_construct_uuid)) = result {
                         println!(
                             "  -> {} resolving to {}",
@@ -180,8 +187,8 @@ impl Manual {
 
         let construct_uuid = ConstructUuid::new();
         // Update module
-        match construct_data {
-            PreConstructData::Module(_) => {
+        match &construct_data {
+            PreConstructData::Module(block) => {
                 if construct_name.eq("manual") && self.manual_metadata_construct_uuid.is_none() {
                     self.manual_metadata_construct_uuid = Some(construct_uuid.clone());
                 }
@@ -189,18 +196,42 @@ impl Manual {
                 package
                     .modules_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
+                self.commands_instances.insert(
+                    construct_uuid.clone(),
+                    CommandInstance {
+                        specification: commands::new_module_specification(),
+                        name: construct_name.clone(),
+                        block: block.clone(),
+                    },
+                );
             }
-            PreConstructData::Variable(_) => {
+            PreConstructData::Variable(block) => {
                 package.variables_uuids.insert(construct_uuid.clone());
                 package
                     .variables_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
+                self.commands_instances.insert(
+                    construct_uuid.clone(),
+                    CommandInstance {
+                        specification: commands::new_variable_specification(),
+                        name: construct_name.clone(),
+                        block: block.clone(),
+                    },
+                );
             }
-            PreConstructData::Output(_) => {
+            PreConstructData::Output(block) => {
                 package.outputs_uuids.insert(construct_uuid.clone());
                 package
                     .outputs_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
+                self.commands_instances.insert(
+                    construct_uuid.clone(),
+                    CommandInstance {
+                        specification: commands::new_output_specification(),
+                        name: construct_name.clone(),
+                        block: block.clone(),
+                    },
+                );
             }
             PreConstructData::Import(_) => {
                 package.imports_uuids.insert(construct_uuid.clone());
@@ -241,7 +272,7 @@ impl Manual {
         self.constructs.insert(uuid.clone(), construct);
     }
 
-    pub fn resolve_construct_reference(
+    pub fn try_resolve_construct_reference_in_expression(
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,

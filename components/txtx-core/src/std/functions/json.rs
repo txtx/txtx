@@ -1,12 +1,14 @@
 use jaq_core;
 use txtx_addon_kit::{
-    define_native_function,
-    types::functions::{FunctionDeclaration, FunctionImplementation, Typing, Value},
+    define_function,
+    types::{
+        functions::{FunctionImplementation, FunctionSpecification},
+        typing::{Typing, Value},
+    },
 };
 
-
 lazy_static! {
-    pub static ref JSON_FUNCTIONS: Vec<FunctionDeclaration> = vec![define_native_function! {
+    pub static ref JSON_FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         JsonQuery => {
             name: "json_query",
             documentation: "Query Json data",
@@ -31,11 +33,11 @@ lazy_static! {
 
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
-    fn check(ctx: &FunctionDeclaration, args: Vec<Typing>) -> Typing {
+    fn check(ctx: &FunctionSpecification, args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionDeclaration, args: Vec<Value>) -> Value {
+    fn run(ctx: &FunctionSpecification, args: Vec<Value>) -> Value {
         println!("Executing {}", ctx.name);
         // todo(lgalabru): Parse string, parse query then run query on document
         // json!(args[0])
