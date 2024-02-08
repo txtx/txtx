@@ -1,7 +1,7 @@
 use std::sync::mpsc::channel;
 
 use txtx_addon_network_stacks::StacksNetworkAddon;
-use txtx_core::{simulate_manual, AddonsContext};
+use txtx_core::{simulate_manual, types::RuntimeContext, AddonsContext};
 use txtx_gql::Context as GqlContext;
 
 use crate::{
@@ -39,10 +39,12 @@ pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Resu
     let stacks_addon = StacksNetworkAddon::new();
     let mut addons_ctx = AddonsContext::new();
     addons_ctx.register(Box::new(stacks_addon));
-    simulate_manual(&mut manual, &mut addons_ctx)?;
+
+    let mut runtime_context = RuntimeContext::new(addons_ctx);
+    simulate_manual(&mut manual, &mut runtime_context)?;
 
     if cmd.no_tui {
-        manual.inspect_constructs();
+        // manual.inspect_constructs();
     } else {
         let _ = term_ui::inspect::main(manual);
     }
@@ -59,9 +61,10 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
     let mut manuals = read_manuals_from_manifest(&manifest, None)?;
     for (_, manual) in manuals.iter_mut() {
         let stacks_addon = StacksNetworkAddon::new();
-        let mut addon_router = AddonsContext::new();
-        addon_router.register(Box::new(stacks_addon));
-        simulate_manual(manual, &mut addon_router)?;
+        let mut addons_ctx = AddonsContext::new();
+        addons_ctx.register(Box::new(stacks_addon));
+        let mut runtime_context = RuntimeContext::new(addons_ctx);
+        simulate_manual(manual, &mut runtime_context)?;
     }
     let (tx, rx) = channel();
 

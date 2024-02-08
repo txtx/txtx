@@ -14,6 +14,7 @@ use kit::types::functions::FunctionSpecification;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
 use types::PackageUuid;
+use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
 use eval::run_constructs_evaluation;
@@ -22,11 +23,14 @@ use types::Manual;
 use visitor::run_constructs_checks;
 use visitor::run_constructs_indexing;
 
-pub fn simulate_manual(manual: &mut Manual, addons_ctx: &mut AddonsContext) -> Result<(), String> {
-    let _ = run_constructs_indexing(manual, addons_ctx)?;
-    let _ = run_constructs_checks(manual, addons_ctx)?;
-    let _ = run_constructs_dependencies_indexing(manual, addons_ctx)?;
-    let _ = run_constructs_evaluation(manual, addons_ctx)?;
+pub fn simulate_manual(
+    manual: &mut Manual,
+    runtime_context: &mut RuntimeContext,
+) -> Result<(), String> {
+    let _ = run_constructs_indexing(manual, &mut runtime_context.addons)?;
+    let _ = run_constructs_checks(manual, &mut runtime_context.addons)?;
+    let _ = run_constructs_dependencies_indexing(manual, &mut runtime_context.addons)?;
+    let _ = run_constructs_evaluation(manual, runtime_context)?;
     Ok(())
 }
 

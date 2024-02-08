@@ -28,7 +28,7 @@ pub fn run_constructs_dependencies_indexing(
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                if let Ok(Some(resolved_construct_uuid)) = result {
+                if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);
@@ -40,7 +40,7 @@ pub fn run_constructs_dependencies_indexing(
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                if let Ok(Some(resolved_construct_uuid)) = result {
+                if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);
@@ -52,7 +52,7 @@ pub fn run_constructs_dependencies_indexing(
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                if let Ok(Some(resolved_construct_uuid)) = result {
+                if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);

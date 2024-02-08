@@ -1,13 +1,19 @@
 #[derive(Clone, Debug)]
 pub enum Value {
     String(String),
-    Number(i64),
+    UnsignedInteger(u64),
+    SignedInteger(i64),
+    Float(f64),
     Bool(bool),
+    Null,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Typing {
     String,
-    Number,
+    UnsignedInteger,
+    SignedInteger,
+    Float,
     Bool,
+    Null,
 }

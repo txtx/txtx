@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::{CommandInstance, CommandSpecification};
+use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::uuid::Uuid;
 
@@ -101,7 +101,7 @@ impl Manual {
                 for dep in construct.collect_dependencies().iter() {
                     let result =
                         self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some(resolved_construct_uuid)) = result {
+                    if let Ok(Some((resolved_construct_uuid, _))) = result {
                         println!(
                             "  -> {} resolving to {}",
                             dep,
@@ -121,7 +121,7 @@ impl Manual {
                 for dep in construct.collect_dependencies().iter() {
                     let result =
                         self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some(resolved_construct_uuid)) = result {
+                    if let Ok(Some((resolved_construct_uuid, _))) = result {
                         println!(
                             "  -> {} resolving to {}",
                             dep,
@@ -142,7 +142,7 @@ impl Manual {
                 for dep in construct.collect_dependencies().iter() {
                     let result =
                         self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some(resolved_construct_uuid)) = result {
+                    if let Ok(Some((resolved_construct_uuid, _))) = result {
                         println!(
                             "  -> {} resolving to {}",
                             dep,
@@ -276,7 +276,7 @@ impl Manual {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
-    ) -> Result<Option<ConstructUuid>, String> {
+    ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
@@ -305,7 +305,7 @@ impl Manual {
                 };
                 if let Some(construct_uuid) = current_package.modules_uuids_lookup.get(&module_name)
                 {
-                    return Ok(Some(construct_uuid.clone()));
+                    return Ok(Some((construct_uuid.clone(), components)));
                 }
             }
 
@@ -316,7 +316,7 @@ impl Manual {
                 };
                 if let Some(construct_uuid) = current_package.outputs_uuids_lookup.get(&output_name)
                 {
-                    return Ok(Some(construct_uuid.clone()));
+                    return Ok(Some((construct_uuid.clone(), components)));
                 }
             }
 
@@ -328,7 +328,7 @@ impl Manual {
                 if let Some(construct_uuid) =
                     current_package.variables_uuids_lookup.get(&variable_name)
                 {
-                    return Ok(Some(construct_uuid.clone()));
+                    return Ok(Some((construct_uuid.clone(), components)));
                 }
             }
 

@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+
 use txtx_addon_kit::{
     define_command,
     types::{
-        commands::{CommandImplementation, CommandSpecification},
+        commands::{
+            CommandExecutionResult, CommandImplementation, CommandInput, CommandSpecification,
+        },
         typing::{Typing, Value},
     },
 };
@@ -21,18 +25,15 @@ pub fn new_module_specification() -> CommandSpecification {
     command
 }
 
-pub struct Variable;
-impl CommandImplementation for Variable {
+pub struct Module;
+impl CommandImplementation for Module {
     fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: Vec<Value>) -> Value {
-        println!("Executing {}", ctx.name);
-        // todo(lgalabru): Parse string, parse query then run query on document
-        // json!(args[0])
-        // jaq_core::minimal()
-        Value::Bool(true)
+    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+        let mut result = CommandExecutionResult::new();
+        result
     }
 }
 
@@ -67,18 +68,17 @@ pub fn new_variable_specification() -> CommandSpecification {
     command
 }
 
-pub struct Module;
-impl CommandImplementation for Module {
+pub struct Variable;
+impl CommandImplementation for Variable {
     fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: Vec<Value>) -> Value {
-        println!("Executing {}", ctx.name);
-        // todo(lgalabru): Parse string, parse query then run query on document
-        // json!(args[0])
-        // jaq_core::minimal()
-        Value::Bool(true)
+    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+        let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
+        let mut result = CommandExecutionResult::new();
+        result.outputs.insert("value".to_string(), value);
+        result
     }
 }
 
@@ -119,11 +119,10 @@ impl CommandImplementation for Output {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: Vec<Value>) -> Value {
-        println!("Executing {}", ctx.name);
-        // todo(lgalabru): Parse string, parse query then run query on document
-        // json!(args[0])
-        // jaq_core::minimal()
-        Value::Bool(true)
+    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+        let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
+        let mut result = CommandExecutionResult::new();
+        result.outputs.insert("value".to_string(), value);
+        result
     }
 }

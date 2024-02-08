@@ -4,7 +4,7 @@ use super::typing::{Typing, Value};
 pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Vec<Typing>,
 }
 
 #[derive(Clone)]
@@ -32,12 +32,12 @@ pub struct TypingDeclaration {
     pub check: TypingChecker,
 }
 
-type FunctionRunner = fn(&FunctionSpecification, Vec<Value>) -> Value;
-type FunctionChecker = fn(&FunctionSpecification, Vec<Typing>) -> Typing;
+type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Value;
+type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Typing;
 
 pub trait FunctionImplementation {
-    fn check(ctx: &FunctionSpecification, args: Vec<Typing>) -> Typing;
-    fn run(ctx: &FunctionSpecification, args: Vec<Value>) -> Value;
+    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing;
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value;
 }
 
 type TypingChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);

@@ -3,35 +3,50 @@ module "manual" {
   description = "Lorem ipsum dolor sit amet"
 }
 
-variable "hello" {
+// variable "binary_op_add" {
+//   description = "Greeting variable"
+//   value = 1 + 2
+// }
+
+// variable "hello" {
+//   description = "Greeting variable"
+//   value = "Hello"
+// }
+
+// variable "world" {
+//   description = "Destination"
+//   value = "World"
+// }
+
+// variable "json_input" {
+//   description = "Input json"
+//   value = "{ \"message\": \"Hello, World!\" }"
+// }
+
+// module "concatenate_inputs" {
+//   description = "${variable.hello}, ${variable.world}!"
+// }
+
+// module "query_json_input" {
+//   description = json_query(variable.json_input, ".message")
+// }
+
+// output "message_from_concatenation" {
+//   description = "Combining variables"
+//   value = module.concatenate_inputs
+// }
+
+// output "message_from_jq" {
+//   description = "Combining variables"
+//   value = module.query_json_input
+// }
+
+variable "binary_op_add" {
   description = "Greeting variable"
-  value = "Hello"
-}
-
-variable "world" {
-  description = "Destination"
-  value = "World"
-}
-
-variable "json_input" {
-  description = "Input json"
-  value = "{ \"message\": \"Hello, World!\" }"
-}
-
-module "concatenate_inputs" {
-  description = "${variable.hello}, ${variable.world}!"
-}
-
-module "query_json_input" {
-  description = json_query(variable.json_input, ".message")
+  value = 1 + 2
 }
 
 output "message_from_concatenation" {
   description = "Combining variables"
-  value = module.concatenate_inputs
-}
-
-output "message_from_jq" {
-  description = "Combining variables"
-  value = module.query_json_input
+  value = variable.binary_op_add.value
 }

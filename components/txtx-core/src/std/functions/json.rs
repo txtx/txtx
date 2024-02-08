@@ -16,11 +16,11 @@ lazy_static! {
             inputs: [
                 decoded_json: {
                     documentation: "Json document",
-                    typing: Typing::String
+                    typing: vec![Typing::String]
                 },
                 query: {
                     documentation: "Json query (see jq documentation)",
-                    typing: Typing::String
+                    typing: vec![Typing::String]
                 }
             ],
             output: {
@@ -33,12 +33,11 @@ lazy_static! {
 
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
-    fn check(ctx: &FunctionSpecification, args: Vec<Typing>) -> Typing {
+    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: Vec<Value>) -> Value {
-        println!("Executing {}", ctx.name);
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
         // todo(lgalabru): Parse string, parse query then run query on document
         // json!(args[0])
         // jaq_core::minimal()

@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use hcl_edit::{expr::Expression, structure::Block, visit::visit_element};
 
-use crate::helpers::{
-    fs::FileLocation,
-    hcl::{collect_constructs_references_from_expression, visit_optional_untyped_attribute},
+use crate::helpers::hcl::{
+    collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
 
 use super::{
@@ -28,7 +27,7 @@ impl CommandExecutionResult {
 
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
-    pub inputs: HashMap<String, Value>,
+    pub inputs: HashMap<CommandInput, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
 }
 
 impl CommandInputsEvaluationResult {
@@ -37,9 +36,13 @@ impl CommandInputsEvaluationResult {
             inputs: HashMap::new(),
         }
     }
+
+    pub fn insert(&mut self, command_input: CommandInput, value: Result<Value, Diagnostic>) {
+        self.inputs.insert(command_input, value);
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct CommandInput {
     pub name: String,
     pub documentation: String,
@@ -64,16 +67,16 @@ pub struct CommandSpecification {
     pub create_output_for_each_input: bool,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub runner: ConstructRunner,
-    pub checker: ConstructChecker,
+    pub runner: CommandRunner,
+    pub checker: CommandChecker,
 }
 
-type ConstructRunner = fn(&CommandSpecification, Vec<Value>) -> Value;
-type ConstructChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
+type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
+type CommandRunner = fn(&CommandSpecification, &HashMap<String, Value>) -> CommandExecutionResult;
 
 pub trait CommandImplementation {
     fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing;
-    fn run(ctx: &CommandSpecification, args: Vec<Value>) -> Value;
+    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult;
 }
 
 #[derive(Clone, Debug)]
@@ -118,28 +121,27 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    pub fn perform_inputs_evaluation(
-        &self,
-        dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
-    ) -> CommandInputsEvaluationResult {
-        let mut results = CommandInputsEvaluationResult::new();
-        println!(
-            "Command {}:{} will evaluate its inputs using the executions results from {:?}",
-            self.specification.name, self.name, dependencies_execution_results
-        );
-        results
+    pub fn get_expressions_from_input(&self, input: &CommandInput) -> Result<Expression, String> {
+        let res = visit_optional_untyped_attribute(&input.name, &self.block)
+            .map_err(|e| format!("{:?}", e))?
+            .ok_or_else(|| format!("expression expected"))?;
+        Ok(res)
     }
 
     pub fn perform_execution(
         &self,
         evaluated_inputs: &CommandInputsEvaluationResult,
-    ) -> CommandExecutionResult {
-        let mut results = CommandExecutionResult::new();
-        println!(
-            "Command {}:{} will perform its execution using its evaluated inputs from {:?}",
-            self.specification.name, self.name, evaluated_inputs
-        );
-        (self.specification.runner)(&self.specification, vec![]);
-        results
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut values = HashMap::new();
+        for input in self.specification.inputs.iter() {
+            let value = match evaluated_inputs.inputs.get(input) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => Err(e.clone()),
+                None => unreachable!(), // todo(lgalabru): return diagnostic
+            }?;
+            values.insert(input.name.clone(), value);
+        }
+        let res = (self.specification.runner)(&self.specification, &values);
+        Ok(res)
     }
 }
