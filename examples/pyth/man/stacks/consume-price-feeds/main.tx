@@ -1,0 +1,73 @@
+module "metadata" {
+    name = "Update Price Feeds"
+    description = "Update the on-chain price feeds using the provided update_data, which contains serialized and signed price update data from Pyth Network. This function updates the on-chain price if the provided update is more recent than the current on-chain price. Otherwise, the provided update will be ignored. The function call will succeed even if the update is ignored."
+}
+
+variable "pyth_oracle_contract_id" {
+    description = "Address of the Pyth oracle contract"
+    default = "SP2T5JKWWP3FYYX4YRK8GK5BG2YCNGEAEY2P2PKN0.pyth-oracle-v2"
+}
+
+variable "pyth_storage_contract_id" {
+    description = "Address of the Pyth storage contract"
+    default = "SP2T5JKWWP3FYYX4YRK8GK5BG2YCNGEAEY2P2PKN0.pyth-store-v1"
+}
+
+variable "pyth_decoder_contract_id" {
+    description = "Address of the Pyth decoder contract"
+    default = "SP2T5JKWWP3FYYX4YRK8GK5BG2YCNGEAEY2P2PKN0.pyth-pnau-decoder-v1"
+}
+
+variable "wormhole_core_contract_id" {
+    description = "Address of the Wormhole core contract"
+    default = "SP2T5JKWWP3FYYX4YRK8GK5BG2YCNGEAEY2P2PKN0.wormhole-core-v2"
+}
+
+variable "default_price_feed_id" {
+    description = "Default Price Feed Id"
+    default = variable.btc_price_feed_id
+    // default_description = "Default: ${variable.btc_price_feed_id.description}"
+    note = "Pyth Price Feed has a unique ID, representing the specific pair of assets being priced."
+}
+
+variable "btc_price_feed_id" {
+    description = "BTC/USD Price Feed Id"
+    value = "ec7a775f46379b5e943c3526b1c8d54cd49749176b0b98e02dde68d1bd335c17"
+}
+
+variable "pyth_hermes_extract_pnau_update" {
+    description = "Pyth Network Accumulator Update (PNAU) containing the price update"
+    default = base64_decode(json_query(json_decode(data.http.pyth_hermes_get_price), "'.[0]'.vaa"))
+}
+
+data "http" "pyth_hermes_get_price" {
+    description = "Retrieve a Pyth Network Accumulator Update (PNAU) price update from Pyth Hermes web service"
+    url = "https://hermes.pyth.network/api/latest_price_feeds?ids[]=${variable.default_price_feed_id}&binary=true"
+    request_headers = {
+        Accept = "application/json"
+    }
+}
+
+addon "stacks:network" {
+    rpc_node_url = "http://127.0.0.1:20443"
+    network = "mainnet"
+}
+
+addon "stacks:transaction" "update_price_tx" {
+    description = "Verify and Update Price Feed"
+    contract_call {
+        contract_id = variable.pyth_oracle_contract_id
+        method = "verify-and-update-price"
+        arguments = [
+            stacks_clarity_buffer(variable.pyth_hermes_extract_pnau_update),
+            stacks_clarity_tuple({
+                "pyth-storage-contract": stacks_clarity_principal(variable.pyth_storage_contract_id.value),
+                "pyth-decoder-contract": stacks_clarity_principal(variable.pyth_decoder_contract_id.value),
+                "wormhole-core-contract": stacks_clarity_principal(variable.wormhole_core_contract_id.value),
+            })
+        ]
+    }
+    fee {
+        strategy = "low"
+    }
+}

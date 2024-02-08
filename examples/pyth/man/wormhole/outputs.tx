@@ -1,0 +1,6 @@
+
+output "vaa_guardian_rotations" {
+    for_each = wormhole_vaa.guardian_rotation
+    description = "VAA embedding the ${each.index} guardian rotation"
+    value = each.value.vaa
+}

@@ -1,0 +1,208 @@
+import "wormhole" {
+    path = "../common/wormhole"
+}
+
+variable "expected_deployer_address" {
+    description = "Expected Deployer's address"
+    default = "SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP"
+}
+
+addon stacks network "stacks_network" {
+    chain = "mainnet"
+    node_rpc_url = "http://localhost:20443"
+}
+
+addon stacks deploy_contract "deploy_wormhole_traits_payload" {
+    description = "Deploy Wormhole Trait Contract"
+    name = "wormhole-trait"
+    source = fs_read(path_expand("contracts/pyth-traits.clar")) 
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+}
+
+addon stacks deploy_contract "deploy_pyth_traits_payload" {
+    description = "Deploy Pyth Trait Contract"
+    name = "pyth-trait"
+    source = fs_read(path_expand("contracts/wormhole/wormhole-traits.clar")) 
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+}
+
+addon stacks deploy_contract "deploy_pyth_governance_payload" {
+    description = "Deploy Governance Contract"
+    name = "pyth-governance"
+    source = fs_read(path_expand("contracts/pyth-governance.clar"))
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    depends_on deploy_contract deploy_wormhole_traits_payload {
+        remap_contract_id_references = true
+    }
+    depends_on deploy_pyth_traits_payload {
+        remap_contract_id_references = true
+    }
+}
+
+addon stacks deploy_contract "deploy_pyth_oracle_payload" {
+    description = "Deploy Oracle Contract"
+    name = "pyth-oracle"
+    source = fs_read(path_expand("contracts/pyth-oracle.clar"))
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    depends_on deploy_wormhole_traits_payload {
+        remap_contract_id_references = true
+    }
+    depends_on deploy_pyth_traits_payload {
+        remap_contract_id_references = true
+    }
+    depends_on deploy_pyth_governance_payload {
+        remap_contract_id_references = true
+    }
+}
+
+addon stacks deploy_contract "deploy_pyth_pnau_decoder_payload" {
+    description = "Deploy PNAU Decoder Contract"
+    name = "pyth-pnau-decoder"
+    source = fs_read(path_expand("contracts/pyth-pnau-decoder.clar"))
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    depends_on deploy_pyth_traits_payload {
+        remap_contract_id_references = true
+    }
+}
+
+addon stacks deploy_contract "deploy_pyth_store_payload" {
+    description = "Deploy Store Contract"
+    name = "pyth-store"
+    source = fs_read(path_expand("contracts/pyth-store.clar"))
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    depends_on deploy_pyth_traits_payload {
+        remap_contract_id_references = true
+    }
+}
+
+addon stacks deploy_contract "deploy_wormhole_core_payload" {
+    description = "Deploy Wormhole Core Contract"
+    name = "wormhole-core"
+    source = fs_read(path_expand("contracts/wormhole/wormhole-core.clar"))
+    contract_version = "todo"
+    clarity_version = 2
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    depends_on deploy_wormhole_traits_payload {
+        remap_contract_id_references = true
+    }
+}
+
+addon stacks transaction "deploy_wormhole_traits_tx" {
+    payload = addon.deploy_wormhole_traits_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_pyth_traits_tx" {
+    payload = addon.deploy_pyth_traits_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_pyth_governance_tx" {
+    payload = addon.deploy_pyth_governance_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_pyth_oracle_tx" {
+    payload = addon.deploy_pyth_oracle_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_pyth_pnau_decoder_tx" {
+    payload = addon.deploy_pyth_pnau_decoder_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_pyth_store_tx" {
+    payload = addon.deploy_pyth_store_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "deploy_wormhole_core_tx" {
+    payload = addon.deploy_wormhole_core_payload
+    fee {
+        strategy = "low"
+    }
+    post_processing = [
+        addon.run_wormhole_guardian_update_1_tx,
+        addon.run_wormhole_guardian_update_2_tx,
+        addon.run_wormhole_guardian_update_3_tx
+    ]
+}
+
+addon stacks call_contract "run_wormhole_guardians_set_1_payload" {
+    description = "Deploy Oracle Contract"
+    contract_id = stacks.deploy_wormhole_core_payload.contract_id
+    method = "update-guardians-set"
+    args = [
+        stacks_encode_buffer(wormhole.output.guardian_set_1_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_1, stacks_encode_buffer()))
+    ]
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+}
+
+addon stacks call_contract "run_wormhole_guardians_set_2_payload" {
+    description = "Deploy Oracle Contract"
+    contract_id = stacks.deploy_wormhole_core_payload.contract_id
+    method = "update-guardians-set"
+    args = [
+        stacks_encode_buffer(wormhole.output.guardian_set_2_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_2, stacks_encode_buffer()))
+    ]
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+}
+
+addon stacks call_contract "run_wormhole_guardians_set_3_payload" {
+    description = "Deploy Oracle Contract"
+    contract_id = stacks.deploy_wormhole_core_payload.contract_id
+    method = "update-guardians-set"
+    args = [
+        stacks_encode_buffer(wormhole.output.guardian_set_3_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_3, stacks_encode_buffer()))
+    ]
+    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+}
+
+addon stacks transaction "run_wormhole_guardians_set_1_tx" {
+    payload = addon.run_wormhole_guardians_set_1_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "run_wormhole_guardians_set_2_tx" {
+    payload = addon.run_wormhole_guardians_set_2_payload
+    fee {
+        strategy = "low"
+    }
+}
+
+addon stacks transaction "run_wormhole_guardians_set_3_tx" {
+    payload = addon.run_wormhole_guardians_set_3_payload
+    fee {
+        strategy = "low"
+    }
+}
