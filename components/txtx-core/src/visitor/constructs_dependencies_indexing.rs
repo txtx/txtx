@@ -1,9 +1,6 @@
-use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 
-use crate::{
-    types::{Manual, PackageUuid},
-    AddonsContext,
-};
+use crate::{types::Manual, AddonsContext};
 
 pub fn run_constructs_dependencies_indexing(
     manual: &mut Manual,
@@ -20,11 +17,11 @@ pub fn run_constructs_dependencies_indexing(
 
     for (package_uuid, package) in manual.packages.iter() {
         for construct_uuid in package.imports_uuids.iter() {
-            let construct = manual.constructs.get(construct_uuid).unwrap();
+            let construct = manual.commands_instances.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {}
         }
         for construct_uuid in package.variables_uuids.iter() {
-            let construct = manual.constructs.get(construct_uuid).unwrap();
+            let construct = manual.commands_instances.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
@@ -36,7 +33,7 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         for construct_uuid in package.modules_uuids.iter() {
-            let construct = manual.constructs.get(construct_uuid).unwrap();
+            let construct = manual.commands_instances.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);
@@ -48,7 +45,7 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         for construct_uuid in package.outputs_uuids.iter() {
-            let construct = manual.constructs.get(construct_uuid).unwrap();
+            let construct = manual.commands_instances.get(construct_uuid).unwrap();
             for dep in construct.collect_dependencies().iter() {
                 let result =
                     manual.try_resolve_construct_reference_in_expression(package_uuid, dep);

@@ -36,11 +36,11 @@ type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Value;
 type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Typing;
 
 pub trait FunctionImplementation {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing;
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value;
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing;
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value;
 }
 
 type TypingChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);
 pub trait TypingImplementation {
-    fn check(ctx: &TypingDeclaration, args: Vec<Typing>) -> Typing;
+    fn check(_ctx: &TypingDeclaration, args: Vec<Typing>) -> Typing;
 }

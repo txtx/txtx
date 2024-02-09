@@ -25,3 +25,20 @@ impl ConstructUuid {
         }
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PackageUuid {
+    Local(Uuid),
+}
+
+impl PackageUuid {
+    pub fn new() -> Self {
+        Self::Local(Uuid::new_v4())
+    }
+
+    pub fn value(&self) -> Uuid {
+        match &self {
+            Self::Local(v) => v.clone(),
+        }
+    }
+}

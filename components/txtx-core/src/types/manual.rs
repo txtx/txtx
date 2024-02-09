@@ -1,13 +1,13 @@
-use super::{ConstructData, ModuleConstruct, Package, PackageUuid, PreConstruct, PreConstructData};
+use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
+use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::{collections::HashMap, ops::Range};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandInstance;
-use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
 #[derive(Debug)]
@@ -38,8 +38,6 @@ pub struct Manual {
     pub constructs_graph: Dag<Uuid, u32, u32>,
     pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
-    pub pre_constructs: HashMap<ConstructUuid, PreConstruct>,
-    pub constructs: HashMap<ConstructUuid, ConstructData>,
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
@@ -64,97 +62,13 @@ impl Manual {
             graph_root,
             manual_metadata_construct_uuid: None,
             errors: vec![],
-            pre_constructs: HashMap::new(),
             constructs_locations: HashMap::new(),
-            constructs: HashMap::new(),
             commands_instances: HashMap::new(),
         }
     }
 
-    pub fn get_metadata_module(&self) -> Option<&ModuleConstruct> {
-        self.manual_metadata_construct_uuid
-            .as_ref()
-            .and_then(|c| self.constructs.get(&c))
-            .and_then(|c| c.as_module())
-    }
-
-    pub fn inspect_constructs(&self) {
-        for (package_uuid, package) in self.packages.iter() {
-            println!("{} ({})", package.name, package.location.to_string());
-            if !package.imports_uuids.is_empty() {
-                println!("Imports:");
-            }
-            for construct_uuid in package.imports_uuids.iter() {
-                let construct = self.constructs.get(construct_uuid).unwrap();
-                println!("- {}", construct.as_import().unwrap().name);
-                for dep in construct.collect_dependencies().iter() {
-                    println!("  -> {}", dep);
-                }
-            }
-
-            if !package.variables_uuids.is_empty() {
-                println!("Variables:");
-            }
-            for construct_uuid in package.variables_uuids.iter() {
-                let construct = self.constructs.get(construct_uuid).unwrap();
-                println!("- {}", construct.as_variable().unwrap().name);
-                for dep in construct.collect_dependencies().iter() {
-                    let result =
-                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some((resolved_construct_uuid, _))) = result {
-                        println!(
-                            "  -> {} resolving to {}",
-                            dep,
-                            resolved_construct_uuid.value()
-                        );
-                    } else {
-                        println!("  -> {} (unable to resolve)", dep,);
-                    }
-                }
-            }
-            if !package.modules_uuids.is_empty() {
-                println!("Modules:");
-            }
-            for construct_uuid in package.modules_uuids.iter() {
-                let construct = self.constructs.get(construct_uuid).unwrap();
-                println!("- {}", construct.as_module().unwrap().id);
-                for dep in construct.collect_dependencies().iter() {
-                    let result =
-                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some((resolved_construct_uuid, _))) = result {
-                        println!(
-                            "  -> {} resolving to {}",
-                            dep,
-                            resolved_construct_uuid.value()
-                        );
-                    } else {
-                        println!("  -> {} (unable to resolve)", dep,);
-                    }
-                }
-            }
-
-            if !package.variables_uuids.is_empty() {
-                println!("Outputs:");
-            }
-            for construct_uuid in package.outputs_uuids.iter() {
-                let construct = self.constructs.get(construct_uuid).unwrap();
-                println!("- {}", construct.as_output().unwrap().name);
-                for dep in construct.collect_dependencies().iter() {
-                    let result =
-                        self.try_resolve_construct_reference_in_expression(package_uuid, dep);
-                    if let Ok(Some((resolved_construct_uuid, _))) = result {
-                        println!(
-                            "  -> {} resolving to {}",
-                            dep,
-                            resolved_construct_uuid.value()
-                        );
-                    } else {
-                        println!("  -> {} (unable to resolve)", dep,);
-                    }
-                }
-            }
-            println!("");
-        }
+    pub fn get_metadata_module(&self) -> Option<&CommandInstance> {
+        unimplemented!()
     }
 
     pub fn index_construct(
@@ -162,7 +76,6 @@ impl Manual {
         construct_name: String,
         construct_location: FileLocation,
         construct_data: PreConstructData,
-        construct_span: Range<usize>,
         package_name: &String,
         package_location: &FileLocation,
     ) -> Result<PackageUuid, String> {
@@ -202,6 +115,7 @@ impl Manual {
                         specification: commands::new_module_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
+                        package_uuid: package_uuid.clone(),
                     },
                 );
             }
@@ -216,6 +130,7 @@ impl Manual {
                         specification: commands::new_variable_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
+                        package_uuid: package_uuid.clone(),
                     },
                 );
             }
@@ -230,6 +145,7 @@ impl Manual {
                         specification: commands::new_output_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
+                        package_uuid: package_uuid.clone(),
                     },
                 );
             }
@@ -253,23 +169,11 @@ impl Manual {
         self.constructs_graph_nodes
             .insert(construct_uuid.value(), node_index);
         // Update plan
-        let pre_construct = PreConstruct {
-            uuid: construct_uuid.clone(),
-            name: construct_name,
-            data: construct_data,
-            span: construct_span,
-        };
-        self.pre_constructs
-            .insert(construct_uuid.clone(), pre_construct);
         self.constructs_locations.insert(
             construct_uuid.clone(),
             (package_uuid.clone(), construct_location),
         );
         Ok(package_uuid)
-    }
-
-    pub fn add_construct(&mut self, uuid: &ConstructUuid, construct: ConstructData) {
-        self.constructs.insert(uuid.clone(), construct);
     }
 
     pub fn try_resolve_construct_reference_in_expression(
@@ -335,9 +239,8 @@ impl Manual {
             let imported_package = current_package
                 .imports_uuids_lookup
                 .get(&component.to_string())
-                .and_then(|c| self.constructs.get(c))
-                .and_then(|c| c.as_import())
-                .and_then(|i| Some(&i.package_uuid))
+                .and_then(|c| self.commands_instances.get(c))
+                .and_then(|c| Some(&c.package_uuid))
                 .and_then(|p| self.packages.get(&p));
 
             if let Some(imported_package) = imported_package {

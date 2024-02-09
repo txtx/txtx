@@ -1,6 +1,6 @@
-use std::{collections::{BTreeSet, HashMap, VecDeque}, path::Components};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use crate::types::{Manual, PackageUuid, RuntimeContext};
+use crate::types::{Manual, RuntimeContext};
 use daggy::Walker;
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
@@ -8,7 +8,7 @@ use txtx_addon_kit::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::{Diagnostic, DiagnosticLevel},
         typing::Value,
-        ConstructUuid,
+        ConstructUuid, PackageUuid,
     },
 };
 
@@ -87,17 +87,19 @@ pub fn run_constructs_evaluation(
 
     for (_, package) in manual.packages.iter() {
         for construct_uuid in package.outputs_uuids.iter() {
-            let construct = manual.constructs.get(construct_uuid).unwrap().as_output().unwrap();
+            let construct = manual.commands_instances.get(construct_uuid).unwrap();
             println!("Output '{}'", construct.name);
 
-            for (key, value) in constructs_execution_results.get(construct_uuid).unwrap().outputs.iter() {
+            for (key, value) in constructs_execution_results
+                .get(construct_uuid)
+                .unwrap()
+                .outputs
+                .iter()
+            {
                 println!("- {}: {:?}", key, value);
-    
             }
-
         }
     }
-
 
     Ok(())
 }
@@ -111,7 +113,7 @@ pub fn eval_expression(
 ) -> Result<Value, Diagnostic> {
     let value = match expr {
         // Represents a null value.
-        Expression::Null(decorated_null) => Value::Null,
+        Expression::Null(_decorated_null) => Value::Null,
         // Represents a boolean.
         Expression::Bool(decorated_bool) => Value::Bool(*decorated_bool.value()),
         // Represents a number, either integer or float.
@@ -130,35 +132,35 @@ pub fn eval_expression(
         // Represents a string that does not contain any template interpolations or template directives.
         Expression::String(decorated_string) => Value::String(decorated_string.to_string()),
         // Represents an HCL array.
-        Expression::Array(array) => {
+        Expression::Array(_array) => {
             unimplemented!()
         }
         // Represents an HCL object.
-        Expression::Object(object) => {
+        Expression::Object(_object) => {
             unimplemented!()
         }
         // Represents a string containing template interpolations and template directives.
-        Expression::StringTemplate(string_template) => {
+        Expression::StringTemplate(_string_template) => {
             unimplemented!()
         }
         // Represents an HCL heredoc template.
-        Expression::HeredocTemplate(heredoc_template) => {
+        Expression::HeredocTemplate(_heredoc_template) => {
             unimplemented!()
         }
         // Represents a sub-expression wrapped in parenthesis.
-        Expression::Parenthesis(sub_expr) => {
+        Expression::Parenthesis(_sub_expr) => {
             unimplemented!()
         }
         // Represents a variable identifier.
-        Expression::Variable(decorated_var) => {
+        Expression::Variable(_decorated_var) => {
             unimplemented!()
         }
         // Represents conditional operator which selects one of two rexpressions based on the outcome of a boolean expression.
-        Expression::Conditional(conditional) => {
+        Expression::Conditional(_conditional) => {
             unimplemented!()
         }
         // Represents a function call.
-        Expression::FuncCall(function_call) => {
+        Expression::FuncCall(_function_call) => {
             unimplemented!()
         }
         // Represents an attribute or element traversal.
@@ -174,7 +176,7 @@ pub fn eval_expression(
         }
         // Represents an operation which applies a unary operator to an expression.
         Expression::UnaryOp(unary_op) => {
-            let expr = eval_expression(
+            let _expr = eval_expression(
                 &unary_op.expr,
                 dependencies_execution_results,
                 package_uuid,
@@ -225,7 +227,7 @@ pub fn eval_expression(
             }
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
-        Expression::ForExpr(for_expr) => {
+        Expression::ForExpr(_for_expr) => {
             unimplemented!()
         }
     };
@@ -250,9 +252,9 @@ pub fn is_type_eq(lhs: &Value, rhs: &Value) -> bool {
     }
 }
 
-pub struct EvaluatedExpression {
-    value: Value,
-}
+// pub struct EvaluatedExpression {
+//     value: Value,
+// }
 
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,

@@ -1,14 +1,14 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_core::types::{ConstructUuid, ModuleConstruct};
+use txtx_core::types::{CommandInstance, ConstructUuid};
 
-pub struct Module {
+pub struct Construct {
     pub uuid: ConstructUuid,
-    pub data: ModuleConstruct,
+    pub data: CommandInstance,
 }
 
-impl Module {
-    pub fn new(uuid: &ConstructUuid, data: &ModuleConstruct) -> Self {
+impl Construct {
+    pub fn new(uuid: &ConstructUuid, data: &CommandInstance) -> Self {
         Self {
             uuid: uuid.clone(),
             data: data.clone(),
@@ -17,12 +17,12 @@ impl Module {
 }
 
 #[graphql_object(context = Context)]
-impl Module {
+impl Construct {
     pub fn uuid(&self) -> String {
         self.uuid.value().to_string()
     }
 
     pub fn id(&self) -> String {
-        self.data.id.to_string()
+        self.data.name.to_string()
     }
 }

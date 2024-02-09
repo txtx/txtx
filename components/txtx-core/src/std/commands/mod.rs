@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     define_command,
     types::{
-        commands::{
-            CommandExecutionResult, CommandImplementation, CommandInput, CommandSpecification,
-        },
+        commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
         typing::{Typing, Value},
     },
 };
@@ -27,12 +25,12 @@ pub fn new_module_specification() -> CommandSpecification {
 
 pub struct Module;
 impl CommandImplementation for Module {
-    fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
-        let mut result = CommandExecutionResult::new();
+    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> CommandExecutionResult {
+        let result = CommandExecutionResult::new();
         result
     }
 }
@@ -70,11 +68,11 @@ pub fn new_variable_specification() -> CommandSpecification {
 
 pub struct Variable;
 impl CommandImplementation for Variable {
-    fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
@@ -115,11 +113,11 @@ pub fn new_output_specification() -> CommandSpecification {
 
 pub struct Output;
 impl CommandImplementation for Output {
-    fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);

@@ -70,7 +70,7 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
 
     let gql_context = GqlContext { manuals };
     let _ = web_ui::http::start_server(gql_context, ctx).await;
-    let _ = match rx.recv() {
+    match rx.recv() {
         Ok(_) => {}
         Err(_) => {}
     };

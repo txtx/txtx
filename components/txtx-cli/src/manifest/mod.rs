@@ -25,7 +25,7 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
     let location = FileLocation::from_path_string(manifest_file_path)?;
     let manifest_bytes = location.read_content()?;
     let mut manifest = serde_json::from_slice::<ProtocolManifest>(&manifest_bytes)
-        .map_err(|e| format!("unable to parse manifest: {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse manifest: {}", e))?;
     manifest.location = Some(location);
     Ok(manifest)
 }
@@ -55,7 +55,7 @@ pub fn read_manuals_from_manifest(
         match std::fs::read_dir(package_location.to_string()) {
             Ok(_) => {
                 let files = get_txtx_files_paths(&package_location.to_string())
-                    .map_err(|e| format!("unable to read directory: {}", e.to_string()))?;
+                    .map_err(|e| format!("unable to read directory: {}", e))?;
                 for file_path in files.into_iter() {
                     let location = FileLocation::from_path(file_path);
                     let file_content = location.read_content_as_utf8()?;

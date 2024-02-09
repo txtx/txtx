@@ -1,4 +1,4 @@
-use jaq_core;
+// use jaq_core;
 use txtx_addon_kit::{
     define_function,
     types::{
@@ -33,11 +33,11 @@ lazy_static! {
 
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         // todo(lgalabru): Parse string, parse query then run query on document
         // json!(args[0])
         // jaq_core::minimal()

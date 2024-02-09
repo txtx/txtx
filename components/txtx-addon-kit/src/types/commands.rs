@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use hcl_edit::{expr::Expression, structure::Block, visit::visit_element};
+use hcl_edit::{expr::Expression, structure::Block};
 
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
@@ -9,7 +9,7 @@ use crate::helpers::hcl::{
 use super::{
     diagnostics::Diagnostic,
     typing::{Typing, Value},
-    ConstructUuid,
+    PackageUuid,
 };
 
 #[derive(Clone, Debug)]
@@ -75,8 +75,8 @@ type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
 type CommandRunner = fn(&CommandSpecification, &HashMap<String, Value>) -> CommandExecutionResult;
 
 pub trait CommandImplementation {
-    fn check(ctx: &CommandSpecification, args: Vec<Typing>) -> Typing;
-    fn run(ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult;
+    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing;
+    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> CommandExecutionResult;
 }
 
 #[derive(Clone, Debug)]
@@ -84,14 +84,32 @@ pub struct CommandInstance {
     pub specification: CommandSpecification,
     pub name: String,
     pub block: Block,
+    pub package_uuid: PackageUuid,
 }
 
 impl CommandInstance {
     pub fn check_inputs(&self) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
         let mut diagnostics = vec![];
-        let has_errors = false;
+        let mut has_errors = false;
 
-        for input in self.specification.inputs.iter() {}
+        for input in self.specification.inputs.iter() {
+            match (input.optional, self.block.body.get_attribute(&input.name)) {
+                (false, None) => {
+                    has_errors = true;
+                    diagnostics.push(Diagnostic::error_from_expression(
+                        &self.block,
+                        None,
+                        format!("missing attribute '{}'", input.name),
+                    ));
+                }
+                (_, Some(_attr)) => {
+                    // todo(lgalabru): check typing
+                }
+                (_, _) => {}
+            }
+        }
+
+        // todo(lgalabru): check arbitrary attributes
 
         if has_errors {
             Err(diagnostics)
@@ -143,5 +161,16 @@ impl CommandInstance {
         }
         let res = (self.specification.runner)(&self.specification, &values);
         Ok(res)
+    }
+
+    pub fn collect_dependencies(&self) -> Vec<Expression> {
+        let mut dependencies = vec![];
+        for input in self.specification.inputs.iter() {
+            let Some(attr) = self.block.body.get_attribute(&input.name) else {
+                continue;
+            };
+            collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+        }
+        dependencies
     }
 }

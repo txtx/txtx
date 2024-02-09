@@ -1,4 +1,3 @@
-use jaq_core;
 use txtx_addon_kit::{
     define_function,
     types::{
@@ -342,176 +341,176 @@ lazy_static! {
 
 pub struct UnaryNegInteger;
 impl FunctionImplementation for UnaryNegInteger {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct UnaryNotBool;
 impl FunctionImplementation for UnaryNotBool {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryAndBool;
 impl FunctionImplementation for BinaryAndBool {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryOrBool;
 impl FunctionImplementation for BinaryOrBool {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryDivSignedInteger;
 impl FunctionImplementation for BinaryDivSignedInteger {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryDivUnsignedInteger;
 impl FunctionImplementation for BinaryDivUnsignedInteger {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryEq;
 impl FunctionImplementation for BinaryEq {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryGreater;
 impl FunctionImplementation for BinaryGreater {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryGreaterEq;
 impl FunctionImplementation for BinaryGreaterEq {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryLess;
 impl FunctionImplementation for BinaryLess {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryLessEq;
 impl FunctionImplementation for BinaryLessEq {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryNotEq;
 impl FunctionImplementation for BinaryNotEq {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryMinusUInt;
 impl FunctionImplementation for BinaryMinusUInt {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryModuloUInt;
 impl FunctionImplementation for BinaryModuloUInt {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryMulUInt;
 impl FunctionImplementation for BinaryMulUInt {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
         unimplemented!()
     }
 }
 
 pub struct BinaryPlusUInt;
 impl FunctionImplementation for BinaryPlusUInt {
-    fn check(ctx: &FunctionSpecification, args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
         let lhs = match args.get(0) {
             Some(Value::UnsignedInteger(val)) => val,
             _ => unreachable!(),

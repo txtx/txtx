@@ -1,24 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::ConstructUuid;
-use txtx_addon_kit::uuid::Uuid;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum PackageUuid {
-    Local(Uuid),
-}
-
-impl PackageUuid {
-    pub fn new() -> Self {
-        Self::Local(Uuid::new_v4())
-    }
-
-    pub fn value(&self) -> Uuid {
-        match &self {
-            Self::Local(v) => v.clone(),
-        }
-    }
-}
+use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 
 #[derive(Clone, Debug)]
 pub struct Package {

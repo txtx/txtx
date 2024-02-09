@@ -11,9 +11,9 @@ use ::std::collections::HashMap;
 
 use kit::hcl::structure::Block;
 use kit::types::functions::FunctionSpecification;
+use kit::types::PackageUuid;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
-use types::PackageUuid;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 

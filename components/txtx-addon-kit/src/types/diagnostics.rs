@@ -1,3 +1,5 @@
+use hcl_edit::{expr::Expression, structure::Block};
+
 use crate::helpers::fs::FileLocation;
 
 #[derive(Clone, Debug)]
@@ -24,4 +26,30 @@ pub struct Diagnostic {
     pub documentation: Option<String>,
     pub example: Option<String>,
     pub parent_diagnostic: Option<Box<Diagnostic>>,
+}
+
+impl Diagnostic {
+    pub fn error_from_expression(
+        _block: &Block,
+        _expr: Option<&Expression>,
+        _message: String,
+    ) -> Diagnostic {
+        unimplemented!()
+    }
+
+    pub fn warning_from_expression(
+        _block: &Block,
+        _expr: Option<&Expression>,
+        _message: String,
+    ) -> Diagnostic {
+        unimplemented!()
+    }
+
+    pub fn note_from_expression(
+        _block: &Block,
+        _expr: Option<&Expression>,
+        _message: String,
+    ) -> Diagnostic {
+        unimplemented!()
+    }
 }

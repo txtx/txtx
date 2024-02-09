@@ -2,14 +2,11 @@ mod construct;
 mod manual;
 mod package;
 
-pub use construct::import::ImportConstruct;
-pub use construct::module::ModuleConstruct;
-pub use construct::output::OutputConstruct;
-pub use construct::variable::VariableConstruct;
-pub use construct::{Construct, ConstructData, PreConstruct, PreConstructData};
+pub use construct::PreConstructData;
 pub use manual::{Manual, SourceTree};
-pub use package::{Package, PackageUuid};
+pub use package::Package;
 use std::collections::HashMap;
+pub use txtx_addon_kit::types::commands::CommandInstance;
 
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;

@@ -53,7 +53,7 @@ impl App {
     fn new(manual: Manual) -> App {
         App {
             state: TableState::default().with_selected(0),
-            scroll_state: ScrollbarState::new((manual.constructs.len() - 1) * ITEM_HEIGHT),
+            scroll_state: ScrollbarState::new((manual.commands_instances.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&palette::tailwind::EMERALD),
             manual,
         }
@@ -61,7 +61,7 @@ impl App {
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.manual.constructs.len() - 1 {
+                if i >= self.manual.commands_instances.len() - 1 {
                     0
                 } else {
                     i + 1
@@ -77,7 +77,7 @@ impl App {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.manual.constructs.len() - 1
+                    self.manual.commands_instances.len() - 1
                 } else {
                     i - 1
                 }
@@ -166,21 +166,18 @@ fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
         .collect::<Row>()
         .style(header_style)
         .height(1);
-    let rows =
-        app.manual
-            .constructs
-            .iter()
-            .enumerate()
-            .map(|(i, (construct_uuid, _construct_data))| {
-                let color = match i % 2 {
-                    0 => app.colors.normal_row_color,
-                    _ => app.colors.alt_row_color,
-                };
-                let row = vec![construct_uuid.value().to_string()];
-                Row::new(row)
-                    .style(Style::new().fg(app.colors.row_fg).bg(color))
-                    .height(4)
-            });
+    let rows = app.manual.commands_instances.iter().enumerate().map(
+        |(i, (construct_uuid, _construct_data))| {
+            let color = match i % 2 {
+                0 => app.colors.normal_row_color,
+                _ => app.colors.alt_row_color,
+            };
+            let row = vec![construct_uuid.value().to_string()];
+            Row::new(row)
+                .style(Style::new().fg(app.colors.row_fg).bg(color))
+                .height(4)
+        },
+    );
     let bar = " █ ";
     let t = Table::new(
         rows,

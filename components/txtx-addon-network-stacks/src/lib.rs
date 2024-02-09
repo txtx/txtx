@@ -109,7 +109,7 @@ impl AddonConstruct for StacksNetworkConstructs {
     }
 
     ///
-    fn from_block(block: &Block, location: &FileLocation) -> Result<Box<Self>, VisitorError>
+    fn from_block(_block: &Block, _location: &FileLocation) -> Result<Box<Self>, VisitorError>
     where
         Self: Sized,
     {
@@ -121,5 +121,5 @@ impl AddonConstruct for StacksNetworkConstructs {
         unimplemented!()
     }
 
-    fn eval(self: &Self, dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>) {}
+    fn eval(self: &Self, _dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>) {}
 }

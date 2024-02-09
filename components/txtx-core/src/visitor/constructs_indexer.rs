@@ -7,7 +7,7 @@ use crate::{
 };
 use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
 use txtx_addon_kit::{
-    hcl::{self, structure::BlockLabel, Span},
+    hcl::{self, structure::BlockLabel},
     helpers::{
         fs::{get_txtx_files_paths, FileLocation},
         hcl::visit_required_string_literal_attribute,
@@ -16,7 +16,7 @@ use txtx_addon_kit::{
 
 pub fn run_constructs_indexing(
     manual: &mut Manual,
-    addons_ctx: &mut AddonsContext,
+    _addons_ctx: &mut AddonsContext,
 ) -> Result<bool, String> {
     let mut has_errored = false;
 
@@ -39,7 +39,6 @@ pub fn run_constructs_indexing(
         let package_location = location.get_parent_location()?;
 
         for block in content.into_blocks() {
-            let span = block.span().ok_or("unable to retrieve span".to_string())?;
             match block.ident.value().as_str() {
                 "import" => {
                     // imports are the only constructs that we need to process in this step
@@ -100,11 +99,10 @@ pub fn run_constructs_indexing(
                         }
                     }
 
-                    manual.index_construct(
+                    let _ = manual.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Import(block),
-                        span,
                         &package_name,
                         &package_location,
                     );
@@ -130,11 +128,10 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    manual.index_construct(
+                    let _ = manual.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Variable(block),
-                        span,
                         &package_name,
                         &package_location,
                     );
@@ -160,11 +157,10 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    manual.index_construct(
+                    let _ = manual.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Module(block),
-                        span,
                         &package_name,
                         &package_location,
                     );
@@ -190,11 +186,10 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    manual.index_construct(
+                    let _ = manual.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Output(block),
-                        span,
                         &package_name,
                         &package_location,
                     );
@@ -202,7 +197,7 @@ pub fn run_constructs_indexing(
                 "addon" => {
                     // Read namespece then send the block to the
                     let (
-                        Some(BlockLabel::String(namespace)),
+                        Some(BlockLabel::String(_namespace)),
                         Some(BlockLabel::String(construct_name)),
                     ) = (block.labels.first(), block.labels.last())
                     else {
@@ -226,15 +221,14 @@ pub fn run_constructs_indexing(
                         continue;
                     };
                     // addons_ctx.
-                    let package_uuid = manual.index_construct(
+                    let _package_uuid = manual.index_construct(
                         construct_name.to_string(),
                         location.clone(),
                         PreConstructData::Addon(block),
-                        span,
                         &package_name,
                         &package_location,
                     )?;
-
+                    unimplemented!()
                     // addons_ctx.instantiate_context(namespace, package_uuid);
                     // addons_ctx.
                 }
