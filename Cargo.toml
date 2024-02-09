@@ -1,9 +1,10 @@
 [workspace]
 members = [
     "components/txtx-cli",
-    "components/txtx-vm",
-    "components/txtx-ext-kit",
-    "components/txtx-ext-bitcoin"
+    "components/txtx-core",
+    "components/txtx-addon-kit",
+    # "components/txtx-addon-network-bitcoin",
+    "components/txtx-addon-network-stacks"
 ]
 default-members = ["components/txtx-cli"]
 resolver = "2"

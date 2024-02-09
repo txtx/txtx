@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-txtx-vm = { path = "../txtx-vm" }
+txtx-core = { path = "../txtx-core" }
 futures = { version = "0.3.22", features = ["alloc"], default-features = false }
 futures-enum = { version = "0.1.12", default-features = false }
 uuid = { version = "1.6.1", features = ["serde", "v7"] }

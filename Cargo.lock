@@ -201,6 +201,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
+
+[[package]]
 name = "binascii"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -246,7 +252,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88c18b51216e1f74b9d769cead6ace2f82b965b807e3d73330aabe9faec31c84"
 dependencies = [
  "ahash",
- "base64",
+ "base64 0.13.1",
  "bitvec",
  "chrono",
  "hex",
@@ -614,6 +620,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dyn-clone"
+version = "1.0.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "545b22097d44f8a9581187cdf93de7a71e4722bf51200cfaba810865b49a495d"
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -936,6 +948,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hifijson"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85ef6b41c333e6dd2a4aaa59125a19b633cd17e7aaf372b2260809777bcdef4a"
+
+[[package]]
 name = "hiro-system-kit"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1081,6 +1099,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
+name = "jaq-core"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03d6a5713b8f33675abfac79d1db0022a3f28764b2a6b96a185c199ad8dab86d"
+dependencies = [
+ "aho-corasick",
+ "base64 0.21.7",
+ "hifijson",
+ "jaq-interpret",
+ "libm",
+ "log",
+ "regex",
+ "time",
+ "urlencoding",
+]
+
+[[package]]
+name = "jaq-interpret"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f569e38e5fc677db8dfda89ee0b4c25b3f53e811b16434fd14bdc5b43fc362ac"
+dependencies = [
+ "ahash",
+ "dyn-clone",
+ "hifijson",
+ "indexmap 2.0.2",
+ "jaq-syn",
+ "once_cell",
+ "serde_json",
+]
+
+[[package]]
+name = "jaq-syn"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4d60101fb791b20c982731d848ed6e7d25363656497647c2093b68bd88398d6"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1147,6 +1206,12 @@ name = "libc"
 version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
+
+[[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "linux-raw-sys"
@@ -2353,6 +2418,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
+name = "txtx-addon-kit"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "hcl-edit",
+ "serde",
+ "serde_derive",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "txtx-addon-network-stacks"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "sha2",
+ "txtx-addon-kit",
+]
+
+[[package]]
 name = "txtx-cli"
 version = "0.1.0"
 dependencies = [
@@ -2370,28 +2456,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "toml",
- "txtx-ext-bitcoin",
+ "txtx-addon-network-stacks",
+ "txtx-core",
  "txtx-gql",
- "txtx-vm",
  "unicode-width",
 ]
 
 [[package]]
-name = "txtx-ext-bitcoin"
+name = "txtx-core"
 version = "0.1.0"
 dependencies = [
- "sha2",
- "txtx-ext-kit",
-]
-
-[[package]]
-name = "txtx-ext-kit"
-version = "0.1.0"
-dependencies = [
- "hcl-edit",
- "serde",
- "serde_derive",
- "url",
+ "daggy",
+ "getrandom",
+ "hex",
+ "jaq-core",
+ "lazy_static",
+ "txtx-addon-kit",
 ]
 
 [[package]]
@@ -2403,18 +2483,7 @@ dependencies = [
  "juniper",
  "juniper_codegen",
  "juniper_rocket",
- "txtx-vm",
- "uuid",
-]
-
-[[package]]
-name = "txtx-vm"
-version = "0.1.0"
-dependencies = [
- "daggy",
- "getrandom",
- "hex",
- "txtx-ext-kit",
+ "txtx-core",
  "uuid",
 ]
 
@@ -2502,6 +2571,12 @@ dependencies = [
  "percent-encoding",
  "serde",
 ]
+
+[[package]]
+name = "urlencoding"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "utf8parse"

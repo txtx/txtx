@@ -1,4 +1,4 @@
-use crate::types::variable::Variable;
+use crate::types::constructs::Construct;
 use crate::Context;
 use juniper_codegen::graphql_object;
 use uuid::Uuid;
@@ -13,7 +13,7 @@ impl Mutation {
         "1.0"
     }
 
-    async fn sign_transaction(_context: &Context, _id: Uuid) -> Option<Variable> {
+    async fn sign_transaction(_context: &Context, _id: Uuid) -> Option<Construct> {
         None
     }
 }

@@ -5,5 +5,5 @@ pub fn generate_manifest(protocol_name: &str) -> String {
 }}"#,
         protocol_name = protocol_name,
     );
-    return conf;
+    conf
 }

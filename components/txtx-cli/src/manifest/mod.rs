@@ -1,9 +1,9 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::{collections::BTreeMap, path::PathBuf};
 
 use serde_json::Value;
-use txtx_vm::kit::helpers::fs::FileLocation;
-use txtx_vm::types::{Manual, SourceTree};
+use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use txtx_core::types::{Manual, SourceTree};
 
 pub mod generator;
 
@@ -25,7 +25,7 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
     let location = FileLocation::from_path_string(manifest_file_path)?;
     let manifest_bytes = location.read_content()?;
     let mut manifest = serde_json::from_slice::<ProtocolManifest>(&manifest_bytes)
-        .map_err(|e| format!("unable to parse manifest: {}", e.to_string()))?;
+        .map_err(|e| format!("unable to parse manifest: {}", e))?;
     manifest.location = Some(location);
     Ok(manifest)
 }
@@ -54,8 +54,8 @@ pub fn read_manuals_from_manifest(
         package_location.append_path(manual_root_package_relative_path)?;
         match std::fs::read_dir(package_location.to_string()) {
             Ok(_) => {
-                let files = get_tx_paths(&package_location.to_string())
-                    .map_err(|e| format!("unable to read directory: {}", e.to_string()))?;
+                let files = get_txtx_files_paths(&package_location.to_string())
+                    .map_err(|e| format!("unable to read directory: {}", e))?;
                 for file_path in files.into_iter() {
                     let location = FileLocation::from_path(file_path);
                     let file_content = location.read_content_as_utf8()?;
@@ -70,21 +70,4 @@ pub fn read_manuals_from_manifest(
         manuals.insert(manual_name.to_string(), Manual::new(Some(source_tree)));
     }
     Ok(manuals)
-}
-
-fn get_tx_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
-    let paths = std::fs::read_dir(dir)?
-        .filter_map(|res| res.ok())
-        .map(|dir_entry| dir_entry.path())
-        .filter_map(|path| {
-            if path.extension().map_or(false, |ext| {
-                ["tx", "txvars"].contains(&ext.to_str().unwrap())
-            }) {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    Ok(paths)
 }

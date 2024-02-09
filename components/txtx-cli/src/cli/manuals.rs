@@ -1,8 +1,8 @@
 use std::sync::mpsc::channel;
 
-use txtx_ext_bitcoin::BitcoinCodec;
+use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_core::{simulate_manual, types::RuntimeContext, AddonsContext};
 use txtx_gql::Context as GqlContext;
-use txtx_vm::{simulate_manual, CodecManager};
 
 use crate::{
     manifest::{read_manifest_at_path, read_manuals_from_manifest},
@@ -32,14 +32,19 @@ pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Resu
     let mut manual = read_manuals_from_manifest(&manifest, Some(&vec![manual_name.clone()]))
         .ok()
         .and_then(|mut m| m.remove(&manual_name))
-        .unwrap();
-    let bitcoin_codec = BitcoinCodec::new();
-    let mut codec_manager = CodecManager::new();
-    codec_manager.register(Box::new(bitcoin_codec));
-    simulate_manual(&mut manual, &mut codec_manager)?;
+        .ok_or(format!(
+            "unable to find entry '{}' in manifest {}",
+            manual_name, manifest_file_path
+        ))?;
+    let stacks_addon = StacksNetworkAddon::new();
+    let mut addons_ctx = AddonsContext::new();
+    addons_ctx.register(Box::new(stacks_addon));
+
+    let mut runtime_context = RuntimeContext::new(addons_ctx);
+    simulate_manual(&mut manual, &mut runtime_context)?;
 
     if cmd.no_tui {
-        manual.inspect_constructs();
+        // manual.inspect_constructs();
     } else {
         let _ = term_ui::inspect::main(manual);
     }
@@ -55,16 +60,17 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
     let manifest = read_manifest_at_path(&manifest_file_path)?;
     let mut manuals = read_manuals_from_manifest(&manifest, None)?;
     for (_, manual) in manuals.iter_mut() {
-        let bitcoin_codec = BitcoinCodec::new();
-        let mut codec_manager = CodecManager::new();
-        codec_manager.register(Box::new(bitcoin_codec));
-        simulate_manual(manual, &mut codec_manager)?;
+        let stacks_addon = StacksNetworkAddon::new();
+        let mut addons_ctx = AddonsContext::new();
+        addons_ctx.register(Box::new(stacks_addon));
+        let mut runtime_context = RuntimeContext::new(addons_ctx);
+        simulate_manual(manual, &mut runtime_context)?;
     }
     let (tx, rx) = channel();
 
     let gql_context = GqlContext { manuals };
     let _ = web_ui::http::start_server(gql_context, ctx).await;
-    let _ = match rx.recv() {
+    match rx.recv() {
         Ok(_) => {}
         Err(_) => {}
     };

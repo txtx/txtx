@@ -1,0 +1,20 @@
+[package]
+name = "txtx-addon-kit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hcl-edit = "0.7.5"
+serde = "1"
+serde_derive = "1"
+url = { version = "2.2.2", features = ["serde"] }
+uuid = { version = "1.7.0", features = ["v4"] }
+getrandom = { version = "0.2", features = ["js"] }
+
+[features]
+wasm = []
+
+[lib]
+crate-type = ["lib", "cdylib"] 

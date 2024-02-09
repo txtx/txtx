@@ -3,47 +3,50 @@ module "manual" {
   description = "Lorem ipsum dolor sit amet"
 }
 
-variable "bit_commitment_preimage_0" {
-  description = "Bit commitment preimage for value 0"
-  default = "0x"
+// variable "binary_op_add" {
+//   description = "Greeting variable"
+//   value = 1 + 2
+// }
+
+// variable "hello" {
+//   description = "Greeting variable"
+//   value = "Hello"
+// }
+
+// variable "world" {
+//   description = "Destination"
+//   value = "World"
+// }
+
+// variable "json_input" {
+//   description = "Input json"
+//   value = "{ \"message\": \"Hello, World!\" }"
+// }
+
+// module "concatenate_inputs" {
+//   description = "${variable.hello}, ${variable.world}!"
+// }
+
+// module "query_json_input" {
+//   description = json_query(variable.json_input, ".message")
+// }
+
+// output "message_from_concatenation" {
+//   description = "Combining variables"
+//   value = module.concatenate_inputs
+// }
+
+// output "message_from_jq" {
+//   description = "Combining variables"
+//   value = module.query_json_input
+// }
+
+variable "binary_op_add" {
+  description = "Greeting variable"
+  value = 1 + 2
 }
 
-variable "bit_commitment_preimage_1" {
-  description = "Bit commitment preimage for value 1"
-  default = test
-}
-
-variable "bit_commitment_hash_0" {
-  description = "Bit commitment hash for value 0"
-  default = "0x00"
-}
-
-variable "bit_commitment_hash_1" {
-  description = "Bit commitment hash for value 1"
-  default = variable.bit_commitment_preimage_0
-}
-
-encode "bitcoin_script" "bitvm_circuit_and" {
-
-  description = "Gate AND"
-
-  stack = [
-    variable.bit_commitment_preimage_0,
-    variable.bit_commitment_preimage_1
-  ]
-
-  instructions = [
-    "OP_TOALTSTACK",
-    "OP_DUP",
-    "OP_TOALTSTACK",
-    variable.bit_commitment_hash_0,
-    variable.bit_commitment_hash_1,
-    "OP_FROMALTSTACK",
-    "OP_ROLL",
-    "OP_FROMALTSTACK",
-    "OP_HASH160",
-    "OP_EQUALVERIFY",
-    "OP_2DROP",
-    "OP_DROP",
-  ]
+output "message_from_concatenation" {
+  description = "Combining variables"
+  value = variable.binary_op_add.value
 }
