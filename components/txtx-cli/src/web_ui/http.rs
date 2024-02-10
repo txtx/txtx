@@ -66,7 +66,7 @@ fn serve_index() -> Option<RawHtml<Cow<'static, [u8]>>> {
     Some(RawHtml(asset.data))
 }
 
-#[get("/dist/<file..>")]
+#[get("/<file..>")]
 fn serve_dist(file: PathBuf) -> Option<(ContentType, Cow<'static, [u8]>)> {
     let filename = file.display().to_string();
     let asset = Asset::get(&filename)?;
