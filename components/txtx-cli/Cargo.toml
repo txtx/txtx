@@ -32,3 +32,6 @@ default = ["cli"]
 cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
+
+[build-dependencies]
+npm_rs="1.0.0"
