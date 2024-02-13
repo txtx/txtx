@@ -10,7 +10,7 @@ pub use txtx_addon_kit::types::commands::CommandInstance;
 
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
-use txtx_addon_kit::types::typing::Value;
+use txtx_addon_kit::types::types::Value;
 pub use txtx_addon_kit::types::ConstructUuid;
 
 use crate::std::functions::operators::OPERATORS_FUNCTIONS;
@@ -33,7 +33,6 @@ impl RuntimeContext {
 
     pub fn execute_function(&self, name: &str, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let function = self.functions.get(name).unwrap();
-        let res = (function.runner)(function, args);
-        Ok(res)
+        (function.runner)(function, args)
     }
 }

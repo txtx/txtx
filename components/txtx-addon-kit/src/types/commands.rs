@@ -8,7 +8,7 @@ use crate::helpers::hcl::{
 
 use super::{
     diagnostics::Diagnostic,
-    typing::{Typing, Value},
+    types::{Typing, Value},
     PackageUuid,
 };
 
@@ -71,12 +71,18 @@ pub struct CommandSpecification {
     pub checker: CommandChecker,
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
-type CommandRunner = fn(&CommandSpecification, &HashMap<String, Value>) -> CommandExecutionResult;
+type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Result<Typing, Diagnostic>;
+type CommandRunner = fn(
+    &CommandSpecification,
+    &HashMap<String, Value>,
+) -> Result<CommandExecutionResult, Diagnostic>;
 
 pub trait CommandImplementation {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing;
-    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> CommandExecutionResult;
+    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic>;
+    fn run(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic>;
 }
 
 #[derive(Clone, Debug)]
@@ -159,8 +165,7 @@ impl CommandInstance {
             }?;
             values.insert(input.name.clone(), value);
         }
-        let res = (self.specification.runner)(&self.specification, &values);
-        Ok(res)
+        (self.specification.runner)(&self.specification, &values)
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {

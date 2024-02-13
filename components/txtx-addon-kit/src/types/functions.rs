@@ -1,4 +1,7 @@
-use super::typing::{Typing, Value};
+use super::{
+    diagnostics::Diagnostic,
+    types::{Typing, Value},
+};
 
 #[derive(Clone)]
 pub struct FunctionInput {
@@ -25,22 +28,10 @@ pub struct FunctionSpecification {
     pub checker: FunctionChecker,
 }
 
-#[derive(Clone)]
-pub struct TypingDeclaration {
-    pub name: String,
-    pub documentation: String,
-    pub check: TypingChecker,
-}
-
-type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Value;
-type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Typing;
+type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Result<Value, Diagnostic>;
+type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Result<Typing, Diagnostic>;
 
 pub trait FunctionImplementation {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing;
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value;
-}
-
-type TypingChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);
-pub trait TypingImplementation {
-    fn check(_ctx: &TypingDeclaration, args: Vec<Typing>) -> Typing;
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic>;
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic>;
 }

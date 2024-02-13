@@ -9,7 +9,7 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: Typing::Bool,
+                        typing: Typing::bool(),
                         optional: true,
                         default_value: 
                     }
@@ -17,7 +17,7 @@ lazy_static! {
                 outputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: Typing::Bool,
+                        typing: Typing::bool(),
                         optional: true,
                         default_value: 
                     }
@@ -32,7 +32,7 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: Typing::Bool,
+                        typing: Typing::bool(),
                         optional: true,
                         default_value: 
                     }
@@ -40,7 +40,7 @@ lazy_static! {
                 outputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: Typing::Bool,
+                        typing: Typing::bool(),
                         optional: true,
                         default_value: 
                     }

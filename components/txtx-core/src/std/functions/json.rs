@@ -2,8 +2,7 @@
 use txtx_addon_kit::{
     define_function,
     types::{
-        functions::{FunctionImplementation, FunctionSpecification},
-        typing::{Typing, Value},
+        diagnostics::Diagnostic, functions::{FunctionImplementation, FunctionSpecification}, types::{Typing, Value}
     },
 };
 
@@ -16,16 +15,16 @@ lazy_static! {
             inputs: [
                 decoded_json: {
                     documentation: "Json document",
-                    typing: vec![Typing::String]
+                    typing: vec![Typing::string()]
                 },
                 query: {
                     documentation: "Json query (see jq documentation)",
-                    typing: vec![Typing::String]
+                    typing: vec![Typing::string()]
                 }
             ],
             output: {
                 documentation: "Result of the query",
-                typing: Typing::String
+                typing: Typing::string()
             },
         }
     },];
@@ -33,14 +32,14 @@ lazy_static! {
 
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         // todo(lgalabru): Parse string, parse query then run query on document
         // json!(args[0])
         // jaq_core::minimal()
-        Value::Bool(true)
+        Ok(Value::Bool(true))
     }
 }

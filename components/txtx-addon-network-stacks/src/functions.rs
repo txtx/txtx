@@ -1,6 +1,6 @@
 use txtx_addon_kit::types::{
     functions::{FunctionImplementation, FunctionSpecification},
-    typing::{Typing, Value},
+    types::{Typing, Value},
 };
 
 lazy_static! {
@@ -13,12 +13,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Typing::bool()]
                     }
                 ],
                 output: {
                     documentation: "Input wrapped into an Ok Clarity type",
-                    typing: Typing::Bool
+                    typing: Typing::bool()
                 },
             }
         },
@@ -30,12 +30,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Typing::bool()]
                     }
                 ],
                 output: {
                     documentation: "Input wrapped into an Err Clarity type",
-                    typing: Typing::Bool
+                    typing: Typing::bool()
                 },
             }
         },
@@ -44,133 +44,133 @@ lazy_static! {
 
 pub struct EncodeClarityValueOk;
 impl FunctionImplementation for EncodeClarityValueOk {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
-        Value::Bool(true)
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        Ok(Value::Bool(true))
     }
 }
 
 pub struct EncodeClarityValueErr;
 impl FunctionImplementation for EncodeClarityValueErr {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
-        Value::Bool(true)
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        Ok(Value::Bool(true))
     }
 }
 
 #[derive(Clone)]
 pub struct StacksEncodeSome;
 impl FunctionImplementation for StacksEncodeSome {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeNone;
 impl FunctionImplementation for StacksEncodeNone {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeBool;
 impl FunctionImplementation for StacksEncodeBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeUint;
 impl FunctionImplementation for StacksEncodeUint {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeInt;
 impl FunctionImplementation for StacksEncodeInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeBuffer;
 impl FunctionImplementation for StacksEncodeBuffer {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeList;
 impl FunctionImplementation for StacksEncodeList {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeAsciiString;
 impl FunctionImplementation for StacksEncodeAsciiString {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodePrincipal;
 impl FunctionImplementation for StacksEncodePrincipal {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct StacksEncodeTuple;
 impl FunctionImplementation for StacksEncodeTuple {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }

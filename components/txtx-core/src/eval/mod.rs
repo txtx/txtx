@@ -7,7 +7,7 @@ use txtx_addon_kit::{
     types::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::{Diagnostic, DiagnosticLevel},
-        typing::Value,
+        types::Value,
         ConstructUuid, PackageUuid,
     },
 };
@@ -243,12 +243,14 @@ pub fn is_type_eq(lhs: &Value, rhs: &Value) -> bool {
         (Value::SignedInteger(_), Value::SignedInteger(_)) => true,
         (Value::Float(_), Value::Float(_)) => true,
         (Value::String(_), Value::String(_)) => true,
+        (Value::Buffer(_), Value::Buffer(_)) => true,
         (Value::Null, _) => false,
         (Value::Bool(_), _) => false,
         (Value::UnsignedInteger(_), _) => false,
         (Value::SignedInteger(_), _) => false,
         (Value::Float(_), _) => false,
         (Value::String(_), _) => false,
+        (Value::Buffer(_), _) => false,
     }
 }
 
