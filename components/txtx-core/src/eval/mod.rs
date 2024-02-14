@@ -55,8 +55,8 @@ pub fn run_constructs_evaluation(
 
         // Retrieve the construct_uuid of the inputs
         // Collect the outputs
-        let references_expressions = command_instance
-            .get_references_expressions_from_inputs()
+        let references_expressions: Vec<Expression> = command_instance
+            .get_expressions_referencing_commands_from_inputs()
             .unwrap();
         let (package_uuid, _) = manual.constructs_locations.get(&construct_uuid).unwrap();
         for expr in references_expressions.into_iter() {

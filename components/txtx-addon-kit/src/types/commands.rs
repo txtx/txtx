@@ -124,7 +124,7 @@ impl CommandInstance {
         }
     }
 
-    pub fn get_references_expressions_from_inputs(&self) -> Result<Vec<Expression>, String> {
+    pub fn get_expressions_referencing_commands_from_inputs(&self) -> Result<Vec<Expression>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             let res = visit_optional_untyped_attribute(&input.name, &self.block)
