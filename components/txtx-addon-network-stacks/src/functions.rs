@@ -1,6 +1,5 @@
 use txtx_addon_kit::types::{
-    functions::{FunctionImplementation, FunctionSpecification},
-    types::{Typing, Value},
+    diagnostics::Diagnostic, functions::{FunctionImplementation, FunctionSpecification}, types::{Typing, Value}
 };
 
 lazy_static! {
