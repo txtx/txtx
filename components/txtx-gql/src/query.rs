@@ -38,11 +38,13 @@ impl Query {
     async fn manuals(context: &Context) -> Vec<ManualDescription> {
         let mut manuals = vec![];
         for (id, manual) in context.manuals.iter() {
-            let metadata = manual.get_metadata_module();
+            let _metadata = manual.get_metadata_module();
+            let construct_uuids = manual.commands_instances.keys().cloned().collect();
             manuals.push(ManualDescription {
                 identifier: id.clone(),
-                name: metadata.and_then(|m| Some(m.name.to_string())),
-                description: None,
+                name: Some(id.clone()),
+                description: manual.description.clone(),
+                construct_uuids,
             })
         }
         manuals
