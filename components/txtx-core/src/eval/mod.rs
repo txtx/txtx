@@ -268,7 +268,9 @@ pub fn perform_inputs_evaluation(
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
-        let expr = command_instance.get_expressions_from_input(&input)?;
+        let Some(expr) = command_instance.get_expressions_from_input(&input)? else {
+            continue;
+        };
         let value = eval_expression(
             &expr,
             dependencies_execution_results,
