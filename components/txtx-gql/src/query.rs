@@ -16,18 +16,23 @@ impl Query {
         "1.0"
     }
 
-    async fn constructs(context: &Context, manual_name: String, id: Uuid) -> Option<Construct> {
+    async fn construct(context: &Context, manual_name: String, id: Uuid) -> Option<Construct> {
         let uuid = ConstructUuid::from_uuid(&id);
-        let Some(data) = context
-            .manuals
-            .get(&manual_name)?
-            .commands_instances
-            .get(&uuid)
-        else {
+        let Some(manual) = context.manuals.get(&manual_name) else {
             return None;
         };
+        let Some(data) = manual.commands_instances.get(&uuid) else {
+            return None;
+        };
+        let result = if let Some(result) = manual.constructs_execution_results.get(&uuid) {
+            Some(result.clone())
+        } else {
+            None
+        };
+
         // Return item
-        Some(Construct::new(&uuid, data))
+        Some(Construct::new(&uuid, data, result))
+    }
     }
 
     async fn manuals(context: &Context) -> Vec<ManualDescription> {
