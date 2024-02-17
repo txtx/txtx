@@ -5,5 +5,10 @@
           "description": "This manual does a lot of things. Check out all of the things this manual does.",
           "location": "./man"
         },
+        {
+          "name": "Another Manual",
+          "description": "This manual does less things. Either way, check it out.",
+          "location": "./man2"
+        }
       ]
 }

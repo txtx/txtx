@@ -1,0 +1,9 @@
+variable "a_variable" {
+  value = 1
+  // description = ""
+}
+
+output "adding_in_output" {
+  description = "Demonstrates adding in output"
+  value = variable.a_variable.value + 3
+}

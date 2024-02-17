@@ -46,7 +46,17 @@ variable "binary_op_add" {
   value = 1 + 2
 }
 
+variable "add_more" {
+  description = "Adds more variables"
+  value = variable.binary_op_add.value + 5
+}
+
 output "message_from_concatenation" {
   description = "Combining variables"
   value = variable.binary_op_add.value
+}
+
+output "adding_in_output" {
+  description = "Demonstrates adding in output"
+  value = variable.add_more.value + 3
 }
