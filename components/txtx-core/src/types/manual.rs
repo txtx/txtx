@@ -10,7 +10,7 @@ use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourceTree {
     pub files: HashMap<FileLocation, (String, String)>,
 }
@@ -27,7 +27,7 @@ impl SourceTree {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Manual {
     pub source_tree: Option<SourceTree>,
     pub packages_uuid_lookup: HashMap<FileLocation, PackageUuid>,

@@ -1,6 +1,6 @@
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DiscoveryError {
     UnknownConstruct(Diagnostic),
     VariableConstruct(Diagnostic),
@@ -10,12 +10,12 @@ pub enum DiscoveryError {
     AddonConstruct(Diagnostic),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DependenciesError {
     CycleDetected(Diagnostic),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConstructErrors {
     Discovery(DiscoveryError),
     Dependencies(DependenciesError),
