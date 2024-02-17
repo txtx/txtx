@@ -68,7 +68,7 @@ impl Manual {
     }
 
     pub fn get_metadata_module(&self) -> Option<&CommandInstance> {
-        unimplemented!()
+        None
     }
 
     pub fn index_construct(
