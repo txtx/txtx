@@ -1,5 +1,5 @@
 use crate::types::constructs::Construct;
-use crate::types::manual::ManualDescription;
+use crate::types::manual::{GqlManual, ManualDescription};
 
 use crate::Context;
 use juniper_codegen::graphql_object;
@@ -33,6 +33,12 @@ impl Query {
         // Return item
         Some(Construct::new(&uuid, data, result))
     }
+
+    async fn manual(context: &Context, manual_name: String) -> Option<GqlManual> {
+        let Some(data) = context.manuals.get(&manual_name) else {
+            return None;
+        };
+        Some(GqlManual::new(manual_name, data.clone()))
     }
 
     async fn manuals(context: &Context) -> Vec<ManualDescription> {
