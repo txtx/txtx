@@ -1,7 +1,9 @@
 use txtx_addon_kit::{
     define_function,
     types::{
-        diagnostics::Diagnostic, functions::{FunctionImplementation, FunctionSpecification}, types::{Typing, Value}
+        diagnostics::Diagnostic,
+        functions::{FunctionImplementation, FunctionSpecification},
+        types::{PrimitiveValue, Typing, Value},
     },
 };
 
@@ -511,13 +513,13 @@ impl FunctionImplementation for BinaryPlusUInt {
 
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let lhs = match args.get(0) {
-            Some(Value::UnsignedInteger(val)) => val,
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
             _ => unreachable!(),
         };
         let rhs = match args.get(1) {
-            Some(Value::UnsignedInteger(val)) => val,
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
             _ => unreachable!(),
         };
-        Ok(Value::UnsignedInteger(lhs + rhs))
+        Ok(Value::uint(lhs + rhs))
     }
 }

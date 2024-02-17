@@ -3,20 +3,20 @@ use super::{
     types::{Typing, Value},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
     pub typing: Vec<Typing>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionOutput {
     pub documentation: String,
     pub typing: Typing,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionSpecification {
     pub name: String,
     pub documentation: String,

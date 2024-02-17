@@ -59,3 +59,23 @@ macro_rules! define_command {
         };
     };
 }
+
+#[macro_export]
+macro_rules! define_object_type {
+    [
+        $($input_name:ident: {
+            documentation: $input_doc:expr,
+            typing: $input_ts:expr,
+            optional: $optional:expr,
+            interpolable: $interpolable:expr
+        }),*
+    ] => {
+        Typing::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+            name: String::from(stringify!($input_name)),
+            documentation: String::from($input_doc),
+            typing: $input_ts,
+            optional: $optional,
+            interpolable: $interpolable,
+        }),*])
+    };
+}

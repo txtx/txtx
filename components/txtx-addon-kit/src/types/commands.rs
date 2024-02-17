@@ -8,7 +8,7 @@ use crate::helpers::hcl::{
 
 use super::{
     diagnostics::Diagnostic,
-    types::{Typing, Value},
+    types::{ObjectProperty, Typing, Value},
     PackageUuid,
 };
 
@@ -49,6 +49,16 @@ pub struct CommandInput {
     pub typing: Typing,
     pub optional: bool,
     pub interpolable: bool,
+}
+
+impl CommandInput {
+    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        match &self.typing {
+            Typing::Object(spec) => Some(spec),
+            Typing::Primitive(_) => None,
+            Typing::Addon(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -124,7 +134,9 @@ impl CommandInstance {
         }
     }
 
-    pub fn get_expressions_referencing_commands_from_inputs(&self) -> Result<Vec<Expression>, String> {
+    pub fn get_expressions_referencing_commands_from_inputs(
+        &self,
+    ) -> Result<Vec<Expression>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             let res = visit_optional_untyped_attribute(&input.name, &self.block)
@@ -145,11 +157,51 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    pub fn get_expressions_from_input(&self, input: &CommandInput) -> Result<Expression, String> {
-        let res = visit_optional_untyped_attribute(&input.name, &self.block)
-            .map_err(|e| format!("{:?}", e))?
-            .ok_or_else(|| format!("expression expected"))?;
-        Ok(res)
+    pub fn get_expression_from_input(
+        &self,
+        input: &CommandInput,
+    ) -> Result<Option<Expression>, String> {
+        let res = match &input.typing {
+            Typing::Primitive(_) => visit_optional_untyped_attribute(&input.name, &self.block)
+                .map_err(|e| format!("{:?}", e))?,
+            Typing::Object(_) => unreachable!(),
+            Typing::Addon(_) => unreachable!(),
+        };
+        match (res, input.optional) {
+            (Some(res), _) => Ok(Some(res)),
+            (None, true) => Ok(None),
+            (None, false) => Err(format!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name, self.specification.matcher, input.name
+            )),
+        }
+    }
+
+    pub fn get_expression_from_object_property(
+        &self,
+        input: &CommandInput,
+        prop: &ObjectProperty,
+    ) -> Result<Option<Expression>, String> {
+        let object = self.block.body.get_blocks(&input.name).next();
+        match (object, input.optional) {
+            (Some(block), _) => {
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)
+                    .map_err(|e| format!("{:?}", e))?;
+                match (expr_res, prop.optional) {
+                    (Some(expression), _) => Ok(Some(expression)),
+                    (None, true) => Ok(None),
+                    (None, false) => Err(format!(
+                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
+                        self.name, self.specification.matcher, prop.name, input.name
+                    )),
+                }
+            }
+            (None, true) => Ok(None),
+            (None, false) => Err(format!(
+                "command '{}' (type '{}') is missing object '{}'",
+                self.name, self.specification.matcher, input.name
+            )),
+        }
     }
 
     pub fn perform_execution(
@@ -161,7 +213,7 @@ impl CommandInstance {
             let value = match evaluated_inputs.inputs.get(input) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(e.clone()),
-                None => unreachable!(), // todo(lgalabru): return diagnostic
+                None => continue,
             }?;
             values.insert(input.name.clone(), value);
         }

@@ -14,9 +14,10 @@ use txtx_addon_kit::{
     },
 };
 
+// todo(lgalabru): clean-up this function
 pub fn run_constructs_indexing(
     manual: &mut Manual,
-    _addons_ctx: &mut AddonsContext,
+    addons_ctx: &mut AddonsContext,
 ) -> Result<bool, String> {
     let mut has_errored = false;
 
@@ -35,8 +36,8 @@ pub fn run_constructs_indexing(
     while let Some((location, package_name, raw_content)) = sources.pop_front() {
         let content =
             hcl::parser::parse_body(&raw_content).map_err(|e: hcl::parser::Error| e.to_string())?;
-
         let package_location = location.get_parent_location()?;
+        let package_uuid = manual.find_or_create_package_uuid(&package_name, &package_location)?;
 
         for block in content.into_blocks() {
             match block.ident.value().as_str() {
@@ -103,8 +104,7 @@ pub fn run_constructs_indexing(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Import(block),
-                        &package_name,
-                        &package_location,
+                        &package_uuid,
                     );
                 }
                 "variable" => {
@@ -132,8 +132,7 @@ pub fn run_constructs_indexing(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Variable(block),
-                        &package_name,
-                        &package_location,
+                        &package_uuid,
                     );
                 }
                 "module" => {
@@ -161,8 +160,7 @@ pub fn run_constructs_indexing(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Module(block),
-                        &package_name,
-                        &package_location,
+                        &package_uuid,
                     );
                 }
                 "output" => {
@@ -190,16 +188,20 @@ pub fn run_constructs_indexing(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Output(block),
-                        &package_name,
-                        &package_location,
+                        &package_uuid,
                     );
                 }
                 "addon" => {
                     // Read namespece then send the block to the
                     let (
-                        Some(BlockLabel::String(_namespace)),
-                        Some(BlockLabel::String(construct_name)),
-                    ) = (block.labels.first(), block.labels.last())
+                        Some(BlockLabel::String(namespace)),
+                        Some(BlockLabel::String(command_type)),
+                        Some(BlockLabel::String(command_name)),
+                    ) = (
+                        block.labels.get(0),
+                        block.labels.get(1),
+                        block.labels.get(2),
+                    )
                     else {
                         manual.errors.push(ConstructErrors::Discovery(
                             DiscoveryError::AddonConstruct(Diagnostic {
@@ -221,16 +223,28 @@ pub fn run_constructs_indexing(
                         continue;
                     };
                     // addons_ctx.
-                    let _package_uuid = manual.index_construct(
-                        construct_name.to_string(),
+                    let command_instance = match addons_ctx.create_command_instance(
+                        namespace,
+                        &command_type,
+                        &command_name,
+                        &package_uuid,
+                        &block,
+                        &location,
+                    ) {
+                        Ok(command_instance) => command_instance,
+                        Err(diagnostic) => {
+                            manual.errors.push(ConstructErrors::Discovery(
+                                DiscoveryError::AddonConstruct(diagnostic),
+                            ));
+                            continue;
+                        }
+                    };
+                    let _ = manual.index_construct(
+                        command_name.to_string(),
                         location.clone(),
-                        PreConstructData::Addon(block),
-                        &package_name,
-                        &package_location,
-                    )?;
-                    unimplemented!()
-                    // addons_ctx.instantiate_context(namespace, package_uuid);
-                    // addons_ctx.
+                        PreConstructData::Addon(command_instance),
+                        &package_uuid,
+                    );
                 }
                 _ => {
                     manual.errors.push(ConstructErrors::Discovery(

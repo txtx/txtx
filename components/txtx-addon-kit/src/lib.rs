@@ -8,10 +8,10 @@ pub use hcl_edit as hcl;
 use helpers::{fs::FileLocation, hcl::VisitorError};
 use std::{collections::HashMap, fmt::Debug};
 use types::{
-    commands::{CommandExecutionResult, CommandSpecification},
+    commands::{CommandExecutionResult, CommandInstance, CommandSpecification},
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
-    ConstructUuid,
+    ConstructUuid, PackageUuid,
 };
 
 pub mod helpers;
@@ -38,12 +38,13 @@ pub trait AddonContext: Debug + Sync + Send {
         construct_uuid: &ConstructUuid,
     ) -> Option<Box<&dyn AddonConstruct>>;
     ///
-    fn index_pre_construct(
+    fn create_command_instance(
         self: &Self,
-        construct_name: &String,
+        command_type: &str,
+        command_name: &str,
         block: &Block,
-        location: &FileLocation,
-    ) -> Result<ConstructUuid, Diagnostic>;
+        package_uuid: &PackageUuid,
+    ) -> Result<CommandInstance, Diagnostic>;
     ///
     fn resolve_construct_dependencies(
         self: &Self,

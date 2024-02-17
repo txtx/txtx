@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     define_command,
     types::{
-        commands::{CommandExecutionResult, CommandImplementation, CommandSpecification}, diagnostics::Diagnostic, types::{Typing, Value}
+        commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
+        diagnostics::Diagnostic,
+        types::{Typing, Value},
     },
 };
 
@@ -28,14 +30,17 @@ impl CommandImplementation for Module {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> Result<CommandExecutionResult, Diagnostic> {
+    fn run(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let result = CommandExecutionResult::new();
         Ok(result)
     }
 }
 
 pub fn new_variable_specification() -> CommandSpecification {
-    let command = define_command! {
+    let command: CommandSpecification = define_command! {
         Variable => {
             name: "Variable",
             matcher: "variable",
@@ -71,7 +76,10 @@ impl CommandImplementation for Variable {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> Result<CommandExecutionResult, Diagnostic> {
+    fn run(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
@@ -116,7 +124,10 @@ impl CommandImplementation for Output {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> Result<CommandExecutionResult, Diagnostic> {
+    fn run(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);

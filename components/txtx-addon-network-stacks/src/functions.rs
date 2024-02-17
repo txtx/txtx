@@ -1,5 +1,7 @@
 use txtx_addon_kit::types::{
-    diagnostics::Diagnostic, functions::{FunctionImplementation, FunctionSpecification}, types::{Typing, Value}
+    diagnostics::Diagnostic,
+    functions::{FunctionImplementation, FunctionSpecification},
+    types::{Typing, Value},
 };
 
 lazy_static! {
@@ -48,7 +50,7 @@ impl FunctionImplementation for EncodeClarityValueOk {
     }
 
     fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        Ok(Value::Bool(true))
+        Ok(Value::bool(true))
     }
 }
 
@@ -59,7 +61,7 @@ impl FunctionImplementation for EncodeClarityValueErr {
     }
 
     fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        Ok(Value::Bool(true))
+        Ok(Value::bool(true))
     }
 }
 

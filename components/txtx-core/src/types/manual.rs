@@ -1,3 +1,4 @@
+use super::RuntimeContext;
 use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
@@ -9,6 +10,7 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_kit::AddonContext;
 
 #[derive(Debug)]
 pub struct SourceTree {
@@ -71,11 +73,12 @@ impl Manual {
         unimplemented!()
     }
 
-    pub fn index_construct(
+    pub fn get_command_instance(&self, construct_uuid: &ConstructUuid) -> Option<&CommandInstance> {
+        self.commands_instances.get(construct_uuid)
+    }
+
+    pub fn find_or_create_package_uuid(
         &mut self,
-        construct_name: String,
-        construct_location: FileLocation,
-        construct_data: PreConstructData,
         package_name: &String,
         package_location: &FileLocation,
     ) -> Result<PackageUuid, String> {
@@ -93,7 +96,16 @@ impl Manual {
                 .add_child(self.graph_root, 0, package_uuid.value());
             continue;
         };
+        Ok(package_uuid)
+    }
 
+    pub fn index_construct(
+        &mut self,
+        construct_name: String,
+        construct_location: FileLocation,
+        construct_data: PreConstructData,
+        package_uuid: &PackageUuid,
+    ) -> Result<(), String> {
         let Some(package) = self.packages.get_mut(&package_uuid) else {
             unreachable!()
         };
@@ -155,11 +167,13 @@ impl Manual {
                     .imports_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
             }
-            PreConstructData::Addon(_) => {
+            PreConstructData::Addon(command_instance) => {
                 package.addons_uuids.insert(construct_uuid.clone());
                 package
                     .addons_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
+                self.commands_instances
+                    .insert(construct_uuid.clone(), command_instance.clone());
             }
             PreConstructData::Root => unreachable!(),
         }
@@ -173,13 +187,14 @@ impl Manual {
             construct_uuid.clone(),
             (package_uuid.clone(), construct_location),
         );
-        Ok(package_uuid)
+        Ok(())
     }
 
     pub fn try_resolve_construct_reference_in_expression(
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
+        runtime_context: &RuntimeContext,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
@@ -201,38 +216,60 @@ impl Manual {
             }
         }
 
+        let mut is_root = true;
+
         while let Some(component) = components.pop_front() {
             // Look for modules
-            if component.eq_ignore_ascii_case("module") {
-                let Some(module_name) = components.pop_front() else {
-                    continue;
-                };
-                if let Some(construct_uuid) = current_package.modules_uuids_lookup.get(&module_name)
-                {
-                    return Ok(Some((construct_uuid.clone(), components)));
+            if is_root {
+                if component.eq_ignore_ascii_case("module") {
+                    is_root = false;
+                    let Some(module_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) =
+                        current_package.modules_uuids_lookup.get(&module_name)
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
                 }
-            }
 
-            // Look for outputs
-            if component.eq_ignore_ascii_case("output") {
-                let Some(output_name) = components.pop_front() else {
-                    continue;
-                };
-                if let Some(construct_uuid) = current_package.outputs_uuids_lookup.get(&output_name)
-                {
-                    return Ok(Some((construct_uuid.clone(), components)));
+                // Look for outputs
+                if component.eq_ignore_ascii_case("output") {
+                    is_root = false;
+                    let Some(output_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) =
+                        current_package.outputs_uuids_lookup.get(&output_name)
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
                 }
-            }
 
-            // Look for variables
-            if component.eq_ignore_ascii_case("variable") {
-                let Some(variable_name) = components.pop_front() else {
-                    continue;
-                };
-                if let Some(construct_uuid) =
-                    current_package.variables_uuids_lookup.get(&variable_name)
-                {
-                    return Ok(Some((construct_uuid.clone(), components)));
+                // Look for variables
+                if component.eq_ignore_ascii_case("variable") {
+                    is_root = false;
+                    let Some(variable_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) =
+                        current_package.variables_uuids_lookup.get(&variable_name)
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
+                }
+
+                // Look for addon
+                if component.eq_ignore_ascii_case("addon") {
+                    is_root = false;
+                    let Some(addon_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) =
+                        current_package.addons_uuids_lookup.get(&addon_name)
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
                 }
             }
 

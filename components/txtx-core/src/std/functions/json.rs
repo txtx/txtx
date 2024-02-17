@@ -2,7 +2,9 @@
 use txtx_addon_kit::{
     define_function,
     types::{
-        diagnostics::Diagnostic, functions::{FunctionImplementation, FunctionSpecification}, types::{Typing, Value}
+        diagnostics::Diagnostic,
+        functions::{FunctionImplementation, FunctionSpecification},
+        types::{Typing, Value},
     },
 };
 
@@ -40,6 +42,6 @@ impl FunctionImplementation for JsonQuery {
         // todo(lgalabru): Parse string, parse query then run query on document
         // json!(args[0])
         // jaq_core::minimal()
-        Ok(Value::Bool(true))
+        Ok(Value::bool(true))
     }
 }
