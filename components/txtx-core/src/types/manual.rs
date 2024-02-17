@@ -41,10 +41,11 @@ pub struct Manual {
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
+    pub description: Option<String>,
 }
 
 impl Manual {
-    pub fn new(source_tree: Option<SourceTree>) -> Self {
+    pub fn new(source_tree: Option<SourceTree>, description: Option<String>) -> Self {
         let uuid = PackageUuid::new();
         let mut packages_graph = Dag::new();
         let _ = packages_graph.add_node(uuid.value());
@@ -64,6 +65,7 @@ impl Manual {
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
+            description,
         }
     }
 

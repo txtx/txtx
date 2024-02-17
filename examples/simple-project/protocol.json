@@ -1,5 +1,9 @@
 {
-    "manuals": {
-        "main": "./man"
-    }
+    "manuals": [
+        {
+          "name": "My First Manual",
+          "description": "This manual does a lot of things. Check out all of the things this manual does.",
+          "location": "./man"
+        },
+      ]
 }
