@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::commands::CommandExecutionResult;
+use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
@@ -41,6 +43,8 @@ pub struct Manual {
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
+    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
+    pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub description: Option<String>,
 }
 
@@ -65,6 +69,8 @@ impl Manual {
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
+            constructs_execution_results: HashMap::new(),
+            command_inputs_evaluation_results: HashMap::new(),
             description,
         }
     }
