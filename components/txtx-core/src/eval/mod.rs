@@ -117,11 +117,11 @@ pub fn eval_expression(
         // Represents a boolean.
         Expression::Bool(decorated_bool) => Value::Bool(*decorated_bool.value()),
         // Represents a number, either integer or float.
-        Expression::Number(formattted_number) => {
+        Expression::Number(formatted_number) => {
             match (
-                formattted_number.value().as_u64(),
-                formattted_number.value().as_i64(),
-                formattted_number.value().as_f64(),
+                formatted_number.value().as_u64(),
+                formatted_number.value().as_i64(),
+                formatted_number.value().as_f64(),
             ) {
                 (Some(value), _, _) => Value::UnsignedInteger(value),
                 (_, Some(value), _) => Value::SignedInteger(value),
@@ -155,7 +155,7 @@ pub fn eval_expression(
         Expression::Variable(_decorated_var) => {
             unimplemented!()
         }
-        // Represents conditional operator which selects one of two rexpressions based on the outcome of a boolean expression.
+        // Represents conditional operator which selects one of two expressions based on the outcome of a boolean expression.
         Expression::Conditional(_conditional) => {
             unimplemented!()
         }
