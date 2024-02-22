@@ -1,11 +1,14 @@
-use std::{collections::BTreeMap, fmt::Debug};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt::Debug,
+};
 
 use super::diagnostics::Diagnostic;
 
 #[derive(Clone, Debug)]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(Vec<(String, Result<PrimitiveValue, Diagnostic>)>),
+    Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
 }
 
 impl Value {
@@ -26,6 +29,9 @@ impl Value {
     }
     pub fn bool(value: bool) -> Value {
         Value::Primitive(PrimitiveValue::Bool(value))
+    }
+    pub fn buffer(bytes: Vec<u8>, typing: TypingSpecification) -> Value {
+        Value::Primitive(PrimitiveValue::Buffer(BufferData { bytes, typing }))
     }
 
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
@@ -84,13 +90,13 @@ pub enum PrimitiveValue {
 #[derive(Clone, Debug)]
 pub struct BufferData {
     pub bytes: Vec<u8>,
-    pub typing: Typing,
+    pub typing: TypingSpecification,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Typing {
     Primitive(PrimitiveType),
     Object(Vec<ObjectProperty>),
-    Addon(TypingDeclaration),
+    Addon(TypingSpecification),
 }
 impl Typing {
     pub fn string() -> Typing {
@@ -136,17 +142,17 @@ pub struct ObjectProperty {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct TypingDeclaration {
+pub struct TypingSpecification {
     pub id: String,
     pub documentation: String,
-    pub refinements: Refinements,
-    pub check: TypeChecker,
+    pub checker: TypeChecker,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Refinements {
     pub specs: BTreeMap<String, Typing>,
 }
-type TypeChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);
+
+type TypeChecker = fn(&TypingSpecification, lhs: &Typing, rhs: &Typing) -> Result<bool, Diagnostic>;
 pub trait TypingImplementation {
-    fn check(_ctx: &TypingDeclaration, lhs: &Typing, rhs: &Typing) -> bool;
+    fn check(_ctx: &TypingSpecification, lhs: &Typing, rhs: &Typing) -> Result<bool, Diagnostic>;
 }

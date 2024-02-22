@@ -187,10 +187,19 @@ impl CommandImplementation for StacksTransaction {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        println!("{:?}", args);
         let value = args.get("no_interact").unwrap().clone(); // todo(lgalabru): get default, etc.
+        let obj = match value {
+            Value::Object(obj) => obj.get("payload_bytes").unwrap().clone(),
+            _ => unimplemented!(),
+        };
+
         let mut result = CommandExecutionResult::new();
-        result.outputs.insert("bytes".to_string(), value);
+        result
+            .outputs
+            .insert("bytes".to_string(), Value::Primitive(obj.unwrap()));
+
+        println!("==> {:?}", result);
+
         Ok(result)
     }
 }

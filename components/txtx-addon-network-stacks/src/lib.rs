@@ -6,6 +6,7 @@ extern crate txtx_addon_kit;
 
 mod commands;
 mod functions;
+mod typing;
 
 use std::collections::HashMap;
 

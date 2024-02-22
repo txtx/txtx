@@ -7,7 +7,7 @@ use txtx_addon_kit::{
     types::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::{Diagnostic, DiagnosticLevel},
-        types::{PrimitiveValue, Value},
+        types::Value,
         ConstructUuid, PackageUuid,
     },
 };
@@ -167,8 +167,20 @@ pub fn eval_expression(
             unimplemented!()
         }
         // Represents a function call.
-        Expression::FuncCall(_function_call) => {
-            unimplemented!()
+        Expression::FuncCall(function_call) => {
+            let func = function_call.ident.to_string();
+            let mut args = vec![];
+            for expr in function_call.args.iter() {
+                let value = eval_expression(
+                    expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )?;
+                args.push(value);
+            }
+            runtime_ctx.execute_function(&func, &args)?
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
@@ -260,7 +272,7 @@ pub fn perform_inputs_evaluation(
     for input in inputs.into_iter() {
         match input.as_object() {
             Some(object_props) => {
-                let mut object_values = vec![];
+                let mut object_values = HashMap::new();
                 for prop in object_props.iter() {
                     let Some(expr) =
                         command_instance.get_expression_from_object_property(&input, &prop)?
@@ -286,7 +298,7 @@ pub fn perform_inputs_evaluation(
                         Err(diag) => Err(diag),
                     };
 
-                    object_values.push((prop.name.to_string(), res))
+                    object_values.insert(prop.name.to_string(), res);
                 }
                 results.insert(input, Ok(Value::Object(object_values)));
             }

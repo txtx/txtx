@@ -10,7 +10,6 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonContext;
 
 #[derive(Debug)]
 pub struct SourceTree {

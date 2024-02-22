@@ -79,3 +79,17 @@ macro_rules! define_object_type {
         }),*])
     };
 }
+
+#[macro_export]
+macro_rules! define_addon_type {
+    ($func_key:ident => {
+        name: $fn_name:expr,
+        documentation: $doc:expr,
+    }) => {
+        txtx_addon_kit::types::types::TypingSpecification {
+            id: String::from($fn_name),
+            documentation: String::from($doc),
+            checker: $func_key::check,
+        };
+    };
+}

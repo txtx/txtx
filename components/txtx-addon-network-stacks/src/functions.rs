@@ -1,8 +1,11 @@
+use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
-    types::{Typing, Value},
+    types::{PrimitiveValue, Typing, Value},
 };
+
+use crate::typing::CLARITY_UINT;
 
 lazy_static! {
     pub static ref STACKS_FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -26,7 +29,7 @@ lazy_static! {
         define_function! {
             EncodeClarityValueErr => {
                 name: "clarity_value_err",
-                documentation: "Wra",
+                documentation: "",
                 example: "stacks_encode_err(stacks_encode_uint(1))",
                 inputs: [
                     clarity_value: {
@@ -37,6 +40,23 @@ lazy_static! {
                 output: {
                     documentation: "Input wrapped into an Err Clarity type",
                     typing: Typing::bool()
+                },
+            }
+        },
+        define_function! {
+            EncodeClarityValueUint => {
+                name: "clarity_value_uint",
+                documentation: "",
+                example: "clarity_value_uint(1)",
+                inputs: [
+                    clarity_value: {
+                        documentation: "Any valid Clarity value",
+                        typing: vec![Typing::uint()]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Typing::int()
                 },
             }
         },
@@ -99,14 +119,20 @@ impl FunctionImplementation for StacksEncodeBool {
     }
 }
 
-pub struct StacksEncodeUint;
-impl FunctionImplementation for StacksEncodeUint {
+pub struct EncodeClarityValueUint;
+impl FunctionImplementation for EncodeClarityValueUint {
     fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let entry = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let clarity_value = ClarityValue::UInt(u128::from(*entry));
+        let bytes = clarity_value.serialize_to_vec();
+        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
     }
 }
 

@@ -14,7 +14,6 @@ use kit::helpers::fs::FileLocation;
 use kit::types::commands::CommandInstance;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::functions::FunctionSpecification;
-use kit::types::ConstructUuid;
 use kit::types::PackageUuid;
 use kit::AddonContext;
 pub use txtx_addon_kit as kit;
@@ -31,8 +30,8 @@ pub fn simulate_manual(
     manual: &mut Manual,
     runtime_context: &mut RuntimeContext,
 ) -> Result<(), String> {
-    let _ = run_constructs_indexing(manual, &mut runtime_context.addons)?;
-    let _ = run_constructs_checks(manual, &mut runtime_context.addons)?;
+    let _ = run_constructs_indexing(manual, &mut runtime_context.addons_ctx)?;
+    let _ = run_constructs_checks(manual, &mut runtime_context.addons_ctx)?;
     let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
     let _ = run_constructs_evaluation(manual, runtime_context).unwrap();
     Ok(())
