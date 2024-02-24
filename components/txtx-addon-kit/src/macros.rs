@@ -70,7 +70,7 @@ macro_rules! define_object_type {
             interpolable: $interpolable:expr
         }),*
     ] => {
-        Typing::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+        Type::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,
@@ -86,7 +86,7 @@ macro_rules! define_addon_type {
         name: $fn_name:expr,
         documentation: $doc:expr,
     }) => {
-        txtx_addon_kit::types::types::TypingSpecification {
+        txtx_addon_kit::types::types::TypeSpecification {
             id: String::from($fn_name),
             documentation: String::from($doc),
             checker: $func_key::check,

@@ -9,10 +9,17 @@ pub mod generator;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolManifest {
-    manuals: BTreeMap<String, String>,
+    manuals: Vec<ManualMetadata>,
     txvars: Option<BTreeMap<String, Txvar>>,
     #[serde(skip_serializing, skip_deserializing)]
     location: Option<FileLocation>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ManualMetadata {
+    location: String,
+    name: String,
+    description: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,7 +49,12 @@ pub fn read_manuals_from_manifest(
         .expect("unable to get location")
         .get_parent_location()?;
 
-    for (manual_name, manual_root_package_relative_path) in manifest.manuals.iter() {
+    for ManualMetadata {
+        name: manual_name,
+        location: manual_root_package_relative_path,
+        description,
+    } in manifest.manuals.iter()
+    {
         if let Some(manuals_filter_in) = manuals_filter_in {
             if !manuals_filter_in.contains(manual_name) {
                 continue;
@@ -67,7 +79,10 @@ pub fn read_manuals_from_manifest(
                 source_tree.add_source(manual_name.to_string(), package_location, file_content);
             }
         }
-        manuals.insert(manual_name.to_string(), Manual::new(Some(source_tree)));
+        manuals.insert(
+            manual_name.to_string(),
+            Manual::new(Some(source_tree), description.clone()),
+        );
     }
     Ok(manuals)
 }

@@ -3,12 +3,36 @@ use std::{
     fmt::Debug,
 };
 
+use serde::{Serialize, Serializer};
+
 use super::diagnostics::Diagnostic;
 
 #[derive(Clone, Debug)]
 pub enum Value {
     Primitive(PrimitiveValue),
     Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Value::Primitive(PrimitiveValue::String(val)) => serializer.serialize_str(val),
+            Value::Primitive(PrimitiveValue::UnsignedInteger(val)) => {
+                serializer.serialize_u64(*val)
+            }
+            Value::Primitive(PrimitiveValue::SignedInteger(val)) => serializer.serialize_i64(*val),
+            Value::Primitive(PrimitiveValue::Float(val)) => serializer.serialize_f64(*val),
+            Value::Primitive(PrimitiveValue::Bool(val)) => serializer.serialize_bool(*val),
+            Value::Primitive(PrimitiveValue::Null) => serializer.serialize_none(),
+            Value::Primitive(PrimitiveValue::Buffer(_)) => {
+                unimplemented!("Value::Primitive(PrimitiveValue::Buffer) variant")
+            }
+            Value::Object(_) => unimplemented!("Value::Object variant"),
+        }
+    }
 }
 
 impl Value {
@@ -30,7 +54,7 @@ impl Value {
     pub fn bool(value: bool) -> Value {
         Value::Primitive(PrimitiveValue::Bool(value))
     }
-    pub fn buffer(bytes: Vec<u8>, typing: TypingSpecification) -> Value {
+    pub fn buffer(bytes: Vec<u8>, typing: TypeSpecification) -> Value {
         Value::Primitive(PrimitiveValue::Buffer(BufferData { bytes, typing }))
     }
 
@@ -90,35 +114,54 @@ pub enum PrimitiveValue {
 #[derive(Clone, Debug)]
 pub struct BufferData {
     pub bytes: Vec<u8>,
-    pub typing: TypingSpecification,
+    pub typing: TypeSpecification,
 }
+
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Typing {
+pub enum Type {
     Primitive(PrimitiveType),
     Object(Vec<ObjectProperty>),
-    Addon(TypingSpecification),
+    Addon(TypeSpecification),
 }
-impl Typing {
-    pub fn string() -> Typing {
-        Typing::Primitive(PrimitiveType::String)
+impl Type {
+    pub fn string() -> Type {
+        Type::Primitive(PrimitiveType::String)
     }
-    pub fn uint() -> Typing {
-        Typing::Primitive(PrimitiveType::UnsignedInteger)
+    pub fn uint() -> Type {
+        Type::Primitive(PrimitiveType::UnsignedInteger)
     }
-    pub fn int() -> Typing {
-        Typing::Primitive(PrimitiveType::SignedInteger)
+    pub fn int() -> Type {
+        Type::Primitive(PrimitiveType::SignedInteger)
     }
-    pub fn float() -> Typing {
-        Typing::Primitive(PrimitiveType::Float)
+    pub fn float() -> Type {
+        Type::Primitive(PrimitiveType::Float)
     }
-    pub fn null() -> Typing {
-        Typing::Primitive(PrimitiveType::Null)
+    pub fn null() -> Type {
+        Type::Primitive(PrimitiveType::Null)
     }
-    pub fn bool() -> Typing {
-        Typing::Primitive(PrimitiveType::Bool)
+    pub fn bool() -> Type {
+        Type::Primitive(PrimitiveType::Bool)
     }
-    pub fn object(props: Vec<ObjectProperty>) -> Typing {
-        Typing::Object(props)
+    pub fn object(props: Vec<ObjectProperty>) -> Type {
+        Type::Object(props)
+    }
+}
+
+impl Serialize for Type {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Type::Primitive(PrimitiveType::String) => serializer.serialize_str("string"),
+            Type::Primitive(PrimitiveType::UnsignedInteger) => serializer.serialize_str("uint"),
+            Type::Primitive(PrimitiveType::SignedInteger) => serializer.serialize_str("int"),
+            Type::Primitive(PrimitiveType::Float) => serializer.serialize_str("float"),
+            Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("boolean"),
+            Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
+            Type::Object(_) => unimplemented!("Type::Object variant"),
+            Type::Addon(_) => unimplemented!("Type::Addon variant"),
+        }
     }
 }
 
@@ -142,17 +185,17 @@ pub struct ObjectProperty {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct TypingSpecification {
+pub struct TypeSpecification {
     pub id: String,
     pub documentation: String,
     pub checker: TypeChecker,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Refinements {
-    pub specs: BTreeMap<String, Typing>,
+    pub specs: BTreeMap<String, Type>,
 }
 
-type TypeChecker = fn(&TypingSpecification, lhs: &Typing, rhs: &Typing) -> Result<bool, Diagnostic>;
-pub trait TypingImplementation {
-    fn check(_ctx: &TypingSpecification, lhs: &Typing, rhs: &Typing) -> Result<bool, Diagnostic>;
+type TypeChecker = fn(&TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
+pub trait TypeImplementation {
+    fn check(_ctx: &TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
 }

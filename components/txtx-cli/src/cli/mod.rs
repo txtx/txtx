@@ -72,7 +72,7 @@ pub struct InspectManual {
     // #[clap(long = "manual-path", conflicts_with = "manual")]
     // pub manual_path: Option<String>,
     /// Name of manual as indexed in protocol.json
-    #[clap(long = "manual", conflicts_with = "manual-path")]
+    #[clap(long = "manual")]
     pub manual: Option<String>,
 }
 
@@ -85,7 +85,7 @@ pub struct RunManual {
     // #[clap(long = "manual-path", conflicts_with = "manual")]
     // pub manual_path: Option<String>,
     /// Name of manual as indexed in protocol.json
-    #[clap(long = "manual", conflicts_with = "manual-path")]
+    #[clap(long = "manual")]
     pub manual: Option<String>,
 }
 

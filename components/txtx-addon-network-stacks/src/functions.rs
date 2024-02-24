@@ -2,7 +2,7 @@ use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
-    types::{PrimitiveValue, Typing, Value},
+    types::{PrimitiveValue, Type, Value},
 };
 
 use crate::typing::CLARITY_UINT;
@@ -17,12 +17,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: vec![Typing::bool()]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "Input wrapped into an Ok Clarity type",
-                    typing: Typing::bool()
+                    typing: Type::bool()
                 },
             }
         },
@@ -34,12 +34,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: vec![Typing::bool()]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "Input wrapped into an Err Clarity type",
-                    typing: Typing::bool()
+                    typing: Type::bool()
                 },
             }
         },
@@ -51,12 +51,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: vec![Typing::uint()]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::int()
+                    typing: Type::int()
                 },
             }
         },
@@ -65,7 +65,7 @@ lazy_static! {
 
 pub struct EncodeClarityValueOk;
 impl FunctionImplementation for EncodeClarityValueOk {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -76,7 +76,7 @@ impl FunctionImplementation for EncodeClarityValueOk {
 
 pub struct EncodeClarityValueErr;
 impl FunctionImplementation for EncodeClarityValueErr {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -88,7 +88,7 @@ impl FunctionImplementation for EncodeClarityValueErr {
 #[derive(Clone)]
 pub struct StacksEncodeSome;
 impl FunctionImplementation for StacksEncodeSome {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -99,7 +99,7 @@ impl FunctionImplementation for StacksEncodeSome {
 
 pub struct StacksEncodeNone;
 impl FunctionImplementation for StacksEncodeNone {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -110,7 +110,7 @@ impl FunctionImplementation for StacksEncodeNone {
 
 pub struct StacksEncodeBool;
 impl FunctionImplementation for StacksEncodeBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -121,7 +121,7 @@ impl FunctionImplementation for StacksEncodeBool {
 
 pub struct EncodeClarityValueUint;
 impl FunctionImplementation for EncodeClarityValueUint {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -138,7 +138,7 @@ impl FunctionImplementation for EncodeClarityValueUint {
 
 pub struct StacksEncodeInt;
 impl FunctionImplementation for StacksEncodeInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -149,7 +149,7 @@ impl FunctionImplementation for StacksEncodeInt {
 
 pub struct StacksEncodeBuffer;
 impl FunctionImplementation for StacksEncodeBuffer {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -160,7 +160,7 @@ impl FunctionImplementation for StacksEncodeBuffer {
 
 pub struct StacksEncodeList;
 impl FunctionImplementation for StacksEncodeList {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -171,7 +171,7 @@ impl FunctionImplementation for StacksEncodeList {
 
 pub struct StacksEncodeAsciiString;
 impl FunctionImplementation for StacksEncodeAsciiString {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -182,7 +182,7 @@ impl FunctionImplementation for StacksEncodeAsciiString {
 
 pub struct StacksEncodePrincipal;
 impl FunctionImplementation for StacksEncodePrincipal {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -193,7 +193,7 @@ impl FunctionImplementation for StacksEncodePrincipal {
 
 pub struct StacksEncodeTuple;
 impl FunctionImplementation for StacksEncodeTuple {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

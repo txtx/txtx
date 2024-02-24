@@ -1,3 +1,7 @@
+use serde::{
+    ser::{SerializeMap, SerializeStruct},
+    Serialize, Serializer,
+};
 use std::collections::HashMap;
 
 use hcl_edit::{expr::Expression, structure::Block};
@@ -8,7 +12,7 @@ use crate::helpers::hcl::{
 
 use super::{
     diagnostics::Diagnostic,
-    types::{ObjectProperty, Typing, Value},
+    types::{ObjectProperty, Type, Value},
     PackageUuid,
 };
 
@@ -17,6 +21,18 @@ pub struct CommandExecutionResult {
     pub outputs: HashMap<String, Value>,
 }
 
+impl Serialize for CommandExecutionResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.outputs.len()))?;
+        for (k, v) in self.outputs.iter() {
+            map.serialize_entry(&k, &v)?;
+        }
+        map.end()
+    }
+}
 impl CommandExecutionResult {
     pub fn new() -> Self {
         Self {
@@ -28,6 +44,23 @@ impl CommandExecutionResult {
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: HashMap<CommandInput, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
+}
+
+impl Serialize for CommandInputsEvaluationResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.inputs.len()))?;
+        for (k, v) in self.inputs.iter() {
+            let value = match v {
+                Ok(v) => Some(v),
+                Err(_) => None,
+            };
+            map.serialize_entry(&k.name, &value)?;
+        }
+        map.end()
+    }
 }
 
 impl CommandInputsEvaluationResult {
@@ -46,7 +79,7 @@ impl CommandInputsEvaluationResult {
 pub struct CommandInput {
     pub name: String,
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
 }
@@ -54,10 +87,24 @@ pub struct CommandInput {
 impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
         match &self.typing {
-            Typing::Object(spec) => Some(spec),
-            Typing::Primitive(_) => None,
-            Typing::Addon(_) => None,
+            Type::Object(spec) => Some(spec),
+            Type::Primitive(_) => None,
+            Type::Addon(_) => None,
         }
+    }
+}
+
+impl Serialize for CommandInput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandInput", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("typing", &self.typing)?;
+        ser.serialize_field("optional", &self.optional)?;
+        ser.end()
     }
 }
 
@@ -65,7 +112,20 @@ impl CommandInput {
 pub struct CommandOutput {
     pub name: String,
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
+}
+
+impl Serialize for CommandOutput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandOutput", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("typing", &self.typing)?;
+        ser.end()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,14 +141,28 @@ pub struct CommandSpecification {
     pub checker: CommandChecker,
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Result<Typing, Diagnostic>;
+impl Serialize for CommandSpecification {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandSpecification", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("inputs", &self.inputs)?;
+        ser.serialize_field("outputs", &self.outputs)?;
+        ser.end()
+    }
+}
+
+type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 type CommandRunner = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
 ) -> Result<CommandExecutionResult, Diagnostic>;
 
 pub trait CommandImplementation {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic>;
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
@@ -101,6 +175,19 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
+}
+
+impl Serialize for CommandInstance {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandInstance", 3)?;
+        ser.serialize_field("specification", &self.specification)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("packageUuid", &self.package_uuid)?;
+        ser.end()
+    }
 }
 
 impl CommandInstance {
@@ -162,10 +249,10 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, String> {
         let res = match &input.typing {
-            Typing::Primitive(_) => visit_optional_untyped_attribute(&input.name, &self.block)
+            Type::Primitive(_) => visit_optional_untyped_attribute(&input.name, &self.block)
                 .map_err(|e| format!("{:?}", e))?,
-            Typing::Object(_) => unreachable!(),
-            Typing::Addon(_) => unreachable!(),
+            Type::Object(_) => unreachable!(),
+            Type::Addon(_) => unreachable!(),
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
@@ -213,7 +300,10 @@ impl CommandInstance {
             let value = match evaluated_inputs.inputs.get(input) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(e.clone()),
-                None => continue,
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!(), // todo(lgalabru): return diagnostic
+                },
             }?;
             values.insert(input.name.clone(), value);
         }

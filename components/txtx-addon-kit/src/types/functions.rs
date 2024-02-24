@@ -1,19 +1,19 @@
 use super::{
     diagnostics::Diagnostic,
-    types::{Typing, Value},
+    types::{Type, Value},
 };
 
 #[derive(Clone, Debug)]
 pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
-    pub typing: Vec<Typing>,
+    pub typing: Vec<Type>,
 }
 
 #[derive(Clone, Debug)]
 pub struct FunctionOutput {
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
 }
 
 #[derive(Clone, Debug)]
@@ -29,9 +29,9 @@ pub struct FunctionSpecification {
 }
 
 type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Result<Value, Diagnostic>;
-type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Result<Typing, Diagnostic>;
+type FunctionChecker = fn(&FunctionSpecification, &Vec<Type>) -> Result<Type, Diagnostic>;
 
 pub trait FunctionImplementation {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic>;
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic>;
     fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic>;
 }

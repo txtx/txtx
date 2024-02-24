@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
-    types::{PrimitiveType, Typing, Value},
+    types::{PrimitiveType, Type, Value},
 };
 
 lazy_static! {
@@ -16,13 +16,13 @@ lazy_static! {
                 inputs: [
                     description: {
                         documentation: "Description of the variable",
-                        typing: Typing::string(),
+                        typing: Type::string(),
                         optional: true,
                         interpolable: true
                     },
                     contract_id: {
                         documentation: "Contract identifier to invoke",
-                        typing: Typing::string(),
+                        typing: Type::string(),
                         optional: false,
                         interpolable: true
                     }
@@ -30,7 +30,7 @@ lazy_static! {
                 outputs: [
                     bytes: {
                         documentation: "Encoded contract call",
-                        typing: Typing::string()
+                        typing: Type::string()
                     }
                 ],
             }
@@ -43,13 +43,13 @@ lazy_static! {
                 inputs: [
                     description: {
                         documentation: "Description of the variable",
-                        typing: Typing::string(),
+                        typing: Type::string(),
                         optional: true,
                         interpolable: true
                     },
                     clarity_value: {
                         documentation: "Any valid Clarity value",
-                        typing: Typing::bool(),
+                        typing: Type::bool(),
                         optional: true,
                         interpolable: true
                     }
@@ -57,7 +57,7 @@ lazy_static! {
                 outputs: [
                     bytes: {
                         documentation: "Encoded contract call",
-                        typing: Typing::string()
+                        typing: Type::string()
                     }
                 ],
             }
@@ -70,7 +70,7 @@ lazy_static! {
                 inputs: [
                     description: {
                         documentation: "Description of the variable",
-                        typing: Typing::string(),
+                        typing: Type::string(),
                         optional: true,
                         interpolable: true
                     },
@@ -135,7 +135,7 @@ lazy_static! {
                 outputs: [
                     bytes: {
                         documentation: "Encoded contract call",
-                        typing: Typing::string()
+                        typing: Type::string()
                     }
                 ],
             }
@@ -145,7 +145,7 @@ lazy_static! {
 
 pub struct StacksCallContract;
 impl CommandImplementation for StacksCallContract {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -162,7 +162,7 @@ impl CommandImplementation for StacksCallContract {
 
 pub struct StacksDeployContract;
 impl CommandImplementation for StacksDeployContract {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -179,7 +179,7 @@ impl CommandImplementation for StacksDeployContract {
 
 pub struct StacksTransaction;
 impl CommandImplementation for StacksTransaction {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

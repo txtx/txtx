@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{Typing, Value},
+        types::{Type, Value},
     },
 };
 
@@ -17,16 +17,16 @@ lazy_static! {
             inputs: [
                 decoded_json: {
                     documentation: "Json document",
-                    typing: vec![Typing::string()]
+                    typing: vec![Type::string()]
                 },
                 query: {
                     documentation: "Json query (see jq documentation)",
-                    typing: vec![Typing::string()]
+                    typing: vec![Type::string()]
                 }
             ],
             output: {
                 documentation: "Result of the query",
-                typing: Typing::string()
+                typing: Type::string()
             },
         }
     },];
@@ -34,7 +34,7 @@ lazy_static! {
 
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

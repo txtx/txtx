@@ -5,7 +5,7 @@ use txtx_addon_kit::{
     types::{
         commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
         diagnostics::Diagnostic,
-        types::{Typing, Value},
+        types::{Type, Value},
     },
 };
 
@@ -26,7 +26,7 @@ pub fn new_module_specification() -> CommandSpecification {
 
 pub struct Module;
 impl CommandImplementation for Module {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -48,13 +48,19 @@ pub fn new_variable_specification() -> CommandSpecification {
             inputs: [
                 description: {
                     documentation: "Description of the variable",
-                    typing: Typing::string(),
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::string(),
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                default: {
+                    documentation: "Default value of the variable, if value is omitted",
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 }
@@ -62,7 +68,7 @@ pub fn new_variable_specification() -> CommandSpecification {
             outputs: [
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::string()
+                    typing: Type::string()
                 }
             ],
         }
@@ -72,7 +78,7 @@ pub fn new_variable_specification() -> CommandSpecification {
 
 pub struct Variable;
 impl CommandImplementation for Variable {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -96,13 +102,13 @@ pub fn new_output_specification() -> CommandSpecification {
             inputs: [
                 description: {
                     documentation: "Description of the output",
-                    typing: Typing::string(),
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::string(),
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 }
@@ -110,7 +116,7 @@ pub fn new_output_specification() -> CommandSpecification {
             outputs: [
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::string()
+                    typing: Type::string()
                 }
             ],
         }
@@ -120,7 +126,7 @@ pub fn new_output_specification() -> CommandSpecification {
 
 pub struct Output;
 impl CommandImplementation for Output {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Result<Typing, Diagnostic> {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

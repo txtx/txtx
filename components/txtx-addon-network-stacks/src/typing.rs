@@ -1,10 +1,10 @@
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
-    types::{Typing, TypingImplementation, TypingSpecification},
+    types::{Type, TypeImplementation, TypeSpecification},
 };
 
 lazy_static! {
-    pub static ref CLARITY_UINT: TypingSpecification = define_addon_type! {
+    pub static ref CLARITY_UINT: TypeSpecification = define_addon_type! {
         ClarityIntegerUnsigned => {
             name: "clarity_uint",
             documentation: "Clarity unsigned integer (128 bits)",
@@ -13,8 +13,8 @@ lazy_static! {
 }
 
 pub struct ClarityIntegerUnsigned;
-impl TypingImplementation for ClarityIntegerUnsigned {
-    fn check(_ctx: &TypingSpecification, lhs: &Typing, rhs: &Typing) -> Result<bool, Diagnostic> {
+impl TypeImplementation for ClarityIntegerUnsigned {
+    fn check(_ctx: &TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }
 }
