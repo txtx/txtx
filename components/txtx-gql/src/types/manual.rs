@@ -28,7 +28,7 @@ impl ManualDescription {
 
 #[graphql_object(context = Context)]
 impl ManualDescription {
-    pub fn id(&self) -> String {
+    pub fn uuid(&self) -> String {
         self.identifier.clone()
     }
 
@@ -68,6 +68,10 @@ impl GqlManual {
 
     pub fn description(&self) -> Option<String> {
         self.data.description.clone()
+    }
+
+    pub fn uuid(&self) -> String {
+        self.name.clone()
     }
 
     pub fn data(&self) -> Result<String, String> {
