@@ -53,6 +53,12 @@ pub fn new_variable_specification() -> CommandSpecification {
                     typing: Typing::String,
                     optional: true,
                     interpolable: true
+                },
+                default: {
+                    documentation: "Default value of the variable, if value is omitted",
+                    typing: Typing::String,
+                    optional: true,
+                    interpolable: true
                 }
             ],
             outputs: [

@@ -1,3 +1,7 @@
+use serde::{
+    ser::{SerializeMap, SerializeStruct},
+    Serialize, Serializer,
+};
 use std::collections::HashMap;
 
 use hcl_edit::{expr::Expression, structure::Block};
@@ -17,6 +21,18 @@ pub struct CommandExecutionResult {
     pub outputs: HashMap<String, Value>,
 }
 
+impl Serialize for CommandExecutionResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.outputs.len()))?;
+        for (k, v) in self.outputs.iter() {
+            map.serialize_entry(&k, &v)?;
+        }
+        map.end()
+    }
+}
 impl CommandExecutionResult {
     pub fn new() -> Self {
         Self {
@@ -28,6 +44,23 @@ impl CommandExecutionResult {
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: HashMap<CommandInput, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
+}
+
+impl Serialize for CommandInputsEvaluationResult {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.inputs.len()))?;
+        for (k, v) in self.inputs.iter() {
+            let value = match v {
+                Ok(v) => Some(v),
+                Err(_) => None,
+            };
+            map.serialize_entry(&k.name, &value)?;
+        }
+        map.end()
+    }
 }
 
 impl CommandInputsEvaluationResult {
@@ -51,11 +84,38 @@ pub struct CommandInput {
     pub interpolable: bool,
 }
 
+impl Serialize for CommandInput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandInput", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("typing", &self.typing)?;
+        ser.serialize_field("optional", &self.optional)?;
+        ser.end()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CommandOutput {
     pub name: String,
     pub documentation: String,
     pub typing: Typing,
+}
+
+impl Serialize for CommandOutput {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandOutput", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("typing", &self.typing)?;
+        ser.end()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -69,6 +129,20 @@ pub struct CommandSpecification {
     pub outputs: Vec<CommandOutput>,
     pub runner: CommandRunner,
     pub checker: CommandChecker,
+}
+
+impl Serialize for CommandSpecification {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandSpecification", 4)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.serialize_field("inputs", &self.inputs)?;
+        ser.serialize_field("outputs", &self.outputs)?;
+        ser.end()
+    }
 }
 
 type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
@@ -85,6 +159,19 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
+}
+
+impl Serialize for CommandInstance {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut ser = serializer.serialize_struct("CommandInstance", 3)?;
+        ser.serialize_field("specification", &self.specification)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("packageUuid", &self.package_uuid)?;
+        ser.end()
+    }
 }
 
 impl CommandInstance {

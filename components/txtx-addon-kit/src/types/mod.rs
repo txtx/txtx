@@ -1,3 +1,4 @@
+use serde::{Serialize, Serializer};
 use uuid::Uuid;
 
 pub mod commands;
@@ -26,9 +27,31 @@ impl ConstructUuid {
     }
 }
 
+impl Serialize for ConstructUuid {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Local(uuid) => serializer.serialize_str(&format!("local:{}", uuid.to_string())),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackageUuid {
     Local(Uuid),
+}
+
+impl Serialize for PackageUuid {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Local(uuid) => serializer.serialize_str(&format!("local:{}", uuid.to_string())),
+        }
+    }
 }
 
 impl PackageUuid {

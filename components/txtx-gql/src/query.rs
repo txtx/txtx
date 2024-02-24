@@ -1,5 +1,5 @@
 use crate::types::constructs::Construct;
-use crate::types::manual::ManualDescription;
+use crate::types::manual::{GqlManual, ManualDescription};
 
 use crate::Context;
 use juniper_codegen::graphql_object;
@@ -16,28 +16,41 @@ impl Query {
         "1.0"
     }
 
-    async fn constructs(context: &Context, manual_name: String, id: Uuid) -> Option<Construct> {
+    async fn construct(context: &Context, manual_name: String, id: Uuid) -> Option<Construct> {
         let uuid = ConstructUuid::from_uuid(&id);
-        let Some(data) = context
-            .manuals
-            .get(&manual_name)?
-            .commands_instances
-            .get(&uuid)
-        else {
+        let Some(manual) = context.manuals.get(&manual_name) else {
             return None;
         };
+        let Some(data) = manual.commands_instances.get(&uuid) else {
+            return None;
+        };
+        let result = if let Some(result) = manual.constructs_execution_results.get(&uuid) {
+            Some(result.clone())
+        } else {
+            None
+        };
+
         // Return item
-        Some(Construct::new(&uuid, data))
+        Some(Construct::new(&uuid, data, result))
+    }
+
+    async fn manual(context: &Context, manual_name: String) -> Option<GqlManual> {
+        let Some(data) = context.manuals.get(&manual_name) else {
+            return None;
+        };
+        Some(GqlManual::new(manual_name, data.clone()))
     }
 
     async fn manuals(context: &Context) -> Vec<ManualDescription> {
         let mut manuals = vec![];
         for (id, manual) in context.manuals.iter() {
-            let metadata = manual.get_metadata_module();
+            let _metadata = manual.get_metadata_module();
+            let construct_uuids = manual.commands_instances.keys().cloned().collect();
             manuals.push(ManualDescription {
                 identifier: id.clone(),
-                name: metadata.and_then(|m| Some(m.name.to_string())),
-                description: None,
+                name: Some(id.clone()),
+                description: manual.description.clone(),
+                construct_uuids,
             })
         }
         manuals

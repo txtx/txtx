@@ -13,7 +13,7 @@ use txtx_addon_kit::{
 };
 
 pub fn run_constructs_evaluation(
-    manual: &Manual,
+    manual: &mut Manual,
     runtime_ctx: &RuntimeContext,
 ) -> Result<(), String> {
     let root = manual.graph_root;
@@ -40,8 +40,6 @@ pub fn run_constructs_evaluation(
 
     visited_nodes_to_process.remove(&root);
 
-    let mut constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult> =
-        HashMap::new();
     for node in visited_nodes_to_process.into_iter() {
         let uuid = g.node_weight(node).expect("unable to retrieve construct");
         let construct_uuid = ConstructUuid::Local(uuid.clone());
@@ -64,7 +62,7 @@ pub fn run_constructs_evaluation(
                 .try_resolve_construct_reference_in_expression(package_uuid, &expr)
                 .unwrap();
             if let Some((dependency, _)) = res {
-                let evaluation_result_opt = constructs_execution_results.get(&dependency);
+                let evaluation_result_opt = manual.constructs_execution_results.get(&dependency);
                 if let Some(evaluation_result) = evaluation_result_opt {
                     dependencies_execution_results.insert(dependency, evaluation_result);
                 }
@@ -79,10 +77,17 @@ pub fn run_constructs_evaluation(
             runtime_ctx,
         )
         .unwrap(); // todo(lgalabru): return Diagnostic instead
+
+        manual
+            .command_inputs_evaluation_results
+            .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
         let execution_result = command_instance
             .perform_execution(&evaluated_inputs)
             .unwrap(); // todo(lgalabru): return Diagnostic instead
-        constructs_execution_results.insert(construct_uuid, execution_result);
+        manual
+            .constructs_execution_results
+            .insert(construct_uuid, execution_result);
     }
 
     for (_, package) in manual.packages.iter() {
@@ -90,7 +95,8 @@ pub fn run_constructs_evaluation(
             let construct = manual.commands_instances.get(construct_uuid).unwrap();
             println!("Output '{}'", construct.name);
 
-            for (key, value) in constructs_execution_results
+            for (key, value) in manual
+                .constructs_execution_results
                 .get(construct_uuid)
                 .unwrap()
                 .outputs
