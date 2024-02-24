@@ -1,6 +1,7 @@
 variable "a_variable" {
   value = 1
-  description = ""
+  description = "Some description"
+  default = 2
 }
 
 output "adding_in_output" {
