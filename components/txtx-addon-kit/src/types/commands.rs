@@ -139,11 +139,17 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    pub fn get_expressions_from_input(&self, input: &CommandInput) -> Result<Expression, String> {
+    pub fn get_expressions_from_input(
+        &self,
+        input: &CommandInput,
+    ) -> Result<Option<Expression>, String> {
         let res = visit_optional_untyped_attribute(&input.name, &self.block)
-            .map_err(|e| format!("{:?}", e))?
-            .ok_or_else(|| format!("expression expected"))?;
-        Ok(res)
+            .map_err(|e| format!("{:?}", e))?;
+        match (res, input.optional) {
+            (Some(res), _) => Ok(Some(res)),
+            (None, true) => Ok(None),
+            (None, false) => Err(format!("expression expected")),
+        }
     }
 
     pub fn perform_execution(
@@ -155,7 +161,10 @@ impl CommandInstance {
             let value = match evaluated_inputs.inputs.get(input) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(e.clone()),
-                None => unreachable!(), // todo(lgalabru): return diagnostic
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!(), // todo(lgalabru): return diagnostic
+                },
             }?;
             values.insert(input.name.clone(), value);
         }
