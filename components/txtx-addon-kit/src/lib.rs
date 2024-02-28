@@ -19,7 +19,7 @@ pub mod macros;
 pub mod types;
 
 ///
-pub trait Addon: Debug {
+pub trait Addon: Debug + Sync + Send {
     ///
     fn get_namespace(self: &Self) -> &str;
     ///

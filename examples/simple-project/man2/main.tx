@@ -1,10 +1,25 @@
-variable "a_variable" {
+variable "variable_1" {
   value = 1
-  description = "Some description"
+  description = "A variable that is configured with value/default in the .tx file. This should be displayed initially in the web ui."
   default = 2
 }
 
-output "adding_in_output" {
-  description = "Demonstrates adding in output"
-  value = variable.a_variable.value + 3
+variable "variable_2" {
+  description = "A variable that does not have the value or default configured in the .tx file. This should have no value in the web ui until the user enters a value."
+}
+
+
+variable "variable_3" {
+  description = "This variable adds variable_1 and variable_2. Because variable_2 is not available initially, this variable will start with no value. Once variable_2 is filled in via the web ui, this value should be computed and displayed."
+  value = variable.variable_1.value + variable.variable_2.value
+}
+
+variable "variable_4" {
+  description = "A variable that does not have the value or default configured in the .tx file. This should have no value in the web ui until the user enters a value."
+}
+
+
+output "add_variables" {
+  description = "This output adds variable_1 and variable_4. "
+  value = variable.variable_3.value + variable.variable_4.value
 }

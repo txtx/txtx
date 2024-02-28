@@ -1,7 +1,10 @@
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::{
+    collections::{BTreeSet, HashMap, VecDeque},
+    sync::RwLock,
+};
 
 use crate::types::{Manual, RuntimeContext};
-use daggy::Walker;
+use daggy::{NodeIndex, Walker};
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
@@ -12,10 +15,7 @@ use txtx_addon_kit::{
     },
 };
 
-pub fn run_constructs_evaluation(
-    manual: &mut Manual,
-    runtime_ctx: &RuntimeContext,
-) -> Result<(), Diagnostic> {
+pub fn order_nodes(manual: &Manual) -> BTreeSet<NodeIndex> {
     let root = manual.graph_root;
     let g = &manual.constructs_graph;
 
@@ -39,82 +39,127 @@ pub fn run_constructs_evaluation(
     }
 
     visited_nodes_to_process.remove(&root);
+    visited_nodes_to_process
+}
 
-    for node in visited_nodes_to_process.into_iter() {
-        let uuid = g.node_weight(node).expect("unable to retrieve construct");
-        let construct_uuid = ConstructUuid::Local(uuid.clone());
-
-        let Some(command_instance) = manual.get_command_instance(&construct_uuid) else {
-            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
-            continue;
-        };
-
-        let mut dependencies_execution_results: HashMap<ConstructUuid, &CommandExecutionResult> =
-            HashMap::new();
-
-        // Retrieve the construct_uuid of the inputs
-        // Collect the outputs
-        let references_expressions: Vec<Expression> = command_instance
-            .get_expressions_referencing_commands_from_inputs()
-            .unwrap();
-        let (package_uuid, _) = manual.constructs_locations.get(&construct_uuid).unwrap();
-        for expr in references_expressions.into_iter() {
-            let res = manual
-                .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
-                .unwrap();
-            if let Some((dependency, _)) = res {
-                let evaluation_result_opt = manual.constructs_execution_results.get(&dependency);
-                if let Some(evaluation_result) = evaluation_result_opt {
-                    dependencies_execution_results.insert(dependency, evaluation_result);
-                }
-            }
-        }
-
-        let evaluated_inputs_res = perform_inputs_evaluation(
-            command_instance,
-            &dependencies_execution_results,
-            package_uuid,
-            manual,
-            runtime_ctx,
-        );
-        let evaluated_inputs = match evaluated_inputs_res {
-            Ok(evaluated_inputs) => evaluated_inputs,
-            Err(e) => {
-                todo!("build input evaluation diagnostic: {}", e)
-            }
-        };
-
-        let execution_result = command_instance
-            .perform_execution(&evaluated_inputs)
-            .unwrap(); // todo(lgalabru): return Diagnostic instead
-
-        manual
-            .command_inputs_evaluation_results
-            .insert(construct_uuid.clone(), evaluated_inputs.clone());
-
-        manual
-            .constructs_execution_results
-            .insert(construct_uuid, execution_result);
-    }
-
+pub fn log_evaluated_outputs(manual: &Manual) {
     for (_, package) in manual.packages.iter() {
         for construct_uuid in package.outputs_uuids.iter() {
             let construct = manual.commands_instances.get(construct_uuid).unwrap();
             println!("Output '{}'", construct.name);
 
-            for (key, value) in manual
-                .constructs_execution_results
-                .get(construct_uuid)
-                .unwrap()
-                .outputs
-                .iter()
-            {
-                println!("- {}: {:?}", key, value);
+            if let Some(result) = manual.constructs_execution_results.get(construct_uuid) {
+                for (key, value) in result.outputs.iter() {
+                    println!("- {}: {:?}", key, value);
+                }
+            } else {
+                println!(" - (no execution results)")
             }
         }
     }
+}
+pub enum ConstructEvaluationStatus {
+    Complete,
+    NeedsUserInteraction(Vec<NodeIndex>),
+}
+
+pub fn run_constructs_evaluation(
+    manual: &RwLock<Manual>,
+    runtime_ctx: &RwLock<RuntimeContext>,
+) -> Result<(), Diagnostic> {
+    let mut nodes_needing_user_interaction = vec![]; // todo(micaiah): currently unused
+
+    match manual.write() {
+        Ok(mut manual) => {
+            let g = manual.constructs_graph.clone();
+            let visited_nodes_to_process = order_nodes(&manual);
+            let commands_instances = manual.commands_instances.clone();
+            let constructs_locations = manual.constructs_locations.clone();
+
+            for node in visited_nodes_to_process.into_iter() {
+                let uuid = g.node_weight(node).expect("unable to retrieve construct");
+                let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+                let Some(command_instance) = commands_instances.get(&construct_uuid) else {
+                    // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+                    continue;
+                };
+
+                let mut dependencies_execution_results: HashMap<
+                    ConstructUuid,
+                    &CommandExecutionResult,
+                > = HashMap::new();
+
+                // Retrieve the construct_uuid of the inputs
+                // Collect the outputs
+                let references_expressions: Vec<Expression> = command_instance
+                    .get_expressions_referencing_commands_from_inputs()
+                    .unwrap();
+                let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+
+                for expr in references_expressions.into_iter() {
+                    let res = manual
+                        .try_resolve_construct_reference_in_expression(
+                            package_uuid,
+                            &expr,
+                            &runtime_ctx,
+                        )
+                        .unwrap();
+                    if let Some((dependency, _)) = res {
+                        let evaluation_result_opt =
+                            manual.constructs_execution_results.get(&dependency);
+                        if let Some(evaluation_result) = evaluation_result_opt {
+                            dependencies_execution_results.insert(dependency, evaluation_result);
+                        }
+                    }
+                }
+
+                let evaluated_inputs_res = perform_inputs_evaluation(
+                    command_instance,
+                    &dependencies_execution_results,
+                    package_uuid,
+                    &manual,
+                    runtime_ctx,
+                );
+
+                let evaluated_inputs = match evaluated_inputs_res {
+                    Ok(result) => match result {
+                        CommandInputEvaluationStatus::Complete(result) => result,
+                        CommandInputEvaluationStatus::NeedsUserInteraction => {
+                            nodes_needing_user_interaction.push(node);
+                            continue;
+                        }
+                    },
+                    Err(e) => {
+                        todo!("build input evaluation diagnostic: {}", e)
+                    }
+                };
+                manual
+                    .command_inputs_evaluation_results
+                    .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+                let execution_result = command_instance
+                    .perform_execution(&evaluated_inputs)
+                    .unwrap(); // todo(lgalabru): return Diagnostic instead
+                manual
+                    .constructs_execution_results
+                    .insert(construct_uuid, execution_result);
+            }
+        }
+        Err(e) => unimplemented!("could not acquire lock: {e}"),
+    }
+
+    match manual.read() {
+        Ok(readonly_manual) => log_evaluated_outputs(&readonly_manual),
+        Err(e) => unimplemented!("could not acquire lock: {e}"),
+    }
 
     Ok(())
+}
+
+pub enum ExpressionEvaluationStatus {
+    Complete(Value),
+    DependencyNotComputed,
 }
 
 pub fn eval_expression(
@@ -122,8 +167,8 @@ pub fn eval_expression(
     dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RuntimeContext,
-) -> Result<Value, Diagnostic> {
+    runtime_ctx: &RwLock<RuntimeContext>,
+) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
         // Represents a null value.
         Expression::Null(_decorated_null) => Value::null(),
@@ -177,16 +222,24 @@ pub fn eval_expression(
             let func = function_call.ident.to_string();
             let mut args = vec![];
             for expr in function_call.args.iter() {
-                let value = eval_expression(
+                let value = match eval_expression(
                     expr,
                     dependencies_execution_results,
                     package_uuid,
                     manual,
                     runtime_ctx,
-                )?;
+                )? {
+                    ExpressionEvaluationStatus::Complete(result) => result,
+                    ExpressionEvaluationStatus::DependencyNotComputed => {
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                    }
+                };
                 args.push(value);
             }
-            runtime_ctx.execute_function(&func, &args)?
+            match runtime_ctx.write() {
+                Ok(runtime_ctx) => runtime_ctx.execute_function(&func, &args)?,
+                Err(e) => unimplemented!("could not acquire lock: {e}"),
+            }
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
@@ -195,9 +248,15 @@ pub fn eval_expression(
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
-            let res = dependencies_execution_results.get(&dependency).unwrap();
+            let res = match dependencies_execution_results.get(&dependency) {
+                Some(res) => res,
+                None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+            };
             let attribute = components.pop_front().unwrap();
-            res.outputs.get(&attribute).unwrap().clone()
+            match res.outputs.get(&attribute) {
+                Some(output) => output.clone(),
+                None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+            }
         }
         // Represents an operation which applies a unary operator to an expression.
         Expression::UnaryOp(unary_op) => {
@@ -216,20 +275,30 @@ pub fn eval_expression(
         }
         // Represents an operation which applies a binary operator to two expressions.
         Expression::BinaryOp(binary_op) => {
-            let lhs = eval_expression(
+            let lhs = match eval_expression(
                 &binary_op.lhs_expr,
                 dependencies_execution_results,
                 package_uuid,
                 manual,
                 runtime_ctx,
-            )?;
-            let rhs = eval_expression(
+            )? {
+                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::DependencyNotComputed => {
+                    return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                }
+            };
+            let rhs = match eval_expression(
                 &binary_op.rhs_expr,
                 dependencies_execution_results,
                 package_uuid,
                 manual,
                 runtime_ctx,
-            )?;
+            )? {
+                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::DependencyNotComputed => {
+                    return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                }
+            };
             if !lhs.is_type_eq(&rhs) {
                 unimplemented!() // todo(lgalabru): return diagnostic
             }
@@ -244,9 +313,10 @@ pub fn eval_expression(
                 BinaryOperator::Minus => unimplemented!(),
                 BinaryOperator::Mod => unimplemented!(),
                 BinaryOperator::Mul => unimplemented!(),
-                BinaryOperator::Plus => {
-                    runtime_ctx.execute_function("add_uint", &vec![lhs, rhs])?
-                }
+                BinaryOperator::Plus => match runtime_ctx.write() {
+                    Ok(runtime_ctx) => runtime_ctx.execute_function("add_uint", &vec![lhs, rhs])?,
+                    Err(e) => unimplemented!("could not acquire lock: {e}"),
+                },
                 BinaryOperator::NotEq => unimplemented!(),
                 BinaryOperator::Or => unimplemented!(),
             }
@@ -257,20 +327,25 @@ pub fn eval_expression(
         }
     };
 
-    Ok(value)
+    Ok(ExpressionEvaluationStatus::Complete(value))
 }
 
 // pub struct EvaluatedExpression {
 //     value: Value,
 // }
 
+pub enum CommandInputEvaluationStatus {
+    Complete(CommandInputsEvaluationResult),
+    NeedsUserInteraction,
+}
+
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,
     dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RuntimeContext,
-) -> Result<CommandInputsEvaluationResult, String> {
+    runtime_ctx: &RwLock<RuntimeContext>,
+) -> Result<CommandInputEvaluationStatus, String> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();
     let mut fatal_error = false;
@@ -278,6 +353,7 @@ pub fn perform_inputs_evaluation(
     for input in inputs.into_iter() {
         match input.as_object() {
             Some(object_props) => {
+                // todo(micaiah) - figure out how user-input values work for this branch
                 let mut object_values = HashMap::new();
                 for prop in object_props.iter() {
                     let Some(expr) =
@@ -285,13 +361,22 @@ pub fn perform_inputs_evaluation(
                     else {
                         continue;
                     };
-                    let value = eval_expression(
+                    let value = match eval_expression(
                         &expr,
                         dependencies_execution_results,
                         package_uuid,
                         manual,
                         runtime_ctx,
-                    );
+                    ) {
+                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
+                        Err(e) => Err(e),
+                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                            println!(
+                                "returning early because eval expression needs user interaction"
+                            );
+                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        }
+                    };
                     if let Err(ref diag) = value {
                         if let DiagnosticLevel::Error = diag.level {
                             fatal_error = true;
@@ -309,21 +394,34 @@ pub fn perform_inputs_evaluation(
                 results.insert(input, Ok(Value::Object(object_values)));
             }
             None => {
+                if let Some(value) = command_instance.input_evaluation_result.get(&input) {
+                    results.insert(input, Ok(value.clone()));
+                    continue;
+                }
+
                 let Some(expr) = command_instance.get_expression_from_input(&input)? else {
                     continue;
                 };
-                let value = eval_expression(
+                let value = match eval_expression(
                     &expr,
                     dependencies_execution_results,
                     package_uuid,
                     manual,
                     runtime_ctx,
-                );
+                ) {
+                    Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("returning early because eval expression needs user interaction");
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                };
                 if let Err(ref diag) = value {
                     if let DiagnosticLevel::Error = diag.level {
                         fatal_error = true;
                     }
                 }
+
                 results.insert(input, value);
             }
         }
@@ -332,5 +430,5 @@ pub fn perform_inputs_evaluation(
     if fatal_error {
         return Err(format!("fatal error"));
     }
-    Ok(results)
+    Ok(CommandInputEvaluationStatus::Complete(results))
 }
