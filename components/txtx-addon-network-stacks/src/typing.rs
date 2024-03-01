@@ -14,7 +14,7 @@ lazy_static! {
 
 pub struct ClarityIntegerUnsigned;
 impl TypeImplementation for ClarityIntegerUnsigned {
-    fn check(_ctx: &TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic> {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }
 }

@@ -41,24 +41,71 @@ module "manual" {
 //   value = module.query_json_input
 // }
 
+variable "four" {
+  description = "Greeting variable"
+  value = 2 + 2
+}
+
+variable "five" {
+  description = "Greeting variable"
+  value = 2 + 3
+}
+
 variable "binary_op_add" {
   description = "Greeting variable"
-  value = 1 + 2
-  default = 2
+  value = variable.four.value + variable.five.value
 }
 
-variable "add_more" {
-  description = "Adds more variables"
-  value = variable.binary_op_add.value + 5
-  default = 2
+addon "stacks" "call_contract" "do_contract_call" {
+  contract_id = "test"
 }
 
-output "message_from_concatenation" {
+output "output_1" {
   description = "Combining variables"
   value = variable.binary_op_add.value
 }
 
-output "adding_in_output" {
-  description = "Demonstrates adding in output"
-  value = variable.add_more.value + 3
+output "output_2" {
+  description = "Combining variables"
+  value = output.output_1.value + 4
 }
+
+output "output_3" {
+  description = "Encoded contract call"
+  value = addon.do_contract_call.bytes
+}
+
+output "output_4" {
+  description = "Encoded contract call"
+  value = addon.increment_tx.bytes
+}
+
+
+addon "stacks" "transaction" "increment_tx" {
+  no_interact {
+    nonce = 1 // stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
+    payload_bytes = clarity_value_uint(1)
+    // pre_conditions_bytes = 1 
+    // private_key_bytes = base16_decode()
+  }
+  // cli_interact {
+  //   nonce = stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
+  //   payload_bytes = 1
+  //   pre_conditions_bytes = 1
+  // }
+  web_interact {
+    payload_bytes = 1
+    pre_conditions_bytes = 1
+  }
+  stacks_node_rpc_url = 1
+  confirmations_required = 0
+}
+
+// addon "stacks" "transaction" "increment_tx" {
+//   nonce = stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
+//   payload_bytes = 1
+//   pre_conditions_bytes = 1 
+//   private_key_bytes = yield
+//   stacks_node_rpc_url = 1
+//   confirmations_required = 0
+// }
