@@ -12,7 +12,7 @@ use crate::helpers::hcl::{
 
 use super::{
     diagnostics::Diagnostic,
-    typing::{Typing, Value},
+    types::{ObjectProperty, Type, Value},
     PackageUuid,
 };
 
@@ -79,9 +79,19 @@ impl CommandInputsEvaluationResult {
 pub struct CommandInput {
     pub name: String,
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
+}
+
+impl CommandInput {
+    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        match &self.typing {
+            Type::Object(spec) => Some(spec),
+            Type::Primitive(_) => None,
+            Type::Addon(_) => None,
+        }
+    }
 }
 
 impl Serialize for CommandInput {
@@ -102,7 +112,7 @@ impl Serialize for CommandInput {
 pub struct CommandOutput {
     pub name: String,
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
 }
 
 impl Serialize for CommandOutput {
@@ -145,12 +155,18 @@ impl Serialize for CommandSpecification {
     }
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Typing>) -> Typing;
-type CommandRunner = fn(&CommandSpecification, &HashMap<String, Value>) -> CommandExecutionResult;
+type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+type CommandRunner = fn(
+    &CommandSpecification,
+    &HashMap<String, Value>,
+) -> Result<CommandExecutionResult, Diagnostic>;
 
 pub trait CommandImplementation {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing;
-    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> CommandExecutionResult;
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
+    fn run(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic>;
 }
 
 #[derive(Clone, Debug)]
@@ -205,7 +221,9 @@ impl CommandInstance {
         }
     }
 
-    pub fn get_references_expressions_from_inputs(&self) -> Result<Vec<Expression>, String> {
+    pub fn get_expressions_referencing_commands_from_inputs(
+        &self,
+    ) -> Result<Vec<Expression>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             let res = visit_optional_untyped_attribute(&input.name, &self.block)
@@ -226,16 +244,50 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    pub fn get_expressions_from_input(
+    pub fn get_expression_from_input(
         &self,
         input: &CommandInput,
     ) -> Result<Option<Expression>, String> {
-        let res = visit_optional_untyped_attribute(&input.name, &self.block)
-            .map_err(|e| format!("{:?}", e))?;
+        let res = match &input.typing {
+            Type::Primitive(_) => visit_optional_untyped_attribute(&input.name, &self.block)
+                .map_err(|e| format!("{:?}", e))?,
+            Type::Object(_) => unreachable!(),
+            Type::Addon(_) => unreachable!(),
+        };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => Err(format!("expression expected")),
+            (None, false) => Err(format!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name, self.specification.matcher, input.name
+            )),
+        }
+    }
+
+    pub fn get_expression_from_object_property(
+        &self,
+        input: &CommandInput,
+        prop: &ObjectProperty,
+    ) -> Result<Option<Expression>, String> {
+        let object = self.block.body.get_blocks(&input.name).next();
+        match (object, input.optional) {
+            (Some(block), _) => {
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)
+                    .map_err(|e| format!("{:?}", e))?;
+                match (expr_res, prop.optional) {
+                    (Some(expression), _) => Ok(Some(expression)),
+                    (None, true) => Ok(None),
+                    (None, false) => Err(format!(
+                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
+                        self.name, self.specification.matcher, prop.name, input.name
+                    )),
+                }
+            }
+            (None, true) => Ok(None),
+            (None, false) => Err(format!(
+                "command '{}' (type '{}') is missing object '{}'",
+                self.name, self.specification.matcher, input.name
+            )),
         }
     }
 
@@ -255,8 +307,7 @@ impl CommandInstance {
             }?;
             values.insert(input.name.clone(), value);
         }
-        let res = (self.specification.runner)(&self.specification, &values);
-        Ok(res)
+        (self.specification.runner)(&self.specification, &values)
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {

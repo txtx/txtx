@@ -1,19 +1,22 @@
-use super::typing::{Typing, Value};
+use super::{
+    diagnostics::Diagnostic,
+    types::{Type, Value},
+};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
-    pub typing: Vec<Typing>,
+    pub typing: Vec<Type>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionOutput {
     pub documentation: String,
-    pub typing: Typing,
+    pub typing: Type,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunctionSpecification {
     pub name: String,
     pub documentation: String,
@@ -25,22 +28,10 @@ pub struct FunctionSpecification {
     pub checker: FunctionChecker,
 }
 
-#[derive(Clone)]
-pub struct TypingDeclaration {
-    pub name: String,
-    pub documentation: String,
-    pub check: TypingChecker,
-}
-
-type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Value;
-type FunctionChecker = fn(&FunctionSpecification, &Vec<Typing>) -> Typing;
+type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Result<Value, Diagnostic>;
+type FunctionChecker = fn(&FunctionSpecification, &Vec<Type>) -> Result<Type, Diagnostic>;
 
 pub trait FunctionImplementation {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing;
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value;
-}
-
-type TypingChecker = fn(&TypingDeclaration, Vec<Typing>) -> (bool, Option<Typing>);
-pub trait TypingImplementation {
-    fn check(_ctx: &TypingDeclaration, args: Vec<Typing>) -> Typing;
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic>;
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic>;
 }

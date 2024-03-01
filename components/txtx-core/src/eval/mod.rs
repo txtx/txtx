@@ -7,7 +7,7 @@ use txtx_addon_kit::{
     types::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::{Diagnostic, DiagnosticLevel},
-        typing::Value,
+        types::Value,
         ConstructUuid, PackageUuid,
     },
 };
@@ -15,7 +15,7 @@ use txtx_addon_kit::{
 pub fn run_constructs_evaluation(
     manual: &mut Manual,
     runtime_ctx: &RuntimeContext,
-) -> Result<(), String> {
+) -> Result<(), Diagnostic> {
     let root = manual.graph_root;
     let g = &manual.constructs_graph;
 
@@ -43,23 +43,24 @@ pub fn run_constructs_evaluation(
     for node in visited_nodes_to_process.into_iter() {
         let uuid = g.node_weight(node).expect("unable to retrieve construct");
         let construct_uuid = ConstructUuid::Local(uuid.clone());
-        let command_instance = manual
-            .commands_instances
-            .get(&construct_uuid)
-            .expect("unable to retrieve construct");
+
+        let Some(command_instance) = manual.get_command_instance(&construct_uuid) else {
+            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+            continue;
+        };
 
         let mut dependencies_execution_results: HashMap<ConstructUuid, &CommandExecutionResult> =
             HashMap::new();
 
         // Retrieve the construct_uuid of the inputs
         // Collect the outputs
-        let references_expressions = command_instance
-            .get_references_expressions_from_inputs()
+        let references_expressions: Vec<Expression> = command_instance
+            .get_expressions_referencing_commands_from_inputs()
             .unwrap();
         let (package_uuid, _) = manual.constructs_locations.get(&construct_uuid).unwrap();
         for expr in references_expressions.into_iter() {
             let res = manual
-                .try_resolve_construct_reference_in_expression(package_uuid, &expr)
+                .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
                 .unwrap();
             if let Some((dependency, _)) = res {
                 let evaluation_result_opt = manual.constructs_execution_results.get(&dependency);
@@ -69,22 +70,28 @@ pub fn run_constructs_evaluation(
             }
         }
 
-        let evaluated_inputs = perform_inputs_evaluation(
+        let evaluated_inputs_res = perform_inputs_evaluation(
             command_instance,
             &dependencies_execution_results,
             package_uuid,
             manual,
             runtime_ctx,
-        )
-        .unwrap(); // todo(lgalabru): return Diagnostic instead
+        );
+        let evaluated_inputs = match evaluated_inputs_res {
+            Ok(evaluated_inputs) => evaluated_inputs,
+            Err(e) => {
+                todo!("build input evaluation diagnostic: {}", e)
+            }
+        };
+
+        let execution_result = command_instance
+            .perform_execution(&evaluated_inputs)
+            .unwrap(); // todo(lgalabru): return Diagnostic instead
 
         manual
             .command_inputs_evaluation_results
             .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
-        let execution_result = command_instance
-            .perform_execution(&evaluated_inputs)
-            .unwrap(); // todo(lgalabru): return Diagnostic instead
         manual
             .constructs_execution_results
             .insert(construct_uuid, execution_result);
@@ -119,9 +126,9 @@ pub fn eval_expression(
 ) -> Result<Value, Diagnostic> {
     let value = match expr {
         // Represents a null value.
-        Expression::Null(_decorated_null) => Value::Null,
+        Expression::Null(_decorated_null) => Value::null(),
         // Represents a boolean.
-        Expression::Bool(decorated_bool) => Value::Bool(*decorated_bool.value()),
+        Expression::Bool(decorated_bool) => Value::bool(*decorated_bool.value()),
         // Represents a number, either integer or float.
         Expression::Number(formatted_number) => {
             match (
@@ -129,14 +136,14 @@ pub fn eval_expression(
                 formatted_number.value().as_i64(),
                 formatted_number.value().as_f64(),
             ) {
-                (Some(value), _, _) => Value::UnsignedInteger(value),
-                (_, Some(value), _) => Value::SignedInteger(value),
-                (_, _, Some(value)) => Value::Float(value),
+                (Some(value), _, _) => Value::uint(value),
+                (_, Some(value), _) => Value::int(value),
+                (_, _, Some(value)) => Value::float(value),
                 (None, None, None) => unreachable!(), // todo(lgalabru): return Diagnostic
             }
         }
         // Represents a string that does not contain any template interpolations or template directives.
-        Expression::String(decorated_string) => Value::String(decorated_string.to_string()),
+        Expression::String(decorated_string) => Value::string(decorated_string.to_string()),
         // Represents an HCL array.
         Expression::Array(_array) => {
             unimplemented!()
@@ -166,15 +173,27 @@ pub fn eval_expression(
             unimplemented!()
         }
         // Represents a function call.
-        Expression::FuncCall(_function_call) => {
-            unimplemented!()
+        Expression::FuncCall(function_call) => {
+            let func = function_call.ident.to_string();
+            let mut args = vec![];
+            for expr in function_call.args.iter() {
+                let value = eval_expression(
+                    expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )?;
+                args.push(value);
+            }
+            runtime_ctx.execute_function(&func, &args)?
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components))) =
-                manual.try_resolve_construct_reference_in_expression(package_uuid, expr)
+            let Ok(Some((dependency, mut components))) = manual
+                .try_resolve_construct_reference_in_expression(package_uuid, expr, &runtime_ctx)
             else {
-                unimplemented!()
+                todo!("implement diagnostic for unresolvable references")
             };
             let res = dependencies_execution_results.get(&dependency).unwrap();
             let attribute = components.pop_front().unwrap();
@@ -211,7 +230,7 @@ pub fn eval_expression(
                 manual,
                 runtime_ctx,
             )?;
-            if !is_type_eq(&lhs, &rhs) {
+            if !lhs.is_type_eq(&rhs) {
                 unimplemented!() // todo(lgalabru): return diagnostic
             }
             match &binary_op.operator.value() {
@@ -241,23 +260,6 @@ pub fn eval_expression(
     Ok(value)
 }
 
-pub fn is_type_eq(lhs: &Value, rhs: &Value) -> bool {
-    match (lhs, rhs) {
-        (Value::Null, Value::Null) => true,
-        (Value::Bool(_), Value::Bool(_)) => true,
-        (Value::UnsignedInteger(_), Value::UnsignedInteger(_)) => true,
-        (Value::SignedInteger(_), Value::SignedInteger(_)) => true,
-        (Value::Float(_), Value::Float(_)) => true,
-        (Value::String(_), Value::String(_)) => true,
-        (Value::Null, _) => false,
-        (Value::Bool(_), _) => false,
-        (Value::UnsignedInteger(_), _) => false,
-        (Value::SignedInteger(_), _) => false,
-        (Value::Float(_), _) => false,
-        (Value::String(_), _) => false,
-    }
-}
-
 // pub struct EvaluatedExpression {
 //     value: Value,
 // }
@@ -274,22 +276,57 @@ pub fn perform_inputs_evaluation(
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
-        let Some(expr) = command_instance.get_expressions_from_input(&input)? else {
-            continue;
-        };
-        let value = eval_expression(
-            &expr,
-            dependencies_execution_results,
-            package_uuid,
-            manual,
-            runtime_ctx,
-        );
-        if let Err(ref diag) = value {
-            if let DiagnosticLevel::Error = diag.level {
-                fatal_error = true;
+        match input.as_object() {
+            Some(object_props) => {
+                let mut object_values = HashMap::new();
+                for prop in object_props.iter() {
+                    let Some(expr) =
+                        command_instance.get_expression_from_object_property(&input, &prop)?
+                    else {
+                        continue;
+                    };
+                    let value = eval_expression(
+                        &expr,
+                        dependencies_execution_results,
+                        package_uuid,
+                        manual,
+                        runtime_ctx,
+                    );
+                    if let Err(ref diag) = value {
+                        if let DiagnosticLevel::Error = diag.level {
+                            fatal_error = true;
+                        }
+                    }
+
+                    let res = match value {
+                        Ok(Value::Primitive(p)) => Ok(p),
+                        Ok(_) => unreachable!(),
+                        Err(diag) => Err(diag),
+                    };
+
+                    object_values.insert(prop.name.to_string(), res);
+                }
+                results.insert(input, Ok(Value::Object(object_values)));
+            }
+            None => {
+                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                let value = eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                );
+                if let Err(ref diag) = value {
+                    if let DiagnosticLevel::Error = diag.level {
+                        fatal_error = true;
+                    }
+                }
+                results.insert(input, value);
             }
         }
-        results.insert(input, value);
     }
 
     if fatal_error {

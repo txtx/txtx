@@ -10,6 +10,9 @@ pub mod visitor;
 use ::std::collections::HashMap;
 
 use kit::hcl::structure::Block;
+use kit::helpers::fs::FileLocation;
+use kit::types::commands::CommandInstance;
+use kit::types::diagnostics::Diagnostic;
 use kit::types::functions::FunctionSpecification;
 use kit::types::PackageUuid;
 use kit::AddonContext;
@@ -27,10 +30,10 @@ pub fn simulate_manual(
     manual: &mut Manual,
     runtime_context: &mut RuntimeContext,
 ) -> Result<(), String> {
-    let _ = run_constructs_indexing(manual, &mut runtime_context.addons)?;
-    let _ = run_constructs_checks(manual, &mut runtime_context.addons)?;
-    let _ = run_constructs_dependencies_indexing(manual, &mut runtime_context.addons)?;
-    let _ = run_constructs_evaluation(manual, runtime_context)?;
+    let _ = run_constructs_indexing(manual, &mut runtime_context.addons_ctx)?;
+    let _ = run_constructs_checks(manual, &mut runtime_context.addons_ctx)?;
+    let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
+    let _ = run_constructs_evaluation(manual, runtime_context).unwrap();
     Ok(())
 }
 
@@ -64,11 +67,11 @@ impl AddonsContext {
         &mut self,
         namespace: &str,
         package_uuid: &PackageUuid,
-    ) -> Result<&Box<dyn AddonContext>, String> {
+    ) -> Result<&Box<dyn AddonContext>, Diagnostic> {
         let key = (package_uuid.clone(), namespace.to_string());
         if self.contexts.get(&key).is_none() {
             let Some(addon) = self.addons.get(namespace) else {
-                return Err(format!("addon '{}' unknown", namespace));
+                unimplemented!();
             };
             let ctx = addon.create_context();
             self.contexts.insert(key.clone(), ctx);
@@ -76,14 +79,16 @@ impl AddonsContext {
         return Ok(self.contexts.get(&key).unwrap());
     }
 
-    pub fn index_construct(
+    pub fn create_command_instance(
         &mut self,
         namespace: &str,
+        command_type: &str,
+        command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
-    ) -> Result<bool, String> {
+        location: &FileLocation,
+    ) -> Result<CommandInstance, Diagnostic> {
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
-        // ctx.index_pre_construct(name, block, location);
-        Ok(true)
+        ctx.create_command_instance(command_type, command_name, block, package_uuid)
     }
 }

@@ -4,7 +4,7 @@ use uuid::Uuid;
 pub mod commands;
 pub mod diagnostics;
 pub mod functions;
-pub mod typing;
+pub mod types;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstructUuid {

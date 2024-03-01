@@ -1,4 +1,4 @@
-use txtx_addon_kit::hcl::structure::Block;
+use txtx_addon_kit::{hcl::structure::Block, types::commands::CommandInstance};
 
 #[derive(Debug)]
 pub enum PreConstructData {
@@ -6,7 +6,7 @@ pub enum PreConstructData {
     Module(Block),
     Output(Block),
     Import(Block),
-    Addon(Block),
+    Addon(CommandInstance),
     Root,
 }
 
@@ -39,7 +39,7 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_addon(&self) -> Option<&Block> {
+    pub fn as_addon(&self) -> Option<&CommandInstance> {
         match self {
             PreConstructData::Addon(data) => Some(&data),
             _ => None,

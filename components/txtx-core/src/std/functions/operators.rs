@@ -1,8 +1,9 @@
 use txtx_addon_kit::{
     define_function,
     types::{
+        diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        typing::{Typing, Value},
+        types::{PrimitiveValue, Type, Value},
     },
 };
 
@@ -16,12 +17,12 @@ lazy_static! {
                 inputs: [
                     value: {
                         documentation: "",
-                        typing: vec![Typing::SignedInteger]
+                        typing: vec![Type::int()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::SignedInteger
+                    typing: Type::int()
                 },
             }
         },
@@ -33,12 +34,12 @@ lazy_static! {
                 inputs: [
                     value: {
                         documentation: "",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -50,16 +51,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -71,16 +72,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Bool]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::String
+                    typing: Type::string()
                 },
             }
         },
@@ -92,16 +93,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::SignedInteger]
+                        typing: vec![Type::int()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::SignedInteger]
+                        typing: vec![Type::int()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::SignedInteger
+                    typing: Type::int()
                 },
             }
         },
@@ -113,16 +114,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::UnsignedInteger
+                    typing: Type::uint()
                 },
             }
         },
@@ -134,16 +135,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -155,16 +156,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -176,16 +177,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -197,16 +198,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -218,16 +219,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -239,16 +240,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::Null, Typing::SignedInteger, Typing::Float, Typing::UnsignedInteger, Typing::String, Typing::Bool]
+                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::Bool
+                    typing: Type::bool()
                 },
             }
         },
@@ -260,16 +261,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::UnsignedInteger
+                    typing: Type::uint()
                 },
             }
         },
@@ -281,16 +282,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::UnsignedInteger
+                    typing: Type::uint()
                 },
             }
         },
@@ -302,16 +303,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::UnsignedInteger
+                    typing: Type::uint()
                 },
             }
         },
@@ -323,16 +324,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     },
                     rhs: {
                         documentation: "",
-                        typing: vec![Typing::UnsignedInteger]
+                        typing: vec![Type::uint()]
                     }
                 ],
                 output: {
                     documentation: "",
-                    typing: Typing::UnsignedInteger
+                    typing: Type::uint()
                 },
             }
         }
@@ -341,184 +342,184 @@ lazy_static! {
 
 pub struct UnaryNegInteger;
 impl FunctionImplementation for UnaryNegInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct UnaryNotBool;
 impl FunctionImplementation for UnaryNotBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryAndBool;
 impl FunctionImplementation for BinaryAndBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryOrBool;
 impl FunctionImplementation for BinaryOrBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryDivSignedInteger;
 impl FunctionImplementation for BinaryDivSignedInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryDivUnsignedInteger;
 impl FunctionImplementation for BinaryDivUnsignedInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryEq;
 impl FunctionImplementation for BinaryEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryGreater;
 impl FunctionImplementation for BinaryGreater {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryGreaterEq;
 impl FunctionImplementation for BinaryGreaterEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryLess;
 impl FunctionImplementation for BinaryLess {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryLessEq;
 impl FunctionImplementation for BinaryLessEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryNotEq;
 impl FunctionImplementation for BinaryNotEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryMinusUInt;
 impl FunctionImplementation for BinaryMinusUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryModuloUInt;
 impl FunctionImplementation for BinaryModuloUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryMulUInt;
 impl FunctionImplementation for BinaryMulUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
 
 pub struct BinaryPlusUInt;
 impl FunctionImplementation for BinaryPlusUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Typing>) -> Typing {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Value {
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let lhs = match args.get(0) {
-            Some(Value::UnsignedInteger(val)) => val,
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
             _ => unreachable!(),
         };
         let rhs = match args.get(1) {
-            Some(Value::UnsignedInteger(val)) => val,
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
             _ => unreachable!(),
         };
-        Value::UnsignedInteger(lhs + rhs)
+        Ok(Value::uint(lhs + rhs))
     }
 }

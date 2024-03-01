@@ -4,7 +4,8 @@ use txtx_addon_kit::{
     define_command,
     types::{
         commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
-        typing::{Typing, Value},
+        diagnostics::Diagnostic,
+        types::{Type, Value},
     },
 };
 
@@ -25,18 +26,21 @@ pub fn new_module_specification() -> CommandSpecification {
 
 pub struct Module;
 impl CommandImplementation for Module {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, _args: &HashMap<String, Value>) -> CommandExecutionResult {
+    fn run(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let result = CommandExecutionResult::new();
-        result
+        Ok(result)
     }
 }
 
 pub fn new_variable_specification() -> CommandSpecification {
-    let command = define_command! {
+    let command: CommandSpecification = define_command! {
         Variable => {
             name: "Variable",
             matcher: "variable",
@@ -44,19 +48,19 @@ pub fn new_variable_specification() -> CommandSpecification {
             inputs: [
                 description: {
                     documentation: "Description of the variable",
-                    typing: Typing::String,
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::String,
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 default: {
                     documentation: "Default value of the variable, if value is omitted",
-                    typing: Typing::String,
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 }
@@ -64,7 +68,7 @@ pub fn new_variable_specification() -> CommandSpecification {
             outputs: [
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::String
+                    typing: Type::string()
                 }
             ],
         }
@@ -74,15 +78,18 @@ pub fn new_variable_specification() -> CommandSpecification {
 
 pub struct Variable;
 impl CommandImplementation for Variable {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+    fn run(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
-        result
+        Ok(result)
     }
 }
 
@@ -95,13 +102,13 @@ pub fn new_output_specification() -> CommandSpecification {
             inputs: [
                 description: {
                     documentation: "Description of the output",
-                    typing: Typing::String,
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::String,
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 }
@@ -109,7 +116,7 @@ pub fn new_output_specification() -> CommandSpecification {
             outputs: [
                 value: {
                     documentation: "Value of the variable",
-                    typing: Typing::String
+                    typing: Type::string()
                 }
             ],
         }
@@ -119,14 +126,17 @@ pub fn new_output_specification() -> CommandSpecification {
 
 pub struct Output;
 impl CommandImplementation for Output {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Typing>) -> Typing {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &CommandSpecification, args: &HashMap<String, Value>) -> CommandExecutionResult {
+    fn run(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
-        result
+        Ok(result)
     }
 }

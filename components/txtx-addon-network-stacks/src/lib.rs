@@ -4,19 +4,27 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-// mod constructs;
-mod functions;
-
 use std::collections::HashMap;
+
+mod commands;
+mod functions;
+mod typing;
+
+pub mod clarity {
+    #![allow(ambiguous_glob_reexports)]
+    pub use ::clarity::stacks_common::*;
+    pub use ::clarity::vm::*;
+    pub use ::clarity::*;
+}
 
 use txtx_addon_kit::{
     hcl::{expr::Expression, structure::Block},
     helpers::{fs::FileLocation, hcl::VisitorError},
     types::{
-        commands::{CommandExecutionResult, CommandSpecification},
+        commands::{CommandExecutionResult, CommandInstance, CommandSpecification},
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
-        ConstructUuid,
+        ConstructUuid, PackageUuid,
     },
     Addon, AddonConstruct, AddonContext,
 };
@@ -40,12 +48,24 @@ impl Addon for StacksNetworkAddon {
     }
 
     fn get_commands(&self) -> Vec<CommandSpecification> {
-        unimplemented!()
+        commands::STACKS_COMMANDS.clone()
     }
 
     fn create_context(&self) -> Box<dyn AddonContext> {
+        let mut functions = HashMap::new();
+        let available_functions = functions::STACKS_FUNCTIONS.clone();
+        for function in available_functions.into_iter() {
+            functions.insert(function.name.clone(), function);
+        }
+        let mut commands = HashMap::new();
+        let available_commands = commands::STACKS_COMMANDS.clone();
+        for command in available_commands.into_iter() {
+            commands.insert(command.matcher.clone(), command);
+        }
         Box::new(StacksNetworkAddonContext {
             constructs: HashMap::new(),
+            functions,
+            commands,
         })
     }
 }
@@ -53,6 +73,8 @@ impl Addon for StacksNetworkAddon {
 #[derive(Debug)]
 pub struct StacksNetworkAddonContext {
     pub constructs: HashMap<ConstructUuid, StacksNetworkConstructs>,
+    pub functions: HashMap<String, FunctionSpecification>,
+    pub commands: HashMap<String, CommandSpecification>,
 }
 
 impl AddonContext for StacksNetworkAddonContext {
@@ -67,13 +89,24 @@ impl AddonContext for StacksNetworkAddonContext {
         return Some(boxed_construct);
     }
 
-    fn index_pre_construct(
+    fn create_command_instance(
         self: &Self,
-        _construct_name: &String,
-        _block: &Block,
-        _location: &FileLocation,
-    ) -> Result<ConstructUuid, Diagnostic> {
-        Ok(ConstructUuid::new())
+        command_type: &str,
+        command_name: &str,
+        block: &Block,
+        package_uuid: &PackageUuid,
+    ) -> Result<CommandInstance, Diagnostic> {
+        let Some(command_spec) = self.commands.get(command_type) else {
+            todo!("return diagnostic: unknown command")
+        };
+        let command_instance = CommandInstance {
+            specification: command_spec.clone(),
+            name: command_name.to_string(),
+            block: block.clone(),
+            package_uuid: package_uuid.clone(),
+        };
+
+        Ok(command_instance)
     }
 
     fn resolve_construct_dependencies(
