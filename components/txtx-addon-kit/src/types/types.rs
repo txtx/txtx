@@ -145,6 +145,12 @@ impl Type {
     pub fn object(props: Vec<ObjectProperty>) -> Type {
         Type::Object(props)
     }
+    pub fn buffer() -> Type {
+        Type::Primitive(PrimitiveType::Buffer)
+    }
+    pub fn addon(type_spec: TypeSpecification) -> Type {
+        Type::Addon(type_spec)
+    }
 }
 
 impl Serialize for Type {
@@ -159,6 +165,7 @@ impl Serialize for Type {
             Type::Primitive(PrimitiveType::Float) => serializer.serialize_str("float"),
             Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("boolean"),
             Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
+            Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("buffer"),
             Type::Object(_) => unimplemented!("Type::Object variant"),
             Type::Addon(_) => unimplemented!("Type::Addon variant"),
         }
@@ -173,6 +180,7 @@ pub enum PrimitiveType {
     Float,
     Bool,
     Null,
+    Buffer,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
