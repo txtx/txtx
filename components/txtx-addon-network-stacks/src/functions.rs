@@ -1,4 +1,4 @@
-use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
+use crate::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
