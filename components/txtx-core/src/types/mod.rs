@@ -41,7 +41,6 @@ impl RuntimeContext {
     }
 
     pub fn execute_function(&self, name: &str, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        println!("{:?}", self.functions);
         let function = match self.functions.get(name) {
             Some(function) => function,
             None => {

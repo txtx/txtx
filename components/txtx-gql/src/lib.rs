@@ -1,16 +1,20 @@
-use std::collections::HashMap;
-
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;
-use txtx_core::types::Manual;
+use std::{collections::HashMap, sync::RwLock};
+use txtx_core::types::{Manual, RuntimeContext};
 
 pub mod mutation;
 pub mod query;
 pub mod types;
 
 pub struct Context {
-    pub manuals: HashMap<String, Manual>,
+    pub data: HashMap<String, ContextData>,
+}
+
+pub struct ContextData {
+    pub manual: RwLock<Manual>,
+    pub runtime_context: RwLock<RuntimeContext>,
 }
 
 impl juniper::Context for Context {}

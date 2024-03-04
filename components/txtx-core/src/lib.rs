@@ -8,6 +8,7 @@ pub mod types;
 pub mod visitor;
 
 use ::std::collections::HashMap;
+use ::std::sync::RwLock;
 
 use kit::hcl::structure::Block;
 use kit::helpers::fs::FileLocation;
@@ -27,11 +28,16 @@ use visitor::run_constructs_checks;
 use visitor::run_constructs_indexing;
 
 pub fn simulate_manual(
-    manual: &mut Manual,
-    runtime_context: &mut RuntimeContext,
+    manual: &RwLock<Manual>,
+    runtime_context: &RwLock<RuntimeContext>,
 ) -> Result<(), String> {
-    let _ = run_constructs_indexing(manual, &mut runtime_context.addons_ctx)?;
-    let _ = run_constructs_checks(manual, &mut runtime_context.addons_ctx)?;
+    match runtime_context.write() {
+        Ok(mut runtime_context) => {
+            let _ = run_constructs_indexing(manual, &mut runtime_context.addons_ctx)?;
+            let _ = run_constructs_checks(manual, &mut runtime_context.addons_ctx)?;
+        }
+        Err(e) => unimplemented!("could not acquire lock: {e}"),
+    }
     let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
     let _ = run_constructs_evaluation(manual, runtime_context).unwrap();
     Ok(())

@@ -175,6 +175,7 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
+    pub input_evaluation_result: HashMap<CommandInput, Value>,
 }
 
 impl Serialize for CommandInstance {

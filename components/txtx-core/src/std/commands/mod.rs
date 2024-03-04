@@ -86,9 +86,12 @@ impl CommandImplementation for Variable {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
-        result.outputs.insert("value".to_string(), value);
+        if let Some(value) = args.get("value") {
+            result.outputs.insert("value".to_string(), value.clone());
+        } else if let Some(default) = args.get("default") {
+            result.outputs.insert("value".to_string(), default.clone());
+        }
         Ok(result)
     }
 }

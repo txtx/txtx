@@ -104,6 +104,7 @@ impl AddonContext for StacksNetworkAddonContext {
             name: command_name.to_string(),
             block: block.clone(),
             package_uuid: package_uuid.clone(),
+            input_evaluation_result: HashMap::new(),
         };
 
         Ok(command_instance)
