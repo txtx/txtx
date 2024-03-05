@@ -100,6 +100,40 @@ impl Value {
     }
 }
 
+impl Value {
+    pub fn from_string(value: String, expected_type: Type) -> Result<Value, Diagnostic> {
+        match expected_type {
+            Type::Primitive(PrimitiveType::String) => Ok(Value::string(value)),
+            Type::Primitive(PrimitiveType::UnsignedInteger) => match value.parse() {
+                Ok(value) => Ok(Value::uint(value)),
+                Err(e) => unimplemented!("failed to cast {} to uint: {}", value, e),
+            },
+            Type::Primitive(PrimitiveType::SignedInteger) => match value.parse() {
+                Ok(value) => Ok(Value::int(value)),
+                Err(e) => unimplemented!("failed to cast {} to int: {}", value, e),
+            },
+            Type::Primitive(PrimitiveType::Float) => match value.parse() {
+                Ok(value) => Ok(Value::float(value)),
+                Err(e) => unimplemented!("failed to cast {} to float: {}", value, e),
+            },
+            Type::Primitive(PrimitiveType::Null) => {
+                if value.is_empty() {
+                    Ok(Value::null())
+                } else {
+                    unimplemented!("failed to cast {} to null", value,);
+                }
+            }
+            Type::Primitive(PrimitiveType::Bool) => match value.parse() {
+                Ok(value) => Ok(Value::bool(value)),
+                Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
+            },
+            // Type::Primitive(PrimitiveType::Buffer) => todo!(),
+            Type::Object(_) => todo!(),
+            Type::Addon(_) => todo!(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum PrimitiveValue {
     String(String),
@@ -150,6 +184,35 @@ impl Type {
     }
     pub fn addon(type_spec: TypeSpecification) -> Type {
         Type::Addon(type_spec)
+    }
+}
+
+impl From<String> for Type {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "string" => Type::string(),
+            "uint" => Type::uint(),
+            "int" => Type::int(),
+            "float" => Type::float(),
+            "boolean" => Type::bool(),
+            "null" => Type::null(),
+            _ => unimplemented!("Type from str not implemented"),
+        }
+    }
+}
+
+impl From<Option<String>> for Type {
+    fn from(value: Option<String>) -> Self {
+        match value {
+            Some(value) => Type::from(value),
+            None => Type::default(),
+        }
+    }
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Type::string()
     }
 }
 
