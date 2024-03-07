@@ -103,31 +103,12 @@ impl Value {
 impl Value {
     pub fn from_string(value: String, expected_type: Type) -> Result<Value, Diagnostic> {
         match expected_type {
-            Type::Primitive(PrimitiveType::String) => Ok(Value::string(value)),
-            Type::Primitive(PrimitiveType::UnsignedInteger) => match value.parse() {
-                Ok(value) => Ok(Value::uint(value)),
-                Err(e) => unimplemented!("failed to cast {} to uint: {}", value, e),
-            },
-            Type::Primitive(PrimitiveType::SignedInteger) => match value.parse() {
-                Ok(value) => Ok(Value::int(value)),
-                Err(e) => unimplemented!("failed to cast {} to int: {}", value, e),
-            },
-            Type::Primitive(PrimitiveType::Float) => match value.parse() {
-                Ok(value) => Ok(Value::float(value)),
-                Err(e) => unimplemented!("failed to cast {} to float: {}", value, e),
-            },
-            Type::Primitive(PrimitiveType::Null) => {
-                if value.is_empty() {
-                    Ok(Value::null())
-                } else {
-                    unimplemented!("failed to cast {} to null", value,);
+            Type::Primitive(primitive_type) => {
+                match PrimitiveValue::from_string(value, primitive_type) {
+                    Ok(v) => Ok(Value::Primitive(v)),
+                    Err(e) => Err(e),
                 }
             }
-            Type::Primitive(PrimitiveType::Bool) => match value.parse() {
-                Ok(value) => Ok(Value::bool(value)),
-                Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
-            },
-            // Type::Primitive(PrimitiveType::Buffer) => todo!(),
             Type::Object(_) => todo!(),
             Type::Addon(_) => todo!(),
         }
@@ -143,6 +124,41 @@ pub enum PrimitiveValue {
     Bool(bool),
     Null,
     Buffer(BufferData),
+}
+
+impl PrimitiveValue {
+    pub fn from_string(
+        value: String,
+        expected_type: PrimitiveType,
+    ) -> Result<PrimitiveValue, Diagnostic> {
+        match expected_type {
+            PrimitiveType::String => Ok(PrimitiveValue::String(value)),
+            PrimitiveType::UnsignedInteger => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::UnsignedInteger(value)),
+                Err(e) => unimplemented!("failed to cast {} to uint: {}", value, e),
+            },
+            PrimitiveType::SignedInteger => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::SignedInteger(value)),
+                Err(e) => unimplemented!("failed to cast {} to int: {}", value, e),
+            },
+            PrimitiveType::Float => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::Float(value)),
+                Err(e) => unimplemented!("failed to cast {} to float: {}", value, e),
+            },
+            PrimitiveType::Null => {
+                if value.is_empty() {
+                    Ok(PrimitiveValue::Null)
+                } else {
+                    unimplemented!("failed to cast {} to null", value,);
+                }
+            }
+            PrimitiveType::Bool => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::Bool(value)),
+                Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
+            },
+            // Type::Primitive(PrimitiveType::Buffer) => todo!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
