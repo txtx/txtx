@@ -56,6 +56,7 @@ macro_rules! define_command {
             }),*],
             runner: $func_key::run,
             checker: $func_key::check,
+            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
         };
     };
 }

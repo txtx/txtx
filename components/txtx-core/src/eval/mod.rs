@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::types::{Manual, RuntimeContext};
-use daggy::{NodeIndex, Walker};
+use daggy::{Dag, NodeIndex, Walker};
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
@@ -13,32 +13,50 @@ use txtx_addon_kit::{
         types::Value,
         ConstructUuid, PackageUuid,
     },
+    uuid::Uuid,
 };
 
-pub fn order_nodes(manual: &Manual) -> BTreeSet<NodeIndex> {
-    let root = manual.graph_root;
-    let g = &manual.constructs_graph;
-
+pub fn order_dependent_nodes(
+    start_node: NodeIndex,
+    graph: Dag<Uuid, u32, u32>,
+) -> BTreeSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
     let mut visited_nodes_to_process = BTreeSet::new();
 
-    nodes_to_visit.push_front(root);
+    nodes_to_visit.push_front(start_node);
     while let Some(node) = nodes_to_visit.pop_front() {
-        // All the parents must have been visited first
-        for (_, parent) in g.parents(node).iter(&g) {
-            if !visited_nodes_to_process.contains(&parent) {
-                nodes_to_visit.push_back(node)
-            }
-        }
         // Enqueue all the children
-        for (_, child) in g.children(node).iter(&g) {
+        for (_, child) in graph.children(node).iter(&graph) {
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
         visited_nodes_to_process.insert(node);
     }
 
-    visited_nodes_to_process.remove(&root);
+    visited_nodes_to_process
+}
+
+pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> BTreeSet<NodeIndex> {
+    let mut nodes_to_visit = VecDeque::new();
+    let mut visited_nodes_to_process = BTreeSet::new();
+
+    nodes_to_visit.push_front(root_node);
+    while let Some(node) = nodes_to_visit.pop_front() {
+        // All the parents must have been visited first
+        for (_, parent) in graph.parents(node).iter(&graph) {
+            if !visited_nodes_to_process.contains(&parent) {
+                nodes_to_visit.push_back(node)
+            }
+        }
+        // Enqueue all the children
+        for (_, child) in graph.children(node).iter(&graph) {
+            nodes_to_visit.push_back(child);
+        }
+        // Mark node as visited
+        visited_nodes_to_process.insert(node);
+    }
+
+    visited_nodes_to_process.remove(&root_node);
     visited_nodes_to_process
 }
 
@@ -66,13 +84,23 @@ pub enum ConstructEvaluationStatus {
 pub fn run_constructs_evaluation(
     manual: &RwLock<Manual>,
     runtime_ctx: &RwLock<RuntimeContext>,
+    start_node: Option<NodeIndex>,
 ) -> Result<(), Diagnostic> {
     let mut nodes_needing_user_interaction = vec![]; // todo(micaiah): currently unused
 
     match manual.write() {
         Ok(mut manual) => {
             let g = manual.constructs_graph.clone();
-            let visited_nodes_to_process = order_nodes(&manual);
+
+            let visited_nodes_to_process = match start_node {
+                Some(start_node) => {
+                    // if we are walking the graph from a given start node, we only add the
+                    // node and its dependents (not its parents) to the nodes we visit.
+                    order_dependent_nodes(start_node, manual.constructs_graph.clone())
+                }
+                None => order_nodes(manual.graph_root, manual.constructs_graph.clone()),
+            };
+
             let commands_instances = manual.commands_instances.clone();
             let constructs_locations = manual.constructs_locations.clone();
 
@@ -83,6 +111,22 @@ pub fn run_constructs_evaluation(
                 let Some(command_instance) = commands_instances.get(&construct_uuid) else {
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
+                };
+                // in general we want to ignore previous input evaluation results when evaluating for outputs.
+                // we want to recompute the whole graph in case anything has changed since our last traversal.
+                // however, if there was a start_node provided, this evaluation was initiated from a user interaction
+                // that is stored in the input evaluation results, and we want to keep that data to evaluate that
+                // commands dependents
+                let input_evaluation_results = if let Some(start_node) = start_node {
+                    if start_node == node {
+                        manual
+                            .command_inputs_evaluation_results
+                            .get(&construct_uuid.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 };
 
                 let mut dependencies_execution_results: HashMap<
@@ -117,6 +161,7 @@ pub fn run_constructs_evaluation(
                 let evaluated_inputs_res = perform_inputs_evaluation(
                     command_instance,
                     &dependencies_execution_results,
+                    &input_evaluation_results,
                     package_uuid,
                     &manual,
                     runtime_ctx,
@@ -342,6 +387,7 @@ pub enum CommandInputEvaluationStatus {
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,
     dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
+    input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
     runtime_ctx: &RwLock<RuntimeContext>,
@@ -351,6 +397,11 @@ pub fn perform_inputs_evaluation(
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
+        // todo(micaiah): this value still needs to be for inputs that are objects
+        let previously_evaluated_input = match input_evaluation_results {
+            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input),
+            None => None,
+        };
         match input.as_object() {
             Some(object_props) => {
                 // todo(micaiah) - figure out how user-input values work for this branch
@@ -394,28 +445,27 @@ pub fn perform_inputs_evaluation(
                 results.insert(input, Ok(Value::Object(object_values)));
             }
             None => {
-                if let Some(value) = command_instance.input_evaluation_result.get(&input) {
-                    results.insert(input, Ok(value.clone()));
-                    continue;
-                }
-
-                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
-                    continue;
-                };
-                let value = match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_uuid,
-                    manual,
-                    runtime_ctx,
-                ) {
-                    Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
-                    Err(e) => Err(e),
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("returning early because eval expression needs user interaction");
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                let value = if let Some(value) = previously_evaluated_input {
+                    value.clone()
+                } else {
+                    let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                        continue;
+                    };
+                    match eval_expression(
+                        &expr,
+                        dependencies_execution_results,
+                        package_uuid,
+                        manual,
+                        runtime_ctx,
+                    ) {
+                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
+                        Err(e) => Err(e),
+                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        }
                     }
                 };
+
                 if let Err(ref diag) = value {
                     if let DiagnosticLevel::Error = diag.level {
                         fatal_error = true;

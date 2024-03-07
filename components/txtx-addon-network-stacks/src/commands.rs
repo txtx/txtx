@@ -24,7 +24,10 @@ use clarity_repl::{
 use libsecp256k1::{PublicKey, SecretKey};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::{
-    commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
+    commands::{
+        CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+        CommandSpecification,
+    },
     diagnostics::Diagnostic,
     types::{PrimitiveType, PrimitiveValue, Type, Value},
 };
@@ -214,6 +217,15 @@ impl CommandImplementation for StacksCallContract {
         result.outputs.insert("bytes".to_string(), value);
         Ok(result)
     }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
+    }
 }
 
 pub struct StacksDeployContract;
@@ -230,6 +242,15 @@ impl CommandImplementation for StacksDeployContract {
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("bytes".to_string(), value);
         Ok(result)
+    }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
     }
 }
 
@@ -353,6 +374,15 @@ impl CommandImplementation for EncodeStacksTransaction {
 
         println!("==> {:?}", result);
         Ok(result)
+    }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
     }
 }
 

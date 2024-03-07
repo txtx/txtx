@@ -136,7 +136,6 @@ impl Manual {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        input_evaluation_result: HashMap::new(),
                     },
                 );
             }
@@ -152,7 +151,6 @@ impl Manual {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        input_evaluation_result: HashMap::new(),
                     },
                 );
             }
@@ -168,7 +166,6 @@ impl Manual {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        input_evaluation_result: HashMap::new(),
                     },
                 );
             }
@@ -205,7 +202,7 @@ impl Manual {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
-        runtime_context: &RwLock<RuntimeContext>,
+        _runtime_context: &RwLock<RuntimeContext>,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);

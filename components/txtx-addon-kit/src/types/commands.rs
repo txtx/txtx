@@ -2,7 +2,7 @@ use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -139,6 +139,7 @@ pub struct CommandSpecification {
     pub outputs: Vec<CommandOutput>,
     pub runner: CommandRunner,
     pub checker: CommandChecker,
+    pub user_input_parser: CommandParser,
 }
 
 impl Serialize for CommandSpecification {
@@ -160,6 +161,7 @@ type CommandRunner = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
 ) -> Result<CommandExecutionResult, Diagnostic>;
+type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
 
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
@@ -167,6 +169,12 @@ pub trait CommandImplementation {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
     ) -> Result<CommandExecutionResult, Diagnostic>;
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    );
 }
 
 #[derive(Clone, Debug)]
@@ -175,7 +183,6 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
-    pub input_evaluation_result: HashMap<CommandInput, Value>,
 }
 
 impl Serialize for CommandInstance {
@@ -354,5 +361,14 @@ impl CommandInstance {
             }
         }
         dependencies
+    }
+
+    pub fn update_input_evaluation_results_from_user_input(
+        self,
+        inputs: &mut CommandInputsEvaluationResult,
+        input_name: String,
+        value: String,
+    ) {
+        (self.specification.user_input_parser)(&self.specification, inputs, input_name, value);
     }
 }
