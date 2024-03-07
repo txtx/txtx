@@ -235,7 +235,7 @@ lazy_static! {
                           signed_transaction_bytes: {
                               documentation: "The signed transaction bytes.",
                               typing: PrimitiveType::UnsignedInteger,
-                              optional: false,
+                              optional: true,
                               interpolable: true
                           }
                         ],
