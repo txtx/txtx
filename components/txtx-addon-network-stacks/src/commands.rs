@@ -199,6 +199,58 @@ lazy_static! {
                 ],
             }
         },
+        define_command! {
+            SignStacksTransaction => {
+                name: "Sign Stacks Transaction",
+                matcher: "sign_transaction",
+                documentation: "Sign an encoded transaction payload",
+                inputs: [
+                    description: {
+                        documentation: "A description of the transaction being signed.",
+                        typing: Type::string(),
+                        optional: true,
+                        interpolable: true
+                    },
+                    no_interact: {
+                        documentation: "Any valid Clarity value",
+                        typing: define_object_type! [], // todo
+                        optional: true,
+                        interpolable: true
+                    },
+                    cli_interact: {
+                        documentation: "Any valid Clarity value",
+                        typing: define_object_type! [], // todo
+                        optional: true,
+                        interpolable: true
+                    },
+                    web_interact: {
+                        documentation: "Any valid Clarity value",
+                        typing: define_object_type! [
+                          encoded_bytes: {
+                              documentation: "The encoded transaction bytes to be signed.",
+                              typing: PrimitiveType::UnsignedInteger,
+                              optional: false,
+                              interpolable: true
+                          },
+                          signed_transaction_bytes: {
+                              documentation: "The signed transaction bytes.",
+                              typing: PrimitiveType::UnsignedInteger,
+                              optional: false,
+                              interpolable: true
+                          }
+                        ],
+                        optional: true,
+                        interpolable: true
+                    }
+                ],
+                outputs: [
+                    bytes: {
+                        documentation: "The signed transaction",
+                        typing: Type::string()
+                    }
+                ],
+            }
+        },
     ];
 }
 
@@ -268,10 +320,12 @@ impl CommandImplementation for EncodeStacksContractCall {
 
         // Extract contract_id
         let contract_id = match args.get("contract_id") {
-            Some(Value::Primitive(PrimitiveValue::String(value))) => match QualifiedContractIdentifier::parse(value) {
-                Ok(value) => value,
-                _ => todo!("contract_id invalid, return diagnostic"),
-            },
+            Some(Value::Primitive(PrimitiveValue::String(value))) => {
+                match QualifiedContractIdentifier::parse(value) {
+                    Ok(value) => value,
+                    _ => todo!("contract_id invalid, return diagnostic"),
+                }
+            }
             _ => todo!("contract_id missing, return diagnostic"),
         };
         // Extract derivation path
@@ -286,7 +340,7 @@ impl CommandImplementation for EncodeStacksContractCall {
             function_name: ClarityName::try_from(function_name).unwrap(),
             function_args: vec![],
         });
-    
+
         let mut bytes = vec![];
         payload.consensus_serialize(&mut bytes).unwrap();
         let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
@@ -296,8 +350,60 @@ impl CommandImplementation for EncodeStacksContractCall {
         println!("==> {:?}", result);
         Ok(result)
     }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
+    }
 }
 
+pub struct SignStacksTransaction;
+impl CommandImplementation for SignStacksTransaction {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let bytes = match args.get("web_interact") {
+            Some(web_interact_inputs) => match web_interact_inputs {
+                Value::Object(obj) => obj.get("signed_transaction_bytes"),
+                _ => unimplemented!(),
+            },
+            None => None,
+        };
+        match bytes {
+            Some(bytes) => match bytes {
+                Ok(bytes) => {
+                    result
+                        .outputs
+                        .insert("bytes".to_string(), Value::Primitive(bytes.clone()));
+                }
+                Err(e) => return Err(e.clone()),
+            },
+            None => {}
+        }
+
+        println!("==> {:?}", result);
+
+        Ok(result)
+    }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
+    }
+}
 
 pub struct EncodeStacksTransaction;
 impl CommandImplementation for EncodeStacksTransaction {
@@ -347,7 +453,10 @@ impl CommandImplementation for EncodeStacksTransaction {
             ) {
                 Ok(res) => res,
                 Err(e) => {
-                    todo!("transaction payload invalid, return diagnostic ({})", e.to_string())
+                    todo!(
+                        "transaction payload invalid, return diagnostic ({})",
+                        e.to_string()
+                    )
                 }
             };
             // Sign
@@ -377,12 +486,60 @@ impl CommandImplementation for EncodeStacksTransaction {
     }
 
     fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
+        ctx: &CommandSpecification,
+        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        input_name: String,
+        value: String,
     ) {
-        todo!()
+        let (input_key, value) = match input_name.as_str() {
+            "description" => {
+                let description_input = ctx
+                    .inputs
+                    .iter()
+                    .find(|i| i.name == "description")
+                    .expect("Variable specification must have description input");
+
+                let expected_type = description_input.typing.clone();
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    Some(Value::from_string(value, expected_type))
+                };
+                (description_input, value)
+            }
+            "web_interact:signed_transaction_bytes" => {
+                let mut object_values = HashMap::new();
+                let web_interact_input =
+                    ctx.inputs.iter().find(|i| i.name == "web_interact").expect(
+                        "Sign Stacks Transaction specification must have a web_interact input",
+                    );
+                let web_interact_input_object = web_interact_input
+                    .as_object()
+                    .expect("Sign Stacks Transaction web interact input must be and object.");
+                let transaction_signature_property = web_interact_input_object.iter().find(|p| p.name == "signed_transaction_bytes").expect("Sign Stacks Transaction specification's web_interact input should have a signed_transaction_bytes property.");
+                let expected_type = transaction_signature_property.typing.clone();
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    Some(PrimitiveValue::from_string(value, expected_type))
+                };
+                let object_values = match value {
+                    Some(value) => {
+                        object_values.insert(transaction_signature_property.name.clone(), value);
+                        Some(Ok(Value::Object(object_values)))
+                    }
+                    None => None,
+                };
+                (web_interact_input, object_values)
+            }
+            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
+        };
+        match value {
+            Some(value) => current_input_evaluation_result
+                .inputs
+                .insert(input_key.clone(), value),
+            None => current_input_evaluation_result.inputs.remove(&input_key),
+        };
     }
 }
 
