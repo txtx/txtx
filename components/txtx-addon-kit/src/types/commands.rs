@@ -227,12 +227,31 @@ impl CommandInstance {
     ) -> Result<Vec<Expression>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
-            let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                .map_err(|e| format!("{:?}", e))?;
-            if let Some(expr) = res {
-                let mut references = vec![];
-                collect_constructs_references_from_expression(&expr, &mut references);
-                expressions.append(&mut references);
+
+            match input.typing {
+                Type::Object(ref props) => {
+                    for prop in props.iter() {
+                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
+                        while let Some(block) = blocks_iter.next() {
+                            let res = visit_optional_untyped_attribute(&prop.name, &block)
+                                .map_err(|e| format!("{:?}", e))?;
+                            if let Some(expr) = res {
+                                let mut references = vec![];
+                                collect_constructs_references_from_expression(&expr, &mut references);
+                                expressions.append(&mut references);
+                            }    
+                        }
+                    }
+                }
+                _ => {
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
+                        .map_err(|e| format!("{:?}", e))?;
+                    if let Some(expr) = res {
+                        let mut references = vec![];
+                        collect_constructs_references_from_expression(&expr, &mut references);
+                        expressions.append(&mut references);
+                    }
+                }
             }
         }
         if self.specification.accepts_arbitrary_inputs {
@@ -314,10 +333,25 @@ impl CommandInstance {
     pub fn collect_dependencies(&self) -> Vec<Expression> {
         let mut dependencies = vec![];
         for input in self.specification.inputs.iter() {
-            let Some(attr) = self.block.body.get_attribute(&input.name) else {
-                continue;
-            };
-            collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+            match input.typing {
+                Type::Object(ref props) => {
+                    for prop in props.iter() {
+                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
+                        while let Some(block) = blocks_iter.next() {
+                            let Some(attr) = block.body.get_attribute(&prop.name) else {
+                                continue;
+                            };
+                            collect_constructs_references_from_expression(&attr.value, &mut dependencies);        
+                        }
+                    }
+                }
+                _ => {
+                    let Some(attr) = self.block.body.get_attribute(&input.name) else {
+                        continue;
+                    };
+                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);        
+                }
+            }
         }
         dependencies
     }

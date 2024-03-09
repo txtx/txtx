@@ -74,6 +74,21 @@ pub fn run_constructs_dependencies_indexing(
                         }
                     }
                 }
+                for construct_uuid in package.addons_uuids.iter() {
+                    let command_instance = manual.commands_instances.get(construct_uuid).unwrap();
+                    for dep in command_instance.collect_dependencies().iter() {
+                        let result = manual.try_resolve_construct_reference_in_expression(
+                            package_uuid,
+                            dep,
+                            runtime_ctx,
+                        );
+                        if let Ok(Some((resolved_construct_uuid, _))) = result {
+                            constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                        } else {
+                            println!("  -> {} (unable to resolve)", dep,);
+                        }
+                    }
+                }        
             }
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),

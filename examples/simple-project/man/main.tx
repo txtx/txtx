@@ -56,10 +56,6 @@ variable "binary_op_add" {
   value = variable.four.value + variable.five.value
 }
 
-addon "stacks" "call_contract" "do_contract_call" {
-  contract_id = "test"
-}
-
 output "output_1" {
   description = "Combining variables"
   value = variable.binary_op_add.value
@@ -70,9 +66,36 @@ output "output_2" {
   value = output.output_1.value + 4
 }
 
+addon "stacks" "call_contract" "increment" {
+  description = "Invoke increment"
+  contract_id = "ST173JK7NZBA4BS05ZRATQH1K89YJMTGEH1Z5J52E.counter"
+  function_name = "increment"
+}
+
 output "output_3" {
   description = "Encoded contract call"
-  value = addon.do_contract_call.bytes
+  value = addon.increment.bytes
+}
+
+addon "stacks" "transaction" "increment_tx" {
+  no_interact {
+    transaction_payload_bytes = addon.increment.bytes
+    nonce = 1
+    fee = 1200
+    sender_mnemonic = "fetch outside black test wash cover just actual execute nice door want airport betray quantum stamp fish act pen trust portion fatigue scissors vague"
+    sender_derivation_path = "m/44'/5757'/0'/0/0"
+  }
+  // cli_interact {
+  //   nonce = stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
+  //   payload_bytes = 1
+  //   pre_conditions_bytes = 1
+  // }
+  // web_interact {
+  //   payload_bytes = 1
+  //   pre_conditions_bytes = 1
+  // }
+  // stacks_node_rpc_url = 1
+  // confirmations_required = 0
 }
 
 output "output_4" {
@@ -80,26 +103,6 @@ output "output_4" {
   value = addon.increment_tx.bytes
 }
 
-
-addon "stacks" "transaction" "increment_tx" {
-  no_interact {
-    nonce = 1 // stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
-    payload_bytes = clarity_value_uint(1)
-    // pre_conditions_bytes = 1 
-    // private_key_bytes = base16_decode()
-  }
-  // cli_interact {
-  //   nonce = stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
-  //   payload_bytes = 1
-  //   pre_conditions_bytes = 1
-  // }
-  web_interact {
-    payload_bytes = 1
-    pre_conditions_bytes = 1
-  }
-  stacks_node_rpc_url = 1
-  confirmations_required = 0
-}
 
 // addon "stacks" "transaction" "increment_tx" {
 //   nonce = stacks_fetch_nonce(stacks_address(public_key.bytes, "mainnet"))
