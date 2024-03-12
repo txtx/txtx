@@ -396,12 +396,60 @@ impl CommandImplementation for SignStacksTransaction {
     }
 
     fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
+        ctx: &CommandSpecification,
+        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        input_name: String,
+        value: String,
     ) {
-        todo!()
+        let (input_key, value) = match input_name.as_str() {
+            "description" => {
+                let description_input = ctx
+                    .inputs
+                    .iter()
+                    .find(|i| i.name == "description")
+                    .expect("Variable specification must have description input");
+
+                let expected_type = description_input.typing.clone();
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    Some(Value::from_string(value, expected_type))
+                };
+                (description_input, value)
+            }
+            "web_interact:signed_transaction_bytes" => {
+                let mut object_values = HashMap::new();
+                let web_interact_input =
+                    ctx.inputs.iter().find(|i| i.name == "web_interact").expect(
+                        "Sign Stacks Transaction specification must have a web_interact input",
+                    );
+                let web_interact_input_object = web_interact_input
+                    .as_object()
+                    .expect("Sign Stacks Transaction web interact input must be and object.");
+                let transaction_signature_property = web_interact_input_object.iter().find(|p| p.name == "signed_transaction_bytes").expect("Sign Stacks Transaction specification's web_interact input should have a signed_transaction_bytes property.");
+                let expected_type = transaction_signature_property.typing.clone();
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    Some(PrimitiveValue::from_string(value, expected_type))
+                };
+                let object_values = match value {
+                    Some(value) => {
+                        object_values.insert(transaction_signature_property.name.clone(), value);
+                        Some(Ok(Value::Object(object_values)))
+                    }
+                    None => None,
+                };
+                (web_interact_input, object_values)
+            }
+            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
+        };
+        match value {
+            Some(value) => current_input_evaluation_result
+                .inputs
+                .insert(input_key.clone(), value),
+            None => current_input_evaluation_result.inputs.remove(&input_key),
+        };
     }
 }
 
@@ -486,60 +534,12 @@ impl CommandImplementation for EncodeStacksTransaction {
     }
 
     fn update_input_evaluation_results_from_user_input(
-        ctx: &CommandSpecification,
-        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        input_name: String,
-        value: String,
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
     ) {
-        let (input_key, value) = match input_name.as_str() {
-            "description" => {
-                let description_input = ctx
-                    .inputs
-                    .iter()
-                    .find(|i| i.name == "description")
-                    .expect("Variable specification must have description input");
-
-                let expected_type = description_input.typing.clone();
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    Some(Value::from_string(value, expected_type))
-                };
-                (description_input, value)
-            }
-            "web_interact:signed_transaction_bytes" => {
-                let mut object_values = HashMap::new();
-                let web_interact_input =
-                    ctx.inputs.iter().find(|i| i.name == "web_interact").expect(
-                        "Sign Stacks Transaction specification must have a web_interact input",
-                    );
-                let web_interact_input_object = web_interact_input
-                    .as_object()
-                    .expect("Sign Stacks Transaction web interact input must be and object.");
-                let transaction_signature_property = web_interact_input_object.iter().find(|p| p.name == "signed_transaction_bytes").expect("Sign Stacks Transaction specification's web_interact input should have a signed_transaction_bytes property.");
-                let expected_type = transaction_signature_property.typing.clone();
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    Some(PrimitiveValue::from_string(value, expected_type))
-                };
-                let object_values = match value {
-                    Some(value) => {
-                        object_values.insert(transaction_signature_property.name.clone(), value);
-                        Some(Ok(Value::Object(object_values)))
-                    }
-                    None => None,
-                };
-                (web_interact_input, object_values)
-            }
-            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
-        };
-        match value {
-            Some(value) => current_input_evaluation_result
-                .inputs
-                .insert(input_key.clone(), value),
-            None => current_input_evaluation_result.inputs.remove(&input_key),
-        };
+        todo!()
     }
 }
 
