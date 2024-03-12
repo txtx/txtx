@@ -156,7 +156,7 @@ impl PrimitiveValue {
                 Ok(value) => Ok(PrimitiveValue::Bool(value)),
                 Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
             },
-            // Type::Primitive(PrimitiveType::Buffer) => todo!(),
+            PrimitiveType::Buffer => unimplemented!(),
         }
     }
 }
