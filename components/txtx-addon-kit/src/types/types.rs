@@ -103,10 +103,14 @@ impl Value {
 }
 
 impl Value {
-    pub fn from_string(value: String, expected_type: Type) -> Result<Value, Diagnostic> {
+    pub fn from_string(
+        value: String,
+        expected_type: Type,
+        typing: Option<TypeSpecification>,
+    ) -> Result<Value, Diagnostic> {
         match expected_type {
             Type::Primitive(primitive_type) => {
-                match PrimitiveValue::from_string(value, primitive_type) {
+                match PrimitiveValue::from_string(value, primitive_type, typing) {
                     Ok(v) => Ok(Value::Primitive(v)),
                     Err(e) => Err(e),
                 }
@@ -159,6 +163,7 @@ impl PrimitiveValue {
     pub fn from_string(
         value: String,
         expected_type: PrimitiveType,
+        typing: Option<TypeSpecification>,
     ) -> Result<PrimitiveValue, Diagnostic> {
         match expected_type {
             PrimitiveType::String => Ok(PrimitiveValue::String(value)),
@@ -185,7 +190,13 @@ impl PrimitiveValue {
                 Ok(value) => Ok(PrimitiveValue::Bool(value)),
                 Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
             },
-            PrimitiveType::Buffer => unimplemented!(),
+            PrimitiveType::Buffer => match hex::decode(&value) {
+                Ok(bytes) => Ok(PrimitiveValue::Buffer(BufferData {
+                    bytes,
+                    typing: typing.unwrap(),
+                })),
+                Err(e) => unimplemented!("failed to cast {} to buffer: {}", value, e),
+            },
         }
     }
 }

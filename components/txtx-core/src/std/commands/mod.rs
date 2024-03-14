@@ -137,9 +137,9 @@ impl CommandImplementation for Variable {
                         Some((_, expected_type)) => match expected_type {
                             Err(e) => Err(e.clone()),
                             Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                                Value::from_string(value, Type::from(expected_type.clone()))
+                                Value::from_string(value, Type::from(expected_type.clone()), None)
                             }
-                            _ => Value::from_string(value, Type::default()),
+                            _ => Value::from_string(value, Type::default(), None),
                         },
                         None => unimplemented!("no type"), // todo
                     };
@@ -165,9 +165,9 @@ impl CommandImplementation for Variable {
                         Some((_, expected_type)) => match expected_type {
                             Err(e) => Err(e.clone()),
                             Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                                Value::from_string(value, Type::from(expected_type.clone()))
+                                Value::from_string(value, Type::from(expected_type.clone()), None)
                             }
-                            _ => Value::from_string(value, Type::default()),
+                            _ => Value::from_string(value, Type::default(), None),
                         },
                         None => unimplemented!("no type"), // todo
                     };
@@ -186,7 +186,7 @@ impl CommandImplementation for Variable {
                 let value = if value.is_empty() {
                     None
                 } else {
-                    Some(Value::from_string(value, expected_type))
+                    Some(Value::from_string(value, expected_type, None))
                 };
                 (description_input, value)
             }

@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -104,7 +103,7 @@ impl CommandImplementation for SendStacksTransaction {
                 let value = if value.is_empty() {
                     None
                 } else {
-                    Some(Value::from_string(value, expected_type))
+                    Some(Value::from_string(value, expected_type, None))
                 };
                 (description_input, value)
             }
@@ -130,6 +129,7 @@ impl CommandImplementation for SendStacksTransaction {
                     Some(value) => Some(PrimitiveValue::from_string(
                         value.to_string(),
                         tx_hash_expected_type,
+                        None,
                     )),
                     None => None,
                 };
@@ -146,6 +146,7 @@ impl CommandImplementation for SendStacksTransaction {
                     Some(value) => Some(PrimitiveValue::from_string(
                         value.to_string(),
                         nonce_expected_type,
+                        None,
                     )),
                     None => None,
                 };
