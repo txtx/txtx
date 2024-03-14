@@ -1,9 +1,8 @@
+use serde::{ser::SerializeMap, Serialize, Serializer};
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::Debug,
+    fmt::{Debug, Write},
 };
-
-use serde::{Serialize, Serializer};
 
 use super::diagnostics::Diagnostic;
 
@@ -19,18 +18,21 @@ impl Serialize for Value {
         S: Serializer,
     {
         match self {
-            Value::Primitive(PrimitiveValue::String(val)) => serializer.serialize_str(val),
-            Value::Primitive(PrimitiveValue::UnsignedInteger(val)) => {
-                serializer.serialize_u64(*val)
+            Value::Primitive(primitive) => primitive.serialize(serializer),
+            Value::Object(entries) => {
+                let mut map = serializer.serialize_map(Some(entries.len()))?;
+                for (k, v) in entries.iter() {
+                    match v {
+                        Ok(primitive_value) => {
+                            map.serialize_entry(&k, &primitive_value)?;
+                        }
+                        Err(e) => {
+                            map.serialize_entry(&k, &e.message)?;
+                        }
+                    }
+                }
+                map.end()
             }
-            Value::Primitive(PrimitiveValue::SignedInteger(val)) => serializer.serialize_i64(*val),
-            Value::Primitive(PrimitiveValue::Float(val)) => serializer.serialize_f64(*val),
-            Value::Primitive(PrimitiveValue::Bool(val)) => serializer.serialize_bool(*val),
-            Value::Primitive(PrimitiveValue::Null) => serializer.serialize_none(),
-            Value::Primitive(PrimitiveValue::Buffer(_)) => {
-                unimplemented!("Value::Primitive(PrimitiveValue::Buffer) variant")
-            }
-            Value::Object(_) => unimplemented!("Value::Object variant"),
         }
     }
 }
@@ -124,6 +126,33 @@ pub enum PrimitiveValue {
     Bool(bool),
     Null,
     Buffer(BufferData),
+}
+
+impl Serialize for PrimitiveValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PrimitiveValue::String(val) => serializer.serialize_str(val),
+            PrimitiveValue::UnsignedInteger(val) => serializer.serialize_u64(*val),
+            PrimitiveValue::SignedInteger(val) => serializer.serialize_i64(*val),
+            PrimitiveValue::Float(val) => serializer.serialize_f64(*val),
+            PrimitiveValue::Bool(val) => serializer.serialize_bool(*val),
+            PrimitiveValue::Null => serializer.serialize_none(),
+            PrimitiveValue::Buffer(BufferData { bytes, typing: _ }) => {
+                let mut s = String::from("0x");
+                s.write_str(
+                    &bytes
+                        .iter()
+                        .map(|b| format!("{:02X}", b))
+                        .collect::<String>(),
+                )
+                .unwrap();
+                serializer.serialize_str(&s)
+            }
+        }
+    }
 }
 
 impl PrimitiveValue {
@@ -245,7 +274,7 @@ impl Serialize for Type {
             Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("boolean"),
             Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
             Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("buffer"),
-            Type::Object(_) => unimplemented!("Type::Object variant"),
+            Type::Object(_) => serializer.serialize_str("object"),
             Type::Addon(_) => unimplemented!("Type::Addon variant"),
         }
     }
