@@ -3686,6 +3686,7 @@ version = "0.1.0"
 dependencies = [
  "getrandom 0.2.12",
  "hcl-edit",
+ "hex",
  "serde",
  "serde_derive",
  "url",

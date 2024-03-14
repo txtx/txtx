@@ -18,6 +18,7 @@ use clarity_repl::{
     },
 };
 use libsecp256k1::{PublicKey, SecretKey};
+use serde_json::Value as JsonValue;
 use std::{collections::HashMap, str::FromStr};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::{
@@ -91,14 +92,20 @@ lazy_static! {
             web_interact: {
                 documentation: "Any valid Clarity value",
                 typing: define_object_type! [
-                  encoded_bytes: {
+                  transaction_payload_bytes: {
                       documentation: "The encoded transaction bytes to be signed.",
-                      typing: PrimitiveType::UnsignedInteger,
+                      typing: PrimitiveType::Buffer,
                       optional: false,
                       interpolable: true
                   },
                   signed_transaction_bytes: {
                       documentation: "The signed transaction bytes.",
+                      typing: PrimitiveType::Buffer,
+                      optional: true,
+                      interpolable: true
+                  },
+                  nonce: {
+                      documentation: "The nonce of the address signing the transaction.",
                       typing: PrimitiveType::UnsignedInteger,
                       optional: true,
                       interpolable: true
@@ -109,8 +116,8 @@ lazy_static! {
             }
         ],
         outputs: [
-            bytes: {
-                documentation: "The signed transaction",
+            signed_transaction_bytes: {
+                documentation: "The signed transaction bytes.",
                 typing: Type::string()
             }
         ],
@@ -191,7 +198,9 @@ impl CommandImplementation for SignStacksTransaction {
             signed_transaction.consensus_serialize(&mut bytes).unwrap();
             let value = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
 
-            result.outputs.insert("bytes".to_string(), value);
+            result
+                .outputs
+                .insert("signed_transaction_bytes".to_string(), value);
         } else if let Some(web_interact_inputs) = args.get("web_interact") {
             let bytes = match web_interact_inputs {
                 Value::Object(obj) => obj.get("signed_transaction_bytes"),
@@ -200,9 +209,10 @@ impl CommandImplementation for SignStacksTransaction {
             match bytes {
                 Some(bytes) => match bytes {
                     Ok(bytes) => {
-                        result
-                            .outputs
-                            .insert("bytes".to_string(), Value::Primitive(bytes.clone()));
+                        result.outputs.insert(
+                            "signed_transaction_bytes".to_string(),
+                            Value::Primitive(bytes.clone()),
+                        );
                     }
                     Err(e) => return Err(e.clone()),
                 },
@@ -231,11 +241,11 @@ impl CommandImplementation for SignStacksTransaction {
                 let value = if value.is_empty() {
                     None
                 } else {
-                    Some(Value::from_string(value, expected_type))
+                    Some(Value::from_string(value, expected_type, None))
                 };
                 (description_input, value)
             }
-            "web_interact:signed_transaction_bytes" => {
+            "web_interact" => {
                 let mut object_values = HashMap::new();
                 let web_interact_input =
                     ctx.inputs.iter().find(|i| i.name == "web_interact").expect(
@@ -244,21 +254,49 @@ impl CommandImplementation for SignStacksTransaction {
                 let web_interact_input_object = web_interact_input
                     .as_object()
                     .expect("Sign Stacks Transaction web interact input must be and object.");
+
+                let value_json: JsonValue = match serde_json::from_str(&value) {
+                    Ok(value) => value,
+                    Err(_e) => unimplemented!(), // todo: return diagnostic
+                };
+                let value_json = value_json.as_object().unwrap(); // todo
+
                 let transaction_signature_property = web_interact_input_object.iter().find(|p| p.name == "signed_transaction_bytes").expect("Sign Stacks Transaction specification's web_interact input should have a signed_transaction_bytes property.");
                 let expected_type = transaction_signature_property.typing.clone();
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    Some(PrimitiveValue::from_string(value, expected_type))
-                };
-                let object_values = match value {
-                    Some(value) => {
-                        object_values.insert(transaction_signature_property.name.clone(), value);
-                        Some(Ok(Value::Object(object_values)))
-                    }
+                let value = match value_json.get("signed_transaction_bytes") {
+                    Some(value) => Some(PrimitiveValue::from_string(
+                        value.as_str().unwrap().to_string(),
+                        expected_type,
+                        Some(STACKS_SIGNED_TRANSACTION.clone()),
+                    )),
                     None => None,
                 };
-                (web_interact_input, object_values)
+                match value {
+                    Some(value) => {
+                        object_values.insert(transaction_signature_property.name.clone(), value);
+                    }
+                    None => {}
+                };
+
+                let nonce_property = web_interact_input_object.iter().find(|p| p.name == "nonce").expect("Send Stacks Transaction specification's web_interact input should have a nonce property.");
+                let nonce_expected_type = nonce_property.typing.clone();
+                let nonce_val = match value_json.get("nonce") {
+                    Some(value) => Some(PrimitiveValue::from_string(
+                        value.to_string(),
+                        nonce_expected_type,
+                        None,
+                    )),
+                    None => None,
+                };
+                match nonce_val {
+                    Some(value) => {
+                        object_values.insert(nonce_property.name.clone(), value);
+                    }
+                    None => {}
+                };
+
+                let result = Some(Ok(Value::Object(object_values)));
+                (web_interact_input, result)
             }
             _ => unimplemented!("cannot parse serialized output for input {input_name}"),
         };
