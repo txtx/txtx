@@ -407,6 +407,22 @@ pub fn perform_inputs_evaluation(
                 // todo(micaiah) - figure out how user-input values work for this branch
                 let mut object_values = HashMap::new();
                 for prop in object_props.iter() {
+                    if let Some(value) = previously_evaluated_input {
+                        match value.clone() {
+                            Ok(Value::Primitive(p)) => {
+                                object_values.insert(prop.name.to_string(), Ok(p));
+                            }
+                            Ok(Value::Object(obj)) => {
+                                for (k, v) in obj.into_iter() {
+                                    object_values.insert(k, v);
+                                }
+                            }
+                            Err(diag) => {
+                                object_values.insert(prop.name.to_string(), Err(diag));
+                            }
+                        };
+                    }
+
                     let Some(expr) =
                         command_instance.get_expression_from_object_property(&input, &prop)?
                     else {
@@ -428,21 +444,30 @@ pub fn perform_inputs_evaluation(
                             return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                         }
                     };
+
                     if let Err(ref diag) = value {
                         if let DiagnosticLevel::Error = diag.level {
                             fatal_error = true;
                         }
                     }
 
-                    let res = match value {
-                        Ok(Value::Primitive(p)) => Ok(p),
-                        Ok(_) => unreachable!(),
-                        Err(diag) => Err(diag),
+                    match value {
+                        Ok(Value::Primitive(p)) => {
+                            object_values.insert(prop.name.to_string(), Ok(p));
+                        }
+                        Ok(Value::Object(obj)) => {
+                            for (k, v) in obj.into_iter() {
+                                object_values.insert(k, v);
+                            }
+                        }
+                        Err(diag) => {
+                            object_values.insert(prop.name.to_string(), Err(diag));
+                        }
                     };
-
-                    object_values.insert(prop.name.to_string(), res);
                 }
-                results.insert(input, Ok(Value::Object(object_values)));
+                if !object_values.is_empty() {
+                    results.insert(input, Ok(Value::Object(object_values)));
+                }
             }
             None => {
                 let value = if let Some(value) = previously_evaluated_input {
