@@ -90,7 +90,7 @@ impl AddonContext for StacksNetworkAddonContext {
         package_uuid: &PackageUuid,
     ) -> Result<CommandInstance, Diagnostic> {
         let Some(command_spec) = self.commands.get(command_type) else {
-            todo!("return diagnostic: unknown command")
+            todo!("return diagnostic: unknown command: {command_type}")
         };
         let command_instance = CommandInstance {
             specification: command_spec.clone(),
