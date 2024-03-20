@@ -1,8 +1,16 @@
+use rust_fsm::{state_machine, StateMachine};
 use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
 };
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::HashMap,
+    future::Future,
+    hash::Hash,
+    pin::Pin,
+    sync::{mpsc::Sender, Arc, Mutex},
+};
+use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -13,12 +21,12 @@ use crate::helpers::hcl::{
 use super::{
     diagnostics::Diagnostic,
     types::{ObjectProperty, Type, Value},
-    PackageUuid,
+    ConstructUuid, PackageUuid,
 };
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
-    pub outputs: HashMap<String, Value>,
+    pub outputs: HashMap<String, Value>, // todo: change value to be Result<Value, Diagnostic>
 }
 
 impl Serialize for CommandExecutionResult {
@@ -140,6 +148,7 @@ pub struct CommandSpecification {
     pub runner: CommandRunner,
     pub checker: CommandChecker,
     pub user_input_parser: CommandParser,
+    pub is_async: bool,
 }
 
 impl Serialize for CommandSpecification {
@@ -157,12 +166,44 @@ impl Serialize for CommandSpecification {
 }
 
 type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
-type CommandRunner = fn(
+// type CommandRunner = Box<
+//     fn(
+//         &CommandSpecification,
+//         &HashMap<String, Value>,
+//     ) -> Result<CommandExecutionResult, Diagnostic>,
+// >;
+type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
+
+#[derive(Debug, Clone)]
+pub enum CommandRunner {
+    Async(CommandRunnerAsync),
+    Sync(CommandRunnerSync),
+}
+
+type CommandRunnerSync = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
 ) -> Result<CommandExecutionResult, Diagnostic>;
-type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
+type CommandRunnerAsync = Box<
+    fn(
+        &CommandSpecification,
+        &HashMap<String, Value>,
+    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>,
+>;
 
+pub trait CommandImplementationAsync {
+    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
+    fn run(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    );
+}
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
     fn run(
@@ -177,14 +218,44 @@ pub trait CommandImplementation {
     );
 }
 
-#[derive(Clone, Debug)]
+state_machine! {
+  derive(Debug, Clone)
+  pub CommandInstanceStateMachine(New)
+
+  New => {
+    Successful => Evaluated, //
+    NeedsUserInput => AwaitingUserInput, //
+    NeedsAsyncRequest => AwaitingAsyncRequest,
+    Unsuccessful => Failed,
+  },
+  AwaitingUserInput => {
+    Successful => Evaluated, //
+    Unsuccessful => Failed,
+    Abort => Aborted
+  },
+  AwaitingAsyncRequest => {
+    Successful => Evaluated,
+    Unsuccessful => Failed,
+    Abort => Aborted
+  },
+  Evaluated => {
+    ReEvaluate => New,
+    Successful => Evaluated
+  }
+
+}
+#[derive(Debug, Clone)]
 pub struct CommandInstance {
     pub specification: CommandSpecification,
+    pub state: Arc<Mutex<StateMachine<CommandInstanceStateMachine>>>,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
 }
-
+pub enum CommandExecutionStatus {
+    Complete(CommandExecutionResult),
+    NeedsAsyncRequest,
+}
 impl Serialize for CommandInstance {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -234,7 +305,6 @@ impl CommandInstance {
     ) -> Result<Vec<Expression>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
-
             match input.typing {
                 Type::Object(ref props) => {
                     for prop in props.iter() {
@@ -244,9 +314,12 @@ impl CommandInstance {
                                 .map_err(|e| format!("{:?}", e))?;
                             if let Some(expr) = res {
                                 let mut references = vec![];
-                                collect_constructs_references_from_expression(&expr, &mut references);
+                                collect_constructs_references_from_expression(
+                                    &expr,
+                                    &mut references,
+                                );
                                 expressions.append(&mut references);
-                            }    
+                            }
                         }
                     }
                 }
@@ -321,7 +394,10 @@ impl CommandInstance {
     pub fn perform_execution(
         &self,
         evaluated_inputs: &CommandInputsEvaluationResult,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+        manual_uuid: Uuid,
+        construct_uuid: ConstructUuid,
+        eval_tx: Sender<EvalEvent>,
+    ) -> Result<CommandExecutionStatus, Diagnostic> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(input) {
@@ -334,7 +410,30 @@ impl CommandInstance {
             }?;
             values.insert(input.name.clone(), value);
         }
-        (self.specification.runner)(&self.specification, &values)
+        match &self.specification.runner {
+            CommandRunner::Async(async_runner) => {
+                let spec = self.specification.clone();
+                let async_runner_moved = async_runner.clone();
+                let _ = std::thread::spawn(move || {
+                    let result =
+                        hiro_system_kit::nestable_block_on((async_runner_moved)(&spec, &values));
+                    let result = match result {
+                        Ok(result) => Ok(CommandExecutionStatus::Complete(result)),
+                        Err(e) => Err(e), // todo
+                    };
+                    eval_tx.send(EvalEvent::AsyncRequestComplete {
+                        manual_uuid,
+                        result,
+                        construct_uuid,
+                    })
+                });
+                Ok(CommandExecutionStatus::NeedsAsyncRequest)
+            }
+            CommandRunner::Sync(sync_runner) => match (sync_runner)(&self.specification, &values) {
+                Ok(r) => Ok(CommandExecutionStatus::Complete(r)),
+                Err(e) => Err(e),
+            },
+        }
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {
@@ -348,7 +447,10 @@ impl CommandInstance {
                             let Some(attr) = block.body.get_attribute(&prop.name) else {
                                 continue;
                             };
-                            collect_constructs_references_from_expression(&attr.value, &mut dependencies);        
+                            collect_constructs_references_from_expression(
+                                &attr.value,
+                                &mut dependencies,
+                            );
                         }
                     }
                 }
@@ -356,7 +458,7 @@ impl CommandInstance {
                     let Some(attr) = self.block.body.get_attribute(&input.name) else {
                         continue;
                     };
-                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);        
+                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);
                 }
             }
         }
@@ -371,4 +473,12 @@ impl CommandInstance {
     ) {
         (self.specification.user_input_parser)(&self.specification, inputs, input_name, value);
     }
+}
+
+pub enum EvalEvent {
+    AsyncRequestComplete {
+        manual_uuid: Uuid,
+        result: Result<CommandExecutionStatus, Diagnostic>,
+        construct_uuid: ConstructUuid,
+    },
 }

@@ -1,14 +1,20 @@
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
-    sync::RwLock,
+    sync::{mpsc::Sender, Arc, RwLock},
 };
 
-use crate::types::{Manual, RuntimeContext};
+use crate::{
+    types::{Manual, RuntimeContext},
+    EvalEvent,
+};
 use daggy::{Dag, NodeIndex, Walker};
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
-        commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
+        commands::{
+            CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
+            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+        },
         diagnostics::{Diagnostic, DiagnosticLevel},
         types::Value,
         ConstructUuid, PackageUuid,
@@ -82,9 +88,10 @@ pub enum ConstructEvaluationStatus {
 }
 
 pub fn run_constructs_evaluation(
-    manual: &RwLock<Manual>,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    manual: &Arc<RwLock<Manual>>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
     start_node: Option<NodeIndex>,
+    eval_tx: Sender<EvalEvent>,
 ) -> Result<(), Diagnostic> {
     let mut nodes_needing_user_interaction = vec![]; // todo(micaiah): currently unused
 
@@ -183,12 +190,40 @@ pub fn run_constructs_evaluation(
                     .command_inputs_evaluation_results
                     .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
-                let execution_result = command_instance
-                    .perform_execution(&evaluated_inputs)
-                    .unwrap(); // todo(lgalabru): return Diagnostic instead
-                manual
-                    .constructs_execution_results
-                    .insert(construct_uuid, execution_result);
+                if let Ok(mut state_machine) = command_instance.state.lock() {
+                    match state_machine.state() {
+                        CommandInstanceStateMachineState::Evaluated => {}
+                        _ => {
+                            let execution_result =
+                                match command_instance.perform_execution(
+                                    &evaluated_inputs,
+                                    manual.uuid.clone(),
+                                    construct_uuid.clone(),
+                                    eval_tx.clone(),
+                                ) {
+                                    // todo(lgalabru): return Diagnostic instead
+                                    Ok(CommandExecutionStatus::Complete(result)) => {
+                                        state_machine
+                                            .consume(&CommandInstanceStateMachineInput::Successful)
+                                            .unwrap();
+                                        result
+                                    }
+                                    Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
+                                        state_machine
+                              .consume(&CommandInstanceStateMachineInput::NeedsAsyncRequest)
+                              .unwrap();
+                                        continue;
+                                    }
+                                    Err(e) => {
+                                        todo!("build command execution diagnostic: {:?}", e);
+                                    }
+                                };
+                            manual
+                                .constructs_execution_results
+                                .insert(construct_uuid, execution_result);
+                        }
+                    }
+                }
             }
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),
@@ -212,7 +247,7 @@ pub fn eval_expression(
     dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
         // Represents a null value.
@@ -289,7 +324,7 @@ pub fn eval_expression(
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
             let Ok(Some((dependency, mut components))) = manual
-                .try_resolve_construct_reference_in_expression(package_uuid, expr, &runtime_ctx)
+                .try_resolve_construct_reference_in_expression(package_uuid, expr, runtime_ctx)
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
@@ -390,7 +425,7 @@ pub fn perform_inputs_evaluation(
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<CommandInputEvaluationStatus, String> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();

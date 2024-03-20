@@ -1,8 +1,9 @@
+use futures::FutureExt;
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
+use std::{collections::HashMap, pin::Pin};
 use txtx_addon_kit::types::{
     commands::{
-        CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+        CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
         CommandSpecification,
     },
     diagnostics::Diagnostic,
@@ -10,7 +11,7 @@ use txtx_addon_kit::types::{
 };
 
 lazy_static! {
-  pub static ref SEND_STACKS_TRANSACTION: CommandSpecification = define_command! {
+  pub static ref SEND_STACKS_TRANSACTION: CommandSpecification = define_async_command! {
       SendStacksTransaction => {
           name: "Send Stacks Transaction",
           matcher: "send_transaction",
@@ -74,7 +75,7 @@ lazy_static! {
   };
 }
 pub struct SendStacksTransaction;
-impl CommandImplementation for SendStacksTransaction {
+impl CommandImplementationAsync for SendStacksTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -82,8 +83,37 @@ impl CommandImplementation for SendStacksTransaction {
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        unimplemented!()
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>>
+    {
+        let mut result = CommandExecutionResult::new();
+        async move {
+            let res = reqwest::get("https://api.mainnet.hiro.so/v2/info")
+                .await
+                .unwrap();
+            match res.text().await {
+                Ok(r) => {
+                    result
+                        .outputs
+                        .insert(format!("transaction_hash"), Value::string(r));
+                }
+                Err(e) => {
+                    unimplemented!("failed to get request: {e}")
+                }
+            }
+            let res = reqwest::get("https://api.mainnet.hiro.so/v2/info")
+                .await
+                .unwrap();
+            match res.text().await {
+                Ok(r) => {
+                    result.outputs.insert(format!("nonce"), Value::string(r));
+                    Ok(result)
+                }
+                Err(e) => {
+                    unimplemented!("failed to get request: {e}")
+                }
+            }
+        }
+        .boxed()
     }
 
     fn update_input_evaluation_results_from_user_input(

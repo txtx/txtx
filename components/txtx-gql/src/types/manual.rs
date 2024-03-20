@@ -83,6 +83,7 @@ impl GqlManual {
                 .data
                 .command_inputs_evaluation_results
                 .get(&construct_uuid);
+            println!("query result: {}", command_instance.specification.name);
             data.push(json!({
                 "constructUuid": construct_uuid,
                 "commandInstance": command_instance,

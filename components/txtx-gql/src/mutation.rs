@@ -60,8 +60,12 @@ impl Mutation {
         };
         match command_graph_node {
             Some(command_graph_node) => {
-                match run_constructs_evaluation(&manual, runtime_context, Some(command_graph_node))
-                {
+                match run_constructs_evaluation(
+                    &manual,
+                    runtime_context,
+                    Some(command_graph_node),
+                    context.eval_tx.clone(),
+                ) {
                     Ok(()) => println!("successfully reevaluated constructs after mutation"),
                     Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
                 }

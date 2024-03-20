@@ -10,9 +10,13 @@ hcl-edit = "0.7.5"
 serde = "1"
 serde_derive = "1"
 url = { version = "2.2.2", features = ["serde"] }
+futures = { version = "0.3.22", features = ["alloc"], default-features = false }
 uuid = { version = "1.7.0", features = ["v4"] }
+hiro-system-kit = "0.3.1"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
+rust-fsm = { version = "0.6.1", path = "../../../rust-fsm/rust-fsm" }
+async-trait = "0.1.78"
 
 [features]
 wasm = []

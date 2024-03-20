@@ -1,6 +1,6 @@
 use std::{
     collections::{HashSet, VecDeque},
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
 
 use crate::{
@@ -19,7 +19,7 @@ use txtx_addon_kit::{
 
 // todo(lgalabru): clean-up this function
 pub fn run_constructs_indexing(
-    manual: &RwLock<Manual>,
+    manual: &Arc<RwLock<Manual>>,
     addons_ctx: &mut AddonsContext,
 ) -> Result<bool, String> {
     let mut has_errored = false;
