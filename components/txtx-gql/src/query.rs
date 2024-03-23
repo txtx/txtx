@@ -26,12 +26,7 @@ impl Query {
                 let Some(data) = manual.commands_instances.get(&uuid) else {
                     return None;
                 };
-                let result = if let Some(result) = manual.constructs_execution_results.get(&uuid) {
-                    Some(result.clone())
-                } else {
-                    None
-                };
-
+                let result = manual.constructs_execution_results.get(&uuid).cloned();
                 // Return item
                 Some(Construct::new(&uuid, data, result))
             }

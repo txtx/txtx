@@ -73,8 +73,15 @@ pub fn log_evaluated_outputs(manual: &Manual) {
             println!("Output '{}'", construct.name);
 
             if let Some(result) = manual.constructs_execution_results.get(construct_uuid) {
-                for (key, value) in result.outputs.iter() {
-                    println!("- {}: {:?}", key, value);
+                match result {
+                    Ok(result) => {
+                        for (key, value) in result.outputs.iter() {
+                            println!("- {}: {:?}", key, value);
+                        }
+                    }
+                    Err(e) => {
+                        println!(" - {e}")
+                    }
                 }
             } else {
                 println!(" - (no execution results)")
@@ -87,14 +94,49 @@ pub enum ConstructEvaluationStatus {
     NeedsUserInteraction(Vec<NodeIndex>),
 }
 
+/// Prepares for a reevaluation of all of `start_node`'s dependents within the `manual`.
+/// This involves setting the command instance state to `New` for all commands _except_
+/// the start node. The `New` state indicates to the evaluation loop that the data
+/// should be recomputed, and this should occur for all dependents of the updated
+/// start node, but not the start node itself.
+pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node: NodeIndex) {
+    match manual.read() {
+        Ok(manual) => {
+            let g = manual.constructs_graph.clone();
+            let nodes_to_reevaluate =
+                order_dependent_nodes(start_node, manual.constructs_graph.clone());
+
+            for node in nodes_to_reevaluate.into_iter() {
+                let uuid = g.node_weight(node).expect("unable to retrieve construct");
+                let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+                let Some(command_instance) = manual.commands_instances.get(&construct_uuid) else {
+                    continue;
+                };
+                if let Ok(mut state_machine) = command_instance.state.lock() {
+                    println!("preparing re-eval state: {:?}", state_machine.state());
+                    match state_machine.state() {
+                        CommandInstanceStateMachineState::New
+                        | CommandInstanceStateMachineState::Failed => {}
+                        _ => {
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::ReEvaluate)
+                                .unwrap();
+                        }
+                    };
+                }
+            }
+        }
+        Err(e) => unimplemented!("could not acquire lock: {e}"),
+    }
+}
+
 pub fn run_constructs_evaluation(
     manual: &Arc<RwLock<Manual>>,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
     start_node: Option<NodeIndex>,
     eval_tx: Sender<EvalEvent>,
 ) -> Result<(), Diagnostic> {
-    let mut nodes_needing_user_interaction = vec![]; // todo(micaiah): currently unused
-
     match manual.write() {
         Ok(mut manual) => {
             let g = manual.constructs_graph.clone();
@@ -107,7 +149,7 @@ pub fn run_constructs_evaluation(
                 }
                 None => order_nodes(manual.graph_root, manual.constructs_graph.clone()),
             };
-
+            println!("nodes to process: {:?}", visited_nodes_to_process);
             let commands_instances = manual.commands_instances.clone();
             let constructs_locations = manual.constructs_locations.clone();
 
@@ -119,6 +161,16 @@ pub fn run_constructs_evaluation(
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
                 };
+                match command_instance.state.lock() {
+                    Ok(state_machine) => match state_machine.state() {
+                        CommandInstanceStateMachineState::Failed => {
+                            println!("continuing past failed state command");
+                            continue;
+                        }
+                        _ => {}
+                    },
+                    Err(e) => unimplemented!("unable to acquire lock {e}"),
+                }
                 // in general we want to ignore previous input evaluation results when evaluating for outputs.
                 // we want to recompute the whole graph in case anything has changed since our last traversal.
                 // however, if there was a start_node provided, this evaluation was initiated from a user interaction
@@ -136,9 +188,9 @@ pub fn run_constructs_evaluation(
                     None
                 };
 
-                let mut dependencies_execution_results: HashMap<
+                let mut cached_dependency_execution_results: HashMap<
                     ConstructUuid,
-                    &CommandExecutionResult,
+                    Result<&CommandExecutionResult, &Diagnostic>,
                 > = HashMap::new();
 
                 // Retrieve the construct_uuid of the inputs
@@ -159,65 +211,98 @@ pub fn run_constructs_evaluation(
                     if let Some((dependency, _)) = res {
                         let evaluation_result_opt =
                             manual.constructs_execution_results.get(&dependency);
+
                         if let Some(evaluation_result) = evaluation_result_opt {
-                            dependencies_execution_results.insert(dependency, evaluation_result);
+                            match cached_dependency_execution_results.get(&dependency) {
+                                None => match evaluation_result {
+                                    Ok(evaluation_result) => {
+                                        cached_dependency_execution_results
+                                            .insert(dependency, Ok(evaluation_result));
+                                    }
+                                    Err(e) => {
+                                        cached_dependency_execution_results
+                                            .insert(dependency, Err(e));
+                                    }
+                                },
+                                Some(Err(_)) => continue,
+                                Some(Ok(_)) => {}
+                            }
                         }
                     }
                 }
 
-                let evaluated_inputs_res = perform_inputs_evaluation(
-                    command_instance,
-                    &dependencies_execution_results,
-                    &input_evaluation_results,
-                    package_uuid,
-                    &manual,
-                    runtime_ctx,
-                );
-
-                let evaluated_inputs = match evaluated_inputs_res {
-                    Ok(result) => match result {
-                        CommandInputEvaluationStatus::Complete(result) => result,
-                        CommandInputEvaluationStatus::NeedsUserInteraction => {
-                            nodes_needing_user_interaction.push(node);
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        todo!("build input evaluation diagnostic: {}", e)
-                    }
-                };
-                manual
-                    .command_inputs_evaluation_results
-                    .insert(construct_uuid.clone(), evaluated_inputs.clone());
-
                 if let Ok(mut state_machine) = command_instance.state.lock() {
                     match state_machine.state() {
-                        CommandInstanceStateMachineState::Evaluated => {}
-                        _ => {
-                            let execution_result =
-                                match command_instance.perform_execution(
-                                    &evaluated_inputs,
-                                    manual.uuid.clone(),
-                                    construct_uuid.clone(),
-                                    eval_tx.clone(),
-                                ) {
-                                    // todo(lgalabru): return Diagnostic instead
-                                    Ok(CommandExecutionStatus::Complete(result)) => {
+                        CommandInstanceStateMachineState::Evaluated => {
+                            println!("current state is evaluated");
+                        }
+                        CommandInstanceStateMachineState::Failed => {
+                            continue;
+                        }
+                        state => {
+                            println!("current state: {:?}", state);
+
+                            println!("performing inputs evaluation. command_instance {}, cached results: {:?}, input evals: {:?}", command_instance.name, cached_dependency_execution_results, input_evaluation_results);
+                            let evaluated_inputs_res = perform_inputs_evaluation(
+                                command_instance,
+                                &cached_dependency_execution_results,
+                                &input_evaluation_results,
+                                package_uuid,
+                                &manual,
+                                runtime_ctx,
+                            );
+
+                            let evaluated_inputs = match evaluated_inputs_res {
+                                Ok(result) => match result {
+                                    CommandInputEvaluationStatus::Complete(result) => result,
+                                    CommandInputEvaluationStatus::NeedsUserInteraction => {
                                         state_machine
-                                            .consume(&CommandInstanceStateMachineInput::Successful)
+                                            .consume(
+                                                &CommandInstanceStateMachineInput::NeedsUserInput,
+                                            )
                                             .unwrap();
-                                        result
-                                    }
-                                    Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
-                                        state_machine
-                              .consume(&CommandInstanceStateMachineInput::NeedsAsyncRequest)
-                              .unwrap();
                                         continue;
                                     }
-                                    Err(e) => {
-                                        todo!("build command execution diagnostic: {:?}", e);
-                                    }
-                                };
+                                },
+                                Err(e) => {
+                                    todo!("build input evaluation diagnostic: {}", e)
+                                }
+                            };
+                            println!("evaluated inputs: {:?}", evaluated_inputs);
+
+                            manual
+                                .command_inputs_evaluation_results
+                                .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+                            let execution_result = match command_instance.perform_execution(
+                                &evaluated_inputs,
+                                manual.uuid.clone(),
+                                construct_uuid.clone(),
+                                eval_tx.clone(),
+                            ) {
+                                // todo(lgalabru): return Diagnostic instead
+                                Ok(CommandExecutionStatus::Complete(result)) => {
+                                    println!("completed execution with result {:?}", result);
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Successful)
+                                        .unwrap();
+                                    result
+                                }
+                                Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
+                                    state_machine
+                                        .consume(
+                                            &CommandInstanceStateMachineInput::NeedsAsyncRequest,
+                                        )
+                                        .unwrap();
+                                    continue;
+                                }
+                                Err(e) => {
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                                        .unwrap();
+                                    Err(e)
+                                }
+                            };
                             manual
                                 .constructs_execution_results
                                 .insert(construct_uuid, execution_result);
@@ -238,13 +323,17 @@ pub fn run_constructs_evaluation(
 }
 
 pub enum ExpressionEvaluationStatus {
-    Complete(Value),
+    CompleteOk(Value),
+    CompleteErr(Diagnostic),
     DependencyNotComputed,
 }
 
 pub fn eval_expression(
     expr: &Expression,
-    dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
+    dependencies_execution_results: &HashMap<
+        ConstructUuid,
+        Result<&CommandExecutionResult, &Diagnostic>,
+    >,
     package_uuid: &PackageUuid,
     manual: &Manual,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
@@ -309,7 +398,10 @@ pub fn eval_expression(
                     manual,
                     runtime_ctx,
                 )? {
-                    ExpressionEvaluationStatus::Complete(result) => result,
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
                         return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                     }
@@ -328,8 +420,12 @@ pub fn eval_expression(
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
-            let res = match dependencies_execution_results.get(&dependency) {
-                Some(res) => res,
+            let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
+            {
+                Some(res) => match res.clone() {
+                    Ok(res) => res,
+                    Err(e) => return Ok(ExpressionEvaluationStatus::CompleteErr(e.clone())),
+                },
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             };
             let attribute = components.pop_front().unwrap();
@@ -362,7 +458,10 @@ pub fn eval_expression(
                 manual,
                 runtime_ctx,
             )? {
-                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::CompleteOk(result) => result,
+                ExpressionEvaluationStatus::CompleteErr(e) => {
+                    return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                 }
@@ -374,7 +473,10 @@ pub fn eval_expression(
                 manual,
                 runtime_ctx,
             )? {
-                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::CompleteOk(result) => result,
+                ExpressionEvaluationStatus::CompleteErr(e) => {
+                    return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                 }
@@ -407,7 +509,7 @@ pub fn eval_expression(
         }
     };
 
-    Ok(ExpressionEvaluationStatus::Complete(value))
+    Ok(ExpressionEvaluationStatus::CompleteOk(value))
 }
 
 // pub struct EvaluatedExpression {
@@ -421,7 +523,10 @@ pub enum CommandInputEvaluationStatus {
 
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,
-    dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
+    dependencies_execution_results: &HashMap<
+        ConstructUuid,
+        Result<&CommandExecutionResult, &Diagnostic>,
+    >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
@@ -470,7 +575,8 @@ pub fn perform_inputs_evaluation(
                         manual,
                         runtime_ctx,
                     ) {
-                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
+                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                         Err(e) => Err(e),
                         Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                             println!(
@@ -518,7 +624,8 @@ pub fn perform_inputs_evaluation(
                         manual,
                         runtime_ctx,
                     ) {
-                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
+                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                         Err(e) => Err(e),
                         Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                             return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
@@ -537,8 +644,8 @@ pub fn perform_inputs_evaluation(
         }
     }
 
-    if fatal_error {
-        return Err(format!("fatal error"));
-    }
+    // if fatal_error {
+    //     return Err(format!("fatal error"));
+    // }
     Ok(CommandInputEvaluationStatus::Complete(results))
 }

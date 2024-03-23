@@ -2,21 +2,21 @@ use crate::Context;
 use juniper_codegen::graphql_object;
 use serde_json::json;
 use txtx_core::{
-    kit::types::commands::CommandExecutionResult,
+    kit::types::{commands::CommandExecutionResult, diagnostics::Diagnostic},
     types::{CommandInstance, ConstructUuid},
 };
 
 pub struct Construct {
     pub uuid: ConstructUuid,
     pub data: CommandInstance,
-    pub result: Option<CommandExecutionResult>,
+    pub result: Option<Result<CommandExecutionResult, Diagnostic>>,
 }
 
 impl Construct {
     pub fn new(
         uuid: &ConstructUuid,
         data: &CommandInstance,
-        result: Option<CommandExecutionResult>,
+        result: Option<Result<CommandExecutionResult, Diagnostic>>,
     ) -> Self {
         Self {
             uuid: uuid.clone(),

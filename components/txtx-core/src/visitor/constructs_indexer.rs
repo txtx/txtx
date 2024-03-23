@@ -51,13 +51,8 @@ pub fn run_constructs_indexing(
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::ImportConstruct(Diagnostic {
-                                        location: location.clone(),
-                                        span: DiagnosticSpan {
-                                            line_start: 0,
-                                            line_end: 0,
-                                            column_start: 0,
-                                            column_end: 0,
-                                        },
+                                        location: Some(location.clone()),
+                                        span: None,
                                         message: "import name missing".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
@@ -124,13 +119,8 @@ pub fn run_constructs_indexing(
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::VariableConstruct(Diagnostic {
-                                        location: location.clone(),
-                                        span: DiagnosticSpan {
-                                            line_start: 0,
-                                            line_end: 0,
-                                            column_start: 0,
-                                            column_end: 0,
-                                        },
+                                        location: Some(location.clone()),
+                                        span: None,
                                         message: "variable name missing".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
@@ -152,13 +142,8 @@ pub fn run_constructs_indexing(
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::ModuleConstruct(Diagnostic {
-                                        location: location.clone(),
-                                        span: DiagnosticSpan {
-                                            line_start: 0,
-                                            line_end: 0,
-                                            column_start: 0,
-                                            column_end: 0,
-                                        },
+                                        location: Some(location.clone()),
+                                        span: None,
                                         message: "module name missing".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
@@ -180,13 +165,8 @@ pub fn run_constructs_indexing(
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
-                                        location: location.clone(),
-                                        span: DiagnosticSpan {
-                                            line_start: 0,
-                                            line_end: 0,
-                                            column_start: 0,
-                                            column_end: 0,
-                                        },
+                                        location: Some(location.clone()),
+                                        span: None,
                                         message: "output name missing".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
@@ -218,13 +198,8 @@ pub fn run_constructs_indexing(
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::AddonConstruct(Diagnostic {
-                                        location: location.clone(),
-                                        span: DiagnosticSpan {
-                                            line_start: 0,
-                                            line_end: 0,
-                                            column_start: 0,
-                                            column_end: 0,
-                                        },
+                                        location: Some(location.clone()),
+                                        span: None,
                                         message: "addon syntax invalid".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
@@ -262,13 +237,8 @@ pub fn run_constructs_indexing(
                         _ => {
                             manual.errors.push(ConstructErrors::Discovery(
                                 DiscoveryError::UnknownConstruct(Diagnostic {
-                                    location: location.clone(),
-                                    span: DiagnosticSpan {
-                                        line_start: 0,
-                                        line_end: 0,
-                                        column_start: 0,
-                                        column_end: 0,
-                                    },
+                                    location: Some(location.clone()),
+                                    span: None,
                                     message: "construct unknown".to_string(),
                                     level: DiagnosticLevel::Error,
                                     documentation: None,

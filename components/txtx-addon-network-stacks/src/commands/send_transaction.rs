@@ -95,17 +95,6 @@ impl CommandImplementationAsync for SendStacksTransaction {
                     result
                         .outputs
                         .insert(format!("transaction_hash"), Value::string(r));
-                }
-                Err(e) => {
-                    unimplemented!("failed to get request: {e}")
-                }
-            }
-            let res = reqwest::get("https://api.mainnet.hiro.so/v2/info")
-                .await
-                .unwrap();
-            match res.text().await {
-                Ok(r) => {
-                    result.outputs.insert(format!("nonce"), Value::string(r));
                     Ok(result)
                 }
                 Err(e) => {

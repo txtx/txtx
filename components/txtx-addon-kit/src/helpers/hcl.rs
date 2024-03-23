@@ -87,13 +87,8 @@ pub fn build_diagnostics_for_unused_fields(
             continue;
         }
         diagnostics.push(Diagnostic {
-            span: DiagnosticSpan {
-                line_start: 0,
-                line_end: 0,
-                column_start: 0,
-                column_end: 0,
-            },
-            location: location.clone(),
+            location: Some(location.clone()),
+            span: None,
             message: format!("'{}' field is unused", attr.key.as_str()),
             level: DiagnosticLevel::Warning,
             documentation: None,

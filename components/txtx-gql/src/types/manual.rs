@@ -78,7 +78,16 @@ impl GqlManual {
         let mut data = vec![];
         for (construct_uuid, command_instance) in self.data.commands_instances.iter() {
             let constructs_execution_results =
-                self.data.constructs_execution_results.get(&construct_uuid);
+                match self.data.constructs_execution_results.get(&construct_uuid) {
+                    None => None,
+                    Some(result) => match result {
+                        Ok(result) => Some(
+                            serde_json::to_value(result)
+                                .map_err(|e| format!("failed to serialize manual data {e}"))?,
+                        ),
+                        Err(e) => Some(json!({"error": e})),
+                    },
+                };
             let command_inputs_evaluation_results = self
                 .data
                 .command_inputs_evaluation_results

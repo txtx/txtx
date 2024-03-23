@@ -3,7 +3,6 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
-use futures::lock::Mutex as FuturesMutex;
 use rust_fsm::StateMachine;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -12,6 +11,7 @@ use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -47,7 +47,8 @@ pub struct Manual {
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
-    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
+    pub constructs_execution_results:
+        HashMap<ConstructUuid, Result<CommandExecutionResult, Diagnostic>>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub description: Option<String>,
 }

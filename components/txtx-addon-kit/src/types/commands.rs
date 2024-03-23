@@ -19,7 +19,7 @@ use crate::helpers::hcl::{
 };
 
 use super::{
-    diagnostics::Diagnostic,
+    diagnostics::{Diagnostic, DiagnosticLevel},
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid,
 };
@@ -223,24 +223,33 @@ state_machine! {
   pub CommandInstanceStateMachine(New)
 
   New => {
-    Successful => Evaluated, //
-    NeedsUserInput => AwaitingUserInput, //
+    Successful => Evaluated,
+    NeedsUserInput => AwaitingUserInput,
     NeedsAsyncRequest => AwaitingAsyncRequest,
     Unsuccessful => Failed,
   },
   AwaitingUserInput => {
-    Successful => Evaluated, //
+    Successful => Evaluated,
+    NeedsUserInput => AwaitingUserInput,
     Unsuccessful => Failed,
-    Abort => Aborted
+    Abort => Aborted,
+    ReEvaluate => New
   },
   AwaitingAsyncRequest => {
     Successful => Evaluated,
     Unsuccessful => Failed,
-    Abort => Aborted
+    Abort => Aborted,
+    ReEvaluate => New
   },
   Evaluated => {
     ReEvaluate => New,
     Successful => Evaluated
+  },
+  Aborted => {
+    ReEvaluate => New
+  },
+  Failed => {
+    ReEvaluate => New
   }
 
 }
@@ -253,7 +262,7 @@ pub struct CommandInstance {
     pub package_uuid: PackageUuid,
 }
 pub enum CommandExecutionStatus {
-    Complete(CommandExecutionResult),
+    Complete(Result<CommandExecutionResult, Diagnostic>),
     NeedsAsyncRequest,
 }
 impl Serialize for CommandInstance {
@@ -398,11 +407,20 @@ impl CommandInstance {
         construct_uuid: ConstructUuid,
         eval_tx: Sender<EvalEvent>,
     ) -> Result<CommandExecutionStatus, Diagnostic> {
+        // todo: I don't think this one needs to be a result
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(input) {
                 Some(Ok(value)) => Ok(value.clone()),
-                Some(Err(e)) => Err(e.clone()),
+                Some(Err(e)) => Err(Diagnostic {
+                    span: None,
+                    location: None,
+                    message: format!("Cannot execute command due to erroring inputs"),
+                    level: DiagnosticLevel::Error,
+                    documentation: None,
+                    example: None,
+                    parent_diagnostic: Some(Box::new(e.clone())),
+                }),
                 None => match input.optional {
                     true => continue,
                     false => unreachable!(), // todo(lgalabru): return diagnostic
@@ -415,24 +433,20 @@ impl CommandInstance {
                 let spec = self.specification.clone();
                 let async_runner_moved = async_runner.clone();
                 let _ = std::thread::spawn(move || {
-                    let result =
-                        hiro_system_kit::nestable_block_on((async_runner_moved)(&spec, &values));
-                    let result = match result {
-                        Ok(result) => Ok(CommandExecutionStatus::Complete(result)),
-                        Err(e) => Err(e), // todo
-                    };
+                    let result = CommandExecutionStatus::Complete(
+                        hiro_system_kit::nestable_block_on((async_runner_moved)(&spec, &values)),
+                    );
                     eval_tx.send(EvalEvent::AsyncRequestComplete {
                         manual_uuid,
-                        result,
+                        result: Ok(result),
                         construct_uuid,
                     })
                 });
                 Ok(CommandExecutionStatus::NeedsAsyncRequest)
             }
-            CommandRunner::Sync(sync_runner) => match (sync_runner)(&self.specification, &values) {
-                Ok(r) => Ok(CommandExecutionStatus::Complete(r)),
-                Err(e) => Err(e),
-            },
+            CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
+                (sync_runner)(&self.specification, &values),
+            )),
         }
     }
 

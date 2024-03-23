@@ -6,8 +6,9 @@ use txtx_core::kit::types::commands::{CommandInstanceStateMachineInput, EvalEven
 use txtx_core::kit::uuid::Uuid;
 use txtx_core::types::Manual;
 use txtx_core::{
-    eval::run_constructs_evaluation, kit::types::commands::CommandExecutionStatus, simulate_manual,
-    types::RuntimeContext, AddonsContext,
+    eval::prepare_constructs_reevaluation, eval::run_constructs_evaluation,
+    kit::types::commands::CommandExecutionStatus, simulate_manual, types::RuntimeContext,
+    AddonsContext,
 };
 use txtx_gql::{Context as GqlContext, ContextData};
 
@@ -154,15 +155,22 @@ fn eval_event_loop(
                 let result = match command_instance.state.lock() {
                     Ok(mut state_machine) => match result {
                         Ok(status) => match status {
-                            CommandExecutionStatus::Complete(result) => {
-                                state_machine
-                                    .consume(&CommandInstanceStateMachineInput::Successful)
-                                    .unwrap();
-
-                                Ok(result)
-                            }
+                            CommandExecutionStatus::Complete(result) => match result {
+                                Ok(result) => {
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Successful)
+                                        .unwrap();
+                                    Ok(result)
+                                }
+                                Err(e) => {
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                                        .unwrap();
+                                    Err(e)
+                                }
+                            },
                             CommandExecutionStatus::NeedsAsyncRequest => {
-                                unimplemented!()
+                                unreachable!()
                             }
                         },
                         Err(e) => {
@@ -174,18 +182,29 @@ fn eval_event_loop(
                     },
                     Err(e) => unimplemented!("failed to acquire lock {e}"),
                 };
+                println!("setting construct execution result: {:?}", result);
                 manual
                     .constructs_execution_results
-                    .insert(construct_uuid, result.unwrap()); // todo
+                    .insert(construct_uuid.clone(), result); // todo
 
                 println!("rerunning constructs evaluation");
+
+                let command_graph_node = manual
+                    .constructs_graph_nodes
+                    .get(&construct_uuid.value())
+                    .cloned()
+                    .unwrap();
+                drop(manual);
+                prepare_constructs_reevaluation(&manual_rw_lock, command_graph_node);
+
                 run_constructs_evaluation(
                     manual_rw_lock,
                     runtime_ctx_rw_lock,
-                    None,
+                    Some(command_graph_node),
                     eval_tx.clone(),
                 )
-                .unwrap()
+                .unwrap();
+                println!("finished rerunning constructs evaluation");
             }
             Err(e) => unimplemented!("Channel failed {e}"),
         }
