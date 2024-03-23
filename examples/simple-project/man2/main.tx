@@ -17,10 +17,15 @@ addon "stacks" "sign_transaction" "call_function_tx" {
   }
 }
 
-addon "stacks" "decode_call_contract" "decoded_fn" {
-  transaction_bytes = addon.call_function_tx.signed_transaction_bytes
+// addon "stacks" "decode_call_contract" "decoded_fn" {
+//   transaction_bytes = addon.call_function_tx.signed_transaction_bytes
+// }
+
+addon "stacks" "broadcast_transaction" "broadcasted_tx" {
+  signed_transaction_bytes = addon.call_function_tx.signed_transaction_bytes
+  network = "Testnet"
 }
 
-addon "stacks" "send_transaction" "my_tx" {
-  no_interact {}
+output "broadcasted_tx_id" {
+  value = addon.broadcasted_tx.tx_id
 }
