@@ -236,7 +236,8 @@ pub fn run_constructs_evaluation(
                         CommandInstanceStateMachineState::Evaluated => {
                             println!("current state is evaluated");
                         }
-                        CommandInstanceStateMachineState::Failed => {
+                        CommandInstanceStateMachineState::Failed
+                        | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
                             continue;
                         }
                         state => {
