@@ -15,7 +15,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 hiro-system-kit = "0.3.1"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-rust-fsm = { version = "0.6.1", path = "../../../rust-fsm/rust-fsm" }
+rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
 async-trait = "0.1.78"
 
 [features]
