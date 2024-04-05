@@ -112,8 +112,11 @@ pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node:
                 let Some(command_instance) = manual.commands_instances.get(&construct_uuid) else {
                     continue;
                 };
+                if node == start_node {
+                    continue;
+                }
+
                 if let Ok(mut state_machine) = command_instance.state.lock() {
-                    println!("preparing re-eval state: {:?}", state_machine.state());
                     match state_machine.state() {
                         CommandInstanceStateMachineState::New
                         | CommandInstanceStateMachineState::Failed => {}
@@ -243,7 +246,6 @@ pub fn run_constructs_evaluation(
                         state => {
                             println!("current state: {:?}", state);
 
-                            println!("performing inputs evaluation. command_instance {}, cached results: {:?}, input evals: {:?}", command_instance.name, cached_dependency_execution_results, input_evaluation_results);
                             let evaluated_inputs_res = perform_inputs_evaluation(
                                 command_instance,
                                 &cached_dependency_execution_results,
