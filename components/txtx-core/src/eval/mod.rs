@@ -62,8 +62,6 @@ pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<Node
     visited_nodes_to_process.remove(0); // remove root
     visited_nodes_to_process
 }
-    visited_nodes_to_process
-}
 
 pub fn log_evaluated_outputs(manual: &Manual) {
     for (_, package) in manual.packages.iter() {
@@ -162,6 +160,22 @@ pub fn run_constructs_evaluation(
                 let Some(command_instance) = commands_instances.get(&construct_uuid) else {
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
+                };
+                // in general we want to ignore previous input evaluation results when evaluating for outputs.
+                // we want to recompute the whole graph in case anything has changed since our last traversal.
+                // however, if there was a start_node provided, this evaluation was initiated from a user interaction
+                // that is stored in the input evaluation results, and we want to keep that data to evaluate that
+                // commands dependents
+                let input_evaluation_results = if let Some(start_node) = start_node {
+                    if start_node == node {
+                        manual
+                            .command_inputs_evaluation_results
+                            .get(&construct_uuid.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 };
 
                 match command_instance.state.lock() {

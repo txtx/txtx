@@ -157,7 +157,6 @@ pub struct CommandSpecification {
     pub runner: CommandRunner,
     pub checker: CommandChecker,
     pub user_input_parser: CommandParser,
-    pub is_async: bool,
 }
 
 impl Serialize for CommandSpecification {

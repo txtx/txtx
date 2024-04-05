@@ -58,8 +58,7 @@ macro_rules! define_command {
             // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
             runner: txtx_addon_kit::types::commands::CommandRunner::Sync($func_key::run),
             checker: $func_key::check,
-            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
-            is_async: true
+            user_input_parser: $func_key::update_input_evaluation_results_from_user_input
         };
     };
 }
@@ -96,7 +95,6 @@ macro_rules! define_async_command {
             runner: txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
             checker: $func_key::check,
             user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
-            is_async: true
         };
     };
 }

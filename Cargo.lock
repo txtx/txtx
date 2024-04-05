@@ -2701,24 +2701,9 @@ dependencies = [
 [[package]]
 name = "rust-fsm"
 version = "0.6.1"
-dependencies = [
- "rust-fsm-dsl 0.6.1",
-]
-
-[[package]]
-name = "rust-fsm"
-version = "0.6.1"
 source = "git+https://github.com/MicaiahReid/rust-fsm.git?branch=add-sm-derivations#ebbe8189bb7170674f872b120db37e20ddf0b402"
 dependencies = [
- "rust-fsm-dsl 0.6.1 (git+https://github.com/MicaiahReid/rust-fsm.git?branch=add-sm-derivations)",
-]
-
-[[package]]
-name = "rust-fsm-dsl"
-version = "0.6.1"
-dependencies = [
- "quote",
- "syn 1.0.109",
+ "rust-fsm-dsl",
 ]
 
 [[package]]
@@ -3857,13 +3842,12 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 name = "txtx-addon-kit"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "futures",
  "getrandom 0.2.12",
  "hcl-edit",
  "hex",
  "hiro-system-kit 0.3.1",
- "rust-fsm 0.6.1 (git+https://github.com/MicaiahReid/rust-fsm.git?branch=add-sm-derivations)",
+ "rust-fsm",
  "serde",
  "serde_derive",
  "url",
@@ -3874,7 +3858,6 @@ dependencies = [
 name = "txtx-addon-network-stacks"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "clarinet-deployments",
  "clarity-repl 2.0.0",
  "futures",
@@ -3883,7 +3866,7 @@ dependencies = [
  "libsecp256k1 0.7.1",
  "pbkdf2 0.12.2",
  "reqwest",
- "rust-fsm 0.6.1",
+ "rust-fsm",
  "serde_json",
  "sha2 0.10.8",
  "tiny-hderive",
@@ -3921,14 +3904,13 @@ dependencies = [
 name = "txtx-core"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "daggy",
  "futures",
  "getrandom 0.2.12",
  "hex",
  "jaq-core",
  "lazy_static",
- "rust-fsm 0.6.1",
+ "rust-fsm",
  "txtx-addon-kit",
 ]
 
