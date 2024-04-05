@@ -1,31 +1,33 @@
-
 variable "contract_method" {
   description = "The contract method to call"
-  value = "increment"
+  value = "vote"
   type = "string"
 }
 
-addon "stacks" "call_contract" "call_function" {
+variable "arg_1" {
+  description = "The argument to pass to the contract"
+  value = "🍊"
+  type = "string"
+} 
+
+addon "stacks" "call_contract" "call_contract_payload" {
   description = "Invokes contract call of the method specified in contract_method."
-  contract_id = "ST173JK7NZBA4BS05ZRATQH1K89YJMTGEH1Z5J52E.counter"
+  contract_id = "ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract"
   function_name = variable.contract_method.value
+  function_args = [variable.arg_1.value]
 }
 
-addon "stacks" "sign_transaction" "call_function_tx" {
+addon "stacks" "sign_transaction" "sign_call_contract_payload" {
   web_interact {
-    transaction_payload_bytes = addon.call_function.bytes
+    transaction_payload_bytes = addon.call_contract_payload.bytes
   }
 }
 
-addon "stacks" "decode_call_contract" "decoded_fn" {
-  transaction_bytes = addon.call_function_tx.signed_transaction_bytes
+addon "stacks" "decode_call_contract" "decoded_signed_transaction" {
+  transaction_bytes = addon.sign_call_contract_payload.signed_transaction_bytes
 }
 
-addon "stacks" "broadcast_transaction" "broadcasted_tx" {
-  signed_transaction_bytes = addon.call_function_tx.signed_transaction_bytes
+addon "stacks" "broadcast_transaction" "broadcast_signed_call_contract_payload" {
+  signed_transaction_bytes = addon.sign_call_contract_payload.signed_transaction_bytes
   network = "Testnet"
-}
-
-output "broadcasted_tx_id" {
-  value = addon.broadcasted_tx.tx_id
 }
