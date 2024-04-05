@@ -1,6 +1,6 @@
 use rust_fsm::{state_machine, StateMachine};
 use serde::{
-    ser::{SerializeMap, SerializeStruct},
+    ser::{Error, SerializeMap, SerializeStruct},
     Serialize, Serializer,
 };
 use std::{
@@ -219,7 +219,7 @@ pub trait CommandImplementation {
 }
 
 state_machine! {
-  derive(Debug, Clone)
+  derive(Debug, Clone, Serialize)
   pub CommandInstanceStateMachine(New)
 
   New => {
@@ -265,14 +265,18 @@ pub enum CommandExecutionStatus {
     Complete(Result<CommandExecutionResult, Diagnostic>),
     NeedsAsyncRequest,
 }
+
 impl Serialize for CommandInstance {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut ser = serializer.serialize_struct("CommandInstance", 3)?;
+        let mut ser = serializer.serialize_struct("CommandInstance", 4)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
+        let state_machine = self.state.lock().map_err(S::Error::custom)?;
+        let state = state_machine.state();
+        ser.serialize_field("state", &state)?;
         ser.serialize_field("packageUuid", &self.package_uuid)?;
         ser.end()
     }
