@@ -98,6 +98,15 @@ impl CommandInput {
             Type::Object(spec) => Some(spec),
             Type::Primitive(_) => None,
             Type::Addon(_) => None,
+            Type::Array(_) => None,
+        }
+    }
+    pub fn as_array(&self) -> Option<&Box<Type>> {
+        match &self.typing {
+            Type::Object(_) => None,
+            Type::Primitive(_) => None,
+            Type::Addon(_) => None,
+            Type::Array(array) => Some(array),
         }
     }
 }
@@ -362,8 +371,10 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, String> {
         let res = match &input.typing {
-            Type::Primitive(_) => visit_optional_untyped_attribute(&input.name, &self.block)
-                .map_err(|e| format!("{:?}", e))?,
+            Type::Primitive(_) | Type::Array(_) => {
+                visit_optional_untyped_attribute(&input.name, &self.block)
+                    .map_err(|e| format!("{:?}", e))?
+            }
             Type::Object(_) => unreachable!(),
             Type::Addon(_) => unreachable!(),
         };

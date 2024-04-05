@@ -360,8 +360,27 @@ pub fn eval_expression(
         // Represents a string that does not contain any template interpolations or template directives.
         Expression::String(decorated_string) => Value::string(decorated_string.to_string()),
         // Represents an HCL array.
-        Expression::Array(_array) => {
-            unimplemented!()
+        Expression::Array(entries) => {
+            let mut res = vec![];
+            for entry_expr in entries {
+                let value = match eval_expression(
+                    entry_expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )? {
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
+                    ExpressionEvaluationStatus::DependencyNotComputed => {
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                    }
+                };
+                res.push(value);
+            }
+            Value::array(res)
         }
         // Represents an HCL object.
         Expression::Object(_object) => {
@@ -535,7 +554,7 @@ pub fn perform_inputs_evaluation(
 ) -> Result<CommandInputEvaluationStatus, String> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();
-    let mut fatal_error = false;
+    let mut _fatal_error = false;
 
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
@@ -543,57 +562,12 @@ pub fn perform_inputs_evaluation(
             Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input),
             None => None,
         };
-        match input.as_object() {
-            Some(object_props) => {
-                // todo(micaiah) - figure out how user-input values work for this branch
-                let mut object_values = HashMap::new();
-                for prop in object_props.iter() {
-                    if let Some(value) = previously_evaluated_input {
-                        match value.clone() {
-                            Ok(Value::Primitive(p)) => {
-                                object_values.insert(prop.name.to_string(), Ok(p));
-                            }
-                            Ok(Value::Object(obj)) => {
-                                for (k, v) in obj.into_iter() {
-                                    object_values.insert(k, v);
-                                }
-                            }
-                            Err(diag) => {
-                                object_values.insert(prop.name.to_string(), Err(diag));
-                            }
-                        };
-                    }
-
-                    let Some(expr) =
-                        command_instance.get_expression_from_object_property(&input, &prop)?
-                    else {
-                        continue;
-                    };
-                    let value = match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_uuid,
-                        manual,
-                        runtime_ctx,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                        Err(e) => Err(e),
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            println!(
-                                "returning early because eval expression needs user interaction"
-                            );
-                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
-                        }
-                    };
-
-                    if let Err(ref diag) = value {
-                        if let DiagnosticLevel::Error = diag.level {
-                            fatal_error = true;
-                        }
-                    }
-
-                    match value {
+        if let Some(object_props) = input.as_object() {
+            // todo(micaiah) - figure out how user-input values work for this branch
+            let mut object_values = HashMap::new();
+            for prop in object_props.iter() {
+                if let Some(value) = previously_evaluated_input {
+                    match value.clone() {
                         Ok(Value::Primitive(p)) => {
                             object_values.insert(prop.name.to_string(), Ok(p));
                         }
@@ -602,46 +576,141 @@ pub fn perform_inputs_evaluation(
                                 object_values.insert(k, v);
                             }
                         }
+                        Ok(Value::Array(_)) => {
+                            unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                        }
                         Err(diag) => {
                             object_values.insert(prop.name.to_string(), Err(diag));
                         }
                     };
                 }
-                if !object_values.is_empty() {
-                    results.insert(input, Ok(Value::Object(object_values)));
-                }
-            }
-            None => {
-                let value = if let Some(value) = previously_evaluated_input {
-                    value.clone()
-                } else {
-                    let Some(expr) = command_instance.get_expression_from_input(&input)? else {
-                        continue;
-                    };
-                    match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_uuid,
-                        manual,
-                        runtime_ctx,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                        Err(e) => Err(e),
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
-                        }
+
+                let Some(expr) =
+                    command_instance.get_expression_from_object_property(&input, &prop)?
+                else {
+                    continue;
+                };
+                let value = match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("returning early because eval expression needs user interaction");
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
 
                 if let Err(ref diag) = value {
                     if let DiagnosticLevel::Error = diag.level {
-                        fatal_error = true;
+                        _fatal_error = true;
                     }
                 }
 
-                results.insert(input, value);
+                match value {
+                    Ok(Value::Primitive(p)) => {
+                        object_values.insert(prop.name.to_string(), Ok(p));
+                    }
+                    Ok(Value::Object(obj)) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    Ok(Value::Array(_)) => {
+                        unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                    }
+                    Err(diag) => {
+                        object_values.insert(prop.name.to_string(), Err(diag));
+                    }
+                };
             }
+            if !object_values.is_empty() {
+                results.insert(input, Ok(Value::Object(object_values)));
+            }
+        } else if let Some(_) = input.as_array() {
+            let mut array_values = vec![];
+            if let Some(value) = previously_evaluated_input {
+                match value.clone() {
+                    Ok(Value::Array(entries)) => {
+                        array_values.extend::<Vec<Value>>(entries.into_iter().collect());
+                    }
+                    Err(diag) => {
+                        results.insert(input, Err(diag));
+                        continue;
+                    }
+                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) => unreachable!(),
+                }
+            }
+
+            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                continue;
+            };
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_uuid,
+                manual,
+                runtime_ctx,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
+                    Value::Primitive(_) | Value::Object(_) => unreachable!(),
+                    Value::Array(entries) => {
+                        for (i, entry) in entries.into_iter().enumerate() {
+                            array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
+                        }
+                        Ok(Value::array(array_values))
+                    }
+                },
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                Err(e) => Err(e),
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    println!("returning early because eval expression needs user interaction");
+                    return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
+        } else {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
         }
     }
 
