@@ -22,12 +22,9 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
-pub fn order_dependent_nodes(
-    start_node: NodeIndex,
-    graph: Dag<Uuid, u32, u32>,
-) -> BTreeSet<NodeIndex> {
+pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = BTreeSet::new();
+    let mut visited_nodes_to_process = Vec::new();
 
     nodes_to_visit.push_front(start_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -36,15 +33,15 @@ pub fn order_dependent_nodes(
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.insert(node);
+        visited_nodes_to_process.push(node);
     }
 
     visited_nodes_to_process
 }
 
-pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> BTreeSet<NodeIndex> {
+pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = BTreeSet::new();
+    let mut visited_nodes_to_process = Vec::new();
 
     nodes_to_visit.push_front(root_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -59,10 +56,12 @@ pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> BTreeSet
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.insert(node);
+        visited_nodes_to_process.push(node);
     }
 
-    visited_nodes_to_process.remove(&root_node);
+    visited_nodes_to_process.remove(0); // remove root
+    visited_nodes_to_process
+}
     visited_nodes_to_process
 }
 
@@ -141,7 +140,7 @@ pub fn run_constructs_evaluation(
         Ok(mut manual) => {
             let g = manual.constructs_graph.clone();
 
-            let visited_nodes_to_process = match start_node {
+            let ordered_nodes_to_process = match start_node {
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
@@ -149,11 +148,11 @@ pub fn run_constructs_evaluation(
                 }
                 None => order_nodes(manual.graph_root, manual.constructs_graph.clone()),
             };
-            println!("nodes to process: {:?}", visited_nodes_to_process);
+
             let commands_instances = manual.commands_instances.clone();
             let constructs_locations = manual.constructs_locations.clone();
 
-            for node in visited_nodes_to_process.into_iter() {
+            for node in ordered_nodes_to_process.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
                 let construct_uuid = ConstructUuid::Local(uuid.clone());
 
@@ -161,6 +160,7 @@ pub fn run_constructs_evaluation(
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
                 };
+
                 match command_instance.state.lock() {
                     Ok(state_machine) => match state_machine.state() {
                         CommandInstanceStateMachineState::Failed => {
@@ -268,7 +268,6 @@ pub fn run_constructs_evaluation(
                                     todo!("build input evaluation diagnostic: {}", e)
                                 }
                             };
-                            println!("evaluated inputs: {:?}", evaluated_inputs);
 
                             manual
                                 .command_inputs_evaluation_results
@@ -282,7 +281,6 @@ pub fn run_constructs_evaluation(
                             ) {
                                 // todo(lgalabru): return Diagnostic instead
                                 Ok(CommandExecutionStatus::Complete(result)) => {
-                                    println!("completed execution with result {:?}", result);
                                     state_machine
                                         .consume(&CommandInstanceStateMachineInput::Successful)
                                         .unwrap();
