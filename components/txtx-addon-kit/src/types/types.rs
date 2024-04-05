@@ -1,9 +1,8 @@
+use serde::{ser::SerializeMap, Serialize, Serializer};
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::Debug,
+    fmt::{Debug, Write},
 };
-
-use serde::{Serialize, Serializer};
 
 use super::diagnostics::Diagnostic;
 
@@ -19,18 +18,21 @@ impl Serialize for Value {
         S: Serializer,
     {
         match self {
-            Value::Primitive(PrimitiveValue::String(val)) => serializer.serialize_str(val),
-            Value::Primitive(PrimitiveValue::UnsignedInteger(val)) => {
-                serializer.serialize_u64(*val)
+            Value::Primitive(primitive) => primitive.serialize(serializer),
+            Value::Object(entries) => {
+                let mut map = serializer.serialize_map(Some(entries.len()))?;
+                for (k, v) in entries.iter() {
+                    match v {
+                        Ok(primitive_value) => {
+                            map.serialize_entry(&k, &primitive_value)?;
+                        }
+                        Err(e) => {
+                            map.serialize_entry(&k, &e.message)?;
+                        }
+                    }
+                }
+                map.end()
             }
-            Value::Primitive(PrimitiveValue::SignedInteger(val)) => serializer.serialize_i64(*val),
-            Value::Primitive(PrimitiveValue::Float(val)) => serializer.serialize_f64(*val),
-            Value::Primitive(PrimitiveValue::Bool(val)) => serializer.serialize_bool(*val),
-            Value::Primitive(PrimitiveValue::Null) => serializer.serialize_none(),
-            Value::Primitive(PrimitiveValue::Buffer(_)) => {
-                unimplemented!("Value::Primitive(PrimitiveValue::Buffer) variant")
-            }
-            Value::Object(_) => unimplemented!("Value::Object variant"),
         }
     }
 }
@@ -100,6 +102,25 @@ impl Value {
     }
 }
 
+impl Value {
+    pub fn from_string(
+        value: String,
+        expected_type: Type,
+        typing: Option<TypeSpecification>,
+    ) -> Result<Value, Diagnostic> {
+        match expected_type {
+            Type::Primitive(primitive_type) => {
+                match PrimitiveValue::from_string(value, primitive_type, typing) {
+                    Ok(v) => Ok(Value::Primitive(v)),
+                    Err(e) => Err(e),
+                }
+            }
+            Type::Object(_) => todo!(),
+            Type::Addon(_) => todo!(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum PrimitiveValue {
     String(String),
@@ -109,6 +130,75 @@ pub enum PrimitiveValue {
     Bool(bool),
     Null,
     Buffer(BufferData),
+}
+
+impl Serialize for PrimitiveValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PrimitiveValue::String(val) => serializer.serialize_str(val),
+            PrimitiveValue::UnsignedInteger(val) => serializer.serialize_u64(*val),
+            PrimitiveValue::SignedInteger(val) => serializer.serialize_i64(*val),
+            PrimitiveValue::Float(val) => serializer.serialize_f64(*val),
+            PrimitiveValue::Bool(val) => serializer.serialize_bool(*val),
+            PrimitiveValue::Null => serializer.serialize_none(),
+            PrimitiveValue::Buffer(BufferData { bytes, typing: _ }) => {
+                let mut s = String::from("0x");
+                s.write_str(
+                    &bytes
+                        .iter()
+                        .map(|b| format!("{:02X}", b))
+                        .collect::<String>(),
+                )
+                .unwrap();
+                serializer.serialize_str(&s)
+            }
+        }
+    }
+}
+
+impl PrimitiveValue {
+    pub fn from_string(
+        value: String,
+        expected_type: PrimitiveType,
+        typing: Option<TypeSpecification>,
+    ) -> Result<PrimitiveValue, Diagnostic> {
+        match expected_type {
+            PrimitiveType::String => Ok(PrimitiveValue::String(value)),
+            PrimitiveType::UnsignedInteger => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::UnsignedInteger(value)),
+                Err(e) => unimplemented!("failed to cast {} to uint: {}", value, e),
+            },
+            PrimitiveType::SignedInteger => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::SignedInteger(value)),
+                Err(e) => unimplemented!("failed to cast {} to int: {}", value, e),
+            },
+            PrimitiveType::Float => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::Float(value)),
+                Err(e) => unimplemented!("failed to cast {} to float: {}", value, e),
+            },
+            PrimitiveType::Null => {
+                if value.is_empty() {
+                    Ok(PrimitiveValue::Null)
+                } else {
+                    unimplemented!("failed to cast {} to null", value,);
+                }
+            }
+            PrimitiveType::Bool => match value.parse() {
+                Ok(value) => Ok(PrimitiveValue::Bool(value)),
+                Err(e) => unimplemented!("failed to cast {} to bool: {}", value, e),
+            },
+            PrimitiveType::Buffer => match hex::decode(&value) {
+                Ok(bytes) => Ok(PrimitiveValue::Buffer(BufferData {
+                    bytes,
+                    typing: typing.unwrap(),
+                })),
+                Err(e) => unimplemented!("failed to cast {} to buffer: {}", value, e),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -153,6 +243,35 @@ impl Type {
     }
 }
 
+impl From<String> for Type {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "string" => Type::string(),
+            "uint" => Type::uint(),
+            "int" => Type::int(),
+            "float" => Type::float(),
+            "boolean" => Type::bool(),
+            "null" => Type::null(),
+            _ => unimplemented!("Type from str not implemented"),
+        }
+    }
+}
+
+impl From<Option<String>> for Type {
+    fn from(value: Option<String>) -> Self {
+        match value {
+            Some(value) => Type::from(value),
+            None => Type::default(),
+        }
+    }
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Type::string()
+    }
+}
+
 impl Serialize for Type {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -166,7 +285,7 @@ impl Serialize for Type {
             Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("boolean"),
             Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
             Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("buffer"),
-            Type::Object(_) => unimplemented!("Type::Object variant"),
+            Type::Object(_) => serializer.serialize_str("object"),
             Type::Addon(_) => unimplemented!("Type::Addon variant"),
         }
     }

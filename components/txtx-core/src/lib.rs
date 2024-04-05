@@ -39,7 +39,7 @@ pub fn simulate_manual(
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
     let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
-    let _ = run_constructs_evaluation(manual, runtime_context).unwrap();
+    let _ = run_constructs_evaluation(manual, runtime_context, None).unwrap();
     Ok(())
 }
 
@@ -92,7 +92,7 @@ impl AddonsContext {
         command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
-        location: &FileLocation,
+        _location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
         ctx.create_command_instance(command_type, command_name, block, package_uuid)

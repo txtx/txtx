@@ -1,25 +1,22 @@
-variable "variable_1" {
-  value = 1
-  description = "A variable that is configured with value/default in the .tx file. This should be displayed initially in the web ui."
-  default = 2
+
+variable "contract_method" {
+  description = "The contract method to call"
+  value = "increment"
+  type = "string"
 }
 
-variable "variable_2" {
-  description = "A variable that does not have the value or default configured in the .tx file. This should have no value in the web ui until the user enters a value."
+addon "stacks" "call_contract" "call_function" {
+  description = "Invokes contract call of the method specified in contract_method."
+  contract_id = "ST173JK7NZBA4BS05ZRATQH1K89YJMTGEH1Z5J52E.counter"
+  function_name = variable.contract_method.value
 }
 
-
-variable "variable_3" {
-  description = "This variable adds variable_1 and variable_2. Because variable_2 is not available initially, this variable will start with no value. Once variable_2 is filled in via the web ui, this value should be computed and displayed."
-  value = variable.variable_1.value + variable.variable_2.value
+addon "stacks" "sign_transaction" "call_function_tx" {
+  web_interact {
+    transaction_payload_bytes = addon.call_function.bytes
+  }
 }
 
-variable "variable_4" {
-  description = "A variable that does not have the value or default configured in the .tx file. This should have no value in the web ui until the user enters a value."
-}
-
-
-output "add_variables" {
-  description = "This output adds variable_1 and variable_4. "
-  value = variable.variable_3.value + variable.variable_4.value
+addon "stacks" "decode_call_contract" "decoded_fn" {
+  transaction_bytes = addon.call_function_tx.signed_transaction_bytes
 }

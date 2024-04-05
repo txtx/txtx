@@ -2,7 +2,6 @@ use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;
 use serde_json::json;
 use txtx_core::eval::run_constructs_evaluation;
-use txtx_core::kit::types::types::{PrimitiveValue, Value};
 use txtx_core::types::ConstructUuid;
 use uuid::Uuid;
 
@@ -33,40 +32,43 @@ impl Mutation {
             .ok_or(format!("could not fine manual {manual_name}"))?;
 
         let command_uuid = ConstructUuid::Local(command_uuid);
-        let manual_did_mutate = match manual.write() {
-            Ok(mut manual) => match manual.commands_instances.get_mut(&command_uuid) {
+        let command_graph_node = match manual.write() {
+            Ok(mut manual) => match manual.commands_instances.get(&command_uuid) {
                 Some(command_instance) => {
-                    match command_instance
-                        .specification
-                        .inputs
-                        .iter()
-                        .find(|i| i.name == input_name)
+                    let moved_command_instance = command_instance.clone();
+                    match manual
+                        .command_inputs_evaluation_results
+                        .get_mut(&command_uuid)
                     {
-                        Some(input) => {
-                            command_instance.input_evaluation_result.insert(
-                                input.clone(),
-                                Value::Primitive(PrimitiveValue::UnsignedInteger(
-                                    value.parse().unwrap(),
-                                )),
+                        Some(input_evaluation_results) => {
+                            moved_command_instance.update_input_evaluation_results_from_user_input(
+                                input_evaluation_results,
+                                input_name,
+                                value,
                             );
-                            true
+                            manual
+                                .constructs_graph_nodes
+                                .get(&command_uuid.value())
+                                .cloned()
                         }
-                        None => false,
+                        None => None,
                     }
                 }
-                None => false,
+                None => None,
             },
             Err(e) => unimplemented!("could not acquire lock: {e}"),
         };
-        if manual_did_mutate {
-            // todo: optimization: rather than rerunning the whole eval, we can
-            // walk the graph to see what other commands are impacted by updating _this_ input,
-            // and only reevaluate those
-            match run_constructs_evaluation(&manual, runtime_context) {
-                Ok(()) => println!("successfully reevaluated constructs after mutation"),
-                Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
+        match command_graph_node {
+            Some(command_graph_node) => {
+                match run_constructs_evaluation(&manual, runtime_context, Some(command_graph_node))
+                {
+                    Ok(()) => println!("successfully reevaluated constructs after mutation"),
+                    Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
+                }
             }
+            None => {} // no evaluation needed if this construct is somehow not part of the graph
         }
+
         let result = match manual.read() {
             Ok(manual) => {
                 let mut result = vec![];

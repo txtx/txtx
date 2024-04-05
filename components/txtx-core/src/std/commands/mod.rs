@@ -3,9 +3,12 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     define_command,
     types::{
-        commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
+        commands::{
+            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+            CommandSpecification,
+        },
         diagnostics::Diagnostic,
-        types::{Type, Value},
+        types::{PrimitiveValue, Type, Value},
     },
 };
 
@@ -37,6 +40,15 @@ impl CommandImplementation for Module {
         let result = CommandExecutionResult::new();
         Ok(result)
     }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
+    }
 }
 
 pub fn new_variable_specification() -> CommandSpecification {
@@ -60,6 +72,12 @@ pub fn new_variable_specification() -> CommandSpecification {
                 },
                 default: {
                     documentation: "Default value of the variable, if value is omitted",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                type: {
+                    documentation: "The type of the variable output. Can be inferred from `value` or `default` if provided.",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -93,6 +111,93 @@ impl CommandImplementation for Variable {
             result.outputs.insert("value".to_string(), default.clone());
         }
         Ok(result)
+    }
+
+    fn update_input_evaluation_results_from_user_input(
+        ctx: &CommandSpecification,
+        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        input_name: String,
+        value: String,
+    ) {
+        let (input_key, value) = match input_name.as_str() {
+            "value" => {
+                let value_input = ctx
+                    .inputs
+                    .iter()
+                    .find(|i| i.name == "value")
+                    .expect("Variable specification must have value input");
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    let type_casted_value = match current_input_evaluation_result
+                        .inputs
+                        .iter()
+                        .find(|(i, _)| i.name == "type")
+                    {
+                        Some((_, expected_type)) => match expected_type {
+                            Err(e) => Err(e.clone()),
+                            Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
+                                Value::from_string(value, Type::from(expected_type.clone()), None)
+                            }
+                            _ => Value::from_string(value, Type::default(), None),
+                        },
+                        None => unimplemented!("no type"), // todo
+                    };
+                    Some(type_casted_value)
+                };
+                (value_input, value)
+            }
+            "default" => {
+                let default_input = ctx
+                    .inputs
+                    .iter()
+                    .find(|i| i.name == "default")
+                    .expect("Variable specification must have default input");
+
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    let type_casted_value = match current_input_evaluation_result
+                        .inputs
+                        .iter()
+                        .find(|(i, _)| i.name == "type")
+                    {
+                        Some((_, expected_type)) => match expected_type {
+                            Err(e) => Err(e.clone()),
+                            Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
+                                Value::from_string(value, Type::from(expected_type.clone()), None)
+                            }
+                            _ => Value::from_string(value, Type::default(), None),
+                        },
+                        None => unimplemented!("no type"), // todo
+                    };
+                    Some(type_casted_value)
+                };
+                (default_input, value)
+            }
+            "description" => {
+                let description_input = ctx
+                    .inputs
+                    .iter()
+                    .find(|i| i.name == "description")
+                    .expect("Variable specification must have description input");
+
+                let expected_type = description_input.typing.clone();
+                let value = if value.is_empty() {
+                    None
+                } else {
+                    Some(Value::from_string(value, expected_type, None))
+                };
+                (description_input, value)
+            }
+            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
+        };
+        match value {
+            Some(value) => current_input_evaluation_result
+                .inputs
+                .insert(input_key.clone(), value),
+            None => current_input_evaluation_result.inputs.remove(&input_key),
+        };
     }
 }
 
@@ -141,5 +246,14 @@ impl CommandImplementation for Output {
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
         Ok(result)
+    }
+
+    fn update_input_evaluation_results_from_user_input(
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
+    ) {
+        todo!()
     }
 }

@@ -33,6 +33,7 @@ macro_rules! define_command {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
+        // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
     }) => {
@@ -56,6 +57,7 @@ macro_rules! define_command {
             }),*],
             runner: $func_key::run,
             checker: $func_key::check,
+            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
         };
     };
 }
