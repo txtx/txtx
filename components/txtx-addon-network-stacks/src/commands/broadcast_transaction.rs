@@ -97,7 +97,9 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
             match res.error_for_status_ref() {
                 Ok(_) => {}
-                Err(e) => return Err(Diagnostic::error_from_string(e.to_string())),
+                Err(_) => {
+                    return Err(Diagnostic::error_from_string(res.text().await.unwrap()));
+                }
             };
             let tx_id = res.text().await.unwrap();
 
