@@ -97,7 +97,6 @@ impl CommandImplementation for EncodeStacksContractCall {
 
         result.outputs.insert("bytes".to_string(), value);
 
-        println!("==> {:?}", result);
         Ok(result)
     }
 

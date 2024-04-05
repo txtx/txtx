@@ -59,7 +59,6 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
         async move {
-            println!("broadcasting transaction");
             let buffer_data = {
                 let Some(bytes) = args.get("signed_transaction_bytes") else {
                     unimplemented!("return diagnostic");
@@ -76,7 +75,6 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 TransactionVersion::Mainnet => "mainnet",
                 TransactionVersion::Testnet => "testnet",
             };
-            println!("transaction {:?}", transaction);
             let url = format!("https://api.{}.hiro.so/v2/transactions", network);
             let mut s = String::from("0x");
             s.write_str(
@@ -88,17 +86,15 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                     .collect::<String>(),
             )
             .unwrap();
-            println!("broadcasting bytes {} to url: {}", &s, &url);
             let client = reqwest::Client::new();
             let res = client
                 .post(&url)
                 .header("Content-Type", "application/octet-stream")
                 .body(buffer_data.bytes)
-                // .body(s)
                 .send()
                 .await
                 .unwrap();
-            println!("got res: {:?}", &res);
+
             match res.error_for_status_ref() {
                 Ok(_) => {}
                 Err(e) => return Err(Diagnostic::error_from_string(e.to_string())),

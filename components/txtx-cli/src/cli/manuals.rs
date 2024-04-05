@@ -182,12 +182,10 @@ fn eval_event_loop(
                     },
                     Err(e) => unimplemented!("failed to acquire lock {e}"),
                 };
-                println!("setting construct execution result: {:?}", result);
+
                 manual
                     .constructs_execution_results
                     .insert(construct_uuid.clone(), result); // todo
-
-                println!("rerunning constructs evaluation");
 
                 let command_graph_node = manual
                     .constructs_graph_nodes
@@ -204,7 +202,6 @@ fn eval_event_loop(
                     eval_tx.clone(),
                 )
                 .unwrap();
-                println!("finished rerunning constructs evaluation");
             }
             Err(e) => unimplemented!("Channel failed {e}"),
         }
