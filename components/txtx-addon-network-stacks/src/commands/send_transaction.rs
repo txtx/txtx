@@ -1,5 +1,6 @@
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, pin::Pin};
+use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -8,7 +9,6 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveType, PrimitiveValue, Type, Value},
 };
-use txtx_addon_kit::reqwest;
 
 lazy_static! {
   pub static ref SEND_STACKS_TRANSACTION: CommandSpecification = define_async_command! {

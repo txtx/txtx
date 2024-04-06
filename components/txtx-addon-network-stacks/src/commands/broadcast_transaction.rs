@@ -2,6 +2,7 @@ use clarity_repl::codec::TransactionVersion;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::StacksTransaction};
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
+use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -10,7 +11,6 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
-use txtx_addon_kit::reqwest;
 
 lazy_static! {
     pub static ref BROADCAST_STACKS_TRANSACTION: CommandSpecification = define_async_command! {

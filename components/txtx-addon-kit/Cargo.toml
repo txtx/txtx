@@ -11,13 +11,15 @@ serde = "1"
 serde_derive = "1"
 url = { version = "2.2.2", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["v4"] }
-hiro-system-kit = "0.3.1"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
 rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
-reqwest = { version = "=0.11.23", default-features = false, features = [
+reqwest = { version = "0.12.3", default-features = false, features = [
     "json",
     "rustls-tls",
+]}
+tokio = { version = "1.37.0", default-features = false, features = [
+    "rt"
 ]}
 
 [features]

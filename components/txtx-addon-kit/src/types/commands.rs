@@ -10,6 +10,7 @@ use std::{
     pin::Pin,
     sync::{mpsc::Sender, Arc, Mutex},
 };
+use tokio::runtime::Builder as RuntimeBuilder;
 use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
@@ -447,12 +448,11 @@ impl CommandInstance {
                 let spec = self.specification.clone();
                 let async_runner_moved = async_runner.clone();
                 let _ = std::thread::spawn(move || {
-                    let result = CommandExecutionStatus::Complete(
-                        hiro_system_kit::nestable_block_on((async_runner_moved)(&spec, &values)),
-                    );
+                    let runtime = RuntimeBuilder::new_current_thread().build().unwrap();
+                    let result = runtime.block_on((async_runner_moved)(&spec, &values));
                     eval_tx.send(EvalEvent::AsyncRequestComplete {
                         manual_uuid,
-                        result: Ok(result),
+                        result: Ok(CommandExecutionStatus::Complete(result)),
                         construct_uuid,
                     })
                 });
