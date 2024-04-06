@@ -6,7 +6,7 @@ use crate::hcl::{
 
 use crate::{
     helpers::fs::FileLocation,
-    types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan},
+    types::diagnostics::{Diagnostic, DiagnosticLevel},
 };
 
 pub enum StringExpression {

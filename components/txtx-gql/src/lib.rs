@@ -1,4 +1,3 @@
-use futures::lock::Mutex;
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;

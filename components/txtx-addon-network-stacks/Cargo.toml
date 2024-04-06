@@ -7,11 +7,10 @@ edition = "2021"
 sha2 = "0.10.8"
 txtx-addon-kit = { path = "../txtx-addon-kit" }
 lazy_static = "1.4.0"
-clarity-repl = { version = "2.0.0", default-features = false, optional = true }
-clarinet-deployments = { version = "1.0.3", default-features = false, optional = true }
-futures = { version = "0.3.22", features = ["alloc"], default-features = false }
-# clarity = { version = "2", default-features = false, optional = true, git = "https://github.com/lgalabru/stacks-core.git", rev = "f9c5d78717b3155d8245941514742e7928bd16fa", package = "clarity" }
-wasm-bindgen = { version = "=0.2.84", optional = true }
+clarity-repl = { version = "2.0.0", default-features = false }
+clarity-vm = { version = "=2.1.1", default-features = false }
+clarinet-deployments = { version = "1.0.3", default-features = false }
+wasm-bindgen = { version = "0.2.91", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 hmac = "0.12.0"
 pbkdf2 = { version = "0.12.2", features = ["simple"], default-features = false }
@@ -19,7 +18,6 @@ tiny-hderive = { version = "0.3.0" }
 libsecp256k1 = { version = "0.7.0" }
 serde_json = "1.0.113"
 rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
-reqwest = "0.11.26"
 
 [features]
 default = ["wasm"]
@@ -27,6 +25,7 @@ wasm = [
   "txtx-addon-kit/wasm",
   "wasm-bindgen",
   "clarity-repl/wasm",
+  "clarity-vm/wasm",
   "clarinet-deployments/wasm",
 ]
 

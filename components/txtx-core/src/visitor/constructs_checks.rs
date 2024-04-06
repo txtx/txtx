@@ -1,7 +1,5 @@
 use std::sync::{Arc, RwLock};
 
-use futures::lock::Mutex;
-
 use crate::{types::Manual, AddonsContext};
 
 pub fn run_constructs_checks(

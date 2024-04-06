@@ -8,7 +8,7 @@ use crate::{
     types::{Manual, PreConstructData},
     AddonsContext,
 };
-use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan};
+use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
 use txtx_addon_kit::{
     hcl::{self, structure::BlockLabel},
     helpers::{

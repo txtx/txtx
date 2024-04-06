@@ -1,6 +1,5 @@
 use clarity_repl::codec::TransactionVersion;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::StacksTransaction};
-use futures::FutureExt;
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
 use txtx_addon_kit::types::{
@@ -11,6 +10,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::reqwest;
 
 lazy_static! {
     pub static ref BROADCAST_STACKS_TRANSACTION: CommandSpecification = define_async_command! {
@@ -58,7 +58,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
     {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
-        async move {
+        let future = async move {
             let buffer_data = {
                 let Some(bytes) = args.get("signed_transaction_bytes") else {
                     unimplemented!("return diagnostic");
@@ -108,8 +108,9 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 .insert(format!("tx_id"), Value::string(tx_id));
 
             Ok(result)
-        }
-        .boxed()
+        };
+
+        Box::pin(future)
     }
 
     fn update_input_evaluation_results_from_user_input(

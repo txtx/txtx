@@ -1,4 +1,3 @@
-use futures::FutureExt;
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, pin::Pin};
 use txtx_addon_kit::types::{
@@ -9,6 +8,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveType, PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::reqwest;
 
 lazy_static! {
   pub static ref SEND_STACKS_TRANSACTION: CommandSpecification = define_async_command! {
@@ -86,7 +86,7 @@ impl CommandImplementationAsync for SendStacksTransaction {
     ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>>
     {
         let mut result = CommandExecutionResult::new();
-        async move {
+        let future = async move {
             let res = reqwest::get("https://api.mainnet.hiro.so/v2/info")
                 .await
                 .unwrap();
@@ -101,8 +101,8 @@ impl CommandImplementationAsync for SendStacksTransaction {
                     unimplemented!("failed to get request: {e}")
                 }
             }
-        }
-        .boxed()
+        };
+        Box::pin(future)
     }
 
     fn update_input_evaluation_results_from_user_input(

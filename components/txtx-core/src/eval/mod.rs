@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
+    collections::{HashMap, VecDeque},
     sync::{mpsc::Sender, Arc, RwLock},
 };
 

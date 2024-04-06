@@ -6,7 +6,7 @@ extern crate txtx_addon_kit;
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 mod commands;
