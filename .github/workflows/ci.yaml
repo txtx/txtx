@@ -44,10 +44,10 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Build WASM for txtx-core
-        run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm
+        run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
 
       - name: Build WASM for txtx-addon-kit
-        run: cargo build --package txtx-addon-kit --release --locked --target wasm32-unknown-unknown --features wasm
+        run: cargo build --package txtx-addon-kit --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
 
       - name: Build WASM for txtx-addon-network-stacks
-        run: cargo build --package txtx-addon-network-stacks --release --locked --target wasm32-unknown-unknown --features wasm
+        run: cargo build --package txtx-addon-network-stacks --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features

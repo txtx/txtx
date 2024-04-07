@@ -1,8 +1,10 @@
+use std::fmt::Display;
+
 use hcl_edit::{expr::Expression, structure::Block};
 
 use crate::helpers::fs::FileLocation;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DiagnosticSpan {
     pub line_start: u32,
     pub line_end: u32,
@@ -10,17 +12,27 @@ pub struct DiagnosticSpan {
     pub column_end: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub enum DiagnosticLevel {
     Note,
     Warning,
     Error,
 }
 
-#[derive(Clone, Debug)]
+impl Display for DiagnosticLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DiagnosticLevel::Error => write!(f, "error"),
+            DiagnosticLevel::Warning => write!(f, "warning"),
+            DiagnosticLevel::Note => write!(f, "note"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct Diagnostic {
-    pub span: DiagnosticSpan,
-    pub location: FileLocation,
+    pub span: Option<DiagnosticSpan>,
+    pub location: Option<FileLocation>,
     pub message: String,
     pub level: DiagnosticLevel,
     pub documentation: Option<String>,
@@ -51,5 +63,45 @@ impl Diagnostic {
         _message: String,
     ) -> Diagnostic {
         unimplemented!()
+    }
+
+    pub fn error_from_string(message: String) -> Diagnostic {
+        Diagnostic {
+            span: None,
+            location: None,
+            message,
+            level: DiagnosticLevel::Error,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        }
+    }
+    pub fn warning_from_string(message: String) -> Diagnostic {
+        Diagnostic {
+            span: None,
+            location: None,
+            message,
+            level: DiagnosticLevel::Warning,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        }
+    }
+    pub fn note_from_string(message: String) -> Diagnostic {
+        Diagnostic {
+            span: None,
+            location: None,
+            message,
+            level: DiagnosticLevel::Note,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        }
+    }
+}
+
+impl Display for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.level, self.message)
     }
 }

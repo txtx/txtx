@@ -1,5 +1,8 @@
+use serde::de::value::Error;
+
 use crate::Context;
 use juniper_codegen::graphql_object;
+use serde::{de::IntoDeserializer, Deserialize};
 use serde_json::json;
 use txtx_core::types::{ConstructUuid, Manual};
 
@@ -78,11 +81,21 @@ impl GqlManual {
         let mut data = vec![];
         for (construct_uuid, command_instance) in self.data.commands_instances.iter() {
             let constructs_execution_results =
-                self.data.constructs_execution_results.get(&construct_uuid);
+                match self.data.constructs_execution_results.get(&construct_uuid) {
+                    None => None,
+                    Some(result) => match result {
+                        Ok(result) => Some(
+                            serde_json::to_value(result)
+                                .map_err(|e| format!("failed to serialize manual data {e}"))?,
+                        ),
+                        Err(e) => Some(json!({"error": e})),
+                    },
+                };
             let command_inputs_evaluation_results = self
                 .data
                 .command_inputs_evaluation_results
                 .get(&construct_uuid);
+
             data.push(json!({
                 "constructUuid": construct_uuid,
                 "commandInstance": command_instance,
@@ -91,5 +104,26 @@ impl GqlManual {
             }));
         }
         serde_json::to_string(&data).map_err(|e| format!("failed to serialize manual data {e}"))
+    }
+
+    pub fn command_instance_state(&self, construct_uuid_string: String) -> Result<String, String> {
+        let construct_uuid =
+            ConstructUuid::deserialize(construct_uuid_string.clone().into_deserializer())
+                .map_err(|e: Error| e.to_string())?;
+
+        let result = match self.data.commands_instances.get(&construct_uuid) {
+            Some(command_instance) => {
+                let state_machine = command_instance.state.lock().map_err(|e| e.to_string())?; // todo: handle error
+                json!({"state": state_machine.state() })
+            }
+            None => json!({}),
+        };
+
+        serde_json::to_string(&result).map_err(|e| {
+            format!(
+                "failed to serialize command instance {} state {}",
+                construct_uuid_string, e
+            )
+        })
     }
 }

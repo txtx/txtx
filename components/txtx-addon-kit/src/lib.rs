@@ -14,6 +14,8 @@ use types::{
     ConstructUuid, PackageUuid,
 };
 
+pub use reqwest;
+
 pub mod helpers;
 pub mod macros;
 pub mod types;

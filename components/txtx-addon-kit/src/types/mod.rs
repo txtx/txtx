@@ -1,4 +1,7 @@
-use serde::{Serialize, Serializer};
+use std::str::FromStr;
+
+use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 pub mod commands;
@@ -34,6 +37,24 @@ impl Serialize for ConstructUuid {
     {
         match self {
             Self::Local(uuid) => serializer.serialize_str(&format!("local:{}", uuid.to_string())),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ConstructUuid {
+    fn deserialize<D>(deserializer: D) -> Result<ConstructUuid, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let uuid: String = serde::Deserialize::deserialize(deserializer)?;
+        match uuid.strip_prefix("local:") {
+            Some(result) => {
+                let uuid = Uuid::from_str(&result).map_err(D::Error::custom)?;
+                Ok(ConstructUuid::from_uuid(&uuid))
+            }
+            None => Err(D::Error::custom(
+                "UUID string must be prefixed with 'local:'",
+            )),
         }
     }
 }

@@ -1,11 +1,9 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
+use txtx_addon_kit::types::commands::CommandImplementation;
 use txtx_addon_kit::types::{
-    commands::{
-        CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-        CommandSpecification,
-    },
+    commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification},
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };

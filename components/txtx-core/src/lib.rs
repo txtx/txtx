@@ -8,11 +8,14 @@ pub mod types;
 pub mod visitor;
 
 use ::std::collections::HashMap;
+use ::std::sync::mpsc::Sender;
+use ::std::sync::Arc;
 use ::std::sync::RwLock;
 
 use kit::hcl::structure::Block;
 use kit::helpers::fs::FileLocation;
 use kit::types::commands::CommandInstance;
+use kit::types::commands::EvalEvent;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::functions::FunctionSpecification;
 use kit::types::PackageUuid;
@@ -28,8 +31,9 @@ use visitor::run_constructs_checks;
 use visitor::run_constructs_indexing;
 
 pub fn simulate_manual(
-    manual: &RwLock<Manual>,
-    runtime_context: &RwLock<RuntimeContext>,
+    manual: &Arc<RwLock<Manual>>,
+    runtime_context: &Arc<RwLock<RuntimeContext>>,
+    eval_tx: Sender<EvalEvent>,
 ) -> Result<(), String> {
     match runtime_context.write() {
         Ok(mut runtime_context) => {
@@ -39,7 +43,7 @@ pub fn simulate_manual(
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
     let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
-    let _ = run_constructs_evaluation(manual, runtime_context, None).unwrap();
+    let _ = run_constructs_evaluation(manual, runtime_context, None, eval_tx).unwrap();
     Ok(())
 }
 

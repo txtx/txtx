@@ -1,10 +1,11 @@
-use crate::typing::STACKS_CONTRACT_CALL;
+use crate::typing::{ClarityValue, STACKS_CONTRACT_CALL};
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
-use clarity_repl::clarity::vm::types::QualifiedContractIdentifier;
+use clarity_repl::clarity::vm::types::{QualifiedContractIdentifier, SequencedValue, UTF8Data};
 use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
+use txtx_addon_kit::types::types::{TypeImplementation, TypeSpecification};
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -39,9 +40,13 @@ lazy_static! {
                   optional: false,
                   interpolable: true
               },
-              args: {
+              function_args: {
                   documentation: "Args to provide",
-                  typing: Type::string(),
+                  typing: Type::array(Type::addon(TypeSpecification {
+                    id: "clarity_value".into(),
+                    documentation: "Any clarity value".into(),
+                    checker: ClarityValue::check
+                  })), // todo: why isn't CLARITY_VALUE working??
                   optional: true,
                   interpolable: true
               }
@@ -84,11 +89,29 @@ impl CommandImplementation for EncodeStacksContractCall {
             _ => todo!("function_name missing, return diagnostic"),
         };
 
+        let function_args = match args.get("function_args") {
+            Some(Value::Array(args)) => {
+                let mut function_args = vec![];
+                for arg in args.iter() {
+                    // todo: for each possible primitive value type, we should
+                    // try to cast it to a clarity value
+                    function_args.push(match arg {
+                        Value::Primitive(PrimitiveValue::String(value)) => {
+                            UTF8Data::to_value(&value.as_bytes().to_vec())
+                        }
+                        _ => todo!(), // return diag
+                    })
+                }
+                function_args
+            }
+            _ => todo!("function_args missing, return diagnostic"),
+        };
+
         let payload = TransactionPayload::ContractCall(TransactionContractCall {
             contract_name: contract_id.name.clone(),
             address: StacksAddress::from(contract_id.issuer.clone()),
             function_name: ClarityName::try_from(function_name).unwrap(),
-            function_args: vec![],
+            function_args,
         });
 
         let mut bytes = vec![];
@@ -97,7 +120,6 @@ impl CommandImplementation for EncodeStacksContractCall {
 
         result.outputs.insert("bytes".to_string(), value);
 
-        println!("==> {:?}", result);
         Ok(result)
     }
 

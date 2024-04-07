@@ -1,14 +1,20 @@
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
-    sync::RwLock,
+    collections::{HashMap, VecDeque},
+    sync::{mpsc::Sender, Arc, RwLock},
 };
 
-use crate::types::{Manual, RuntimeContext};
+use crate::{
+    types::{Manual, RuntimeContext},
+    EvalEvent,
+};
 use daggy::{Dag, NodeIndex, Walker};
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
-        commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
+        commands::{
+            CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
+            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+        },
         diagnostics::{Diagnostic, DiagnosticLevel},
         types::Value,
         ConstructUuid, PackageUuid,
@@ -16,12 +22,9 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
-pub fn order_dependent_nodes(
-    start_node: NodeIndex,
-    graph: Dag<Uuid, u32, u32>,
-) -> BTreeSet<NodeIndex> {
+pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = BTreeSet::new();
+    let mut visited_nodes_to_process = Vec::new();
 
     nodes_to_visit.push_front(start_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -30,15 +33,15 @@ pub fn order_dependent_nodes(
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.insert(node);
+        visited_nodes_to_process.push(node);
     }
 
     visited_nodes_to_process
 }
 
-pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> BTreeSet<NodeIndex> {
+pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = BTreeSet::new();
+    let mut visited_nodes_to_process = Vec::new();
 
     nodes_to_visit.push_front(root_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -53,10 +56,10 @@ pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> BTreeSet
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.insert(node);
+        visited_nodes_to_process.push(node);
     }
 
-    visited_nodes_to_process.remove(&root_node);
+    visited_nodes_to_process.remove(0); // remove root
     visited_nodes_to_process
 }
 
@@ -67,8 +70,15 @@ pub fn log_evaluated_outputs(manual: &Manual) {
             println!("Output '{}'", construct.name);
 
             if let Some(result) = manual.constructs_execution_results.get(construct_uuid) {
-                for (key, value) in result.outputs.iter() {
-                    println!("- {}: {:?}", key, value);
+                match result {
+                    Ok(result) => {
+                        for (key, value) in result.outputs.iter() {
+                            println!("- {}: {:?}", key, value);
+                        }
+                    }
+                    Err(e) => {
+                        println!(" - {e}")
+                    }
                 }
             } else {
                 println!(" - (no execution results)")
@@ -81,18 +91,57 @@ pub enum ConstructEvaluationStatus {
     NeedsUserInteraction(Vec<NodeIndex>),
 }
 
-pub fn run_constructs_evaluation(
-    manual: &RwLock<Manual>,
-    runtime_ctx: &RwLock<RuntimeContext>,
-    start_node: Option<NodeIndex>,
-) -> Result<(), Diagnostic> {
-    let mut nodes_needing_user_interaction = vec![]; // todo(micaiah): currently unused
+/// Prepares for a reevaluation of all of `start_node`'s dependents within the `manual`.
+/// This involves setting the command instance state to `New` for all commands _except_
+/// the start node. The `New` state indicates to the evaluation loop that the data
+/// should be recomputed, and this should occur for all dependents of the updated
+/// start node, but not the start node itself.
+pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node: NodeIndex) {
+    match manual.read() {
+        Ok(manual) => {
+            let g = manual.constructs_graph.clone();
+            let nodes_to_reevaluate =
+                order_dependent_nodes(start_node, manual.constructs_graph.clone());
 
+            for node in nodes_to_reevaluate.into_iter() {
+                let uuid = g.node_weight(node).expect("unable to retrieve construct");
+                let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+                let Some(command_instance) = manual.commands_instances.get(&construct_uuid) else {
+                    continue;
+                };
+                if node == start_node {
+                    continue;
+                }
+
+                if let Ok(mut state_machine) = command_instance.state.lock() {
+                    match state_machine.state() {
+                        CommandInstanceStateMachineState::New
+                        | CommandInstanceStateMachineState::Failed => {}
+                        _ => {
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::ReEvaluate)
+                                .unwrap();
+                        }
+                    };
+                }
+            }
+        }
+        Err(e) => unimplemented!("could not acquire lock: {e}"),
+    }
+}
+
+pub fn run_constructs_evaluation(
+    manual: &Arc<RwLock<Manual>>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
+    start_node: Option<NodeIndex>,
+    eval_tx: Sender<EvalEvent>,
+) -> Result<(), Diagnostic> {
     match manual.write() {
         Ok(mut manual) => {
             let g = manual.constructs_graph.clone();
 
-            let visited_nodes_to_process = match start_node {
+            let ordered_nodes_to_process = match start_node {
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
@@ -104,7 +153,7 @@ pub fn run_constructs_evaluation(
             let commands_instances = manual.commands_instances.clone();
             let constructs_locations = manual.constructs_locations.clone();
 
-            for node in visited_nodes_to_process.into_iter() {
+            for node in ordered_nodes_to_process.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
                 let construct_uuid = ConstructUuid::Local(uuid.clone());
 
@@ -129,9 +178,36 @@ pub fn run_constructs_evaluation(
                     None
                 };
 
-                let mut dependencies_execution_results: HashMap<
+                match command_instance.state.lock() {
+                    Ok(state_machine) => match state_machine.state() {
+                        CommandInstanceStateMachineState::Failed => {
+                            println!("continuing past failed state command");
+                            continue;
+                        }
+                        _ => {}
+                    },
+                    Err(e) => unimplemented!("unable to acquire lock {e}"),
+                }
+                // in general we want to ignore previous input evaluation results when evaluating for outputs.
+                // we want to recompute the whole graph in case anything has changed since our last traversal.
+                // however, if there was a start_node provided, this evaluation was initiated from a user interaction
+                // that is stored in the input evaluation results, and we want to keep that data to evaluate that
+                // commands dependents
+                let input_evaluation_results = if let Some(start_node) = start_node {
+                    if start_node == node {
+                        manual
+                            .command_inputs_evaluation_results
+                            .get(&construct_uuid.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let mut cached_dependency_execution_results: HashMap<
                     ConstructUuid,
-                    &CommandExecutionResult,
+                    Result<&CommandExecutionResult, &Diagnostic>,
                 > = HashMap::new();
 
                 // Retrieve the construct_uuid of the inputs
@@ -152,43 +228,102 @@ pub fn run_constructs_evaluation(
                     if let Some((dependency, _)) = res {
                         let evaluation_result_opt =
                             manual.constructs_execution_results.get(&dependency);
+
                         if let Some(evaluation_result) = evaluation_result_opt {
-                            dependencies_execution_results.insert(dependency, evaluation_result);
+                            match cached_dependency_execution_results.get(&dependency) {
+                                None => match evaluation_result {
+                                    Ok(evaluation_result) => {
+                                        cached_dependency_execution_results
+                                            .insert(dependency, Ok(evaluation_result));
+                                    }
+                                    Err(e) => {
+                                        cached_dependency_execution_results
+                                            .insert(dependency, Err(e));
+                                    }
+                                },
+                                Some(Err(_)) => continue,
+                                Some(Ok(_)) => {}
+                            }
                         }
                     }
                 }
 
-                let evaluated_inputs_res = perform_inputs_evaluation(
-                    command_instance,
-                    &dependencies_execution_results,
-                    &input_evaluation_results,
-                    package_uuid,
-                    &manual,
-                    runtime_ctx,
-                );
-
-                let evaluated_inputs = match evaluated_inputs_res {
-                    Ok(result) => match result {
-                        CommandInputEvaluationStatus::Complete(result) => result,
-                        CommandInputEvaluationStatus::NeedsUserInteraction => {
-                            nodes_needing_user_interaction.push(node);
+                if let Ok(mut state_machine) = command_instance.state.lock() {
+                    match state_machine.state() {
+                        CommandInstanceStateMachineState::Evaluated => {
+                            println!("current state is evaluated");
+                        }
+                        CommandInstanceStateMachineState::Failed
+                        | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
                             continue;
                         }
-                    },
-                    Err(e) => {
-                        todo!("build input evaluation diagnostic: {}", e)
-                    }
-                };
-                manual
-                    .command_inputs_evaluation_results
-                    .insert(construct_uuid.clone(), evaluated_inputs.clone());
+                        state => {
+                            println!("current state: {:?}", state);
 
-                let execution_result = command_instance
-                    .perform_execution(&evaluated_inputs)
-                    .unwrap(); // todo(lgalabru): return Diagnostic instead
-                manual
-                    .constructs_execution_results
-                    .insert(construct_uuid, execution_result);
+                            let evaluated_inputs_res = perform_inputs_evaluation(
+                                command_instance,
+                                &cached_dependency_execution_results,
+                                &input_evaluation_results,
+                                package_uuid,
+                                &manual,
+                                runtime_ctx,
+                            );
+
+                            let evaluated_inputs = match evaluated_inputs_res {
+                                Ok(result) => match result {
+                                    CommandInputEvaluationStatus::Complete(result) => result,
+                                    CommandInputEvaluationStatus::NeedsUserInteraction => {
+                                        state_machine
+                                            .consume(
+                                                &CommandInstanceStateMachineInput::NeedsUserInput,
+                                            )
+                                            .unwrap();
+                                        continue;
+                                    }
+                                },
+                                Err(e) => {
+                                    todo!("build input evaluation diagnostic: {}", e)
+                                }
+                            };
+
+                            manual
+                                .command_inputs_evaluation_results
+                                .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+                            let execution_result = match command_instance.perform_execution(
+                                &evaluated_inputs,
+                                manual.uuid.clone(),
+                                construct_uuid.clone(),
+                                eval_tx.clone(),
+                            ) {
+                                // todo(lgalabru): return Diagnostic instead
+                                Ok(CommandExecutionStatus::Complete(result)) => {
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Successful)
+                                        .unwrap();
+                                    result
+                                }
+                                Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
+                                    state_machine
+                                        .consume(
+                                            &CommandInstanceStateMachineInput::NeedsAsyncRequest,
+                                        )
+                                        .unwrap();
+                                    continue;
+                                }
+                                Err(e) => {
+                                    state_machine
+                                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                                        .unwrap();
+                                    Err(e)
+                                }
+                            };
+                            manual
+                                .constructs_execution_results
+                                .insert(construct_uuid, execution_result);
+                        }
+                    }
+                }
             }
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),
@@ -203,16 +338,20 @@ pub fn run_constructs_evaluation(
 }
 
 pub enum ExpressionEvaluationStatus {
-    Complete(Value),
+    CompleteOk(Value),
+    CompleteErr(Diagnostic),
     DependencyNotComputed,
 }
 
 pub fn eval_expression(
     expr: &Expression,
-    dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
+    dependencies_execution_results: &HashMap<
+        ConstructUuid,
+        Result<&CommandExecutionResult, &Diagnostic>,
+    >,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
         // Represents a null value.
@@ -235,8 +374,27 @@ pub fn eval_expression(
         // Represents a string that does not contain any template interpolations or template directives.
         Expression::String(decorated_string) => Value::string(decorated_string.to_string()),
         // Represents an HCL array.
-        Expression::Array(_array) => {
-            unimplemented!()
+        Expression::Array(entries) => {
+            let mut res = vec![];
+            for entry_expr in entries {
+                let value = match eval_expression(
+                    entry_expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )? {
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
+                    ExpressionEvaluationStatus::DependencyNotComputed => {
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                    }
+                };
+                res.push(value);
+            }
+            Value::array(res)
         }
         // Represents an HCL object.
         Expression::Object(_object) => {
@@ -274,7 +432,10 @@ pub fn eval_expression(
                     manual,
                     runtime_ctx,
                 )? {
-                    ExpressionEvaluationStatus::Complete(result) => result,
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
                         return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                     }
@@ -289,12 +450,16 @@ pub fn eval_expression(
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
             let Ok(Some((dependency, mut components))) = manual
-                .try_resolve_construct_reference_in_expression(package_uuid, expr, &runtime_ctx)
+                .try_resolve_construct_reference_in_expression(package_uuid, expr, runtime_ctx)
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
-            let res = match dependencies_execution_results.get(&dependency) {
-                Some(res) => res,
+            let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
+            {
+                Some(res) => match res.clone() {
+                    Ok(res) => res,
+                    Err(e) => return Ok(ExpressionEvaluationStatus::CompleteErr(e.clone())),
+                },
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             };
             let attribute = components.pop_front().unwrap();
@@ -327,7 +492,10 @@ pub fn eval_expression(
                 manual,
                 runtime_ctx,
             )? {
-                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::CompleteOk(result) => result,
+                ExpressionEvaluationStatus::CompleteErr(e) => {
+                    return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                 }
@@ -339,7 +507,10 @@ pub fn eval_expression(
                 manual,
                 runtime_ctx,
             )? {
-                ExpressionEvaluationStatus::Complete(result) => result,
+                ExpressionEvaluationStatus::CompleteOk(result) => result,
+                ExpressionEvaluationStatus::CompleteErr(e) => {
+                    return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                 }
@@ -372,7 +543,7 @@ pub fn eval_expression(
         }
     };
 
-    Ok(ExpressionEvaluationStatus::Complete(value))
+    Ok(ExpressionEvaluationStatus::CompleteOk(value))
 }
 
 // pub struct EvaluatedExpression {
@@ -386,15 +557,18 @@ pub enum CommandInputEvaluationStatus {
 
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,
-    dependencies_execution_results: &HashMap<ConstructUuid, &CommandExecutionResult>,
+    dependencies_execution_results: &HashMap<
+        ConstructUuid,
+        Result<&CommandExecutionResult, &Diagnostic>,
+    >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
     manual: &Manual,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<CommandInputEvaluationStatus, String> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();
-    let mut fatal_error = false;
+    let mut _fatal_error = false;
 
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
@@ -402,56 +576,12 @@ pub fn perform_inputs_evaluation(
             Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input),
             None => None,
         };
-        match input.as_object() {
-            Some(object_props) => {
-                // todo(micaiah) - figure out how user-input values work for this branch
-                let mut object_values = HashMap::new();
-                for prop in object_props.iter() {
-                    if let Some(value) = previously_evaluated_input {
-                        match value.clone() {
-                            Ok(Value::Primitive(p)) => {
-                                object_values.insert(prop.name.to_string(), Ok(p));
-                            }
-                            Ok(Value::Object(obj)) => {
-                                for (k, v) in obj.into_iter() {
-                                    object_values.insert(k, v);
-                                }
-                            }
-                            Err(diag) => {
-                                object_values.insert(prop.name.to_string(), Err(diag));
-                            }
-                        };
-                    }
-
-                    let Some(expr) =
-                        command_instance.get_expression_from_object_property(&input, &prop)?
-                    else {
-                        continue;
-                    };
-                    let value = match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_uuid,
-                        manual,
-                        runtime_ctx,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
-                        Err(e) => Err(e),
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            println!(
-                                "returning early because eval expression needs user interaction"
-                            );
-                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
-                        }
-                    };
-
-                    if let Err(ref diag) = value {
-                        if let DiagnosticLevel::Error = diag.level {
-                            fatal_error = true;
-                        }
-                    }
-
-                    match value {
+        if let Some(object_props) = input.as_object() {
+            // todo(micaiah) - figure out how user-input values work for this branch
+            let mut object_values = HashMap::new();
+            for prop in object_props.iter() {
+                if let Some(value) = previously_evaluated_input {
+                    match value.clone() {
                         Ok(Value::Primitive(p)) => {
                             object_values.insert(prop.name.to_string(), Ok(p));
                         }
@@ -460,50 +590,146 @@ pub fn perform_inputs_evaluation(
                                 object_values.insert(k, v);
                             }
                         }
+                        Ok(Value::Array(_)) => {
+                            unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                        }
                         Err(diag) => {
                             object_values.insert(prop.name.to_string(), Err(diag));
                         }
                     };
                 }
-                if !object_values.is_empty() {
-                    results.insert(input, Ok(Value::Object(object_values)));
-                }
-            }
-            None => {
-                let value = if let Some(value) = previously_evaluated_input {
-                    value.clone()
-                } else {
-                    let Some(expr) = command_instance.get_expression_from_input(&input)? else {
-                        continue;
-                    };
-                    match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_uuid,
-                        manual,
-                        runtime_ctx,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::Complete(result)) => Ok(result),
-                        Err(e) => Err(e),
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
-                        }
+
+                let Some(expr) =
+                    command_instance.get_expression_from_object_property(&input, &prop)?
+                else {
+                    continue;
+                };
+                let value = match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("returning early because eval expression needs user interaction");
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
 
                 if let Err(ref diag) = value {
                     if let DiagnosticLevel::Error = diag.level {
-                        fatal_error = true;
+                        _fatal_error = true;
                     }
                 }
 
-                results.insert(input, value);
+                match value {
+                    Ok(Value::Primitive(p)) => {
+                        object_values.insert(prop.name.to_string(), Ok(p));
+                    }
+                    Ok(Value::Object(obj)) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    Ok(Value::Array(_)) => {
+                        unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                    }
+                    Err(diag) => {
+                        object_values.insert(prop.name.to_string(), Err(diag));
+                    }
+                };
             }
+            if !object_values.is_empty() {
+                results.insert(input, Ok(Value::Object(object_values)));
+            }
+        } else if let Some(_) = input.as_array() {
+            let mut array_values = vec![];
+            if let Some(value) = previously_evaluated_input {
+                match value.clone() {
+                    Ok(Value::Array(entries)) => {
+                        array_values.extend::<Vec<Value>>(entries.into_iter().collect());
+                    }
+                    Err(diag) => {
+                        results.insert(input, Err(diag));
+                        continue;
+                    }
+                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) => unreachable!(),
+                }
+            }
+
+            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                continue;
+            };
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_uuid,
+                manual,
+                runtime_ctx,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
+                    Value::Primitive(_) | Value::Object(_) => unreachable!(),
+                    Value::Array(entries) => {
+                        for (i, entry) in entries.into_iter().enumerate() {
+                            array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
+                        }
+                        Ok(Value::array(array_values))
+                    }
+                },
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                Err(e) => Err(e),
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    println!("returning early because eval expression needs user interaction");
+                    return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
+        } else {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
         }
     }
 
-    if fatal_error {
-        return Err(format!("fatal error"));
-    }
+    // if fatal_error {
+    //     return Err(format!("fatal error"));
+    // }
     Ok(CommandInputEvaluationStatus::Complete(results))
 }

@@ -3,14 +3,15 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
+use rust_fsm::StateMachine;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::RwLock;
+use std::sync::{Arc, Mutex, RwLock};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
-use txtx_addon_kit::types::commands::CommandInstance;
+use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -33,6 +34,7 @@ impl SourceTree {
 
 #[derive(Debug, Clone)]
 pub struct Manual {
+    pub uuid: Uuid,
     pub source_tree: Option<SourceTree>,
     pub packages_uuid_lookup: HashMap<FileLocation, PackageUuid>,
     pub manual_metadata_construct_uuid: Option<ConstructUuid>,
@@ -45,7 +47,8 @@ pub struct Manual {
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
-    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
+    pub constructs_execution_results:
+        HashMap<ConstructUuid, Result<CommandExecutionResult, Diagnostic>>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub description: Option<String>,
 }
@@ -57,8 +60,9 @@ impl Manual {
         let _ = packages_graph.add_node(uuid.value());
         let mut constructs_graph = Dag::new();
         let graph_root = constructs_graph.add_node(uuid.value());
-
+        let manual_uuid = Uuid::new_v4();
         Self {
+            uuid: manual_uuid,
             source_tree,
             packages: HashMap::new(),
             packages_uuid_lookup: HashMap::new(),
@@ -133,6 +137,7 @@ impl Manual {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_module_specification(),
+                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -148,6 +153,7 @@ impl Manual {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_variable_specification(),
+                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -163,6 +169,7 @@ impl Manual {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_output_specification(),
+                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -202,7 +209,7 @@ impl Manual {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
-        _runtime_context: &RwLock<RuntimeContext>,
+        _runtime_context: &Arc<RwLock<RuntimeContext>>,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);

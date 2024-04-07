@@ -4,17 +4,24 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 mod commands;
 mod functions;
 mod typing;
 
+use rust_fsm::StateMachine;
 use txtx_addon_kit::{
     hcl::{expr::Expression, structure::Block},
     helpers::{fs::FileLocation, hcl::VisitorError},
     types::{
-        commands::{CommandExecutionResult, CommandInstance, CommandSpecification},
+        commands::{
+            CommandExecutionResult, CommandInstance, CommandInstanceStateMachine,
+            CommandSpecification,
+        },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
         ConstructUuid, PackageUuid,
@@ -94,6 +101,9 @@ impl AddonContext for StacksNetworkAddonContext {
         };
         let command_instance = CommandInstance {
             specification: command_spec.clone(),
+            state: Arc::new(Mutex::new(
+                StateMachine::<CommandInstanceStateMachine>::new(),
+            )),
             name: command_name.to_string(),
             block: block.clone(),
             package_uuid: package_uuid.clone(),

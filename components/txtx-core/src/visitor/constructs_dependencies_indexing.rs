@@ -1,12 +1,12 @@
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 
 use crate::types::{Manual, RuntimeContext};
 
 pub fn run_constructs_dependencies_indexing(
-    manual: &RwLock<Manual>,
-    runtime_ctx: &RwLock<RuntimeContext>,
+    manual: &Arc<RwLock<Manual>>,
+    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<
     (
         Vec<(ConstructUuid, ConstructUuid)>,
@@ -83,12 +83,13 @@ pub fn run_constructs_dependencies_indexing(
                             runtime_ctx,
                         );
                         if let Ok(Some((resolved_construct_uuid, _))) = result {
-                            constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                            constructs_edges
+                                .push((construct_uuid.clone(), resolved_construct_uuid));
                         } else {
                             println!("  -> {} (unable to resolve)", dep,);
                         }
                     }
-                }        
+                }
             }
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),

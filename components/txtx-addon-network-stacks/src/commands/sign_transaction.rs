@@ -220,7 +220,6 @@ impl CommandImplementation for SignStacksTransaction {
             }
         }
 
-        println!("==> {:?}", result);
         Ok(result)
     }
 

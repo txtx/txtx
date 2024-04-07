@@ -1,8 +1,14 @@
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;
-use std::{collections::HashMap, sync::RwLock};
-use txtx_core::types::{Manual, RuntimeContext};
+use std::{
+    collections::HashMap,
+    sync::{mpsc::Sender, Arc, RwLock},
+};
+use txtx_core::{
+    kit::types::commands::EvalEvent,
+    types::{Manual, RuntimeContext},
+};
 
 pub mod mutation;
 pub mod query;
@@ -10,11 +16,12 @@ pub mod types;
 
 pub struct Context {
     pub data: HashMap<String, ContextData>,
+    pub eval_tx: Sender<EvalEvent>,
 }
 
 pub struct ContextData {
-    pub manual: RwLock<Manual>,
-    pub runtime_context: RwLock<RuntimeContext>,
+    pub manual: Arc<RwLock<Manual>>,
+    pub runtime_context: Arc<RwLock<RuntimeContext>>,
 }
 
 impl juniper::Context for Context {}

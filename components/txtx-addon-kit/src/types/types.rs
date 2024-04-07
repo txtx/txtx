@@ -1,4 +1,7 @@
-use serde::{ser::SerializeMap, Serialize, Serializer};
+use serde::{
+    ser::{SerializeMap, SerializeSeq},
+    Serialize, Serializer,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Write},
@@ -10,6 +13,7 @@ use super::diagnostics::Diagnostic;
 pub enum Value {
     Primitive(PrimitiveValue),
     Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
+    Array(Box<Vec<Value>>),
 }
 
 impl Serialize for Value {
@@ -32,6 +36,13 @@ impl Serialize for Value {
                     }
                 }
                 map.end()
+            }
+            Value::Array(entries) => {
+                let mut seq = serializer.serialize_seq(Some(entries.len()))?;
+                for entry in entries.iter() {
+                    seq.serialize_element(entry)?;
+                }
+                seq.end()
             }
         }
     }
@@ -58,6 +69,9 @@ impl Value {
     }
     pub fn buffer(bytes: Vec<u8>, typing: TypeSpecification) -> Value {
         Value::Primitive(PrimitiveValue::Buffer(BufferData { bytes, typing }))
+    }
+    pub fn array(array: Vec<Value>) -> Value {
+        Value::Array(Box::new(array))
     }
 
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
@@ -98,6 +112,17 @@ impl Value {
             (Value::Primitive(PrimitiveValue::String(_)), _) => false,
             (Value::Primitive(PrimitiveValue::Buffer(_)), _) => false,
             (Value::Object(_), _) => false,
+            (Value::Array(_), Value::Primitive(_)) => false,
+            (Value::Array(_), Value::Object(_)) => false,
+            (Value::Array(lhs), Value::Array(rhs)) => {
+                let Some(first_lhs) = lhs.first() else {
+                    return false;
+                };
+                let Some(first_rhs) = rhs.first() else {
+                    return false;
+                };
+                first_lhs.is_type_eq(first_rhs)
+            }
         }
     }
 }
@@ -117,6 +142,7 @@ impl Value {
             }
             Type::Object(_) => todo!(),
             Type::Addon(_) => todo!(),
+            Type::Array(_) => todo!(),
         }
     }
 }
@@ -212,7 +238,9 @@ pub enum Type {
     Primitive(PrimitiveType),
     Object(Vec<ObjectProperty>),
     Addon(TypeSpecification),
+    Array(Box<Type>),
 }
+
 impl Type {
     pub fn string() -> Type {
         Type::Primitive(PrimitiveType::String)
@@ -240,6 +268,9 @@ impl Type {
     }
     pub fn addon(type_spec: TypeSpecification) -> Type {
         Type::Addon(type_spec)
+    }
+    pub fn array(array_item_type: Type) -> Type {
+        Type::Array(Box::new(array_item_type))
     }
 }
 
@@ -286,7 +317,8 @@ impl Serialize for Type {
             Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
             Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("buffer"),
             Type::Object(_) => serializer.serialize_str("object"),
-            Type::Addon(_) => unimplemented!("Type::Addon variant"),
+            Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
+            Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
         }
     }
 }
@@ -317,6 +349,19 @@ pub struct TypeSpecification {
     pub documentation: String,
     pub checker: TypeChecker,
 }
+
+impl Serialize for TypeSpecification {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("id", &self.id)?;
+        map.serialize_entry("documentation", &self.documentation)?;
+        map.end()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Refinements {
     pub specs: BTreeMap<String, Type>,
