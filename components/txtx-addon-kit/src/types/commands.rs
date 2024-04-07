@@ -448,7 +448,11 @@ impl CommandInstance {
                 let spec = self.specification.clone();
                 let async_runner_moved = async_runner.clone();
                 let _ = std::thread::spawn(move || {
-                    let runtime = RuntimeBuilder::new_current_thread().build().unwrap();
+                    let runtime = RuntimeBuilder::new_current_thread()
+                        .enable_time()
+                        .enable_io()
+                        .build()
+                        .unwrap();
                     let result = runtime.block_on((async_runner_moved)(&spec, &values));
                     eval_tx.send(EvalEvent::AsyncRequestComplete {
                         manual_uuid,
