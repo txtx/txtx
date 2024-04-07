@@ -10,6 +10,7 @@ use std::{
     pin::Pin,
     sync::{mpsc::Sender, Arc, Mutex},
 };
+#[cfg(not(feature = "wasm"))]
 use tokio::runtime::Builder as RuntimeBuilder;
 use uuid::Uuid;
 
@@ -445,22 +446,27 @@ impl CommandInstance {
         }
         match &self.specification.runner {
             CommandRunner::Async(async_runner) => {
-                let spec = self.specification.clone();
-                let async_runner_moved = async_runner.clone();
-                let _ = std::thread::spawn(move || {
-                    let runtime = RuntimeBuilder::new_current_thread()
-                        .enable_time()
-                        .enable_io()
-                        .build()
-                        .unwrap();
-                    let result = runtime.block_on((async_runner_moved)(&spec, &values));
-                    eval_tx.send(EvalEvent::AsyncRequestComplete {
-                        manual_uuid,
-                        result: Ok(CommandExecutionStatus::Complete(result)),
-                        construct_uuid,
-                    })
-                });
-                Ok(CommandExecutionStatus::NeedsAsyncRequest)
+                #[cfg(not(feature = "wasm"))]
+                {
+                    let spec = self.specification.clone();
+                    let async_runner_moved = async_runner.clone();
+                    let _ = std::thread::spawn(move || {
+                        let runtime = RuntimeBuilder::new_current_thread()
+                            .enable_time()
+                            .enable_io()
+                            .build()
+                            .unwrap();
+                        let result = runtime.block_on((async_runner_moved)(&spec, &values));
+                        eval_tx.send(EvalEvent::AsyncRequestComplete {
+                            manual_uuid,
+                            result: Ok(CommandExecutionStatus::Complete(result)),
+                            construct_uuid,
+                        })
+                    });
+                    Ok(CommandExecutionStatus::NeedsAsyncRequest)
+                }
+                #[cfg(feature = "wasm")]
+                panic!("async commands are not enabled for wasm")
             }
             CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
                 (sync_runner)(&self.specification, &values),

@@ -6,13 +6,14 @@ edition = "2021"
 [dependencies]
 hex = "0.4.3"
 daggy = "0.8.0"
-txtx-addon-kit = { path = "../txtx-addon-kit" }
+txtx-addon-kit = { path = "../txtx-addon-kit", default-features = false}
 getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
 jaq-core = "1.2.1"
 rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
 
 [features]
+default = ["txtx-addon-kit/default"]
 wasm = ["txtx-addon-kit/wasm"]
 
 [lib]
