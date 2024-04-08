@@ -15,6 +15,7 @@ pub mod query;
 pub mod types;
 
 pub struct Context {
+    pub protocol_name: String,
     pub data: HashMap<String, ContextData>,
     pub eval_tx: Sender<EvalEvent>,
 }

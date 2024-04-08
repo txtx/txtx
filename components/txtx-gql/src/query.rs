@@ -1,5 +1,5 @@
 use crate::types::constructs::Construct;
-use crate::types::manual::{GqlManual, ManualDescription};
+use crate::types::manual::{GqlManual, ManualDescription, ProtocolManifest};
 
 use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;
@@ -44,7 +44,7 @@ impl Query {
         }
     }
 
-    async fn manuals(context: &Context) -> Vec<ManualDescription> {
+    async fn protocol(context: &Context) -> ProtocolManifest {
         let mut manuals = vec![];
         for (id, ContextData { manual, .. }) in context.data.iter() {
             match manual.read() {
@@ -61,6 +61,9 @@ impl Query {
                 Err(e) => unimplemented!("could not acquire lock: {e}"),
             }
         }
-        manuals
+        ProtocolManifest {
+            name: context.protocol_name.clone(),
+            manuals,
+        }
     }
 }

@@ -6,6 +6,24 @@ use serde::{de::IntoDeserializer, Deserialize};
 use serde_json::json;
 use txtx_core::types::{ConstructUuid, Manual};
 
+#[derive(Clone)]
+pub struct ProtocolManifest {
+    pub name: String,
+    pub manuals: Vec<ManualDescription>,
+}
+
+#[graphql_object(context = Context)]
+impl ProtocolManifest {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn manuals(&self) -> Vec<ManualDescription> {
+        self.manuals.clone()
+    }
+}
+
+#[derive(Clone)]
 pub struct ManualDescription {
     pub identifier: String,
     pub name: Option<String>,
