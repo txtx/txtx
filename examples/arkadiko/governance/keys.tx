@@ -1,0 +1,67 @@
+variable "govenance_contract_id" {
+  description = "The address of the deployed DAO contract."
+  type = "string"
+  value = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-governance-v4-2"
+}
+
+variable "stake_pool_diko_trait" {
+  description = ""
+  type = "string"
+  value = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-stake-pool-diko-v1-2"
+}
+
+variable "start_block_height" {
+  description = ""
+  type = "uint"
+  value = 124350
+}
+
+variable "vote_length" {
+  description = ""
+  type = "uint"
+  value = 280
+}
+
+variable "proposal_title" {
+  description = ""
+  type = "string"
+  value = "AIP 15 - Update DIKO emissions"
+}
+
+variable "proposal_url" {
+  description = ""
+  type = "string"
+  value = "https://github.com/arkadiko-dao/arkadiko/pull/559"
+}
+
+variable "proposed_contract_changes" {
+  description = "AIP 15 - Update DIKO emissions"
+  type = "string"
+  value = {
+    "name": clarity_value_ascii("aip-15-diko-emissions"),
+    "address": clarity_value_standard_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR"),
+    "qualified-name": clarity_value_contract_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.aip-15-arkadiko-governance-emissions"),
+    "can-mint": false,
+    "can-burn": false
+  }
+}
+
+addon "stacks" "call_contract" "governance_proposal_payload" {
+  description = "Calls the `arkadiko-governance-v4-2` contract's `propose` function with AIP 15 arguments."
+  contract_id = clarity_value_contract_principal(variable.govenance_contract_id.value)
+  function_name = "propose"
+  function_args = [
+    clarity_value_contract_principal(variable.stake_pool_diko_trait.value), 
+    clarity_value_uint(variable.start_block_height.value), 
+    clarity_value_uint(variable.vote_length.value), 
+    clarity_value_ascii(variable.proposal_title.value), 
+    clarity_value_ascii(variable.proposal_url.value), 
+    clarity_value_tuple(variable.proposed_contract_changes.value)
+  ]
+}
+
+addon "stacks" "sign_transaction" "sign_governance_proposal_payload" {
+  web_interact {
+    transaction_payload_bytes = addon.governance_proposal_payload.bytes
+  }
+}
