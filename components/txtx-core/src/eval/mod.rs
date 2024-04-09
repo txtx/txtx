@@ -16,7 +16,7 @@ use txtx_addon_kit::{
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::{Diagnostic, DiagnosticLevel},
-        types::Value,
+        types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
@@ -377,8 +377,66 @@ pub fn eval_expression(
             Value::array(res)
         }
         // Represents an HCL object.
-        Expression::Object(_object) => {
-            unimplemented!()
+        Expression::Object(object) => {
+            let mut map = HashMap::new();
+            for (k, v) in object.into_iter() {
+                let key = match k {
+                    txtx_addon_kit::hcl::expr::ObjectKey::Expression(k_expr) => {
+                        match eval_expression(
+                            k_expr,
+                            dependencies_execution_results,
+                            package_uuid,
+                            manual,
+                            runtime_ctx,
+                        )? {
+                            ExpressionEvaluationStatus::CompleteOk(result) => match result {
+                                Value::Primitive(PrimitiveValue::String(result)) => result,
+                                Value::Primitive(_)
+                                | Value::Addon(_)
+                                | Value::Array(_)
+                                | Value::Object(_) => {
+                                    return Ok(ExpressionEvaluationStatus::CompleteErr(
+                                        Diagnostic::error_from_string(
+                                            "object key must evaluate to a string".to_string(),
+                                        ),
+                                    ))
+                                }
+                            },
+                            ExpressionEvaluationStatus::CompleteErr(e) => {
+                                return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                            }
+                            ExpressionEvaluationStatus::DependencyNotComputed => {
+                                return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                            }
+                        }
+                    }
+                    txtx_addon_kit::hcl::expr::ObjectKey::Ident(k_ident) => k_ident.to_string(),
+                };
+                let value = match eval_expression(
+                    v.expr(), // todo, may not be expression?
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )? {
+                    ExpressionEvaluationStatus::CompleteOk(result) => match result {
+                        Value::Primitive(primitive) => Ok(primitive),
+                        Value::Addon(_) | Value::Array(_) | Value::Object(_) => {
+                            return Ok(ExpressionEvaluationStatus::CompleteErr(
+                                Diagnostic::error_from_string(
+                                    "object value must evaluate to a primitive".to_string(),
+                                ),
+                            ))
+                        }
+                    },
+                    ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
+                    ExpressionEvaluationStatus::DependencyNotComputed => {
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                    }
+                };
+                map.insert(key, value);
+            }
+            Value::Object(map)
         }
         // Represents a string containing template interpolations and template directives.
         Expression::StringTemplate(_string_template) => {
@@ -573,6 +631,9 @@ pub fn perform_inputs_evaluation(
                         Ok(Value::Array(_)) => {
                             unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
                         }
+                        Ok(Value::Addon(_)) => {
+                            unreachable!("received addon in object") // currently objects can only contain primitives. this probably will need to change
+                        }
                         Err(diag) => {
                             object_values.insert(prop.name.to_string(), Err(diag));
                         }
@@ -618,6 +679,9 @@ pub fn perform_inputs_evaluation(
                     Ok(Value::Array(_)) => {
                         unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
                     }
+                    Ok(Value::Addon(_)) => {
+                        unreachable!("received addon in object") // currently objects can only contain primitives. this probably will need to change
+                    }
                     Err(diag) => {
                         object_values.insert(prop.name.to_string(), Err(diag));
                     }
@@ -637,7 +701,9 @@ pub fn perform_inputs_evaluation(
                         results.insert(input, Err(diag));
                         continue;
                     }
-                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) => unreachable!(),
+                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
+                        unreachable!()
+                    }
                 }
             }
 
@@ -652,7 +718,7 @@ pub fn perform_inputs_evaluation(
                 runtime_ctx,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
-                    Value::Primitive(_) | Value::Object(_) => unreachable!(),
+                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
@@ -665,6 +731,36 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     println!("returning early because eval expression needs user interaction");
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
+        } else if let Some(_) = input.as_addon() {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
                 }
             };
 
