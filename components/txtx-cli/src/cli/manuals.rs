@@ -123,7 +123,7 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
         eval_tx: eval_event_tx.clone(),
     };
 
-    let port = 3210;
+    let port = 8488;
     println!(
         "\n{} Running Web console\n{}",
         purple!("→"),
