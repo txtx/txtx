@@ -10,6 +10,30 @@ lazy_static! {
             documentation: "Clarity unsigned integer (128 bits)",
         }
     };
+    pub static ref CLARITY_INT: TypeSpecification = define_addon_type! {
+        ClarityIntegerSigned => {
+            name: "clarity_int",
+            documentation: "Clarity signed integer (128 bits)",
+        }
+    };
+    pub static ref CLARITY_PRINCIPAL: TypeSpecification = define_addon_type! {
+        ClarityPrincipal => {
+            name: "clarity_principal",
+            documentation: "Clarity principal",
+        }
+    };
+    pub static ref CLARITY_ASCII: TypeSpecification = define_addon_type! {
+        ClarityAscii => {
+            name: "clarity_ascii",
+            documentation: "Clarity ASCII string",
+        }
+    };
+    pub static ref CLARITY_TUPLE: TypeSpecification = define_addon_type! {
+        ClarityTuple => {
+            name: "clarity_tuple",
+            documentation: "Clarity tuple",
+        }
+    };
     pub static ref CLARITY_SEQUENCE: TypeSpecification = define_addon_type! {
         ClaritySequence => {
             name: "clarity_sequence",
@@ -49,6 +73,31 @@ impl TypeImplementation for ClarityIntegerUnsigned {
     }
 }
 
+pub struct ClarityIntegerSigned;
+impl TypeImplementation for ClarityIntegerSigned {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct ClarityPrincipal;
+impl TypeImplementation for ClarityPrincipal {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct ClarityAscii;
+impl TypeImplementation for ClarityAscii {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct ClarityTuple;
+impl TypeImplementation for ClarityTuple {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
 pub struct ClaritySequence;
 impl TypeImplementation for ClaritySequence {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
