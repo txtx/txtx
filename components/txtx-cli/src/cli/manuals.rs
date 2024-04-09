@@ -76,6 +76,11 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
     let mut gql_context = HashMap::new();
     let mut eval_event_ctx = HashMap::new();
     let (eval_event_tx, eval_event_rx) = channel();
+    println!(
+        "\n{} Processing manifest '{}'",
+        purple!("→"),
+        manifest_file_path
+    );
 
     for (manual_name, manual) in manuals.iter() {
         let stacks_addon = StacksNetworkAddon::new();
@@ -88,6 +93,12 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
         let runtime_ctx_rw_lock = Arc::new(RwLock::new(runtime_context));
 
         simulate_manual(&manual_rw_lock, &runtime_ctx_rw_lock, eval_event_tx.clone())?;
+
+        println!(
+            "{} Runbook '{}' successfully checked and loaded",
+            green!("✓"),
+            manual_name
+        );
 
         gql_context.insert(
             manual_name.to_string(),
@@ -111,7 +122,15 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
         data: gql_context,
         eval_tx: eval_event_tx.clone(),
     };
-    let _ = web_ui::http::start_server(gql_context, ctx).await;
+
+    let port = 3210;
+    println!(
+        "\n{} Running Web console\n{}",
+        purple!("→"),
+        green!(format!("http://127.0.0.1:{}", port))
+    );
+
+    let _ = web_ui::http::start_server(gql_context, port, ctx).await;
     match web_ui_rx.recv() {
         Ok(_) => {}
         Err(_) => {}

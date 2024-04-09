@@ -15,7 +15,11 @@ use txtx_gql::{Context as GraphContext, NestorGraphqlSchema};
 
 use super::Asset;
 
-pub async fn start_server(gql_context: GraphContext, ctx: &Context) -> Result<(), Box<dyn Error>> {
+pub async fn start_server(
+    gql_context: GraphContext,
+    port: u16,
+    ctx: &Context,
+) -> Result<(), Box<dyn Error>> {
     let log_level = LogLevel::Off;
 
     let mut shutdown_config = config::Shutdown::default();
@@ -24,7 +28,7 @@ pub async fn start_server(gql_context: GraphContext, ctx: &Context) -> Result<()
     shutdown_config.mercy = 1;
 
     let control_config = RocketConfig {
-        port: 3210,
+        port,
         workers: 1,
         address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         keep_alive: 5,

@@ -26,6 +26,8 @@ unicode-width = "0.1"
 rust-embed="8.2.0"
 juniper_rocket = { git = "https://github.com/graphql-rust/juniper", rev = "c0e1b3e" }
 rocket = { version = "0.5.0", features = ["json"] }
+ansi_term = "0.12.1"
+atty = "0.2.14"
 
 [features]
 default = ["cli"]
