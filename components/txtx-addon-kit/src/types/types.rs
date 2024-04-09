@@ -14,6 +14,7 @@ pub enum Value {
     Primitive(PrimitiveValue),
     Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
     Array(Box<Vec<Value>>),
+    Addon(AddonData),
 }
 
 impl Serialize for Value {
@@ -43,6 +44,12 @@ impl Serialize for Value {
                     seq.serialize_element(entry)?;
                 }
                 seq.end()
+            }
+            Value::Addon(addon_data) => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("value", &addon_data.value)?;
+                map.serialize_entry("typing", &addon_data.typing)?;
+                map.end()
             }
         }
     }
@@ -123,6 +130,11 @@ impl Value {
                 };
                 first_lhs.is_type_eq(first_rhs)
             }
+            (Value::Addon(_), Value::Primitive(_)) => false,
+            (Value::Addon(_), Value::Object(_)) => false,
+            (Value::Addon(lhs), Value::Addon(rhs)) => lhs.typing.id == rhs.typing.id,
+            (Value::Array(_), Value::Addon(_)) => false,
+            (Value::Addon(_), Value::Array(_)) => false,
         }
     }
 }
@@ -230,6 +242,12 @@ impl PrimitiveValue {
 #[derive(Clone, Debug)]
 pub struct BufferData {
     pub bytes: Vec<u8>,
+    pub typing: TypeSpecification,
+}
+
+#[derive(Clone, Debug)]
+pub struct AddonData {
+    pub value: PrimitiveValue,
     pub typing: TypeSpecification,
 }
 
