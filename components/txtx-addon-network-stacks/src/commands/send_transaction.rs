@@ -7,7 +7,7 @@ use txtx_addon_kit::types::{
         CommandSpecification,
     },
     diagnostics::Diagnostic,
-    types::{PrimitiveType, PrimitiveValue, Type, Value},
+    types::{Type, Value},
 };
 
 lazy_static! {
@@ -40,19 +40,19 @@ lazy_static! {
                   typing: define_object_type! [
                     encoded_bytes: {
                         documentation: "The encoded transaction bytes to be sent.",
-                        typing: PrimitiveType::UnsignedInteger,
+                        typing: Type::uint(),
                         optional: false,
                         interpolable: true
                     },
                     transaction_hash: {
                         documentation: "The transaction hash.",
-                        typing: PrimitiveType::String,
+                        typing: Type::string(),
                         optional: true,
                         interpolable: true
                     },
                     nonce: {
                         documentation: "The nonce of the address sending the transaction.",
-                        typing: PrimitiveType::UnsignedInteger,
+                        typing: Type::uint(),
                         optional: true,
                         interpolable: true
                     }
@@ -145,7 +145,7 @@ impl CommandImplementationAsync for SendStacksTransaction {
                 let transaction_hash_property = web_interact_input_object.iter().find(|p| p.name == "transaction_hash").expect("Send Stacks Transaction specification's web_interact input should have a transaction_hash property.");
                 let tx_hash_expected_type = transaction_hash_property.typing.clone();
                 let tx_hash_val = match value_json.get("transaction_hash") {
-                    Some(value) => Some(PrimitiveValue::from_string(
+                    Some(value) => Some(Value::from_string(
                         value.to_string(),
                         tx_hash_expected_type,
                         None,
@@ -162,7 +162,7 @@ impl CommandImplementationAsync for SendStacksTransaction {
                 let nonce_property = web_interact_input_object.iter().find(|p| p.name == "nonce").expect("Send Stacks Transaction specification's web_interact input should have a nonce property.");
                 let nonce_expected_type = nonce_property.typing.clone();
                 let nonce_val = match value_json.get("nonce") {
-                    Some(value) => Some(PrimitiveValue::from_string(
+                    Some(value) => Some(Value::from_string(
                         value.to_string(),
                         nonce_expected_type,
                         None,

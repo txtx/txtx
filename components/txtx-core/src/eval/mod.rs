@@ -419,16 +419,7 @@ pub fn eval_expression(
                     manual,
                     runtime_ctx,
                 )? {
-                    ExpressionEvaluationStatus::CompleteOk(result) => match result {
-                        Value::Primitive(primitive) => Ok(primitive),
-                        Value::Addon(_) | Value::Array(_) | Value::Object(_) => {
-                            return Ok(ExpressionEvaluationStatus::CompleteErr(
-                                Diagnostic::error_from_string(
-                                    "object value must evaluate to a primitive".to_string(),
-                                ),
-                            ))
-                        }
-                    },
+                    ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
                     ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
                     ExpressionEvaluationStatus::DependencyNotComputed => {
                         return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
@@ -619,25 +610,7 @@ pub fn perform_inputs_evaluation(
             let mut object_values = HashMap::new();
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
-                    match value.clone() {
-                        Ok(Value::Primitive(p)) => {
-                            object_values.insert(prop.name.to_string(), Ok(p));
-                        }
-                        Ok(Value::Object(obj)) => {
-                            for (k, v) in obj.into_iter() {
-                                object_values.insert(k, v);
-                            }
-                        }
-                        Ok(Value::Array(_)) => {
-                            unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
-                        }
-                        Ok(Value::Addon(_)) => {
-                            unreachable!("received addon in object") // currently objects can only contain primitives. this probably will need to change
-                        }
-                        Err(diag) => {
-                            object_values.insert(prop.name.to_string(), Err(diag));
-                        }
-                    };
+                    object_values.insert(prop.name.clone(), value.clone());
                 }
 
                 let Some(expr) =
@@ -667,25 +640,7 @@ pub fn perform_inputs_evaluation(
                     }
                 }
 
-                match value {
-                    Ok(Value::Primitive(p)) => {
-                        object_values.insert(prop.name.to_string(), Ok(p));
-                    }
-                    Ok(Value::Object(obj)) => {
-                        for (k, v) in obj.into_iter() {
-                            object_values.insert(k, v);
-                        }
-                    }
-                    Ok(Value::Array(_)) => {
-                        unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
-                    }
-                    Ok(Value::Addon(_)) => {
-                        unreachable!("received addon in object") // currently objects can only contain primitives. this probably will need to change
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
-                    }
-                };
+                object_values.insert(prop.name.clone(), value);
             }
             if !object_values.is_empty() {
                 results.insert(input, Ok(Value::Object(object_values)));

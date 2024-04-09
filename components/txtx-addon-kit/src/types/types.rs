@@ -12,9 +12,9 @@ use super::diagnostics::Diagnostic;
 #[derive(Clone, Debug)]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
+    Object(HashMap<String, Result<Value, Diagnostic>>),
     Array(Box<Vec<Value>>),
-    Addon(AddonData),
+    Addon(Box<AddonData>),
 }
 
 impl Serialize for Value {
@@ -247,7 +247,7 @@ pub struct BufferData {
 
 #[derive(Clone, Debug)]
 pub struct AddonData {
-    pub value: PrimitiveValue,
+    pub value: Value,
     pub typing: TypeSpecification,
 }
 
@@ -356,7 +356,7 @@ pub enum PrimitiveType {
 pub struct ObjectProperty {
     pub name: String,
     pub documentation: String,
-    pub typing: PrimitiveType,
+    pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
 }
