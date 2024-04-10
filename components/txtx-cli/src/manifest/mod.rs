@@ -9,6 +9,7 @@ pub mod generator;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolManifest {
+    pub name: String,
     manuals: Vec<ManualMetadata>,
     txvars: Option<BTreeMap<String, Txvar>>,
     #[serde(skip_serializing, skip_deserializing)]

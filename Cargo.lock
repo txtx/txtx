@@ -4431,6 +4431,8 @@ dependencies = [
 name = "txtx-cli"
 version = "0.1.0"
 dependencies = [
+ "ansi_term",
+ "atty",
  "clap 4.5.4",
  "clap_generate",
  "crossterm",
