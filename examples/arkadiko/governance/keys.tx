@@ -1,41 +1,41 @@
 variable "govenance_contract_id" {
-  description = "The address of the deployed DAO contract."
+  description = "The address and id of the governance contract."
   type = "string"
   value = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-governance-v4-2"
 }
 
 variable "stake_pool_diko_trait" {
-  description = ""
+  description = "The arkadiko trait for the proposal."
   type = "string"
   value = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-stake-pool-diko-v1-2"
 }
 
 variable "start_block_height" {
-  description = ""
+  description = "The block height for the voting to begin."
   type = "uint"
   value = 124350
 }
 
 variable "vote_length" {
-  description = ""
+  description = "The number of blocks that voting will take place."
   type = "uint"
   value = 280
 }
 
 variable "proposal_title" {
-  description = ""
+  description = "The proposal title."
   type = "string"
   value = "AIP 15 - Update DIKO emissions"
 }
 
 variable "proposal_url" {
-  description = ""
+  description = "A URL with more details of the proposal."
   type = "string"
   value = "https://github.com/arkadiko-dao/arkadiko/pull/559"
 }
 
 variable "proposed_contract_changes" {
-  description = "AIP 15 - Update DIKO emissions"
+  description = "The proposed contract changes."
   type = "string"
   value = {
     "name": clarity_value_ascii("aip-15-diko-emissions"),
@@ -47,7 +47,7 @@ variable "proposed_contract_changes" {
 }
 
 addon "stacks" "call_contract" "governance_proposal_payload" {
-  description = "Calls the `arkadiko-governance-v4-2` contract's `propose` function with AIP 15 arguments."
+  description = "Calls the arkadiko-governance-v4-2 contract's propose function with AIP 15 arguments."
   contract_id = clarity_value_contract_principal(variable.govenance_contract_id.value)
   function_name = "propose"
   function_args = [
