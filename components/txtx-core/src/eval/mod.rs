@@ -8,6 +8,7 @@ use crate::{
     EvalEvent,
 };
 use daggy::{Dag, NodeIndex, Walker};
+use indexmap::IndexSet;
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
@@ -22,9 +23,12 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
-pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
+pub fn get_ordered_dependent_nodes(
+    start_node: NodeIndex,
+    graph: Dag<Uuid, u32, u32>,
+) -> IndexSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = Vec::new();
+    let mut visited_nodes_to_process = IndexSet::new();
 
     nodes_to_visit.push_front(start_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -33,15 +37,15 @@ pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) 
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.push(node);
+        visited_nodes_to_process.insert(node);
     }
 
     visited_nodes_to_process
 }
 
-pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
+pub fn get_ordered_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = Vec::new();
+    let mut visited_nodes_to_process = IndexSet::new();
 
     nodes_to_visit.push_front(root_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -56,11 +60,22 @@ pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<Node
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.push(node);
+        visited_nodes_to_process.insert(node);
     }
 
-    visited_nodes_to_process.remove(0); // remove root
+    visited_nodes_to_process.shift_remove(&root_node);
     visited_nodes_to_process
+}
+
+pub fn is_child_of_node(
+    node: NodeIndex,
+    maybe_child: NodeIndex,
+    graph: &Dag<Uuid, u32, u32>,
+) -> bool {
+    graph
+        .children(node)
+        .iter(graph)
+        .any(|(_, child)| child == maybe_child)
 }
 
 pub fn log_evaluated_outputs(manual: &Manual) {
@@ -101,7 +116,7 @@ pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node:
         Ok(manual) => {
             let g = manual.constructs_graph.clone();
             let nodes_to_reevaluate =
-                order_dependent_nodes(start_node, manual.constructs_graph.clone());
+                get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone());
 
             for node in nodes_to_reevaluate.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
@@ -145,9 +160,9 @@ pub fn run_constructs_evaluation(
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
-                    order_dependent_nodes(start_node, manual.constructs_graph.clone())
+                    get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone())
                 }
-                None => order_nodes(manual.graph_root, manual.constructs_graph.clone()),
+                None => get_ordered_nodes(manual.graph_root, manual.constructs_graph.clone()),
             };
 
             let commands_instances = manual.commands_instances.clone();
