@@ -28,6 +28,12 @@ lazy_static! {
             documentation: "Clarity ASCII string",
         }
     };
+    pub static ref CLARITY_UTF8: TypeSpecification = define_addon_type! {
+        ClarityAscii => {
+            name: "clarity_utf8",
+            documentation: "Clarity UTF8 string",
+        }
+    };
     pub static ref CLARITY_TUPLE: TypeSpecification = define_addon_type! {
         ClarityTuple => {
             name: "clarity_tuple",

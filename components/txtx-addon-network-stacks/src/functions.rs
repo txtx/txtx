@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use clarity::vm::{
     types::{
         ASCIIData, BufferLength, CharType, PrincipalData, SequenceData, SequenceSubtype,
-        StringSubtype, TupleData, TupleTypeSignature, TypeSignature as ClarityType,
+        SequencedValue, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+        TypeSignature as ClarityType, UTF8Data,
     },
     ClarityName,
 };
@@ -14,7 +15,9 @@ use txtx_addon_kit::types::{
     types::{PrimitiveValue, Type, TypeSpecification, Value},
 };
 
-use crate::typing::{CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT};
+use crate::typing::{
+    CLARITY_ASCII, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT, CLARITY_UTF8,
+};
 
 lazy_static! {
     pub static ref STACKS_FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -125,6 +128,23 @@ lazy_static! {
                 name: "clarity_value_ascii",
                 documentation: "",
                 example: "clarity_value_ascii('my ascii string')",
+                inputs: [
+                    clarity_value: {
+                        documentation: "Any valid Clarity value",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Type::string()
+                },
+            }
+        },
+        define_function! {
+          EncodeClarityValueUTF8 => {
+                name: "clarity_value_utf8",
+                documentation: "",
+                example: "clarity_value_utf8('🍊')",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -279,7 +299,24 @@ impl FunctionImplementation for EncodeClarityValueAscii {
                 data: entry.as_bytes().to_vec(),
             })));
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_PRINCIPAL.clone()))
+        Ok(Value::buffer(bytes, CLARITY_ASCII.clone()))
+    }
+}
+
+pub struct EncodeClarityValueUTF8;
+impl FunctionImplementation for EncodeClarityValueUTF8 {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let entry = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+        let clarity_value = UTF8Data::to_value(&entry.as_bytes().to_vec());
+        let bytes = clarity_value.serialize_to_vec();
+        Ok(Value::buffer(bytes, CLARITY_UTF8.clone()))
     }
 }
 
@@ -292,6 +329,24 @@ fn extract_clarity_type(typing: &TypeSpecification, value: &Value) -> ClarityTyp
             Value::Primitive(PrimitiveValue::String(value)) => {
                 ClarityType::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
                     BufferLength::try_from(value.len()).unwrap(),
+                )))
+            }
+            Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
+                ClarityType::SequenceType(SequenceSubtype::StringType(StringSubtype::ASCII(
+                    BufferLength::try_from(buffer_data.bytes.len()).unwrap(),
+                )))
+            }
+            v => unreachable!("clarity ascii values cannot be derived from value {:?}", v),
+        },
+        "clarity_utf8" => match value {
+            Value::Primitive(PrimitiveValue::String(value)) => {
+                ClarityType::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    StringUTF8Length::try_from(value.len()).unwrap(),
+                )))
+            }
+            Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
+                ClarityType::SequenceType(SequenceSubtype::StringType(StringSubtype::UTF8(
+                    StringUTF8Length::try_from(buffer_data.bytes.len()).unwrap(),
                 )))
             }
             v => unreachable!("clarity ascii values cannot be derived from value {:?}", v),
@@ -430,7 +485,8 @@ pub fn parse_clarity_value(
     typing: &TypeSpecification,
 ) -> Result<ClarityValue, Diagnostic> {
     match typing.id.as_str() {
-        "clarity_uint" | "clarity_int" | "clarity_bool" | "clarity_tuple" | "clarity_principal" => {
+        "clarity_uint" | "clarity_int" | "clarity_bool" | "clarity_tuple" | "clarity_principal"
+        | "clarity_ascii" | "clarity_utf8" => {
             match ClarityValue::consensus_deserialize(&mut &bytes[..]) {
                 Ok(v) => Ok(v),
                 Err(e) => Err(Diagnostic::error_from_string(e.to_string())),
