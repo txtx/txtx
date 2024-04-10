@@ -79,7 +79,6 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_address
-        println!("encode contract args {:?}", args);
         let contract_id = match args.get("contract_id") {
             Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
                 match parse_clarity_value(&contract_id.bytes, &contract_id.typing) {
