@@ -428,7 +428,7 @@ pub fn eval_expression(
                     txtx_addon_kit::hcl::expr::ObjectKey::Ident(k_ident) => k_ident.to_string(),
                 };
                 let value = match eval_expression(
-                    v.expr(), // todo, may not be expression?
+                    v.expr(),
                     dependencies_execution_results,
                     package_uuid,
                     manual,
@@ -625,7 +625,19 @@ pub fn perform_inputs_evaluation(
             let mut object_values = HashMap::new();
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
-                    object_values.insert(prop.name.clone(), value.clone());
+                    match value.clone() {
+                        Ok(Value::Object(obj)) => {
+                            for (k, v) in obj.into_iter() {
+                                object_values.insert(k, v);
+                            }
+                        }
+                        Ok(v) => {
+                            object_values.insert(prop.name.to_string(), Ok(v));
+                        }
+                        Err(diag) => {
+                            object_values.insert(prop.name.to_string(), Err(diag));
+                        }
+                    };
                 }
 
                 let Some(expr) =
@@ -655,7 +667,19 @@ pub fn perform_inputs_evaluation(
                     }
                 }
 
-                object_values.insert(prop.name.clone(), value);
+                match value.clone() {
+                    Ok(Value::Object(obj)) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    Ok(v) => {
+                        object_values.insert(prop.name.to_string(), Ok(v));
+                    }
+                    Err(diag) => {
+                        object_values.insert(prop.name.to_string(), Err(diag));
+                    }
+                };
             }
             if !object_values.is_empty() {
                 results.insert(input, Ok(Value::Object(object_values)));
