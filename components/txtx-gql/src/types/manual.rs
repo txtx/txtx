@@ -104,7 +104,6 @@ impl GqlManual {
             get_ordered_nodes(self.data.graph_root, self.data.constructs_graph.clone());
         let graph = self.data.constructs_graph.clone();
 
-        println!("ordered nodes {:?}", ordered_nodes);
         for (i, node) in ordered_nodes.into_iter().enumerate() {
             let uuid = graph
                 .node_weight(node)
@@ -116,10 +115,6 @@ impl GqlManual {
             };
 
             let is_child_of_root = is_child_of_node(self.data.graph_root, node, &graph);
-            println!(
-                "{} {} is editable: {}",
-                i, command_instance.name, is_child_of_root
-            );
 
             let constructs_execution_results =
                 match self.data.constructs_execution_results.get(&construct_uuid) {
