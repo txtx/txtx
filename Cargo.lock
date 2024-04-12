@@ -4461,6 +4461,7 @@ dependencies = [
  "daggy",
  "getrandom 0.2.13",
  "hex",
+ "indexmap 2.2.6",
  "jaq-core",
  "lazy_static",
  "rust-fsm",

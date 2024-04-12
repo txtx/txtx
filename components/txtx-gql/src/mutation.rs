@@ -1,7 +1,9 @@
 use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;
 use serde_json::json;
-use txtx_core::eval::{prepare_constructs_reevaluation, run_constructs_evaluation};
+use txtx_core::eval::{
+    get_ordered_nodes, is_child_of_node, prepare_constructs_reevaluation, run_constructs_evaluation,
+};
 use txtx_core::kit::types::commands::CommandInstanceStateMachineInput;
 use txtx_core::types::ConstructUuid;
 use uuid::Uuid;
@@ -23,7 +25,6 @@ impl Mutation {
         input_name: String,
         value: String,
     ) -> Result<String, String> {
-        println!("mutation!!! value: {}", value);
         let ContextData {
             manual,
             runtime_context,
@@ -93,7 +94,23 @@ impl Mutation {
         let result = match manual.read() {
             Ok(manual) => {
                 let mut result = vec![];
-                for (construct_uuid, command_instance) in manual.commands_instances.iter() {
+                let ordered_nodes =
+                    get_ordered_nodes(manual.graph_root, manual.constructs_graph.clone());
+                let graph = manual.constructs_graph.clone();
+
+                for (i, node) in ordered_nodes.into_iter().enumerate() {
+                    let uuid = graph
+                        .node_weight(node)
+                        .expect("unable to retrieve construct");
+                    let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+                    let Some(command_instance) = manual.commands_instances.get(&construct_uuid)
+                    else {
+                        continue;
+                    };
+
+                    let is_child_of_root = is_child_of_node(manual.graph_root, node, &graph);
+
                     let constructs_execution_results =
                         match manual.constructs_execution_results.get(&construct_uuid) {
                             None => None,
@@ -110,6 +127,8 @@ impl Mutation {
                         .command_inputs_evaluation_results
                         .get(&construct_uuid);
                     result.push(json!({
+                        "readonly": !is_child_of_root,
+                        "index": i,
                         "constructUuid": construct_uuid,
                         "commandInstance": command_instance,
                         "commandInputsEvaluationResult": command_inputs_evaluation_results,

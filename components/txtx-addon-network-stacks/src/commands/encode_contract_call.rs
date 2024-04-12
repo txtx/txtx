@@ -1,6 +1,7 @@
+use crate::functions::parse_clarity_value;
 use crate::typing::{ClarityValue, STACKS_CONTRACT_CALL};
+use clarity::vm::types::PrincipalData;
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
-use clarity_repl::clarity::vm::types::{QualifiedContractIdentifier, SequencedValue, UTF8Data};
 use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
@@ -29,8 +30,12 @@ lazy_static! {
                   interpolable: true
               },
               contract_id: {
-                  documentation: "Contract identifier to invoke",
-                  typing: Type::string(),
+                  documentation: "Address and identifier of the contract to invoke",
+                  typing: Type::addon(TypeSpecification {
+                    id: "clarity_principal".into(),
+                    documentation: "Any clarity value".into(),
+                    checker: ClarityValue::check
+                  }),
                   optional: false,
                   interpolable: true
               },
@@ -73,12 +78,15 @@ impl CommandImplementation for EncodeStacksContractCall {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 
-        // Extract contract_id
+        // Extract contract_address
         let contract_id = match args.get("contract_id") {
-            Some(Value::Primitive(PrimitiveValue::String(value))) => {
-                match QualifiedContractIdentifier::parse(value) {
-                    Ok(value) => value,
-                    _ => todo!("contract_id invalid, return diagnostic"),
+            Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
+                match parse_clarity_value(&contract_id.bytes, &contract_id.typing) {
+                    Ok(cv) => match cv {
+                        clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
+                        cv => todo!("unexpected clarity value {cv}"),
+                    },
+                    Err(e) => return Err(e),
                 }
             }
             _ => todo!("contract_id missing, return diagnostic"),
@@ -95,12 +103,17 @@ impl CommandImplementation for EncodeStacksContractCall {
                 for arg in args.iter() {
                     // todo: for each possible primitive value type, we should
                     // try to cast it to a clarity value
-                    function_args.push(match arg {
-                        Value::Primitive(PrimitiveValue::String(value)) => {
-                            UTF8Data::to_value(&value.as_bytes().to_vec())
+                    let function_arg = match arg {
+                        Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
+                            match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
+                                Ok(v) => v,
+                                Err(e) => return Err(e),
+                            }
                         }
-                        _ => todo!(), // return diag
-                    })
+                        v => todo!("{:?}", v), // return diag
+                    };
+
+                    function_args.push(function_arg)
                 }
                 function_args
             }

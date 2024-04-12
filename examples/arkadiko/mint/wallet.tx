@@ -1,0 +1,29 @@
+variable "ark_alex_dual_yield" {
+  description = "The contract id of the deployed `arkadiko-alex-dual-yield-v1-1` contract."
+  type = "string"
+  value = "SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-alex-dual-yield-v1-1"
+}
+
+variable "number_of_cycles" {
+  description = "The number of cycles to mint rewards for."
+  type = "uint"
+  value = 10
+}
+
+addon "stacks" "call_contract" "mint_payload" {
+  description = "Calls the arkadiko-alex-dual-yield-v1-1 contract's mint-diko function."
+  contract_id = clarity_value_contract_principal(variable.ark_alex_dual_yield.value)
+  function_name = "mint-diko"
+  function_args = [clarity_value_uint(variable.number_of_cycles.value)]
+}
+
+addon "stacks" "sign_transaction" "sign_mint_payload" {
+  web_interact {
+    transaction_payload_bytes = addon.mint_payload.bytes
+  }
+}
+
+addon "stacks" "broadcast_transaction" "tx_id" {
+  signed_transaction_bytes = addon.sign_mint_payload.signed_transaction_bytes
+  network = "Testnet"
+}

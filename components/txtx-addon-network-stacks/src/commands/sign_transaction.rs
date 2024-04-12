@@ -27,7 +27,7 @@ use txtx_addon_kit::types::{
         CommandSpecification,
     },
     diagnostics::Diagnostic,
-    types::{PrimitiveType, PrimitiveValue, Type, Value},
+    types::{PrimitiveValue, Type, Value},
 };
 
 use crate::typing::STACKS_SIGNED_TRANSACTION;
@@ -50,31 +50,31 @@ lazy_static! {
                 typing: define_object_type! [
                     nonce: {
                         documentation: "Transaction nonce",
-                        typing: PrimitiveType::UnsignedInteger,
+                        typing: Type::uint(),
                         optional: false,
                         interpolable: true
                     },
                     transaction_payload_bytes: {
                         documentation: "Transaction payload",
-                        typing: PrimitiveType::String,
+                        typing: Type::string(),
                         optional: false,
                         interpolable: true
                     },
                     fee: {
                         documentation: "Transaction fee",
-                        typing: PrimitiveType::UnsignedInteger,
+                        typing: Type::uint(),
                         optional: false,
                         interpolable: true
                     },
                     sender_mnemonic: {
                         documentation: "Mnemonic",
-                        typing: PrimitiveType::String,
+                        typing: Type::string(),
                         optional: false,
                         interpolable: true
                     },
                     sender_derivation_path: {
                         documentation: "Derivation path",
-                        typing: PrimitiveType::String,
+                        typing: Type::string(),
                         optional: false,
                         interpolable: true
                     }
@@ -94,19 +94,19 @@ lazy_static! {
                 typing: define_object_type! [
                   transaction_payload_bytes: {
                       documentation: "The encoded transaction bytes to be signed.",
-                      typing: PrimitiveType::Buffer,
+                      typing: Type::buffer(),
                       optional: false,
                       interpolable: true
                   },
                   signed_transaction_bytes: {
                       documentation: "The signed transaction bytes.",
-                      typing: PrimitiveType::Buffer,
+                      typing: Type::buffer(),
                       optional: true,
                       interpolable: true
                   },
                   nonce: {
                       documentation: "The nonce of the address signing the transaction.",
-                      typing: PrimitiveType::UnsignedInteger,
+                      typing: Type::uint(),
                       optional: true,
                       interpolable: true
                   }
@@ -139,22 +139,22 @@ impl CommandImplementation for SignStacksTransaction {
         if let Some(Value::Object(obj)) = args.get("no_interact") {
             // Extract nonce
             let nonce = match obj.get("nonce") {
-                Some(Ok(PrimitiveValue::UnsignedInteger(value))) => value.clone(),
+                Some(Ok(Value::Primitive(PrimitiveValue::UnsignedInteger(value)))) => value.clone(),
                 _ => todo!("return diagnostic"),
             };
             // Extract tx_fee
             let tx_fee = match obj.get("fee") {
-                Some(Ok(PrimitiveValue::UnsignedInteger(value))) => value.clone(),
+                Some(Ok(Value::Primitive(PrimitiveValue::UnsignedInteger(value)))) => value.clone(),
                 _ => todo!("return diagnostic"),
             };
             // Extract mnemonic
             let mnemonic = match obj.get("sender_mnemonic") {
-                Some(Ok(PrimitiveValue::String(value))) => value.clone(),
+                Some(Ok(Value::Primitive(PrimitiveValue::String(value)))) => value.clone(),
                 _ => todo!("return diagnostic"),
             };
             // Extract derivation path
             let derivation_path = match obj.get("sender_derivation_path") {
-                Some(Ok(PrimitiveValue::String(value))) => value.clone(),
+                Some(Ok(Value::Primitive(PrimitiveValue::String(value)))) => value.clone(),
                 _ => todo!("return diagnostic"),
             };
 
@@ -165,7 +165,7 @@ impl CommandImplementation for SignStacksTransaction {
 
             // Extract and decode transaction_payload_bytes
             let transaction_payload_bytes = match obj.get("transaction_payload_bytes") {
-                Some(Ok(PrimitiveValue::Buffer(bytes))) => bytes.clone(),
+                Some(Ok(Value::Primitive(PrimitiveValue::Buffer(bytes)))) => bytes.clone(),
                 _ => todo!("transaction_payload_bytes invalid, return diagnostic"),
             };
             let transaction_payload = match TransactionPayload::consensus_deserialize(
@@ -209,10 +209,9 @@ impl CommandImplementation for SignStacksTransaction {
             match bytes {
                 Some(bytes) => match bytes {
                     Ok(bytes) => {
-                        result.outputs.insert(
-                            "signed_transaction_bytes".to_string(),
-                            Value::Primitive(bytes.clone()),
-                        );
+                        result
+                            .outputs
+                            .insert("signed_transaction_bytes".to_string(), bytes.clone());
                     }
                     Err(e) => return Err(e.clone()),
                 },
@@ -263,7 +262,7 @@ impl CommandImplementation for SignStacksTransaction {
                 let transaction_signature_property = web_interact_input_object.iter().find(|p| p.name == "signed_transaction_bytes").expect("Sign Stacks Transaction specification's web_interact input should have a signed_transaction_bytes property.");
                 let expected_type = transaction_signature_property.typing.clone();
                 let value = match value_json.get("signed_transaction_bytes") {
-                    Some(value) => Some(PrimitiveValue::from_string(
+                    Some(value) => Some(Value::from_string(
                         value.as_str().unwrap().to_string(),
                         expected_type,
                         Some(STACKS_SIGNED_TRANSACTION.clone()),
@@ -280,7 +279,7 @@ impl CommandImplementation for SignStacksTransaction {
                 let nonce_property = web_interact_input_object.iter().find(|p| p.name == "nonce").expect("Send Stacks Transaction specification's web_interact input should have a nonce property.");
                 let nonce_expected_type = nonce_property.typing.clone();
                 let nonce_val = match value_json.get("nonce") {
-                    Some(value) => Some(PrimitiveValue::from_string(
+                    Some(value) => Some(Value::from_string(
                         value.to_string(),
                         nonce_expected_type,
                         None,

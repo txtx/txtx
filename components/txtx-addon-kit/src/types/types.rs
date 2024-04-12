@@ -12,8 +12,9 @@ use super::diagnostics::Diagnostic;
 #[derive(Clone, Debug)]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(HashMap<String, Result<PrimitiveValue, Diagnostic>>),
+    Object(HashMap<String, Result<Value, Diagnostic>>),
     Array(Box<Vec<Value>>),
+    Addon(Box<AddonData>),
 }
 
 impl Serialize for Value {
@@ -43,6 +44,12 @@ impl Serialize for Value {
                     seq.serialize_element(entry)?;
                 }
                 seq.end()
+            }
+            Value::Addon(addon_data) => {
+                let mut map = serializer.serialize_map(Some(2))?;
+                map.serialize_entry("value", &addon_data.value)?;
+                map.serialize_entry("typing", &addon_data.typing)?;
+                map.end()
             }
         }
     }
@@ -123,6 +130,11 @@ impl Value {
                 };
                 first_lhs.is_type_eq(first_rhs)
             }
+            (Value::Addon(_), Value::Primitive(_)) => false,
+            (Value::Addon(_), Value::Object(_)) => false,
+            (Value::Addon(lhs), Value::Addon(rhs)) => lhs.typing.id == rhs.typing.id,
+            (Value::Array(_), Value::Addon(_)) => false,
+            (Value::Addon(_), Value::Array(_)) => false,
         }
     }
 }
@@ -233,6 +245,12 @@ pub struct BufferData {
     pub typing: TypeSpecification,
 }
 
+#[derive(Clone, Debug)]
+pub struct AddonData {
+    pub value: Value,
+    pub typing: TypeSpecification,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
     Primitive(PrimitiveType),
@@ -338,7 +356,7 @@ pub enum PrimitiveType {
 pub struct ObjectProperty {
     pub name: String,
     pub documentation: String,
-    pub typing: PrimitiveType,
+    pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
 }

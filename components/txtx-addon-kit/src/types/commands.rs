@@ -22,7 +22,7 @@ use crate::helpers::hcl::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
-    types::{ObjectProperty, Type, Value},
+    types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };
 
@@ -109,6 +109,14 @@ impl CommandInput {
             Type::Primitive(_) => None,
             Type::Addon(_) => None,
             Type::Array(array) => Some(array),
+        }
+    }
+    pub fn as_addon(&self) -> Option<&TypeSpecification> {
+        match &self.typing {
+            Type::Object(_) => None,
+            Type::Primitive(_) => None,
+            Type::Addon(addon) => Some(addon),
+            Type::Array(_) => None,
         }
     }
 }
@@ -372,12 +380,11 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, String> {
         let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) => {
+            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
                 visit_optional_untyped_attribute(&input.name, &self.block)
                     .map_err(|e| format!("{:?}", e))?
             }
             Type::Object(_) => unreachable!(),
-            Type::Addon(_) => unreachable!(),
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),

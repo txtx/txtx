@@ -119,6 +119,7 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
 
     // start web ui server
     let gql_context = GqlContext {
+        protocol_name: manifest.name,
         data: gql_context,
         eval_tx: eval_event_tx.clone(),
     };

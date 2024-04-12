@@ -8,6 +8,7 @@ use crate::{
     EvalEvent,
 };
 use daggy::{Dag, NodeIndex, Walker};
+use indexmap::IndexSet;
 use txtx_addon_kit::{
     hcl::expr::{BinaryOperator, Expression, UnaryOperator},
     types::{
@@ -16,15 +17,18 @@ use txtx_addon_kit::{
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::{Diagnostic, DiagnosticLevel},
-        types::Value,
+        types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
 };
 
-pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
+pub fn get_ordered_dependent_nodes(
+    start_node: NodeIndex,
+    graph: Dag<Uuid, u32, u32>,
+) -> IndexSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = Vec::new();
+    let mut visited_nodes_to_process = IndexSet::new();
 
     nodes_to_visit.push_front(start_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -33,15 +37,15 @@ pub fn order_dependent_nodes(start_node: NodeIndex, graph: Dag<Uuid, u32, u32>) 
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.push(node);
+        visited_nodes_to_process.insert(node);
     }
 
     visited_nodes_to_process
 }
 
-pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<NodeIndex> {
+pub fn get_ordered_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = Vec::new();
+    let mut visited_nodes_to_process = IndexSet::new();
 
     nodes_to_visit.push_front(root_node);
     while let Some(node) = nodes_to_visit.pop_front() {
@@ -56,11 +60,22 @@ pub fn order_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> Vec<Node
             nodes_to_visit.push_back(child);
         }
         // Mark node as visited
-        visited_nodes_to_process.push(node);
+        visited_nodes_to_process.insert(node);
     }
 
-    visited_nodes_to_process.remove(0); // remove root
+    visited_nodes_to_process.shift_remove(&root_node);
     visited_nodes_to_process
+}
+
+pub fn is_child_of_node(
+    node: NodeIndex,
+    maybe_child: NodeIndex,
+    graph: &Dag<Uuid, u32, u32>,
+) -> bool {
+    graph
+        .children(node)
+        .iter(graph)
+        .any(|(_, child)| child == maybe_child)
 }
 
 pub fn log_evaluated_outputs(manual: &Manual) {
@@ -101,7 +116,7 @@ pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node:
         Ok(manual) => {
             let g = manual.constructs_graph.clone();
             let nodes_to_reevaluate =
-                order_dependent_nodes(start_node, manual.constructs_graph.clone());
+                get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone());
 
             for node in nodes_to_reevaluate.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
@@ -145,9 +160,9 @@ pub fn run_constructs_evaluation(
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
-                    order_dependent_nodes(start_node, manual.constructs_graph.clone())
+                    get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone())
                 }
-                None => order_nodes(manual.graph_root, manual.constructs_graph.clone()),
+                None => get_ordered_nodes(manual.graph_root, manual.constructs_graph.clone()),
             };
 
             let commands_instances = manual.commands_instances.clone();
@@ -160,22 +175,6 @@ pub fn run_constructs_evaluation(
                 let Some(command_instance) = commands_instances.get(&construct_uuid) else {
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
-                };
-                // in general we want to ignore previous input evaluation results when evaluating for outputs.
-                // we want to recompute the whole graph in case anything has changed since our last traversal.
-                // however, if there was a start_node provided, this evaluation was initiated from a user interaction
-                // that is stored in the input evaluation results, and we want to keep that data to evaluate that
-                // commands dependents
-                let input_evaluation_results = if let Some(start_node) = start_node {
-                    if start_node == node {
-                        manual
-                            .command_inputs_evaluation_results
-                            .get(&construct_uuid.clone())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
                 };
 
                 match command_instance.state.lock() {
@@ -393,8 +392,57 @@ pub fn eval_expression(
             Value::array(res)
         }
         // Represents an HCL object.
-        Expression::Object(_object) => {
-            unimplemented!()
+        Expression::Object(object) => {
+            let mut map = HashMap::new();
+            for (k, v) in object.into_iter() {
+                let key = match k {
+                    txtx_addon_kit::hcl::expr::ObjectKey::Expression(k_expr) => {
+                        match eval_expression(
+                            k_expr,
+                            dependencies_execution_results,
+                            package_uuid,
+                            manual,
+                            runtime_ctx,
+                        )? {
+                            ExpressionEvaluationStatus::CompleteOk(result) => match result {
+                                Value::Primitive(PrimitiveValue::String(result)) => result,
+                                Value::Primitive(_)
+                                | Value::Addon(_)
+                                | Value::Array(_)
+                                | Value::Object(_) => {
+                                    return Ok(ExpressionEvaluationStatus::CompleteErr(
+                                        Diagnostic::error_from_string(
+                                            "object key must evaluate to a string".to_string(),
+                                        ),
+                                    ))
+                                }
+                            },
+                            ExpressionEvaluationStatus::CompleteErr(e) => {
+                                return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                            }
+                            ExpressionEvaluationStatus::DependencyNotComputed => {
+                                return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                            }
+                        }
+                    }
+                    txtx_addon_kit::hcl::expr::ObjectKey::Ident(k_ident) => k_ident.to_string(),
+                };
+                let value = match eval_expression(
+                    v.expr(),
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                )? {
+                    ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
+                    ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
+                    ExpressionEvaluationStatus::DependencyNotComputed => {
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                    }
+                };
+                map.insert(key, value);
+            }
+            Value::Object(map)
         }
         // Represents a string containing template interpolations and template directives.
         Expression::StringTemplate(_string_template) => {
@@ -578,16 +626,13 @@ pub fn perform_inputs_evaluation(
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
                     match value.clone() {
-                        Ok(Value::Primitive(p)) => {
-                            object_values.insert(prop.name.to_string(), Ok(p));
-                        }
                         Ok(Value::Object(obj)) => {
                             for (k, v) in obj.into_iter() {
                                 object_values.insert(k, v);
                             }
                         }
-                        Ok(Value::Array(_)) => {
-                            unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                        Ok(v) => {
+                            object_values.insert(prop.name.to_string(), Ok(v));
                         }
                         Err(diag) => {
                             object_values.insert(prop.name.to_string(), Err(diag));
@@ -622,17 +667,14 @@ pub fn perform_inputs_evaluation(
                     }
                 }
 
-                match value {
-                    Ok(Value::Primitive(p)) => {
-                        object_values.insert(prop.name.to_string(), Ok(p));
-                    }
+                match value.clone() {
                     Ok(Value::Object(obj)) => {
                         for (k, v) in obj.into_iter() {
                             object_values.insert(k, v);
                         }
                     }
-                    Ok(Value::Array(_)) => {
-                        unreachable!("received array in object") // currently objects can only contain primitives. this probably will need to change
+                    Ok(v) => {
+                        object_values.insert(prop.name.to_string(), Ok(v));
                     }
                     Err(diag) => {
                         object_values.insert(prop.name.to_string(), Err(diag));
@@ -653,7 +695,9 @@ pub fn perform_inputs_evaluation(
                         results.insert(input, Err(diag));
                         continue;
                     }
-                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) => unreachable!(),
+                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
+                        unreachable!()
+                    }
                 }
             }
 
@@ -668,7 +712,7 @@ pub fn perform_inputs_evaluation(
                 runtime_ctx,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
-                    Value::Primitive(_) | Value::Object(_) => unreachable!(),
+                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
@@ -681,6 +725,36 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     println!("returning early because eval expression needs user interaction");
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if let DiagnosticLevel::Error = diag.level {
+                    _fatal_error = true;
+                }
+            }
+
+            results.insert(input, value);
+        } else if let Some(_) = input.as_addon() {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    manual,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
                 }
             };
 
