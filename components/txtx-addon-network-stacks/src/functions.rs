@@ -107,40 +107,6 @@ lazy_static! {
             }
         },
         define_function! {
-          EncodeClarityValuePrincipal => {
-                name: "cv_standard_principal",
-                documentation: "",
-                example: "cv_standard_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE')",
-                inputs: [
-                    clarity_value: {
-                        documentation: "Any valid Clarity value",
-                        typing: vec![Type::string()]
-                    }
-                ],
-                output: {
-                    documentation: "",
-                    typing: Type::string()
-                },
-            }
-        },
-        define_function! {
-          EncodeClarityValuePrincipal => {
-                name: "cv_contract_principal",
-                documentation: "",
-                example: "cv_contract_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-stake-pool-diko-v1-2')",
-                inputs: [
-                    clarity_value: {
-                        documentation: "Any valid Clarity value",
-                        typing: vec![Type::string()]
-                    }
-                ],
-                output: {
-                    documentation: "",
-                    typing: Type::string()
-                },
-            }
-        },
-        define_function! {
           EncodeClarityValueAscii => {
                 name: "cv_ascii",
                 documentation: "",

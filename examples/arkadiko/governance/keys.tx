@@ -39,8 +39,8 @@ variable "proposed_contract_changes" {
   type = "string"
   value = {
     "name": cv_ascii("aip-15-diko-emissions"),
-    "address": cv_standard_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR"),
-    "qualified-name": cv_contract_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.aip-15-arkadiko-governance-emissions"),
+    "address": cv_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR"),
+    "qualified-name": cv_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.aip-15-arkadiko-governance-emissions"),
     "can-mint": false,
     "can-burn": false
   }
@@ -48,10 +48,10 @@ variable "proposed_contract_changes" {
 
 addon "stacks" "call_contract" "governance_proposal_payload" {
   description = "Calls the arkadiko-governance-v4-2 contract's propose function with AIP 15 arguments."
-  contract_id = cv_contract_principal(variable.govenance_contract_id.value)
+  contract_id = cv_principal(variable.govenance_contract_id.value)
   function_name = "propose"
   function_args = [
-    cv_contract_principal(variable.stake_pool_diko_trait.value), 
+    cv_principal(variable.stake_pool_diko_trait.value), 
     cv_uint(variable.start_block_height.value), 
     cv_uint(variable.vote_length.value), 
     cv_ascii(variable.proposal_title.value), 
