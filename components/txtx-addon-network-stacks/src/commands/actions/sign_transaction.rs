@@ -38,13 +38,8 @@ lazy_static! {
         name: "Sign Stacks Transaction",
         matcher: "sign_transaction",
         documentation: "Sign an encoded transaction payload",
+        inputs_parent_attribute: Some("use".into()),
         inputs: [
-            description: {
-                documentation: "A description of the transaction being signed.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
             no_interact: {
                 documentation: "Any valid Clarity value",
                 typing: define_object_type! [

@@ -15,13 +15,8 @@ lazy_static! {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
           documentation: "Encode contract deployment payload",
+          inputs_parent_attribute: Some("use".into()),
           inputs: [
-              description: {
-                  documentation: "Description of the variable",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
               clarity_value: {
                   documentation: "Any valid Clarity value",
                   typing: Type::bool(),

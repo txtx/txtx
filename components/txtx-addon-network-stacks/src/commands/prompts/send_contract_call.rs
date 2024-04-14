@@ -1,115 +1,95 @@
-use clarity_repl::codec::TransactionVersion;
-use clarity_repl::{clarity::codec::StacksMessageCodec, codec::StacksTransaction};
+use crate::txtx_addon_kit::types::types::TypeImplementation;
 use serde_json::Value as JsonValue;
-use std::{collections::HashMap, fmt::Write, pin::Pin};
+use std::{collections::HashMap, pin::Pin};
 use txtx_addon_kit::reqwest;
+use txtx_addon_kit::types::types::TypeSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
         CommandSpecification,
     },
     diagnostics::Diagnostic,
-    types::{PrimitiveValue, Type, Value},
+    types::{Type, Value},
 };
 
+use crate::typing::ClarityValue;
+
 lazy_static! {
-    pub static ref BROADCAST_STACKS_TRANSACTION: CommandSpecification = define_async_command! {
-        BroadcastStacksTransaction => {
-            name: "Broadcast Stacks Transaction",
-            matcher: "broadcast_transaction",
-            documentation: "Broadcast a signed transaction payload",
-            inputs: [
-                description: {
-                    documentation: "A description of the transaction being broadcasted.",
-                    typing: Type::string(),
-                    optional: true,
-                    interpolable: true
-                },
-                signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes that will be broadcasted to the network.",
-                  typing: Type::buffer(),
-                  optional: false,
-                  interpolable: true
-                }
-            ],
-            outputs: [
-              tx_id: {
-                    documentation: "The transaction id.",
-                    typing: Type::string()
-                },
-                nonce: {
-                      documentation: "The nonce of the address sending the transaction.",
-                      typing: Type::uint()
-                }
-            ],
-        }
-    };
+  pub static ref SEND_CONTRACT_CALL: CommandSpecification = define_async_command! {
+      SendContractCall => {
+          name: "Send Contract Call Transaction",
+          matcher: "send_contract_call",
+          documentation: "Send an encoded transaction payload",
+          inputs_parent_attribute: Some("use".into()),
+          inputs: [
+            contract_id: {
+                documentation: "Address and identifier of the contract to invoke",
+                typing: Type::addon(TypeSpecification {
+                  id: "clarity_principal".into(),
+                  documentation: "Any clarity value".into(),
+                  checker: ClarityValue::check
+                }),
+                optional: false,
+                interpolable: true
+            },
+            function_name: {
+                documentation: "Method to invoke",
+                typing: Type::string(),
+                optional: false,
+                interpolable: true
+            },
+            function_args: {
+                documentation: "Args to provide",
+                typing: Type::array(Type::addon(TypeSpecification {
+                  id: "clarity_value".into(),
+                  documentation: "Any clarity value".into(),
+                  checker: ClarityValue::check
+                })), // todo: why isn't CLARITY_VALUE working??
+                optional: true,
+                interpolable: true
+            }
+          ],
+          outputs: [
+            transaction_hash: {
+                  documentation: "The transaction hash",
+                  typing: Type::string()
+              },
+              nonce: {
+                    documentation: "The nonce of the address sending the transaction.",
+                    typing: Type::uint()
+              }
+          ],
+      }
+  };
 }
-pub struct BroadcastStacksTransaction;
-impl CommandImplementationAsync for BroadcastStacksTransaction {
+pub struct SendContractCall;
+impl CommandImplementationAsync for SendContractCall {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
     fn run(
         _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
+        _args: &HashMap<String, Value>,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>>
     {
         let mut result = CommandExecutionResult::new();
-        let args = args.clone();
         let future = async move {
-            let buffer_data = {
-                let Some(bytes) = args.get("signed_transaction_bytes") else {
-                    unimplemented!("return diagnostic");
-                };
-                match bytes {
-                    Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes,
-                    _ => unimplemented!(),
-                }
-            };
-            let buffer_data = buffer_data.clone();
-            let transaction =
-                StacksTransaction::consensus_deserialize(&mut &buffer_data.bytes[..]).unwrap();
-            let network = match transaction.version {
-                TransactionVersion::Mainnet => "mainnet",
-                TransactionVersion::Testnet => "testnet",
-            };
-            let url = format!("https://api.{}.hiro.so/v2/transactions", network);
-            let mut s = String::from("0x");
-            s.write_str(
-                &buffer_data
-                    .bytes
-                    .clone()
-                    .iter()
-                    .map(|b| format!("{:02X}", b))
-                    .collect::<String>(),
-            )
-            .unwrap();
-            let client = reqwest::Client::new();
-            let res = client
-                .post(&url)
-                .header("Content-Type", "application/octet-stream")
-                .body(buffer_data.bytes)
-                .send()
+            let res = reqwest::get("https://api.mainnet.hiro.so/v2/info")
                 .await
                 .unwrap();
-
-            match res.error_for_status_ref() {
-                Ok(_) => {}
-                Err(_) => {
-                    return Err(Diagnostic::error_from_string(res.text().await.unwrap()));
+            match res.text().await {
+                Ok(r) => {
+                    result
+                        .outputs
+                        .insert(format!("transaction_hash"), Value::string(r));
+                    Ok(result)
                 }
-            };
-            let tx_id = res.text().await.unwrap();
-
-            result
-                .outputs
-                .insert(format!("tx_id"), Value::string(tx_id));
-
-            Ok(result)
+                Err(e) => {
+                    unimplemented!("failed to get request: {e}")
+                }
+            }
         };
-
         Box::pin(future)
     }
 

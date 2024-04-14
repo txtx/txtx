@@ -22,13 +22,8 @@ lazy_static! {
           name: "Stacks Contract Call",
           matcher: "call_contract",
           documentation: "Encode contract call payload",
+          inputs_parent_attribute: Some("use".into()),
           inputs: [
-              description: {
-                  documentation: "Description of the variable",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
               contract_id: {
                   documentation: "Address and identifier of the contract to invoke",
                   typing: Type::addon(TypeSpecification {
