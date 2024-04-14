@@ -111,7 +111,7 @@ impl CommandInput {
             Type::Array(array) => Some(array),
         }
     }
-    pub fn as_addon(&self) -> Option<&TypeSpecification> {
+    pub fn as_action(&self) -> Option<&TypeSpecification> {
         match &self.typing {
             Type::Object(_) => None,
             Type::Primitive(_) => None,
@@ -135,7 +135,7 @@ impl Serialize for CommandInput {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandOutput {
     pub name: String,
     pub documentation: String,
@@ -156,6 +156,14 @@ impl Serialize for CommandOutput {
 }
 
 #[derive(Clone, Debug)]
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum CommandId {
+    Action(String),
+    Prompt(String),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
     pub matcher: String,
@@ -192,7 +200,7 @@ type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagn
 // >;
 type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
 
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum CommandRunner {
     Async(CommandRunnerAsync),
     Sync(CommandRunnerSync),

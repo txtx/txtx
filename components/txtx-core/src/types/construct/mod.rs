@@ -6,7 +6,8 @@ pub enum PreConstructData {
     Module(Block),
     Output(Block),
     Import(Block),
-    Addon(CommandInstance),
+    Action(CommandInstance),
+    Prompt(CommandInstance),
     Root,
 }
 
@@ -39,9 +40,9 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_addon(&self) -> Option<&CommandInstance> {
+    pub fn as_action(&self) -> Option<&CommandInstance> {
         match self {
-            PreConstructData::Addon(data) => Some(&data),
+            PreConstructData::Action(data) => Some(&data),
             _ => None,
         }
     }

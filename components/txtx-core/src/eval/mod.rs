@@ -735,7 +735,7 @@ pub fn perform_inputs_evaluation(
             }
 
             results.insert(input, value);
-        } else if let Some(_) = input.as_addon() {
+        } else if let Some(_) = input.as_action() {
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
             } else {
