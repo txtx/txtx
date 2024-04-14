@@ -17,6 +17,7 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
+            inputs_parent_attribute: None,
             inputs: [],
             outputs: [],
         }
@@ -50,33 +51,28 @@ impl CommandImplementation for Module {
     }
 }
 
-pub fn new_variable_specification() -> CommandSpecification {
+pub fn new_input_specification() -> CommandSpecification {
     let command: CommandSpecification = define_command! {
-        Variable => {
-            name: "Variable",
-            matcher: "variable",
-            documentation: "Construct designed to store a variable",
+        Input => {
+            name: "Input",
+            matcher: "input",
+            documentation: "Construct designed to store an input",
+            inputs_parent_attribute: None,
             inputs: [
-                description: {
-                    documentation: "Description of the variable",
-                    typing: Type::string(),
-                    optional: true,
-                    interpolable: true
-                },
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the input",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 default: {
-                    documentation: "Default value of the variable, if value is omitted",
+                    documentation: "Default value of the input, if value is omitted",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 type: {
-                    documentation: "The type of the variable output. Can be inferred from `value` or `default` if provided.",
+                    documentation: "The type of the input output. Can be inferred from `value` or `default` if provided.",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -84,7 +80,7 @@ pub fn new_variable_specification() -> CommandSpecification {
             ],
             outputs: [
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the input",
                     typing: Type::string()
                 }
             ],
@@ -93,8 +89,8 @@ pub fn new_variable_specification() -> CommandSpecification {
     command
 }
 
-pub struct Variable;
-impl CommandImplementation for Variable {
+pub struct Input;
+impl CommandImplementation for Input {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -206,15 +202,10 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
+            inputs_parent_attribute: None,
             inputs: [
-                description: {
-                    documentation: "Description of the output",
-                    typing: Type::string(),
-                    optional: true,
-                    interpolable: true
-                },
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the output",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -222,7 +213,7 @@ pub fn new_output_specification() -> CommandSpecification {
             ],
             outputs: [
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the output",
                     typing: Type::string()
                 }
             ],

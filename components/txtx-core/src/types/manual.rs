@@ -144,15 +144,15 @@ impl Manual {
                     },
                 );
             }
-            PreConstructData::Variable(block) => {
+            PreConstructData::Input(block) => {
                 package.variables_uuids.insert(construct_uuid.clone());
                 package
-                    .variables_uuids_lookup
+                    .inputs_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
                 self.commands_instances.insert(
                     construct_uuid.clone(),
                     CommandInstance {
-                        specification: commands::new_variable_specification(),
+                        specification: commands::new_input_specification(),
                         state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
@@ -262,13 +262,13 @@ impl Manual {
                 }
 
                 // Look for variables
-                if component.eq_ignore_ascii_case("variable") {
+                if component.eq_ignore_ascii_case("input") {
                     is_root = false;
-                    let Some(variable_name) = components.pop_front() else {
+                    let Some(input_name) = components.pop_front() else {
                         continue;
                     };
                     if let Some(construct_uuid) =
-                        current_package.variables_uuids_lookup.get(&variable_name)
+                        current_package.inputs_uuids_lookup.get(&input_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }
