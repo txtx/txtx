@@ -9,6 +9,7 @@ use crate::{
     types::diagnostics::{Diagnostic, DiagnosticLevel},
 };
 
+#[derive(Debug, Clone)]
 pub enum StringExpression {
     Literal(String),
     Template(StringTemplate),
@@ -67,12 +68,27 @@ pub fn visit_required_string_literal_attribute(
 
 pub fn visit_optional_untyped_attribute(
     field_name: &str,
+    parent_attribute: &Option<String>,
     block: &Block,
 ) -> Result<Option<Expression>, VisitorError> {
-    let Some(attribute) = block.body.get_attribute(field_name) else {
-        return Ok(None);
-    };
+    let attribute = match parent_attribute {
+        Some(parent_attribute) => {
+            let Some(parent_node) = block.body.get_blocks(parent_attribute).next() else {
+                return Ok(None);
+            };
 
+            let Some(attribute) = parent_node.body.get_attribute(field_name) else {
+                return Ok(None);
+            };
+            attribute
+        }
+        None => {
+            let Some(attribute) = block.body.get_attribute(field_name) else {
+                return Ok(None);
+            };
+            attribute
+        }
+    };
     Ok(Some(attribute.value.clone()))
 }
 
