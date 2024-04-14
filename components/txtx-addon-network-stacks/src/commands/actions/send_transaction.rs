@@ -16,13 +16,8 @@ lazy_static! {
           name: "Send Stacks Transaction",
           matcher: "send_transaction",
           documentation: "Send an encoded transaction payload",
+          inputs_parent_attribute: Some("use".into()),
           inputs: [
-              description: {
-                  documentation: "A description of the transaction being sent.",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
               no_interact: {
                   documentation: "Any valid Clarity value",
                   typing: define_object_type! [], // todo

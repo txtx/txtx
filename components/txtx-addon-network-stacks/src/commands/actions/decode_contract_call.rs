@@ -14,14 +14,9 @@ lazy_static! {
           name: "Decode Stacks Contract Call",
           matcher: "decode_call_contract",
           documentation: "Decode transaction bytes.",
+          inputs_parent_attribute: Some("use".to_string()),
           inputs: [
-              description: {
-                  documentation: "Description of the transaction being decoded.",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
-              transaction_bytes: {
+            transaction_bytes: {
                   documentation: "Transaction bytes to decode.",
                   typing: Type::buffer(),
                   optional: false,
