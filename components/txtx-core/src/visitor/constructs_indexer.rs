@@ -8,9 +8,7 @@ use crate::{
     types::{Manual, PreConstructData},
     AddonsContext,
 };
-use txtx_addon_kit::types::{
-    diagnostics::{Diagnostic, DiagnosticLevel},
-};
+use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
 use txtx_addon_kit::{
     hcl::{self, structure::BlockLabel},
     helpers::{
@@ -187,13 +185,14 @@ pub fn run_constructs_indexing(
                             );
                         }
                         "action" => {
-                            let Some(BlockLabel::String(command_name)) = block.labels.first()
+                            let (Some(namespaced_action), Some(command_name)) =
+                                (block.labels.get(0), block.labels.get(1))
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
-                                        message: "output name missing".to_string(),
+                                        message: "action syntax invalid".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
                                         example: None,
@@ -204,20 +203,8 @@ pub fn run_constructs_indexing(
                                 continue;
                             };
 
-                            let mut use_blocks = block.body.get_blocks("use");
-
-                            let Some(command_src) =
-                                use_blocks.next().and_then(|b| b.labels.first())
-                            else {
-                                todo!("throw diagnostic")
-                            };
-
-                            if let Some(_undesired_secondary_entry) = use_blocks.next() {
-                                todo!("throw diagnostic")
-                            }
-
                             let command_instance = match addons_ctx.create_action_instance(
-                                command_src.as_str(),
+                                &namespaced_action.as_str(),
                                 command_name.as_str(),
                                 &package_uuid,
                                 &block,
@@ -239,13 +226,14 @@ pub fn run_constructs_indexing(
                             );
                         }
                         "prompt" => {
-                            let Some(BlockLabel::String(command_name)) = block.labels.first()
+                            let (Some(namespaced_action), Some(command_name)) =
+                                (block.labels.get(0), block.labels.get(1))
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
-                                        message: "output name missing".to_string(),
+                                        message: "action syntax invalid".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
                                         example: None,
@@ -255,37 +243,8 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-
-                            let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                manual.errors.push(ConstructErrors::Discovery(
-                                    DiscoveryError::OutputConstruct(Diagnostic {
-                                        location: Some(location.clone()),
-                                        span: None,
-                                        message: "output name missing".to_string(),
-                                        level: DiagnosticLevel::Error,
-                                        documentation: None,
-                                        example: None,
-                                        parent_diagnostic: None,
-                                    }),
-                                ));
-                                has_errored = true;
-                                continue;
-                            };
-
-                            let mut use_blocks = block.body.get_blocks("use");
-
-                            let Some(command_src) =
-                                use_blocks.next().and_then(|b| b.labels.first())
-                            else {
-                                todo!("throw diagnostic")
-                            };
-
-                            if let Some(_undesired_secondary_entry) = use_blocks.next() {
-                                todo!("throw diagnostic")
-                            }
-
                             let command_instance = match addons_ctx.create_prompt_instance(
-                                command_src.as_str(),
+                                &namespaced_action.as_str(),
                                 &command_name.to_string(),
                                 &package_uuid,
                                 &block,

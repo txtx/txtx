@@ -92,13 +92,13 @@ impl AddonsContext {
 
     pub fn create_action_instance(
         &mut self,
-        command_src: &str,
+        namespaced_action: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
-        let Some((namespace, command_id)) = command_src.split_once("::") else {
+        let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
@@ -108,13 +108,13 @@ impl AddonsContext {
 
     pub fn create_prompt_instance(
         &mut self,
-        command_src: &str,
+        namespaced_action: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
-        let Some((namespace, command_id)) = command_src.split_once("::") else {
+        let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
