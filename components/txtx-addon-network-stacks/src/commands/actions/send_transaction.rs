@@ -16,7 +16,6 @@ lazy_static! {
           name: "Send Stacks Transaction",
           matcher: "send_transaction",
           documentation: "Send an encoded transaction payload",
-          inputs_parent_attribute: Some("use".into()),
           inputs: [
               no_interact: {
                   documentation: "Any valid Clarity value",

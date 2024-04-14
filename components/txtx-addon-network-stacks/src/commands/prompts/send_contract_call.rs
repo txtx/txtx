@@ -20,7 +20,6 @@ lazy_static! {
           name: "Send Contract Call Transaction",
           matcher: "send_contract_call",
           documentation: "Send an encoded transaction payload",
-          inputs_parent_attribute: Some("use".into()),
           inputs: [
             contract_id: {
                 documentation: "Address and identifier of the contract to invoke",

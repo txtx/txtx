@@ -14,7 +14,6 @@ lazy_static! {
           name: "Decode Stacks Contract Call",
           matcher: "decode_call_contract",
           documentation: "Decode transaction bytes.",
-          inputs_parent_attribute: Some("use".to_string()),
           inputs: [
             transaction_bytes: {
                   documentation: "Transaction bytes to decode.",

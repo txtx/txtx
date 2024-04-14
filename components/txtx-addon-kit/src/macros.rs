@@ -33,7 +33,6 @@ macro_rules! define_command {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
-        inputs_parent_attribute: $inputs_parent_attribute:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
@@ -46,7 +45,6 @@ macro_rules! define_command {
             documentation: String::from($doc),
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
-            inputs_parent_attribute: $inputs_parent_attribute,
             inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
@@ -75,7 +73,6 @@ macro_rules! define_async_command {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
-        inputs_parent_attribute: $inputs_parent_attribute:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
@@ -89,7 +86,6 @@ macro_rules! define_async_command {
                 accepts_arbitrary_inputs: false,
                 create_output_for_each_input: false,
                 default_inputs: CommandSpecification::default_inputs(),
-                inputs_parent_attribute: $inputs_parent_attribute,
                 inputs: vec![$(CommandInput {
                     name: String::from(stringify!($input_name)),
                     documentation: String::from($input_doc),

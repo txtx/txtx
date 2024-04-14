@@ -17,7 +17,6 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
-            inputs_parent_attribute: None,
             inputs: [],
             outputs: [],
         }
@@ -57,7 +56,6 @@ pub fn new_input_specification() -> CommandSpecification {
             name: "Input",
             matcher: "input",
             documentation: "Construct designed to store an input",
-            inputs_parent_attribute: None,
             inputs: [
                 value: {
                     documentation: "Value of the input",
@@ -202,7 +200,6 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
-            inputs_parent_attribute: None,
             inputs: [
                 value: {
                     documentation: "Value of the output",

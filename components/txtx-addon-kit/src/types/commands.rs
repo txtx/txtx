@@ -171,7 +171,6 @@ pub struct CommandSpecification {
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
     pub default_inputs: Vec<CommandInput>,
-    pub inputs_parent_attribute: Option<String>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
     pub runner: CommandRunner,
@@ -372,12 +371,8 @@ impl CommandInstance {
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(
-                                &prop.name,
-                                &self.specification.inputs_parent_attribute,
-                                &block,
-                            )
-                            .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block)
+                                .map_err(|e| format!("{:?}", e))?;
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -390,12 +385,8 @@ impl CommandInstance {
                     }
                 }
                 _ => {
-                    let res = visit_optional_untyped_attribute(
-                        &input.name,
-                        &self.specification.inputs_parent_attribute,
-                        &self.block,
-                    )
-                    .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
+                        .map_err(|e| format!("{:?}", e))?;
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(&expr, &mut references);
@@ -420,12 +411,8 @@ impl CommandInstance {
     ) -> Result<Option<Expression>, String> {
         let res = match &input.typing {
             Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
-                visit_optional_untyped_attribute(
-                    &input.name,
-                    &self.specification.inputs_parent_attribute,
-                    &self.block,
-                )
-                .map_err(|e| format!("{:?}", e))?
+                visit_optional_untyped_attribute(&input.name, &self.block)
+                    .map_err(|e| format!("{:?}", e))?
             }
             Type::Object(_) => unreachable!(),
         };
@@ -447,12 +434,8 @@ impl CommandInstance {
         let object = self.block.body.get_blocks(&input.name).next();
         match (object, input.optional) {
             (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(
-                    &prop.name,
-                    &self.specification.inputs_parent_attribute,
-                    &block,
-                )
-                .map_err(|e| format!("{:?}", e))?;
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)
+                    .map_err(|e| format!("{:?}", e))?;
                 match (expr_res, prop.optional) {
                     (Some(expression), _) => Ok(Some(expression)),
                     (None, true) => Ok(None),

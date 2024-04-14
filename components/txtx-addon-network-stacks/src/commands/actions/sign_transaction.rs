@@ -38,7 +38,6 @@ lazy_static! {
         name: "Sign Stacks Transaction",
         matcher: "sign_transaction",
         documentation: "Sign an encoded transaction payload",
-        inputs_parent_attribute: Some("use".into()),
         inputs: [
             no_interact: {
                 documentation: "Any valid Clarity value",

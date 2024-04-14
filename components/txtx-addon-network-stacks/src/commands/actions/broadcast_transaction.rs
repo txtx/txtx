@@ -18,7 +18,6 @@ lazy_static! {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
             documentation: "Broadcast a signed transaction payload",
-            inputs_parent_attribute: Some("use".into()),
             inputs: [
                 signed_transaction_bytes: {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",

@@ -22,7 +22,6 @@ lazy_static! {
           name: "Stacks Contract Call",
           matcher: "call_contract",
           documentation: "Encode contract call payload",
-          inputs_parent_attribute: Some("use".into()),
           inputs: [
               contract_id: {
                   documentation: "Address and identifier of the contract to invoke",
