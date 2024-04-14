@@ -155,9 +155,7 @@ impl Serialize for CommandOutput {
     }
 }
 
-#[derive(Clone, Debug)]
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
     Action(String),
     Prompt(String),
