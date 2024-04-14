@@ -393,37 +393,6 @@ fn extract_tuple(value: &Value) -> TupleData {
     }
 }
 
-// Ok(PrimitiveValue::UnsignedInteger(v)) => {
-//     let cv = ClarityValue::UInt(u128::from(*v));
-//     type_map.insert(clarity_name.clone(), ClarityType::UIntType);
-//     data_map.insert(clarity_name.clone(), cv);
-// }
-// Ok(PrimitiveValue::SignedInteger(v)) => {
-//     let cv = ClarityValue::Int(i128::from(*v));
-//     type_map.insert(clarity_name.clone(), ClarityType::IntType);
-//     data_map.insert(clarity_name.clone(), cv);
-// }
-// Ok(PrimitiveValue::Bool(v)) => {
-//     let cv = ClarityValue::Bool(*v);
-//     type_map.insert(clarity_name.clone(), ClarityType::BoolType);
-//     data_map.insert(clarity_name.clone(), cv);
-// }
-// Ok(PrimitiveValue::String(v)) => {
-//     let cv = ClarityValue::Sequence(SequenceData::String(CharType::ASCII(
-//         ASCIIData {
-//             data: v.as_bytes().to_vec(),
-//         },
-//     )));
-//     type_map.insert(
-//         clarity_name.clone(),
-//         ClarityType::SequenceType(SequenceSubtype::StringType(
-//             StringSubtype::ASCII(
-//                 BufferLength::try_from(cv.size()).unwrap(),
-//             ),
-//         )),
-//     );
-//     data_map.insert(clarity_name.clone(), cv);
-// }
 fn clarity_type_and_primitive_to_clarity_value(
     typing: &ClarityType,
     value: &Value,
