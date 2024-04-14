@@ -1,0 +1,15 @@
+input "fruit" {
+  description = "The argument to pass to the contract"
+  value = "🍊"
+  type = "string"
+}
+
+prompt "vote_transaction" {
+    description = "Invokes contract call of the method specified in contract_method."
+    use "stacks::send_contract_call" {
+        network_id = "mainnet"
+        contract_id = "contract_id"
+        function_name = "vote"
+        function_args = [cv_utf8(input.fruit.value)]
+    }
+}
