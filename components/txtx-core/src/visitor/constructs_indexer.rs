@@ -115,7 +115,7 @@ pub fn run_constructs_indexing(
                                 &package_uuid,
                             );
                         }
-                        "variable" => {
+                        "input" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::VariableConstruct(Diagnostic {
@@ -134,7 +134,7 @@ pub fn run_constructs_indexing(
                             let _ = manual.index_construct(
                                 name.to_string(),
                                 location.clone(),
-                                PreConstructData::Variable(block),
+                                PreConstructData::Input(block),
                                 &package_uuid,
                             );
                         }

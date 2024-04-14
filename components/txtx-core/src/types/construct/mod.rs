@@ -2,7 +2,7 @@ use txtx_addon_kit::{hcl::structure::Block, types::commands::CommandInstance};
 
 #[derive(Debug)]
 pub enum PreConstructData {
-    Variable(Block),
+    Input(Block),
     Module(Block),
     Output(Block),
     Import(Block),
@@ -18,9 +18,9 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_variable(&self) -> Option<&Block> {
+    pub fn as_input(&self) -> Option<&Block> {
         match self {
-            PreConstructData::Variable(data) => Some(&data),
+            PreConstructData::Input(data) => Some(&data),
             _ => None,
         }
     }
