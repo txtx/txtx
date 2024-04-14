@@ -23,7 +23,7 @@ lazy_static! {
     pub static ref STACKS_FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
             EncodeClarityValueOk => {
-                name: "clarity_value_ok",
+                name: "cv_ok",
                 documentation: "Encode data",
                 example: "stacks_encode_ok(stacks_encode_uint(1))",
                 inputs: [
@@ -40,7 +40,7 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueErr => {
-                name: "clarity_value_err",
+                name: "cv_err",
                 documentation: "",
                 example: "stacks_encode_err(stacks_encode_uint(1))",
                 inputs: [
@@ -57,9 +57,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueUint => {
-                name: "clarity_value_uint",
+                name: "cv_uint",
                 documentation: "",
-                example: "clarity_value_uint(1)",
+                example: "cv_uint(1)",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -74,9 +74,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueInt => {
-                name: "clarity_value_int",
+                name: "cv_int",
                 documentation: "",
-                example: "clarity_value_int(1)",
+                example: "cv_int(1)",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -91,9 +91,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValuePrincipal => {
-                name: "clarity_value_standard_principal",
+                name: "cv_principal",
                 documentation: "",
-                example: "clarity_value_standard_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE')",
+                example: "cv_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE')",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -108,9 +108,26 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValuePrincipal => {
-                name: "clarity_value_contract_principal",
+                name: "cv_standard_principal",
                 documentation: "",
-                example: "clarity_value_contract_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-stake-pool-diko-v1-2')",
+                example: "cv_standard_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE')",
+                inputs: [
+                    clarity_value: {
+                        documentation: "Any valid Clarity value",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Type::string()
+                },
+            }
+        },
+        define_function! {
+          EncodeClarityValuePrincipal => {
+                name: "cv_contract_principal",
+                documentation: "",
+                example: "cv_contract_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.arkadiko-stake-pool-diko-v1-2')",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -125,9 +142,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValueAscii => {
-                name: "clarity_value_ascii",
+                name: "cv_ascii",
                 documentation: "",
-                example: "clarity_value_ascii('my ascii string')",
+                example: "cv_ascii('my ascii string')",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -142,9 +159,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValueUTF8 => {
-                name: "clarity_value_utf8",
+                name: "cv_utf8",
                 documentation: "",
-                example: "clarity_value_utf8('🍊')",
+                example: "cv_utf8('🍊')",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -159,9 +176,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueTuple => {
-                name: "clarity_value_tuple",
+                name: "cv_tuple",
                 documentation: "",
-                example: "clarity_value_tuple({ 'some_key': clarity_value_uint(1) })",
+                example: "cv_tuple({ 'some_key': cv_uint(1) })",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
