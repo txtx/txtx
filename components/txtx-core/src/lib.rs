@@ -14,6 +14,7 @@ use ::std::sync::RwLock;
 
 use kit::hcl::structure::Block;
 use kit::helpers::fs::FileLocation;
+use kit::types::commands::CommandId;
 use kit::types::commands::CommandInstance;
 use kit::types::commands::EvalEvent;
 use kit::types::diagnostics::Diagnostic;
@@ -89,16 +90,35 @@ impl AddonsContext {
         return Ok(self.contexts.get(&key).unwrap());
     }
 
-    pub fn create_command_instance(
+    pub fn create_action_instance(
         &mut self,
-        namespace: &str,
-        command_type: &str,
+        command_src: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
+        let Some((namespace, command_id)) = command_src.split_once("::") else {
+            todo!("return diagnostic")
+        };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
-        ctx.create_command_instance(command_type, command_name, block, package_uuid)
+        let command_id = CommandId::Action(command_id.to_string());
+        ctx.create_command_instance(&command_id, command_name, block, package_uuid)
+    }
+
+    pub fn create_prompt_instance(
+        &mut self,
+        command_src: &str,
+        command_name: &str,
+        package_uuid: &PackageUuid,
+        block: &Block,
+        _location: &FileLocation,
+    ) -> Result<CommandInstance, Diagnostic> {
+        let Some((namespace, command_id)) = command_src.split_once("::") else {
+            todo!("return diagnostic")
+        };
+        let ctx = self.find_or_create_context(namespace, package_uuid)?;
+        let command_id = CommandId::Prompt(command_id.to_string());
+        ctx.create_command_instance(&command_id, command_name, block, package_uuid)
     }
 }

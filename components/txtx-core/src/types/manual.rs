@@ -182,7 +182,15 @@ impl Manual {
                     .imports_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
             }
-            PreConstructData::Addon(command_instance) => {
+            PreConstructData::Action(command_instance) => {
+                package.addons_uuids.insert(construct_uuid.clone());
+                package
+                    .addons_uuids_lookup
+                    .insert(construct_name.clone(), construct_uuid.clone());
+                self.commands_instances
+                    .insert(construct_uuid.clone(), command_instance.clone());
+            }
+            PreConstructData::Prompt(command_instance) => {
                 package.addons_uuids.insert(construct_uuid.clone());
                 package
                     .addons_uuids_lookup
@@ -275,13 +283,13 @@ impl Manual {
                 }
 
                 // Look for addon
-                if component.eq_ignore_ascii_case("addon") {
+                if component.eq_ignore_ascii_case("action") {
                     is_root = false;
-                    let Some(addon_name) = components.pop_front() else {
+                    let Some(action_name) = components.pop_front() else {
                         continue;
                     };
                     if let Some(construct_uuid) =
-                        current_package.addons_uuids_lookup.get(&addon_name)
+                        current_package.addons_uuids_lookup.get(&action_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }
