@@ -185,7 +185,7 @@ pub fn run_constructs_indexing(
                             );
                         }
                         "action" => {
-                            let (Some(namespaced_action), Some(command_name)) =
+                            let (Some(command_name), Some(namespaced_action)) =
                                 (block.labels.get(0), block.labels.get(1))
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
@@ -226,7 +226,7 @@ pub fn run_constructs_indexing(
                             );
                         }
                         "prompt" => {
-                            let (Some(namespaced_action), Some(command_name)) =
+                            let (Some(command_name), Some(namespaced_action)) =
                                 (block.labels.get(0), block.labels.get(1))
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
