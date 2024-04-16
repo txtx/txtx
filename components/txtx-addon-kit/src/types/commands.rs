@@ -161,6 +161,15 @@ pub enum CommandId {
     Prompt(String),
 }
 
+impl CommandId {
+    pub fn to_string(&self) -> String {
+        match &self {
+            &CommandId::Action(id) => format!("action::{id}"),
+            &CommandId::Prompt(id) => format!("prompt::{id}"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
