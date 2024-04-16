@@ -215,6 +215,9 @@ impl Manual {
         Ok(())
     }
 
+    /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the manual's `packages`.
+    /// Iterates over the operators of `expression` to see if any of the blocks it references are cached as a
+    /// `module`, `output`, `input`, `action`, or `prompt` in the package.
     pub fn try_resolve_construct_reference_in_expression(
         &self,
         package_uuid_source: &PackageUuid,
@@ -271,7 +274,7 @@ impl Manual {
                     }
                 }
 
-                // Look for variables
+                // Look for inputs
                 if component.eq_ignore_ascii_case("input") {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
@@ -284,7 +287,7 @@ impl Manual {
                     }
                 }
 
-                // Look for addon
+                // Look for actions
                 if component.eq_ignore_ascii_case("action") {
                     is_root = false;
                     let Some(action_name) = components.pop_front() else {
