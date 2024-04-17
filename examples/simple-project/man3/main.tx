@@ -7,7 +7,7 @@ input "fruit" {
 prompt "vote_transaction" "stacks::send_contract_call" {
     description = "Invokes contract call of the method specified in contract_method."
     network_id = "mainnet"
-    contract_id = "contract_id"
+    contract_id = "ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract"
     function_name = "vote"
     function_args = [cv_utf8(input.fruit.value)]
 }
