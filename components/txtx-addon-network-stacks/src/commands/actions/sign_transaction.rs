@@ -70,7 +70,7 @@ lazy_static! {
                 interpolable: true
             },
             network_id: {
-                documentation: "The network id used to validate the transaction version.",
+                documentation: "The network id used to set the transaction version.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
