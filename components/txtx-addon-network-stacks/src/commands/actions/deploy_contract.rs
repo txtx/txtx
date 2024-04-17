@@ -40,12 +40,9 @@ impl CommandImplementation for StacksDeployContract {
 
     fn run(
         _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        _args: &HashMap<String, Value>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let value = args.get("clarity_value").unwrap().clone(); // todo(lgalabru): get default, etc.
-        let mut result = CommandExecutionResult::new();
-        result.outputs.insert("bytes".to_string(), value);
-        Ok(result)
+        unimplemented!()
     }
 
     fn update_input_evaluation_results_from_user_input(
