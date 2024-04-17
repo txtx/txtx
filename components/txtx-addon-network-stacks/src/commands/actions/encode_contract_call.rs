@@ -3,7 +3,7 @@ use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE, STACKS_CONTRACT_CALL};
 use clarity::vm::types::PrincipalData;
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
 use clarity_repl::clarity::ClarityName;
-use clarity_repl::codec::TransactionContractCall;
+use clarity_repl::codec::{TransactionContractCall, TransactionVersion};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
@@ -40,12 +40,22 @@ lazy_static! {
                   typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
                   optional: true,
                   interpolable: true
+              },
+              network_id: {
+                  documentation: "The network id used to validate the transaction version.",
+                  typing: Type::string(),
+                  optional: false,
+                  interpolable: true
               }
           ],
           outputs: [
               bytes: {
                   documentation: "Encoded contract call",
                   typing: Type::buffer()
+              },
+              network_id: {
+                  documentation: "Encoded contract call",
+                  typing: Type::string()
               }
           ],
       }
@@ -65,6 +75,11 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_address
+        let network_id = match args.get("network_id") {
+            Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
+            _ => todo!("network_id missing or wrong type, return diagnostic"),
+        };
+
         let contract_id = match args.get("contract_id") {
             Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
                 match parse_clarity_value(&contract_id.bytes, &contract_id.typing) {
@@ -80,7 +95,22 @@ impl CommandImplementation for EncodeStacksContractCall {
             }
             _ => todo!("contract_id is missing or wrong type, return diagnostic"),
         };
-        // Extract derivation path
+
+        let principal_data =
+            PrincipalData::parse_qualified_contract_principal(&contract_id.to_string()).unwrap();
+
+        let mainnet_match = principal_data.version() == TransactionVersion::Mainnet as u8
+            && network_id.eq("mainnet");
+        let testnet_match = principal_data.version() == TransactionVersion::Testnet as u8
+            && network_id.eq("testnet");
+        if !mainnet_match && !testnet_match {
+            unimplemented!(
+                "contract id {} is not valid for network {}; return diagnostic",
+                principal_data,
+                network_id
+            );
+        }
+
         let function_name = match args.get("function_name") {
             Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
             _ => todo!("function_name missing or wrong type, return diagnostic"),
@@ -120,6 +150,9 @@ impl CommandImplementation for EncodeStacksContractCall {
         let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
 
         result.outputs.insert("bytes".to_string(), value);
+        result
+            .outputs
+            .insert("network_id".to_string(), Value::string(network_id));
 
         Ok(result)
     }
