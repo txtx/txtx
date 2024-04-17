@@ -1,12 +1,12 @@
-use crate::functions::parse_clarity_value;
-use crate::typing::{ClarityValue, STACKS_CONTRACT_CALL};
+use crate::stacks_helpers::parse_clarity_value;
+use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE, STACKS_CONTRACT_CALL};
 use clarity::vm::types::PrincipalData;
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
 use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::types::types::{TypeImplementation, TypeSpecification};
+use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -17,25 +17,15 @@ use txtx_addon_kit::types::{
 };
 
 lazy_static! {
-    pub static ref ENCODE_STACKS_CONTRACT_CALL: CommandSpecification = define_command! {
+    pub static ref ENCODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
         EncodeStacksContractCall => {
           name: "Stacks Contract Call",
           matcher: "call_contract",
           documentation: "Encode contract call payload",
           inputs: [
-              description: {
-                  documentation: "Description of the variable",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
               contract_id: {
                   documentation: "Address and identifier of the contract to invoke",
-                  typing: Type::addon(TypeSpecification {
-                    id: "clarity_principal".into(),
-                    documentation: "Any clarity value".into(),
-                    checker: ClarityValue::check
-                  }),
+                  typing: Type::addon(CLARITY_PRINCIPAL.clone()),
                   optional: false,
                   interpolable: true
               },
@@ -47,12 +37,14 @@ lazy_static! {
               },
               function_args: {
                   documentation: "Args to provide",
-                  typing: Type::array(Type::addon(TypeSpecification {
-                    id: "clarity_value".into(),
-                    documentation: "Any clarity value".into(),
-                    checker: ClarityValue::check
-                  })), // todo: why isn't CLARITY_VALUE working??
+                  typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
                   optional: true,
+                  interpolable: true
+              },
+              network_id: {
+                  documentation: "The network id used to validate the transaction version.",
+                  typing: Type::string(),
+                  optional: false,
                   interpolable: true
               }
           ],
@@ -60,6 +52,10 @@ lazy_static! {
               bytes: {
                   documentation: "Encoded contract call",
                   typing: Type::buffer()
+              },
+              network_id: {
+                  documentation: "Network id of the encoded transaction.",
+                  typing: Type::string()
               }
           ],
       }
@@ -78,6 +74,11 @@ impl CommandImplementation for EncodeStacksContractCall {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 
+        // Extract network_id
+        let network_id = match args.get("network_id") {
+            Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
+            _ => todo!("network_id missing or wrong type, return diagnostic"),
+        };
         // Extract contract_address
         let contract_id = match args.get("contract_id") {
             Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
@@ -89,28 +90,43 @@ impl CommandImplementation for EncodeStacksContractCall {
                     Err(e) => return Err(e),
                 }
             }
-            _ => todo!("contract_id missing, return diagnostic"),
+            Some(Value::Primitive(PrimitiveValue::String(contract_id))) => {
+                clarity::vm::types::QualifiedContractIdentifier::parse(contract_id).unwrap()
+            }
+            _ => todo!("contract_id is missing or wrong type, return diagnostic"),
         };
-        // Extract derivation path
+
+        // validate contract_id against network_id
+        // todo, is there a better way to do this?
+        let id_str = contract_id.to_string();
+        let mainnet_match = id_str.starts_with("SP") && network_id.eq("mainnet");
+        let testnet_match = id_str.starts_with("ST") && network_id.eq("testnet");
+        if !mainnet_match && !testnet_match {
+            unimplemented!(
+                "contract id {} is not valid for network {}; return diagnostic",
+                id_str,
+                network_id
+            );
+        }
+
         let function_name = match args.get("function_name") {
             Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
-            _ => todo!("function_name missing, return diagnostic"),
+            _ => todo!("function_name missing or wrong type, return diagnostic"),
         };
 
         let function_args = match args.get("function_args") {
             Some(Value::Array(args)) => {
                 let mut function_args = vec![];
                 for arg in args.iter() {
-                    // todo: for each possible primitive value type, we should
-                    // try to cast it to a clarity value
                     let function_arg = match arg {
+                        // todo maybe we can assume some types?
                         Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
                             match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
                                 Ok(v) => v,
                                 Err(e) => return Err(e),
                             }
                         }
-                        v => todo!("{:?}", v), // return diag
+                        v => todo!("function argument is missing or wrong type {:?}", v), // return diag
                     };
 
                     function_args.push(function_arg)
@@ -132,6 +148,9 @@ impl CommandImplementation for EncodeStacksContractCall {
         let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
 
         result.outputs.insert("bytes".to_string(), value);
+        result
+            .outputs
+            .insert("network_id".to_string(), Value::string(network_id));
 
         Ok(result)
     }

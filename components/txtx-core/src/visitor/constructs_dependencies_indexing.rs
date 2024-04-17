@@ -24,7 +24,7 @@ pub fn run_constructs_dependencies_indexing(
             for (package_uuid, package) in packages.iter() {
                 for construct_uuid in package.imports_uuids.iter() {
                     let construct = manual.commands_instances.get(construct_uuid).unwrap();
-                    for dep in construct.collect_dependencies().iter() {}
+                    for _dep in construct.collect_dependencies().iter() {} // todo
                 }
                 for construct_uuid in package.variables_uuids.iter() {
                     let construct = manual.commands_instances.get(construct_uuid).unwrap();

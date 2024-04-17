@@ -111,7 +111,7 @@ impl CommandInput {
             Type::Array(array) => Some(array),
         }
     }
-    pub fn as_addon(&self) -> Option<&TypeSpecification> {
+    pub fn as_action(&self) -> Option<&TypeSpecification> {
         match &self.typing {
             Type::Object(_) => None,
             Type::Primitive(_) => None,
@@ -135,7 +135,7 @@ impl Serialize for CommandInput {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandOutput {
     pub name: String,
     pub documentation: String,
@@ -155,18 +155,77 @@ impl Serialize for CommandOutput {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum CommandId {
+    Action(String),
+    Prompt(String),
+}
+
+impl CommandId {
+    pub fn to_string(&self) -> String {
+        match &self {
+            &CommandId::Action(id) => format!("action::{id}"),
+            &CommandId::Prompt(id) => format!("prompt::{id}"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
+pub enum CommandInstanceOrParts {
+    Instance(CommandInstance),
+    Parts(Vec<String>),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum PreCommandSpecification {
+    Atomic(CommandSpecification),
+    Composite(CompositeCommandSpecification),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
     pub matcher: String,
     pub documentation: String,
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
+    pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
     pub runner: CommandRunner,
     pub checker: CommandChecker,
     pub user_input_parser: CommandParser,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct CompositeCommandSpecification {
+    pub name: String,
+    pub matcher: String,
+    pub documentation: String,
+    pub parts: Vec<PreCommandSpecification>,
+    pub default_inputs: Vec<CommandInput>,
+    pub router: CommandRouter,
+}
+
+impl CommandSpecification {
+    pub fn default_inputs() -> Vec<CommandInput> {
+        vec![
+            CommandInput {
+                name: "description".into(),
+                documentation: "Allows you to describe and comment steps of your runbook".into(),
+                typing: Type::string(),
+                optional: true,
+                interpolable: true,
+            },
+            CommandInput {
+                name: "labels".into(),
+                documentation: "Allows you to label steps of your runbook".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: true,
+            },
+        ]
+    }
 }
 
 impl Serialize for CommandSpecification {
@@ -183,6 +242,19 @@ impl Serialize for CommandSpecification {
     }
 }
 
+impl Serialize for CompositeCommandSpecification {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // todo
+        let mut ser = serializer.serialize_struct("CompositeCommandSpecification", 2)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.end()
+    }
+}
+
 type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 // type CommandRunner = Box<
 //     fn(
@@ -191,8 +263,10 @@ type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagn
 //     ) -> Result<CommandExecutionResult, Diagnostic>,
 // >;
 type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
+type CommandRouter =
+    fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum CommandRunner {
     Async(CommandRunnerAsync),
     Sync(CommandRunnerSync),
@@ -234,6 +308,14 @@ pub trait CommandImplementation {
         _input_name: String,
         _value: String,
     );
+}
+
+pub trait CompositeCommandImplementation {
+    fn router(
+        _first_input_body: &String,
+        _command_instance_name: &String,
+        _parts: &Vec<PreCommandSpecification>,
+    ) -> Result<Vec<String>, Diagnostic>;
 }
 
 state_machine! {
@@ -375,6 +457,7 @@ impl CommandInstance {
         Ok(expressions)
     }
 
+    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
     pub fn get_expression_from_input(
         &self,
         input: &CommandInput,

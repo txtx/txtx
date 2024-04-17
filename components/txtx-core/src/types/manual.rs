@@ -9,8 +9,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, RwLock};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
+use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
@@ -144,15 +144,15 @@ impl Manual {
                     },
                 );
             }
-            PreConstructData::Variable(block) => {
+            PreConstructData::Input(block) => {
                 package.variables_uuids.insert(construct_uuid.clone());
                 package
-                    .variables_uuids_lookup
+                    .inputs_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
                 self.commands_instances.insert(
                     construct_uuid.clone(),
                     CommandInstance {
-                        specification: commands::new_variable_specification(),
+                        specification: commands::new_input_specification(),
                         state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
@@ -182,11 +182,21 @@ impl Manual {
                     .imports_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
             }
-            PreConstructData::Addon(command_instance) => {
+            PreConstructData::Action(command_instance) => {
                 package.addons_uuids.insert(construct_uuid.clone());
-                package
-                    .addons_uuids_lookup
-                    .insert(construct_name.clone(), construct_uuid.clone());
+                package.addons_uuids_lookup.insert(
+                    CommandId::Action(construct_name).to_string(),
+                    construct_uuid.clone(),
+                );
+                self.commands_instances
+                    .insert(construct_uuid.clone(), command_instance.clone());
+            }
+            PreConstructData::Prompt(command_instance) => {
+                package.addons_uuids.insert(construct_uuid.clone());
+                package.addons_uuids_lookup.insert(
+                    CommandId::Prompt(construct_name).to_string(),
+                    construct_uuid.clone(),
+                );
                 self.commands_instances
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
@@ -205,6 +215,9 @@ impl Manual {
         Ok(())
     }
 
+    /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the manual's `packages`.
+    /// Iterates over the operators of `expression` to see if any of the blocks it references are cached as a
+    /// `module`, `output`, `input`, `action`, or `prompt` in the package.
     pub fn try_resolve_construct_reference_in_expression(
         &self,
         package_uuid_source: &PackageUuid,
@@ -261,27 +274,42 @@ impl Manual {
                     }
                 }
 
-                // Look for variables
-                if component.eq_ignore_ascii_case("variable") {
+                // Look for inputs
+                if component.eq_ignore_ascii_case("input") {
                     is_root = false;
-                    let Some(variable_name) = components.pop_front() else {
+                    let Some(input_name) = components.pop_front() else {
                         continue;
                     };
                     if let Some(construct_uuid) =
-                        current_package.variables_uuids_lookup.get(&variable_name)
+                        current_package.inputs_uuids_lookup.get(&input_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }
                 }
 
-                // Look for addon
-                if component.eq_ignore_ascii_case("addon") {
+                // Look for actions
+                if component.eq_ignore_ascii_case("action") {
                     is_root = false;
-                    let Some(addon_name) = components.pop_front() else {
+                    let Some(action_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_uuid) =
-                        current_package.addons_uuids_lookup.get(&addon_name)
+                    if let Some(construct_uuid) = current_package
+                        .addons_uuids_lookup
+                        .get(&CommandId::Action(action_name).to_string())
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
+                }
+
+                // Look for prompts
+                if component.eq_ignore_ascii_case("prompt") {
+                    is_root = false;
+                    let Some(prompt_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) = current_package
+                        .addons_uuids_lookup
+                        .get(&CommandId::Prompt(prompt_name).to_string())
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }

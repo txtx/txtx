@@ -9,6 +9,7 @@ use crate::{
     types::diagnostics::{Diagnostic, DiagnosticLevel},
 };
 
+#[derive(Debug, Clone)]
 pub enum StringExpression {
     Literal(String),
     Template(StringTemplate),
@@ -72,7 +73,6 @@ pub fn visit_optional_untyped_attribute(
     let Some(attribute) = block.body.get_attribute(field_name) else {
         return Ok(None);
     };
-
     Ok(Some(attribute.value.clone()))
 }
 

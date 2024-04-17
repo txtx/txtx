@@ -38,9 +38,9 @@ variable "proposed_contract_changes" {
   description = "The proposed contract changes."
   type = "string"
   value = {
-    "name": clarity_value_ascii("aip-15-diko-emissions"),
-    "address": clarity_value_standard_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR"),
-    "qualified-name": clarity_value_contract_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.aip-15-arkadiko-governance-emissions"),
+    "name": cv_ascii("aip-15-diko-emissions"),
+    "address": cv_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR"),
+    "qualified-name": cv_principal("SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.aip-15-arkadiko-governance-emissions"),
     "can-mint": false,
     "can-burn": false
   }
@@ -48,15 +48,15 @@ variable "proposed_contract_changes" {
 
 addon "stacks" "call_contract" "governance_proposal_payload" {
   description = "Calls the arkadiko-governance-v4-2 contract's propose function with AIP 15 arguments."
-  contract_id = clarity_value_contract_principal(variable.govenance_contract_id.value)
+  contract_id = cv_principal(variable.govenance_contract_id.value)
   function_name = "propose"
   function_args = [
-    clarity_value_contract_principal(variable.stake_pool_diko_trait.value), 
-    clarity_value_uint(variable.start_block_height.value), 
-    clarity_value_uint(variable.vote_length.value), 
-    clarity_value_ascii(variable.proposal_title.value), 
-    clarity_value_ascii(variable.proposal_url.value), 
-    clarity_value_tuple(variable.proposed_contract_changes.value)
+    cv_principal(variable.stake_pool_diko_trait.value), 
+    cv_uint(variable.start_block_height.value), 
+    cv_uint(variable.vote_length.value), 
+    cv_ascii(variable.proposal_title.value), 
+    cv_ascii(variable.proposal_url.value), 
+    cv_tuple(variable.proposed_contract_changes.value)
   ]
 }
 

@@ -3,25 +3,19 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-        CommandSpecification,
+        CommandSpecification, PreCommandSpecification,
     },
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
 
 lazy_static! {
-    pub static ref DEPLOY_STACKS_CONTRACT: CommandSpecification = define_command! {
+    pub static ref DEPLOY_STACKS_CONTRACT: PreCommandSpecification = define_command! {
       StacksDeployContract => {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
           documentation: "Encode contract deployment payload",
           inputs: [
-              description: {
-                  documentation: "Description of the variable",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
               clarity_value: {
                   documentation: "Any valid Clarity value",
                   typing: Type::bool(),
@@ -46,12 +40,9 @@ impl CommandImplementation for StacksDeployContract {
 
     fn run(
         _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        _args: &HashMap<String, Value>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let value = args.get("clarity_value").unwrap().clone(); // todo(lgalabru): get default, etc.
-        let mut result = CommandExecutionResult::new();
-        result.outputs.insert("bytes".to_string(), value);
-        Ok(result)
+        unimplemented!()
     }
 
     fn update_input_evaluation_results_from_user_input(

@@ -8,7 +8,9 @@ pub use hcl_edit as hcl;
 use helpers::{fs::FileLocation, hcl::VisitorError};
 use std::{collections::HashMap, fmt::Debug};
 use types::{
-    commands::{CommandExecutionResult, CommandInstance, CommandSpecification},
+    commands::{
+        CommandExecutionResult, CommandId, CommandInstanceOrParts, PreCommandSpecification,
+    },
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     ConstructUuid, PackageUuid,
@@ -27,7 +29,9 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_functions(self: &Self) -> Vec<FunctionSpecification>;
     ///
-    fn get_commands(self: &Self) -> Vec<CommandSpecification>;
+    fn get_actions(&self) -> Vec<PreCommandSpecification>;
+    ///
+    fn get_prompts(&self) -> Vec<PreCommandSpecification>;
     ///
     fn create_context(self: &Self) -> Box<dyn AddonContext>;
 }
@@ -35,18 +39,13 @@ pub trait Addon: Debug + Sync + Send {
 ///
 pub trait AddonContext: Debug + Sync + Send {
     ///
-    fn get_construct(
-        self: &Self,
-        construct_uuid: &ConstructUuid,
-    ) -> Option<Box<&dyn AddonConstruct>>;
-    ///
     fn create_command_instance(
         self: &Self,
-        command_type: &str,
+        command_id: &CommandId,
         command_name: &str,
         block: &Block,
         package_uuid: &PackageUuid,
-    ) -> Result<CommandInstance, Diagnostic>;
+    ) -> Result<CommandInstanceOrParts, Diagnostic>;
     ///
     fn resolve_construct_dependencies(
         self: &Self,

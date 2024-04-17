@@ -8,7 +8,13 @@ use crate::{
     types::{Manual, PreConstructData},
     AddonsContext,
 };
-use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
+use txtx_addon_kit::{
+    hcl::structure::Block,
+    types::{
+        commands::CommandInstanceOrParts,
+        diagnostics::{Diagnostic, DiagnosticLevel},
+    },
+};
 use txtx_addon_kit::{
     hcl::{self, structure::BlockLabel},
     helpers::{
@@ -44,7 +50,11 @@ pub fn run_constructs_indexing(
                 let package_uuid =
                     manual.find_or_create_package_uuid(&package_name, &package_location)?;
 
-                for block in content.into_blocks() {
+                let mut blocks = content
+                    .into_blocks()
+                    .into_iter()
+                    .collect::<VecDeque<Block>>();
+                while let Some(block) = blocks.pop_front() {
                     match block.ident.value().as_str() {
                         "import" => {
                             // imports are the only constructs that we need to process in this step
@@ -111,11 +121,11 @@ pub fn run_constructs_indexing(
                             let _ = manual.index_construct(
                                 name.to_string(),
                                 location.clone(),
-                                PreConstructData::Import(block),
+                                PreConstructData::Import(block.clone()),
                                 &package_uuid,
                             );
                         }
-                        "variable" => {
+                        "input" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
                                 manual.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::VariableConstruct(Diagnostic {
@@ -134,7 +144,7 @@ pub fn run_constructs_indexing(
                             let _ = manual.index_construct(
                                 name.to_string(),
                                 location.clone(),
-                                PreConstructData::Variable(block),
+                                PreConstructData::Input(block.clone()),
                                 &package_uuid,
                             );
                         }
@@ -157,7 +167,7 @@ pub fn run_constructs_indexing(
                             let _ = manual.index_construct(
                                 name.to_string(),
                                 location.clone(),
-                                PreConstructData::Module(block),
+                                PreConstructData::Module(block.clone()),
                                 &package_uuid,
                             );
                         }
@@ -180,27 +190,19 @@ pub fn run_constructs_indexing(
                             let _ = manual.index_construct(
                                 name.to_string(),
                                 location.clone(),
-                                PreConstructData::Output(block),
+                                PreConstructData::Output(block.clone()),
                                 &package_uuid,
                             );
                         }
-                        "addon" => {
-                            // Read namespece then send the block to the
-                            let (
-                                Some(BlockLabel::String(namespace)),
-                                Some(BlockLabel::String(command_type)),
-                                Some(BlockLabel::String(command_name)),
-                            ) = (
-                                block.labels.get(0),
-                                block.labels.get(1),
-                                block.labels.get(2),
-                            )
+                        "action" => {
+                            let (Some(command_name), Some(namespaced_action)) =
+                                (block.labels.get(0), block.labels.get(1))
                             else {
                                 manual.errors.push(ConstructErrors::Discovery(
-                                    DiscoveryError::AddonConstruct(Diagnostic {
+                                    DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
-                                        message: "addon syntax invalid".to_string(),
+                                        message: "action syntax invalid".to_string(),
                                         level: DiagnosticLevel::Error,
                                         documentation: None,
                                         example: None,
@@ -210,16 +212,33 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-                            // addons_ctx.
-                            let command_instance = match addons_ctx.create_command_instance(
-                                namespace,
-                                &command_type,
-                                &command_name,
+
+                            match addons_ctx.create_action_instance(
+                                &namespaced_action.as_str(),
+                                command_name.as_str(),
                                 &package_uuid,
                                 &block,
                                 &location,
                             ) {
-                                Ok(command_instance) => command_instance,
+                                Ok(command_instance_or_parts) => match command_instance_or_parts {
+                                    CommandInstanceOrParts::Instance(command_instance) => {
+                                        let _ = manual.index_construct(
+                                            command_name.to_string(),
+                                            location.clone(),
+                                            PreConstructData::Action(command_instance),
+                                            &package_uuid,
+                                        );
+                                    }
+                                    CommandInstanceOrParts::Parts(parts_blocks) => {
+                                        for block in parts_blocks {
+                                            let parsed_block =
+                                                hcl::parser::parse_body(&block).unwrap();
+                                            for block in parsed_block.blocks() {
+                                                blocks.push_back(block.clone());
+                                            }
+                                        }
+                                    }
+                                },
                                 Err(diagnostic) => {
                                     manual.errors.push(ConstructErrors::Discovery(
                                         DiscoveryError::AddonConstruct(diagnostic),
@@ -227,12 +246,58 @@ pub fn run_constructs_indexing(
                                     continue;
                                 }
                             };
-                            let _ = manual.index_construct(
-                                command_name.to_string(),
-                                location.clone(),
-                                PreConstructData::Addon(command_instance),
+                        }
+                        "prompt" => {
+                            let (Some(command_name), Some(namespaced_prompt)) =
+                                (block.labels.get(0), block.labels.get(1))
+                            else {
+                                manual.errors.push(ConstructErrors::Discovery(
+                                    DiscoveryError::OutputConstruct(Diagnostic {
+                                        location: Some(location.clone()),
+                                        span: None,
+                                        message: "action syntax invalid".to_string(),
+                                        level: DiagnosticLevel::Error,
+                                        documentation: None,
+                                        example: None,
+                                        parent_diagnostic: None,
+                                    }),
+                                ));
+                                has_errored = true;
+                                continue;
+                            };
+                            match addons_ctx.create_prompt_instance(
+                                &namespaced_prompt.as_str(),
+                                command_name.as_str(),
                                 &package_uuid,
-                            );
+                                &block,
+                                &location,
+                            ) {
+                                Ok(command_instance_or_parts) => match command_instance_or_parts {
+                                    CommandInstanceOrParts::Instance(command_instance) => {
+                                        let _ = manual.index_construct(
+                                            command_name.to_string(),
+                                            location.clone(),
+                                            PreConstructData::Prompt(command_instance),
+                                            &package_uuid,
+                                        );
+                                    }
+                                    CommandInstanceOrParts::Parts(parts_blocks) => {
+                                        for block in parts_blocks {
+                                            let parsed_block =
+                                                hcl::parser::parse_body(&block).unwrap();
+                                            for block in parsed_block.blocks() {
+                                                blocks.push_back(block.clone());
+                                            }
+                                        }
+                                    }
+                                },
+                                Err(diagnostic) => {
+                                    manual.errors.push(ConstructErrors::Discovery(
+                                        DiscoveryError::AddonConstruct(diagnostic),
+                                    ));
+                                    continue;
+                                }
+                            };
                         }
                         _ => {
                             manual.errors.push(ConstructErrors::Discovery(

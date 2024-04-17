@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-            CommandSpecification,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         types::{PrimitiveValue, Type, Value},
@@ -12,7 +12,7 @@ use txtx_addon_kit::{
 };
 
 pub fn new_module_specification() -> CommandSpecification {
-    let mut command = define_command! {
+    let command = define_command! {
         Module => {
             name: "Module",
             matcher: "module",
@@ -21,9 +21,14 @@ pub fn new_module_specification() -> CommandSpecification {
             outputs: [],
         }
     };
-    command.accepts_arbitrary_inputs = true;
-    command.create_output_for_each_input = true;
-    command
+    match command {
+        PreCommandSpecification::Atomic(mut command) => {
+            command.accepts_arbitrary_inputs = true;
+            command.create_output_for_each_input = true;
+            command
+        }
+        PreCommandSpecification::Composite(_) => panic!("module must not be composite"),
+    }
 }
 
 pub struct Module;
@@ -50,33 +55,27 @@ impl CommandImplementation for Module {
     }
 }
 
-pub fn new_variable_specification() -> CommandSpecification {
-    let command: CommandSpecification = define_command! {
-        Variable => {
-            name: "Variable",
-            matcher: "variable",
-            documentation: "Construct designed to store a variable",
+pub fn new_input_specification() -> CommandSpecification {
+    let command: PreCommandSpecification = define_command! {
+        Input => {
+            name: "Input",
+            matcher: "input",
+            documentation: "Construct designed to store an input",
             inputs: [
-                description: {
-                    documentation: "Description of the variable",
-                    typing: Type::string(),
-                    optional: true,
-                    interpolable: true
-                },
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the input",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 default: {
-                    documentation: "Default value of the variable, if value is omitted",
+                    documentation: "Default value of the input, if value is omitted",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
                 },
                 type: {
-                    documentation: "The type of the variable output. Can be inferred from `value` or `default` if provided.",
+                    documentation: "The type of the input output. Can be inferred from `value` or `default` if provided.",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -84,17 +83,22 @@ pub fn new_variable_specification() -> CommandSpecification {
             ],
             outputs: [
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the input",
                     typing: Type::string()
                 }
             ],
         }
     };
-    command
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("input should not be composite command specification")
+        }
+    }
 }
 
-pub struct Variable;
-impl CommandImplementation for Variable {
+pub struct Input;
+impl CommandImplementation for Input {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -207,14 +211,8 @@ pub fn new_output_specification() -> CommandSpecification {
             matcher: "output",
             documentation: "Read Construct attribute",
             inputs: [
-                description: {
-                    documentation: "Description of the output",
-                    typing: Type::string(),
-                    optional: true,
-                    interpolable: true
-                },
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the output",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -222,13 +220,18 @@ pub fn new_output_specification() -> CommandSpecification {
             ],
             outputs: [
                 value: {
-                    documentation: "Value of the variable",
+                    documentation: "Value of the output",
                     typing: Type::string()
                 }
             ],
         }
     };
-    command
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("output should not be composite command specification")
+        }
+    }
 }
 
 pub struct Output;

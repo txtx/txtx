@@ -37,29 +37,34 @@ macro_rules! define_command {
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
     }) => {
-        txtx_addon_kit::types::commands::CommandSpecification {
+        {
+        use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
+        PreCommandSpecification::Atomic(
+          CommandSpecification {
             name: String::from($fn_name),
             matcher: String::from($matcher),
             documentation: String::from($doc),
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
-            inputs: vec![$(txtx_addon_kit::types::commands::CommandInput {
+            inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
             }),*],
-            outputs: vec![$(txtx_addon_kit::types::commands::CommandOutput {
+            default_inputs: CommandSpecification::default_inputs(),
+            outputs: vec![$(CommandOutput {
                 name: String::from(stringify!($output_name)),
                 documentation: String::from($output_doc),
                 typing: $output_ts,
             }),*],
-            // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
-            runner: txtx_addon_kit::types::commands::CommandRunner::Sync($func_key::run),
+            runner: CommandRunner::Sync($func_key::run),
             checker: $func_key::check,
             user_input_parser: $func_key::update_input_evaluation_results_from_user_input
-        };
+        }
+      )
+    }
     };
 }
 
@@ -73,30 +78,60 @@ macro_rules! define_async_command {
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
     }) => {
-        txtx_addon_kit::types::commands::CommandSpecification {
-            name: String::from($fn_name),
-            matcher: String::from($matcher),
-            documentation: String::from($doc),
-            accepts_arbitrary_inputs: false,
-            create_output_for_each_input: false,
-            inputs: vec![$(txtx_addon_kit::types::commands::CommandInput {
-                name: String::from(stringify!($input_name)),
-                documentation: String::from($input_doc),
-                typing: $input_ts,
-                optional: $optional,
-                interpolable: $interpolable,
-            }),*],
-            outputs: vec![$(txtx_addon_kit::types::commands::CommandOutput {
-                name: String::from(stringify!($output_name)),
-                documentation: String::from($output_doc),
-                typing: $output_ts,
-            }),*],
-            // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
-            runner: txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
-            checker: $func_key::check,
-            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
-        };
+        {
+            use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
+            PreCommandSpecification::Atomic(CommandSpecification {
+                name: String::from($fn_name),
+                matcher: String::from($matcher),
+                documentation: String::from($doc),
+                accepts_arbitrary_inputs: false,
+                create_output_for_each_input: false,
+                default_inputs: CommandSpecification::default_inputs(),
+                inputs: vec![$(CommandInput {
+                    name: String::from(stringify!($input_name)),
+                    documentation: String::from($input_doc),
+                    typing: $input_ts,
+                    optional: $optional,
+                    interpolable: $interpolable,
+                }),*],
+                outputs: vec![$(CommandOutput {
+                    name: String::from(stringify!($output_name)),
+                    documentation: String::from($output_doc),
+                    typing: $output_ts,
+                }),*],
+                // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
+                runner: CommandRunner::Async(Box::new($func_key::run)),
+                checker: $func_key::check,
+                user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
+            })
+        }
     };
+}
+
+#[macro_export]
+macro_rules! define_multistep_command {
+  ($func_key:ident => {
+      name: $fn_name:expr,
+      matcher: $matcher:expr,
+      documentation: $doc:expr,
+      parts: [$($part:expr),*],
+  }) => {
+      {
+          use txtx_addon_kit::types::commands::{PreCommandSpecification, CompositeCommandSpecification, CommandInput, CommandOutput, CommandRunner};
+
+          let mut parts = Vec::new();
+          $(parts.push($part);)*
+
+          PreCommandSpecification::Composite( CompositeCommandSpecification {
+              name: String::from($fn_name),
+              matcher: String::from($matcher),
+              documentation: String::from($doc),
+              parts: parts,
+              default_inputs: CommandSpecification::default_inputs(),
+              router: $func_key::router,
+          })
+      }
+  };
 }
 
 #[macro_export]

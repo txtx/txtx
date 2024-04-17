@@ -6,9 +6,9 @@ variable "favorite_fuit" {
 
 addon "stacks" "call_contract" "call_contract_payload" {
   description = "Invokes contract call of the method specified in contract_method."
-  contract_id = clarity_value_contract_principal("ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract")
+  contract_id = cv_principal("ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract")
   function_name = "vote"
-  function_args = [clarity_value_utf8(variable.favorite_fuit.value)]
+  function_args = [cv_utf8(variable.favorite_fuit.value)]
 }
 
 addon "stacks" "sign_transaction" "sign_call_contract_payload" {
