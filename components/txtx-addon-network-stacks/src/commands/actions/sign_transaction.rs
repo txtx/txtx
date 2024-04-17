@@ -68,11 +68,21 @@ lazy_static! {
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
+            },
+            network_id: {
+                documentation: "The network id used to validate the transaction version.",
+                typing: Type::string(),
+                optional: false,
+                interpolable: true
             }
           ],
           outputs: [
               signed_transaction_bytes: {
                   documentation: "The signed transaction bytes.",
+                  typing: Type::string()
+              },
+              network_id: {
+                  documentation: "Network id of the signed transaction.",
                   typing: Type::string()
               }
           ],
@@ -133,6 +143,19 @@ impl CommandImplementation for SignStacksTransaction {
                 )
             }
         };
+
+        // Extract network_id
+        let network_id = match args.get("network_id") {
+            Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
+            _ => todo!("network_id missing or wrong type, return diagnostic"),
+        };
+
+        let transaction_version = match network_id.as_str() {
+            "mainnet" => TransactionVersion::Mainnet,
+            "testnet" => TransactionVersion::Testnet,
+            _ => unimplemented!("invalid network_id, return diagnostic"),
+        };
+
         // Sign
         let signed_transaction = match sign_transaction_payload(
             &wallet,
@@ -140,7 +163,7 @@ impl CommandImplementation for SignStacksTransaction {
             nonce,
             tx_fee,
             TransactionAnchorMode::OffChainOnly, // todo(lgalabru)
-            &TransactionVersion::Mainnet,        // todo(lgalabru)
+            &transaction_version,                // todo(lgalabru)
         ) {
             Ok(res) => res,
             Err(_e) => {
@@ -155,6 +178,9 @@ impl CommandImplementation for SignStacksTransaction {
         result
             .outputs
             .insert("signed_transaction_bytes".to_string(), value);
+        result
+            .outputs
+            .insert("network_id".to_string(), Value::string(network_id));
 
         Ok(result)
     }
