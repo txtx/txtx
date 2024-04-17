@@ -3,7 +3,7 @@ use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE, STACKS_CONTRACT_CALL};
 use clarity::vm::types::PrincipalData;
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
 use clarity_repl::clarity::ClarityName;
-use clarity_repl::codec::{TransactionContractCall, TransactionVersion};
+use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
@@ -97,16 +97,14 @@ impl CommandImplementation for EncodeStacksContractCall {
         };
 
         // validate contract_id against network_id
-        let principal_data =
-            PrincipalData::parse_qualified_contract_principal(&contract_id.to_string()).unwrap();
-        let mainnet_match = principal_data.version() == TransactionVersion::Mainnet as u8
-            && network_id.eq("mainnet");
-        let testnet_match = principal_data.version() == TransactionVersion::Testnet as u8
-            && network_id.eq("testnet");
+        // todo, is there a better way to do this?
+        let id_str = contract_id.to_string();
+        let mainnet_match = id_str.starts_with("SP") && network_id.eq("mainnet");
+        let testnet_match = id_str.starts_with("ST") && network_id.eq("testnet");
         if !mainnet_match && !testnet_match {
             unimplemented!(
                 "contract id {} is not valid for network {}; return diagnostic",
-                principal_data,
+                id_str,
                 network_id
             );
         }
