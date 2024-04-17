@@ -54,7 +54,7 @@ lazy_static! {
                   typing: Type::buffer()
               },
               network_id: {
-                  documentation: "Encoded contract call",
+                  documentation: "Network id of the encoded transaction.",
                   typing: Type::string()
               }
           ],
@@ -74,12 +74,12 @@ impl CommandImplementation for EncodeStacksContractCall {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 
-        // Extract contract_address
+        // Extract network_id
         let network_id = match args.get("network_id") {
             Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
             _ => todo!("network_id missing or wrong type, return diagnostic"),
         };
-
+        // Extract contract_address
         let contract_id = match args.get("contract_id") {
             Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
                 match parse_clarity_value(&contract_id.bytes, &contract_id.typing) {
@@ -96,9 +96,9 @@ impl CommandImplementation for EncodeStacksContractCall {
             _ => todo!("contract_id is missing or wrong type, return diagnostic"),
         };
 
+        // validate contract_id against network_id
         let principal_data =
             PrincipalData::parse_qualified_contract_principal(&contract_id.to_string()).unwrap();
-
         let mainnet_match = principal_data.version() == TransactionVersion::Mainnet as u8
             && network_id.eq("mainnet");
         let testnet_match = principal_data.version() == TransactionVersion::Testnet as u8
