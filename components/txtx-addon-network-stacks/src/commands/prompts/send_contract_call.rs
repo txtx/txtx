@@ -46,15 +46,17 @@ impl CompositeCommandImplementation for SendContractCall {
         let block_1 = format!(
             r#"prompt "{}" "stacks::{}" {{
                   transaction_payload_bytes = action.{}.bytes
+                  network_id = action.{}.network_id
             }}"#,
-            signed_call_name, sign_tx.matcher, encoded_call_name
+            signed_call_name, sign_tx.matcher, encoded_call_name, encoded_call_name
         );
 
         let block_2 = format!(
             r#"action "{}" "stacks::{}" {{
                   signed_transaction_bytes = prompt.{}.signed_transaction_bytes
+                  network_id = prompt.{}.network_id
             }}"#,
-            command_instance_name, broadcast_tx.matcher, signed_call_name
+            command_instance_name, broadcast_tx.matcher, signed_call_name, signed_call_name
         );
         Ok(vec![block_0, block_1, block_2])
     }
