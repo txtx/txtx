@@ -15,7 +15,7 @@ use ::std::sync::RwLock;
 use kit::hcl::structure::Block;
 use kit::helpers::fs::FileLocation;
 use kit::types::commands::CommandId;
-use kit::types::commands::CommandInstance;
+use kit::types::commands::CommandInstanceOrParts;
 use kit::types::commands::EvalEvent;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::functions::FunctionSpecification;
@@ -97,7 +97,7 @@ impl AddonsContext {
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
-    ) -> Result<CommandInstance, Diagnostic> {
+    ) -> Result<CommandInstanceOrParts, Diagnostic> {
         let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
@@ -113,7 +113,7 @@ impl AddonsContext {
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
-    ) -> Result<CommandInstance, Diagnostic> {
+    ) -> Result<CommandInstanceOrParts, Diagnostic> {
         let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };

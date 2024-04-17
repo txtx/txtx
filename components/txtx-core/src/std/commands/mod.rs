@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-            CommandSpecification,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         types::{PrimitiveValue, Type, Value},
@@ -12,7 +12,7 @@ use txtx_addon_kit::{
 };
 
 pub fn new_module_specification() -> CommandSpecification {
-    let mut command = define_command! {
+    let command = define_command! {
         Module => {
             name: "Module",
             matcher: "module",
@@ -21,9 +21,14 @@ pub fn new_module_specification() -> CommandSpecification {
             outputs: [],
         }
     };
-    command.accepts_arbitrary_inputs = true;
-    command.create_output_for_each_input = true;
-    command
+    match command {
+        PreCommandSpecification::Atomic(mut command) => {
+            command.accepts_arbitrary_inputs = true;
+            command.create_output_for_each_input = true;
+            command
+        }
+        PreCommandSpecification::Composite(_) => panic!("module must not be composite"),
+    }
 }
 
 pub struct Module;
@@ -51,7 +56,7 @@ impl CommandImplementation for Module {
 }
 
 pub fn new_input_specification() -> CommandSpecification {
-    let command: CommandSpecification = define_command! {
+    let command: PreCommandSpecification = define_command! {
         Input => {
             name: "Input",
             matcher: "input",
@@ -84,7 +89,12 @@ pub fn new_input_specification() -> CommandSpecification {
             ],
         }
     };
-    command
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("input should not be composite command specification")
+        }
+    }
 }
 
 pub struct Input;
@@ -216,7 +226,12 @@ pub fn new_output_specification() -> CommandSpecification {
             ],
         }
     };
-    command
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("output should not be composite command specification")
+        }
+    }
 }
 
 pub struct Output;

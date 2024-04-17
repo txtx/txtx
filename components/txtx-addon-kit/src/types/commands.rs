@@ -170,6 +170,18 @@ impl CommandId {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum CommandInstanceOrParts {
+    Instance(CommandInstance),
+    Parts(Vec<String>),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum PreCommandSpecification {
+    Atomic(CommandSpecification),
+    Composite(CompositeCommandSpecification),
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
@@ -183,6 +195,16 @@ pub struct CommandSpecification {
     pub runner: CommandRunner,
     pub checker: CommandChecker,
     pub user_input_parser: CommandParser,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct CompositeCommandSpecification {
+    pub name: String,
+    pub matcher: String,
+    pub documentation: String,
+    pub parts: Vec<PreCommandSpecification>,
+    pub default_inputs: Vec<CommandInput>,
+    pub router: CommandRouter,
 }
 
 impl CommandSpecification {
@@ -220,6 +242,19 @@ impl Serialize for CommandSpecification {
     }
 }
 
+impl Serialize for CompositeCommandSpecification {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // todo
+        let mut ser = serializer.serialize_struct("CompositeCommandSpecification", 2)?;
+        ser.serialize_field("name", &self.name)?;
+        ser.serialize_field("documentation", &self.documentation)?;
+        ser.end()
+    }
+}
+
 type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 // type CommandRunner = Box<
 //     fn(
@@ -228,6 +263,8 @@ type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagn
 //     ) -> Result<CommandExecutionResult, Diagnostic>,
 // >;
 type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
+type CommandRouter =
+    fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum CommandRunner {
@@ -271,6 +308,14 @@ pub trait CommandImplementation {
         _input_name: String,
         _value: String,
     );
+}
+
+pub trait CompositeCommandImplementation {
+    fn router(
+        _first_input_body: &String,
+        _command_instance_name: &String,
+        _parts: &Vec<PreCommandSpecification>,
+    ) -> Result<Vec<String>, Diagnostic>;
 }
 
 state_machine! {

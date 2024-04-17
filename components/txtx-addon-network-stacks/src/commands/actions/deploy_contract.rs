@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-        CommandSpecification,
+        CommandSpecification, PreCommandSpecification,
     },
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
 
 lazy_static! {
-    pub static ref DEPLOY_STACKS_CONTRACT: CommandSpecification = define_command! {
+    pub static ref DEPLOY_STACKS_CONTRACT: PreCommandSpecification = define_command! {
       StacksDeployContract => {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",

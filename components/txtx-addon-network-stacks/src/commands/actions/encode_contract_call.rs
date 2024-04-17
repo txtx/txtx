@@ -1,12 +1,12 @@
-use crate::functions::parse_clarity_value;
-use crate::typing::{ClarityValue, STACKS_CONTRACT_CALL};
+use crate::stacks_helpers::parse_clarity_value;
+use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE, STACKS_CONTRACT_CALL};
 use clarity::vm::types::PrincipalData;
 use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
 use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::types::types::{TypeImplementation, TypeSpecification};
+use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -17,7 +17,7 @@ use txtx_addon_kit::types::{
 };
 
 lazy_static! {
-    pub static ref ENCODE_STACKS_CONTRACT_CALL: CommandSpecification = define_command! {
+    pub static ref ENCODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
         EncodeStacksContractCall => {
           name: "Stacks Contract Call",
           matcher: "call_contract",
@@ -25,11 +25,7 @@ lazy_static! {
           inputs: [
               contract_id: {
                   documentation: "Address and identifier of the contract to invoke",
-                  typing: Type::addon(TypeSpecification {
-                    id: "clarity_principal".into(),
-                    documentation: "Any clarity value".into(),
-                    checker: ClarityValue::check
-                  }),
+                  typing: Type::addon(CLARITY_PRINCIPAL.clone()),
                   optional: false,
                   interpolable: true
               },
@@ -41,11 +37,7 @@ lazy_static! {
               },
               function_args: {
                   documentation: "Args to provide",
-                  typing: Type::array(Type::addon(TypeSpecification {
-                    id: "clarity_value".into(),
-                    documentation: "Any clarity value".into(),
-                    checker: ClarityValue::check
-                  })), // todo: why isn't CLARITY_VALUE working??
+                  typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
                   optional: true,
                   interpolable: true
               }
@@ -83,28 +75,30 @@ impl CommandImplementation for EncodeStacksContractCall {
                     Err(e) => return Err(e),
                 }
             }
-            _ => todo!("contract_id missing, return diagnostic"),
+            Some(Value::Primitive(PrimitiveValue::String(contract_id))) => {
+                clarity::vm::types::QualifiedContractIdentifier::parse(contract_id).unwrap()
+            }
+            _ => todo!("contract_id is missing or wrong type, return diagnostic"),
         };
         // Extract derivation path
         let function_name = match args.get("function_name") {
             Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
-            _ => todo!("function_name missing, return diagnostic"),
+            _ => todo!("function_name missing or wrong type, return diagnostic"),
         };
 
         let function_args = match args.get("function_args") {
             Some(Value::Array(args)) => {
                 let mut function_args = vec![];
                 for arg in args.iter() {
-                    // todo: for each possible primitive value type, we should
-                    // try to cast it to a clarity value
                     let function_arg = match arg {
+                        // todo maybe we can assume some types?
                         Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
                             match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
                                 Ok(v) => v,
                                 Err(e) => return Err(e),
                             }
                         }
-                        v => todo!("{:?}", v), // return diag
+                        v => todo!("function argument is missing or wrong type {:?}", v), // return diag
                     };
 
                     function_args.push(function_arg)
