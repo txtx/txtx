@@ -37,11 +37,21 @@ lazy_static! {
                   typing: Type::uint(),
                   optional: true,
                   interpolable: true
+              },
+              network_id: {
+                  documentation: "The network id used to set the transaction version.",
+                  typing: Type::string(),
+                  optional: false,
+                  interpolable: true
               }
           ],
           outputs: [
               signed_transaction_bytes: {
                   documentation: "The signed transaction bytes.",
+                  typing: Type::string()
+              },
+              network_id: {
+                  documentation: "Network id of the signed transaction.",
                   typing: Type::string()
               }
           ],
@@ -66,6 +76,13 @@ impl CommandImplementation for SignStacksTransaction {
                 result
                     .outputs
                     .insert("signed_transaction_bytes".to_string(), val.clone());
+            }
+            None => {}
+        };
+
+        match args.get("network_id") {
+            Some(val) => {
+                result.outputs.insert("network_id".to_string(), val.clone());
             }
             None => {}
         };
