@@ -114,7 +114,6 @@ impl CommandImplementation for EncodeStacksContractCall {
             Err(e) => unimplemented!("deserialize failed; return diagnostic: {}", e),
         };
 
-        println!("==> {:?}", result);
         Ok(result)
     }
 
