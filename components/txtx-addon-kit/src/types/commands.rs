@@ -412,6 +412,7 @@ impl CommandInstance {
         Ok(expressions)
     }
 
+    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
     pub fn get_expression_from_input(
         &self,
         input: &CommandInput,
