@@ -1,8 +1,7 @@
 use clarity_repl::codec::TransactionVersion;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::StacksTransaction};
-use serde_json::Value as JsonValue;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
-use txtx_addon_kit::reqwest;
+use txtx_addon_kit::reqwest::{self, StatusCode};
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::{
     commands::{
@@ -24,6 +23,12 @@ lazy_static! {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",
                   typing: Type::buffer(),
                   optional: false,
+                  interpolable: true
+                },
+                network_id: {
+                  documentation: "The id of the network to broadcast to.",
+                  typing: Type::string(),
+                  optional: true,
                   interpolable: true
                 }
             ],
@@ -59,18 +64,40 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                     unimplemented!("return diagnostic");
                 };
                 match bytes {
-                    Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes,
+                    Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes.clone(),
                     _ => unimplemented!(),
                 }
             };
-            let buffer_data = buffer_data.clone();
-            let transaction =
-                StacksTransaction::consensus_deserialize(&mut &buffer_data.bytes[..]).unwrap();
+            let transaction = StacksTransaction::consensus_deserialize(&mut &buffer_data.bytes[..])
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!("Failed to deserialize transaction: {e}"))
+                })?;
             let network = match transaction.version {
-                TransactionVersion::Mainnet => "mainnet",
-                TransactionVersion::Testnet => "testnet",
+                TransactionVersion::Mainnet => "mainnet".to_string(),
+                TransactionVersion::Testnet => "testnet".to_string(),
             };
-            let url = format!("https://api.{}.hiro.so/v2/transactions", network);
+
+            let network_id = match args.get("network_id") {
+                Some(network_id) => {
+                    match network_id {
+                        Value::Primitive(PrimitiveValue::String(network_id)) => {
+                            if network_id.eq(&network) {
+                                Ok(network_id)
+                            } else {
+                                Err(Diagnostic::error_from_string(format!("Specified network id, {}, does not match transaction version, {}.", network_id, network)))
+                            }
+                        }
+                        invalid => Err(Diagnostic::error_from_string(format!(
+                            "Network id must be a string, received {:?}.",
+                            invalid
+                        ))),
+                    }
+                }
+                None => Ok(&network),
+            }?;
+
+            let url = format!("https://api.{}.hiro.so/v2/transactions", network_id);
+
             let mut s = String::from("0x");
             s.write_str(
                 &buffer_data
@@ -80,7 +107,10 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                     .map(|b| format!("{:02X}", b))
                     .collect::<String>(),
             )
-            .unwrap();
+            .map_err(|e| {
+                Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
+            })?;
+
             let client = reqwest::Client::new();
             let res = client
                 .post(&url)
@@ -88,19 +118,28 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 .body(buffer_data.bytes)
                 .send()
                 .await
-                .unwrap();
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "Failed to broadcast stacks transaction: {e}"
+                    ))
+                })?;
 
-            match res.error_for_status_ref() {
-                Ok(_) => {}
-                Err(_) => {
-                    return Err(Diagnostic::error_from_string(res.text().await.unwrap()));
+            let status = res.status();
+            let result_text = res.text().await.map_err(|e| {
+                Diagnostic::error_from_string(format!(
+                    "Failed to parse broadcasted Stacks transaction result: {e}"
+                ))
+            })?;
+
+            match status {
+                StatusCode::OK => {
+                    result
+                        .outputs
+                        .insert(format!("tx_id"), Value::string(result_text));
+                    Ok(())
                 }
-            };
-            let tx_id = res.text().await.unwrap();
-
-            result
-                .outputs
-                .insert(format!("tx_id"), Value::string(tx_id));
+                _ => Err(Diagnostic::error_from_string(result_text)),
+            }?;
 
             Ok(result)
         };
@@ -109,85 +148,11 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
     }
 
     fn update_input_evaluation_results_from_user_input(
-        ctx: &CommandSpecification,
-        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        input_name: String,
-        value: String,
+        _ctx: &CommandSpecification,
+        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
+        _input_name: String,
+        _value: String,
     ) {
-        let (input_key, value) = match input_name.as_str() {
-            "description" => {
-                let description_input =
-                    ctx.inputs.iter().find(|i| i.name == "description").expect(
-                        "Send Stacks Transaction specification must have description input",
-                    );
-
-                let expected_type = description_input.typing.clone();
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    Some(Value::from_string(value, expected_type, None))
-                };
-                (description_input, value)
-            }
-            "web_interact" => {
-                let mut object_values = HashMap::new();
-                let web_interact_input =
-                    ctx.inputs.iter().find(|i| i.name == "web_interact").expect(
-                        "Send Stacks Transaction specification must have a web_interact input",
-                    );
-                let web_interact_input_object = web_interact_input
-                    .as_object()
-                    .expect("Send Stacks Transaction web interact input must be and object.");
-
-                let value_json: JsonValue = match serde_json::from_str(&value) {
-                    Ok(value) => value,
-                    Err(_e) => unimplemented!(), // todo: return diagnostic
-                };
-                let value_json = value_json.as_object().unwrap();
-
-                let transaction_hash_property = web_interact_input_object.iter().find(|p| p.name == "transaction_hash").expect("Send Stacks Transaction specification's web_interact input should have a transaction_hash property.");
-                let tx_hash_expected_type = transaction_hash_property.typing.clone();
-                let tx_hash_val = match value_json.get("transaction_hash") {
-                    Some(value) => Some(Value::from_string(
-                        value.to_string(),
-                        tx_hash_expected_type,
-                        None,
-                    )),
-                    None => None,
-                };
-                match tx_hash_val {
-                    Some(value) => {
-                        object_values.insert(transaction_hash_property.name.clone(), value);
-                    }
-                    None => {}
-                };
-
-                let nonce_property = web_interact_input_object.iter().find(|p| p.name == "nonce").expect("Send Stacks Transaction specification's web_interact input should have a nonce property.");
-                let nonce_expected_type = nonce_property.typing.clone();
-                let nonce_val = match value_json.get("nonce") {
-                    Some(value) => Some(Value::from_string(
-                        value.to_string(),
-                        nonce_expected_type,
-                        None,
-                    )),
-                    None => None,
-                };
-                match nonce_val {
-                    Some(value) => {
-                        object_values.insert(nonce_property.name.clone(), value);
-                    }
-                    None => {}
-                };
-                let result = Some(Ok(Value::Object(object_values)));
-                (web_interact_input, result)
-            }
-            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
-        };
-        match value {
-            Some(value) => current_input_evaluation_result
-                .inputs
-                .insert(input_key.clone(), value),
-            None => current_input_evaluation_result.inputs.remove(&input_key),
-        };
+        unimplemented!()
     }
 }
