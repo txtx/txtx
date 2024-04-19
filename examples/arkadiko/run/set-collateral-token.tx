@@ -1,0 +1,84 @@
+input "network_id" {
+  value = "mainnet"
+  type = "string"
+}
+
+input "contract_address" {
+  value = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG"
+  type = "string"
+}
+
+input "token_principal" {
+  value = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststx-token"
+  type = "string"
+}
+
+input "token_name" {
+  value = "stSTX"
+  type = "string"
+}
+
+input "max_debt" {
+  value = 3700000000000
+  type = "uint"
+}
+
+input "vault_min_debt" {
+  value = 500000000
+  type = "uint"
+}
+
+input "stability_fee" {
+  value = 400
+  type = "uint"
+}
+
+input "liquidation_ratio" {
+  value = 14000
+  type = "uint"
+}
+
+input "liquidation_penalty" {
+  value = 1000
+  type = "uint"
+}
+
+input "redemption_fee_min" {
+  value = 300
+  type = "uint"
+}
+
+input "redemption_fee_max" {
+  value = 700
+  type = "uint"
+}
+
+input "redemption_fee_block_interval" {
+  value = 144
+  type = "uint"
+}
+
+input "redemption_fee_block_rate" {
+  value = 500000000
+  type = "uint"
+}
+
+prompt "set_token_transaction" "stacks::send_contract_call" {
+  description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+  network_id = input.network_id.value
+  contract_id = "${input.contract_address.value}.arkadiko-vaults-tokens-v1-1"
+  function_name = "set-token"
+  function_args = [
+    cv_principal(input.token_principal.value),
+    cv_ascii(input.token_name.value),
+    cv_uint(input.max_debt.value),
+    cv_uint(input.vault_min_debt.value),
+    cv_uint(input.stability_fee.value),
+    cv_uint(input.liquidation_ratio.value),
+    cv_uint(input.liquidation_penalty.value),
+    cv_uint(input.redemption_fee_min.value),
+    cv_uint(input.redemption_fee_max.value),
+    cv_uint(input.redemption_fee_block_interval.value),
+    cv_uint(input.redemption_fee_block_rate.value)
+  ]
+}
