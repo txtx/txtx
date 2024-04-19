@@ -1,9 +1,9 @@
 {
     "name": "Arkadiko",
-    "manuals": [
+    "runbooks": [
       {
         "name": "Mint Diko",
-        "description": "This manual uses your browser wallet to sign and broadcast a transaction calling the arkadiko-alex-dual-yield-v1-1 contract's mint-diko function.",
+        "description": "This runbook uses your browser wallet to sign and broadcast a transaction calling the arkadiko-alex-dual-yield-v1-1 contract's mint-diko function.",
         "location": "./mint"
       },
       {

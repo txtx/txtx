@@ -27,24 +27,24 @@ use visitor::run_constructs_dependencies_indexing;
 
 use eval::run_constructs_evaluation;
 use txtx_addon_kit::Addon;
-use types::Manual;
+use types::Runbook;
 use visitor::run_constructs_checks;
 use visitor::run_constructs_indexing;
 
-pub fn simulate_manual(
-    manual: &Arc<RwLock<Manual>>,
+pub fn simulate_runbook(
+    runbook: &Arc<RwLock<Runbook>>,
     runtime_context: &Arc<RwLock<RuntimeContext>>,
     eval_tx: Sender<EvalEvent>,
 ) -> Result<(), String> {
     match runtime_context.write() {
         Ok(mut runtime_context) => {
-            let _ = run_constructs_indexing(manual, &mut runtime_context.addons_ctx)?;
-            let _ = run_constructs_checks(manual, &mut runtime_context.addons_ctx)?;
+            let _ = run_constructs_indexing(runbook, &mut runtime_context.addons_ctx)?;
+            let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
-    let _ = run_constructs_dependencies_indexing(manual, runtime_context)?;
-    let _ = run_constructs_evaluation(manual, runtime_context, None, eval_tx).unwrap();
+    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
+    let _ = run_constructs_evaluation(runbook, runtime_context, None, eval_tx).unwrap();
     Ok(())
 }
 

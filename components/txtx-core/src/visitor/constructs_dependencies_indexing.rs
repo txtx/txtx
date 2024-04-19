@@ -2,10 +2,10 @@ use std::sync::{Arc, RwLock};
 
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 
-use crate::types::{Manual, RuntimeContext};
+use crate::types::{Runbook, RuntimeContext};
 
 pub fn run_constructs_dependencies_indexing(
-    manual: &Arc<RwLock<Manual>>,
+    runbook: &Arc<RwLock<Runbook>>,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<
     (
@@ -17,19 +17,19 @@ pub fn run_constructs_dependencies_indexing(
     let mut constructs_edges = vec![];
     let packages_edges = vec![];
 
-    match manual.read() {
-        Ok(manual) => {
-            let packages = manual.packages.clone();
+    match runbook.read() {
+        Ok(runbook) => {
+            let packages = runbook.packages.clone();
 
             for (package_uuid, package) in packages.iter() {
                 for construct_uuid in package.imports_uuids.iter() {
-                    let construct = manual.commands_instances.get(construct_uuid).unwrap();
+                    let construct = runbook.commands_instances.get(construct_uuid).unwrap();
                     for _dep in construct.collect_dependencies().iter() {} // todo
                 }
                 for construct_uuid in package.variables_uuids.iter() {
-                    let construct = manual.commands_instances.get(construct_uuid).unwrap();
+                    let construct = runbook.commands_instances.get(construct_uuid).unwrap();
                     for dep in construct.collect_dependencies().iter() {
-                        let result = manual.try_resolve_construct_reference_in_expression(
+                        let result = runbook.try_resolve_construct_reference_in_expression(
                             package_uuid,
                             dep,
                             &runtime_ctx,
@@ -43,9 +43,9 @@ pub fn run_constructs_dependencies_indexing(
                     }
                 }
                 for construct_uuid in package.modules_uuids.iter() {
-                    let construct = manual.commands_instances.get(construct_uuid).unwrap();
+                    let construct = runbook.commands_instances.get(construct_uuid).unwrap();
                     for dep in construct.collect_dependencies().iter() {
-                        let result = manual.try_resolve_construct_reference_in_expression(
+                        let result = runbook.try_resolve_construct_reference_in_expression(
                             package_uuid,
                             dep,
                             &runtime_ctx,
@@ -59,9 +59,9 @@ pub fn run_constructs_dependencies_indexing(
                     }
                 }
                 for construct_uuid in package.outputs_uuids.iter() {
-                    let construct = manual.commands_instances.get(construct_uuid).unwrap();
+                    let construct = runbook.commands_instances.get(construct_uuid).unwrap();
                     for dep in construct.collect_dependencies().iter() {
-                        let result = manual.try_resolve_construct_reference_in_expression(
+                        let result = runbook.try_resolve_construct_reference_in_expression(
                             package_uuid,
                             dep,
                             &runtime_ctx,
@@ -75,9 +75,9 @@ pub fn run_constructs_dependencies_indexing(
                     }
                 }
                 for construct_uuid in package.addons_uuids.iter() {
-                    let command_instance = manual.commands_instances.get(construct_uuid).unwrap();
+                    let command_instance = runbook.commands_instances.get(construct_uuid).unwrap();
                     for dep in command_instance.collect_dependencies().iter() {
-                        let result = manual.try_resolve_construct_reference_in_expression(
+                        let result = runbook.try_resolve_construct_reference_in_expression(
                             package_uuid,
                             dep,
                             runtime_ctx,
@@ -94,21 +94,21 @@ pub fn run_constructs_dependencies_indexing(
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
-    match manual.write() {
-        Ok(mut manual) => {
+    match runbook.write() {
+        Ok(mut runbook) => {
             for (src, dst) in constructs_edges.iter() {
-                let constructs_graph_nodes = manual.constructs_graph_nodes.clone();
+                let constructs_graph_nodes = runbook.constructs_graph_nodes.clone();
 
                 let src_node_index = constructs_graph_nodes.get(&src.value()).unwrap();
                 let dst_node_index = constructs_graph_nodes.get(&dst.value()).unwrap();
 
-                if let Some(edge_to_root) = manual
+                if let Some(edge_to_root) = runbook
                     .constructs_graph
-                    .find_edge(manual.graph_root, src_node_index.clone())
+                    .find_edge(runbook.graph_root, src_node_index.clone())
                 {
-                    manual.constructs_graph.remove_edge(edge_to_root);
+                    runbook.constructs_graph.remove_edge(edge_to_root);
                 }
-                manual
+                runbook
                     .constructs_graph
                     .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
                     .unwrap();

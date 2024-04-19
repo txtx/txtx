@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     errors::{ConstructErrors, DiscoveryError},
-    types::{Manual, PreConstructData},
+    types::{PreConstructData, Runbook},
     AddonsContext,
 };
 use txtx_addon_kit::{
@@ -25,13 +25,13 @@ use txtx_addon_kit::{
 
 // todo(lgalabru): clean-up this function
 pub fn run_constructs_indexing(
-    manual: &Arc<RwLock<Manual>>,
+    runbook: &Arc<RwLock<Runbook>>,
     addons_ctx: &mut AddonsContext,
 ) -> Result<bool, String> {
     let mut has_errored = false;
-    match manual.write() {
-        Ok(mut manual) => {
-            let Some(source_tree) = manual.source_tree.take() else {
+    match runbook.write() {
+        Ok(mut runbook) => {
+            let Some(source_tree) = runbook.source_tree.take() else {
                 return Ok(has_errored);
             };
 
@@ -48,7 +48,7 @@ pub fn run_constructs_indexing(
                     .map_err(|e: hcl::parser::Error| e.to_string())?;
                 let package_location = location.get_parent_location()?;
                 let package_uuid =
-                    manual.find_or_create_package_uuid(&package_name, &package_location)?;
+                    runbook.find_or_create_package_uuid(&package_name, &package_location)?;
 
                 let mut blocks = content
                     .into_blocks()
@@ -59,7 +59,7 @@ pub fn run_constructs_indexing(
                         "import" => {
                             // imports are the only constructs that we need to process in this step
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::ImportConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -118,7 +118,7 @@ pub fn run_constructs_indexing(
                                 }
                             }
 
-                            let _ = manual.index_construct(
+                            let _ = runbook.index_construct(
                                 name.to_string(),
                                 location.clone(),
                                 PreConstructData::Import(block.clone()),
@@ -127,7 +127,7 @@ pub fn run_constructs_indexing(
                         }
                         "input" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::VariableConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -141,7 +141,7 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-                            let _ = manual.index_construct(
+                            let _ = runbook.index_construct(
                                 name.to_string(),
                                 location.clone(),
                                 PreConstructData::Input(block.clone()),
@@ -150,7 +150,7 @@ pub fn run_constructs_indexing(
                         }
                         "module" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::ModuleConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -164,7 +164,7 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-                            let _ = manual.index_construct(
+                            let _ = runbook.index_construct(
                                 name.to_string(),
                                 location.clone(),
                                 PreConstructData::Module(block.clone()),
@@ -173,7 +173,7 @@ pub fn run_constructs_indexing(
                         }
                         "output" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -187,7 +187,7 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-                            let _ = manual.index_construct(
+                            let _ = runbook.index_construct(
                                 name.to_string(),
                                 location.clone(),
                                 PreConstructData::Output(block.clone()),
@@ -198,7 +198,7 @@ pub fn run_constructs_indexing(
                             let (Some(command_name), Some(namespaced_action)) =
                                 (block.labels.get(0), block.labels.get(1))
                             else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -222,7 +222,7 @@ pub fn run_constructs_indexing(
                             ) {
                                 Ok(command_instance_or_parts) => match command_instance_or_parts {
                                     CommandInstanceOrParts::Instance(command_instance) => {
-                                        let _ = manual.index_construct(
+                                        let _ = runbook.index_construct(
                                             command_name.to_string(),
                                             location.clone(),
                                             PreConstructData::Action(command_instance),
@@ -240,7 +240,7 @@ pub fn run_constructs_indexing(
                                     }
                                 },
                                 Err(diagnostic) => {
-                                    manual.errors.push(ConstructErrors::Discovery(
+                                    runbook.errors.push(ConstructErrors::Discovery(
                                         DiscoveryError::AddonConstruct(diagnostic),
                                     ));
                                     continue;
@@ -251,7 +251,7 @@ pub fn run_constructs_indexing(
                             let (Some(command_name), Some(namespaced_prompt)) =
                                 (block.labels.get(0), block.labels.get(1))
                             else {
-                                manual.errors.push(ConstructErrors::Discovery(
+                                runbook.errors.push(ConstructErrors::Discovery(
                                     DiscoveryError::OutputConstruct(Diagnostic {
                                         location: Some(location.clone()),
                                         span: None,
@@ -274,7 +274,7 @@ pub fn run_constructs_indexing(
                             ) {
                                 Ok(command_instance_or_parts) => match command_instance_or_parts {
                                     CommandInstanceOrParts::Instance(command_instance) => {
-                                        let _ = manual.index_construct(
+                                        let _ = runbook.index_construct(
                                             command_name.to_string(),
                                             location.clone(),
                                             PreConstructData::Prompt(command_instance),
@@ -292,7 +292,7 @@ pub fn run_constructs_indexing(
                                     }
                                 },
                                 Err(diagnostic) => {
-                                    manual.errors.push(ConstructErrors::Discovery(
+                                    runbook.errors.push(ConstructErrors::Discovery(
                                         DiscoveryError::AddonConstruct(diagnostic),
                                     ));
                                     continue;
@@ -300,7 +300,7 @@ pub fn run_constructs_indexing(
                             };
                         }
                         _ => {
-                            manual.errors.push(ConstructErrors::Discovery(
+                            runbook.errors.push(ConstructErrors::Discovery(
                                 DiscoveryError::UnknownConstruct(Diagnostic {
                                     location: Some(location.clone()),
                                     span: None,

@@ -1,4 +1,4 @@
-module "manual" {
+module "runbook" {
   name = "Package 2"
   description = "Lorem ipsum dolor sit amet"
 }

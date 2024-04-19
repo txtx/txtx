@@ -44,49 +44,49 @@ struct Opts {
 enum Command {
     /// Inspect deployment protocol
     #[clap(name = "check", bin_name = "check")]
-    Check(CheckManuals),
+    Check(CheckRunbooks),
     /// Inspect deployment protocol
     #[clap(name = "inspect", bin_name = "inspect")]
-    Inspect(InspectManual),
+    Inspect(InspectRunbook),
     /// Inspect deployment protocol
     #[clap(name = "run", bin_name = "run")]
-    Run(RunManual),
+    Run(RunRunbook),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct CheckManuals {
+pub struct CheckRunbooks {
     /// Path to manifest (default to ./protocol.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct InspectManual {
+pub struct InspectRunbook {
     /// Path to manifest (default to ./protocol.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
     /// Disable Terminal UI
     #[clap(long = "no-term-ui")]
     pub no_tui: bool,
-    /// Path to manual root file
-    // #[clap(long = "manual-path", conflicts_with = "manual")]
-    // pub manual_path: Option<String>,
-    /// Name of manual as indexed in protocol.json
-    #[clap(long = "manual")]
-    pub manual: Option<String>,
+    /// Path to runbook root file
+    // #[clap(long = "runbook-path", conflicts_with = "runbook")]
+    // pub runbook_path: Option<String>,
+    /// Name of runbook as indexed in protocol.json
+    #[clap(long = "runbook")]
+    pub runbook: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct RunManual {
+pub struct RunRunbook {
     /// Path to manifest (default to ./protocol.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
-    /// Path to manual root file
-    // #[clap(long = "manual-path", conflicts_with = "manual")]
-    // pub manual_path: Option<String>,
-    /// Name of manual as indexed in protocol.json
-    #[clap(long = "manual")]
-    pub manual: Option<String>,
+    /// Path to runbook root file
+    // #[clap(long = "runbook-path", conflicts_with = "runbook")]
+    // pub runbook_path: Option<String>,
+    /// Name of runbook as indexed in protocol.json
+    #[clap(long = "runbook")]
+    pub runbook: Option<String>,
 }
 
 pub fn main() {

@@ -1,5 +1,5 @@
-module "manual" {
-  name = "Manual 101"
+module "runbook" {
+  name = "Runbook 101"
   description = "Lorem ipsum dolor sit amet"
 }
 

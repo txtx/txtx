@@ -4,7 +4,7 @@ mod runbook;
 
 pub use construct::PreConstructData;
 pub use package::Package;
-pub use runbook::{Manual, SourceTree};
+pub use runbook::{Runbook, SourceTree};
 use std::collections::HashMap;
 pub use txtx_addon_kit::types::commands::CommandInstance;
 

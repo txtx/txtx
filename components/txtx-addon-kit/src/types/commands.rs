@@ -509,7 +509,7 @@ impl CommandInstance {
     pub fn perform_execution(
         &self,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        manual_uuid: Uuid,
+        runbook_uuid: Uuid,
         construct_uuid: ConstructUuid,
         eval_tx: Sender<EvalEvent>,
     ) -> Result<CommandExecutionStatus, Diagnostic> {
@@ -548,7 +548,7 @@ impl CommandInstance {
                             .unwrap();
                         let result = runtime.block_on((async_runner_moved)(&spec, &values));
                         eval_tx.send(EvalEvent::AsyncRequestComplete {
-                            manual_uuid,
+                            runbook_uuid,
                             result: Ok(CommandExecutionStatus::Complete(result)),
                             construct_uuid,
                         })
@@ -605,7 +605,7 @@ impl CommandInstance {
 
 pub enum EvalEvent {
     AsyncRequestComplete {
-        manual_uuid: Uuid,
+        runbook_uuid: Uuid,
         result: Result<CommandExecutionStatus, Diagnostic>,
         construct_uuid: ConstructUuid,
     },
