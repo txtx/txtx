@@ -138,7 +138,7 @@ jobs:
 
       - name: Build - Cargo
         if: matrix.target != 'x86_64-unknown-linux-musl'
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (Linux)
