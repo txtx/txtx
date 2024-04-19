@@ -594,23 +594,28 @@ pub fn eval_expression(
             if !lhs.is_type_eq(&rhs) {
                 unimplemented!() // todo(lgalabru): return diagnostic
             }
-            match &binary_op.operator.value() {
-                BinaryOperator::And => unimplemented!(),
-                BinaryOperator::Div => unimplemented!(),
-                BinaryOperator::Eq => unimplemented!(),
-                BinaryOperator::Greater => unimplemented!(),
-                BinaryOperator::GreaterEq => unimplemented!(),
-                BinaryOperator::Less => unimplemented!(),
-                BinaryOperator::LessEq => unimplemented!(),
-                BinaryOperator::Minus => unimplemented!(),
-                BinaryOperator::Mod => unimplemented!(),
-                BinaryOperator::Mul => unimplemented!(),
-                BinaryOperator::Plus => match runtime_ctx.write() {
-                    Ok(runtime_ctx) => runtime_ctx.execute_function("add_uint", &vec![lhs, rhs])?,
-                    Err(e) => unimplemented!("could not acquire lock: {e}"),
+
+            let func = match &binary_op.operator.value() {
+                BinaryOperator::And => "and_bool",
+                BinaryOperator::Div => match rhs {
+                    Value::Primitive(PrimitiveValue::SignedInteger(_)) => "div_int",
+                    _ => "div_uint",
                 },
-                BinaryOperator::NotEq => unimplemented!(),
-                BinaryOperator::Or => unimplemented!(),
+                BinaryOperator::Eq => "eq",
+                BinaryOperator::Greater => "gt",
+                BinaryOperator::GreaterEq => "gte",
+                BinaryOperator::Less => "lt",
+                BinaryOperator::LessEq => "lte",
+                BinaryOperator::Minus => "minus_uint",
+                BinaryOperator::Mod => "modulo_uint",
+                BinaryOperator::Mul => "multiply_uint",
+                BinaryOperator::Plus => "add_uint",
+                BinaryOperator::NotEq => "neq",
+                BinaryOperator::Or => "or_bool",
+            };
+            match runtime_ctx.write() {
+                Ok(runtime_ctx) => runtime_ctx.execute_function(func, &vec![lhs, rhs])?,
+                Err(e) => unimplemented!("could not acquire lock: {e}"),
             }
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.

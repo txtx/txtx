@@ -368,8 +368,16 @@ impl FunctionImplementation for BinaryAndBool {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(*lhs && *rhs))
     }
 }
 
@@ -379,8 +387,16 @@ impl FunctionImplementation for BinaryOrBool {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(*lhs || *rhs))
     }
 }
 
@@ -390,8 +406,22 @@ impl FunctionImplementation for BinaryDivSignedInteger {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        if rhs.eq(&0) {
+            Err(Diagnostic::error_from_string(
+                "cannot divide by zero".to_string(),
+            ))
+        } else {
+            Ok(Value::int(lhs.saturating_div(*rhs)))
+        }
     }
 }
 
@@ -401,8 +431,22 @@ impl FunctionImplementation for BinaryDivUnsignedInteger {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        if rhs.eq(&0) {
+            Err(Diagnostic::error_from_string(
+                "cannot divide by zero".to_string(),
+            ))
+        } else {
+            Ok(Value::uint(lhs.saturating_div(*rhs)))
+        }
     }
 }
 
@@ -412,8 +456,16 @@ impl FunctionImplementation for BinaryEq {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(lhs.eq(rhs)))
     }
 }
 
@@ -423,8 +475,16 @@ impl FunctionImplementation for BinaryGreater {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(lhs.gt(rhs)))
     }
 }
 
@@ -434,8 +494,16 @@ impl FunctionImplementation for BinaryGreaterEq {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(lhs.ge(rhs)))
     }
 }
 
@@ -445,8 +513,16 @@ impl FunctionImplementation for BinaryLess {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(lhs.lt(rhs)))
     }
 }
 
@@ -456,8 +532,16 @@ impl FunctionImplementation for BinaryLessEq {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(lhs.le(rhs)))
     }
 }
 
@@ -467,8 +551,16 @@ impl FunctionImplementation for BinaryNotEq {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::bool(!lhs.eq(rhs)))
     }
 }
 
@@ -478,8 +570,16 @@ impl FunctionImplementation for BinaryMinusUInt {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::uint(lhs.saturating_sub(*rhs)))
     }
 }
 
@@ -489,8 +589,16 @@ impl FunctionImplementation for BinaryModuloUInt {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::uint(lhs.rem_euclid(*rhs)))
     }
 }
 
@@ -500,8 +608,16 @@ impl FunctionImplementation for BinaryMulUInt {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let lhs = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        let rhs = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+        Ok(Value::uint(lhs.saturating_mul(*rhs)))
     }
 }
 
