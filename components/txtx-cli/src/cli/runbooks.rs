@@ -4,45 +4,45 @@ use std::{collections::HashMap, sync::Arc};
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::types::commands::{CommandInstanceStateMachineInput, EvalEvent};
 use txtx_core::kit::uuid::Uuid;
-use txtx_core::types::Manual;
+use txtx_core::types::Runbook;
 use txtx_core::{
     eval::prepare_constructs_reevaluation, eval::run_constructs_evaluation,
-    kit::types::commands::CommandExecutionStatus, simulate_manual, types::RuntimeContext,
+    kit::types::commands::CommandExecutionStatus, simulate_runbook, types::RuntimeContext,
     AddonsContext,
 };
 use txtx_gql::{Context as GqlContext, ContextData};
 
 use crate::{
-    manifest::{read_manifest_at_path, read_manuals_from_manifest},
+    manifest::{read_manifest_at_path, read_runbooks_from_manifest},
     term_ui, web_ui,
 };
 
-use super::{CheckManuals, Context, InspectManual, RunManual};
+use super::{CheckRunbooks, Context, InspectRunbook, RunRunbook};
 
-pub async fn handle_check_command(cmd: &CheckManuals, _ctx: &Context) -> Result<(), String> {
+pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
         None => "protocol.json".to_string(),
     };
     let manifest = read_manifest_at_path(&manifest_file_path)?;
-    let _ = read_manuals_from_manifest(&manifest, None)?;
+    let _ = read_runbooks_from_manifest(&manifest, None)?;
     // let _ = txtx::check_plan(plan)?;
     Ok(())
 }
 
-pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Result<(), String> {
+pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
         None => "protocol.json".to_string(),
     };
-    let manual_name = cmd.manual.clone().unwrap();
+    let runbook_name = cmd.runbook.clone().unwrap();
     let manifest = read_manifest_at_path(&manifest_file_path)?;
-    let manual = read_manuals_from_manifest(&manifest, Some(&vec![manual_name.clone()]))
+    let runbook = read_runbooks_from_manifest(&manifest, Some(&vec![runbook_name.clone()]))
         .ok()
-        .and_then(|mut m| m.remove(&manual_name))
+        .and_then(|mut m| m.remove(&runbook_name))
         .ok_or(format!(
             "unable to find entry '{}' in manifest {}",
-            manual_name, manifest_file_path
+            runbook_name, manifest_file_path
         ))?;
     let stacks_addon = StacksNetworkAddon::new();
     let mut addons_ctx = AddonsContext::new();
@@ -50,28 +50,28 @@ pub async fn handle_inspect_command(cmd: &InspectManual, _ctx: &Context) -> Resu
 
     let runtime_context = RuntimeContext::new(addons_ctx);
 
-    let moved_man = manual.clone();
-    let mutable_manual = Arc::new(RwLock::new(moved_man));
+    let moved_man = runbook.clone();
+    let mutable_runbook = Arc::new(RwLock::new(moved_man));
     let runtime_context_rw_lock = Arc::new(RwLock::new(runtime_context));
     let (eval_tx, _) = channel();
-    simulate_manual(&mutable_manual, &runtime_context_rw_lock, eval_tx)?;
+    simulate_runbook(&mutable_runbook, &runtime_context_rw_lock, eval_tx)?;
 
     if cmd.no_tui {
-        // manual.inspect_constructs();
+        // runbook.inspect_constructs();
     } else {
-        let _ = term_ui::inspect::main(manual);
+        let _ = term_ui::inspect::main(runbook);
     }
     Ok(())
 }
 
-pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), String> {
+pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
         None => "protocol.json".to_string(),
     };
 
     let manifest = read_manifest_at_path(&manifest_file_path)?;
-    let manuals = read_manuals_from_manifest(&manifest, None)?;
+    let runbooks = read_runbooks_from_manifest(&manifest, None)?;
 
     let mut gql_context = HashMap::new();
     let mut eval_event_ctx = HashMap::new();
@@ -82,32 +82,36 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
         manifest_file_path
     );
 
-    for (manual_name, manual) in manuals.iter() {
+    for (runbook_name, runbook) in runbooks.iter() {
         let stacks_addon = StacksNetworkAddon::new();
         let mut addons_ctx = AddonsContext::new();
         addons_ctx.register(Box::new(stacks_addon));
 
         let runtime_context = RuntimeContext::new(addons_ctx);
 
-        let manual_rw_lock = Arc::new(RwLock::new(manual.clone()));
+        let runbook_rw_lock = Arc::new(RwLock::new(runbook.clone()));
         let runtime_ctx_rw_lock = Arc::new(RwLock::new(runtime_context));
 
-        simulate_manual(&manual_rw_lock, &runtime_ctx_rw_lock, eval_event_tx.clone())?;
+        simulate_runbook(
+            &runbook_rw_lock,
+            &runtime_ctx_rw_lock,
+            eval_event_tx.clone(),
+        )?;
 
         println!(
             "{} Runbook '{}' successfully checked and loaded",
             green!("✓"),
-            manual_name
+            runbook_name
         );
 
         gql_context.insert(
-            manual_name.to_string(),
+            runbook_name.to_string(),
             ContextData {
-                manual: manual_rw_lock.clone(),
+                runbook: runbook_rw_lock.clone(),
                 runtime_context: runtime_ctx_rw_lock.clone(),
             },
         );
-        eval_event_ctx.insert(manual.uuid.clone(), (manual_rw_lock, runtime_ctx_rw_lock));
+        eval_event_ctx.insert(runbook.uuid.clone(), (runbook_rw_lock, runtime_ctx_rw_lock));
     }
     let (web_ui_tx, web_ui_rx) = channel();
 
@@ -144,31 +148,32 @@ pub async fn handle_run_command(cmd: &RunManual, ctx: &Context) -> Result<(), St
 fn eval_event_loop(
     eval_rx: Receiver<EvalEvent>,
     eval_tx: Sender<EvalEvent>,
-    context: HashMap<Uuid, (Arc<RwLock<Manual>>, Arc<RwLock<RuntimeContext>>)>,
+    context: HashMap<Uuid, (Arc<RwLock<Runbook>>, Arc<RwLock<RuntimeContext>>)>,
 ) {
     loop {
         match eval_rx.recv() {
             Ok(EvalEvent::AsyncRequestComplete {
-                manual_uuid,
+                runbook_uuid,
                 result,
                 construct_uuid,
             }) => {
-                let Some((manual_rw_lock, runtime_ctx_rw_lock)) = context.get(&manual_uuid) else {
+                let Some((runbook_rw_lock, runtime_ctx_rw_lock)) = context.get(&runbook_uuid)
+                else {
                     unimplemented!(
-                        "found no manual associated with graph root {:?}",
-                        manual_uuid
+                        "found no runbook associated with graph root {:?}",
+                        runbook_uuid
                     );
                 };
 
-                let Ok(mut manual) = manual_rw_lock.write() else {
+                let Ok(mut runbook) = runbook_rw_lock.write() else {
                     unimplemented!("unable to acquire lock");
                 };
 
-                let Some(command_instance) = manual.commands_instances.get(&construct_uuid) else {
+                let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
                     unimplemented!(
-                        "found no construct_uuid {:?} associated with the manual {:?}",
+                        "found no construct_uuid {:?} associated with the runbook {:?}",
                         construct_uuid,
-                        manual_uuid
+                        runbook_uuid
                     );
                 };
 
@@ -203,20 +208,20 @@ fn eval_event_loop(
                     Err(e) => unimplemented!("failed to acquire lock {e}"),
                 };
 
-                manual
+                runbook
                     .constructs_execution_results
                     .insert(construct_uuid.clone(), result); // todo
 
-                let command_graph_node = manual
+                let command_graph_node = runbook
                     .constructs_graph_nodes
                     .get(&construct_uuid.value())
                     .cloned()
                     .unwrap();
-                drop(manual);
-                prepare_constructs_reevaluation(&manual_rw_lock, command_graph_node);
+                drop(runbook);
+                prepare_constructs_reevaluation(&runbook_rw_lock, command_graph_node);
 
                 run_constructs_evaluation(
-                    manual_rw_lock,
+                    runbook_rw_lock,
                     runtime_ctx_rw_lock,
                     Some(command_graph_node),
                     eval_tx.clone(),

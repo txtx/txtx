@@ -10,7 +10,7 @@ use ratatui::{
     style::palette::{self, tailwind},
     widgets::*,
 };
-use txtx_core::types::Manual;
+use txtx_core::types::Runbook;
 
 const INFO_TEXT: &str = "(Esc) quit | (↑) move up | (↓) move down";
 
@@ -44,24 +44,24 @@ impl TableColors {
 
 struct App {
     state: TableState,
-    manual: Manual,
+    runbook: Runbook,
     scroll_state: ScrollbarState,
     colors: TableColors,
 }
 
 impl App {
-    fn new(manual: Manual) -> App {
+    fn new(runbook: Runbook) -> App {
         App {
             state: TableState::default().with_selected(0),
-            scroll_state: ScrollbarState::new((manual.commands_instances.len() - 1) * ITEM_HEIGHT),
+            scroll_state: ScrollbarState::new((runbook.commands_instances.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&palette::tailwind::EMERALD),
-            manual,
+            runbook,
         }
     }
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.manual.commands_instances.len() - 1 {
+                if i >= self.runbook.commands_instances.len() - 1 {
                     0
                 } else {
                     i + 1
@@ -77,7 +77,7 @@ impl App {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.manual.commands_instances.len() - 1
+                    self.runbook.commands_instances.len() - 1
                 } else {
                     i - 1
                 }
@@ -93,7 +93,7 @@ impl App {
     }
 }
 
-pub fn main(manual: Manual) -> Result<(), Box<dyn Error>> {
+pub fn main(runbook: Runbook) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -102,7 +102,7 @@ pub fn main(manual: Manual) -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let app = App::new(manual);
+    let app = App::new(runbook);
     let res = run_app(&mut terminal, app);
 
     // restore terminal
@@ -166,7 +166,7 @@ fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
         .collect::<Row>()
         .style(header_style)
         .height(1);
-    let rows = app.manual.commands_instances.iter().enumerate().map(
+    let rows = app.runbook.commands_instances.iter().enumerate().map(
         |(i, (construct_uuid, _construct_data))| {
             let color = match i % 2 {
                 0 => app.colors.normal_row_color,

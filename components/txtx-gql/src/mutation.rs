@@ -20,26 +20,26 @@ impl Mutation {
 
     fn update_command_input<'ctx>(
         context: &'ctx Context,
-        manual_name: String,
+        runbook_name: String,
         command_uuid: Uuid,
         input_name: String,
         value: String,
     ) -> Result<String, String> {
         let ContextData {
-            manual,
+            runbook,
             runtime_context,
         } = context
             .data
-            .get(&manual_name)
-            .ok_or(format!("could not fine manual {manual_name}"))?;
+            .get(&runbook_name)
+            .ok_or(format!("could not fine runbook {runbook_name}"))?;
 
         let command_uuid = ConstructUuid::Local(command_uuid);
-        let command_graph_node = match manual.write() {
-            Ok(mut manual) => {
-                let graph_node = match manual.commands_instances.get(&command_uuid) {
+        let command_graph_node = match runbook.write() {
+            Ok(mut runbook) => {
+                let graph_node = match runbook.commands_instances.get(&command_uuid) {
                     Some(command_instance) => {
                         let moved_command_instance = command_instance.clone();
-                        match manual
+                        match runbook
                             .command_inputs_evaluation_results
                             .get_mut(&command_uuid)
                         {
@@ -50,7 +50,7 @@ impl Mutation {
                                         input_name,
                                         value,
                                     );
-                                manual
+                                runbook
                                     .constructs_graph_nodes
                                     .get(&command_uuid.value())
                                     .cloned()
@@ -60,7 +60,7 @@ impl Mutation {
                     }
                     None => None,
                 };
-                match manual.commands_instances.get_mut(&command_uuid) {
+                match runbook.commands_instances.get_mut(&command_uuid) {
                     Some(command_instance) => match command_instance.state.lock() {
                         Ok(mut state_machine) => {
                             state_machine
@@ -77,9 +77,9 @@ impl Mutation {
         };
         match command_graph_node {
             Some(command_graph_node) => {
-                prepare_constructs_reevaluation(&manual, command_graph_node);
+                prepare_constructs_reevaluation(&runbook, command_graph_node);
                 match run_constructs_evaluation(
-                    &manual,
+                    &runbook,
                     runtime_context,
                     Some(command_graph_node),
                     context.eval_tx.clone(),
@@ -91,12 +91,12 @@ impl Mutation {
             None => {} // no evaluation needed if this construct is somehow not part of the graph
         }
 
-        let result = match manual.read() {
-            Ok(manual) => {
+        let result = match runbook.read() {
+            Ok(runbook) => {
                 let mut result = vec![];
                 let ordered_nodes =
-                    get_ordered_nodes(manual.graph_root, manual.constructs_graph.clone());
-                let graph = manual.constructs_graph.clone();
+                    get_ordered_nodes(runbook.graph_root, runbook.constructs_graph.clone());
+                let graph = runbook.constructs_graph.clone();
 
                 for (i, node) in ordered_nodes.into_iter().enumerate() {
                     let uuid = graph
@@ -104,26 +104,24 @@ impl Mutation {
                         .expect("unable to retrieve construct");
                     let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-                    let Some(command_instance) = manual.commands_instances.get(&construct_uuid)
+                    let Some(command_instance) = runbook.commands_instances.get(&construct_uuid)
                     else {
                         continue;
                     };
 
-                    let is_child_of_root = is_child_of_node(manual.graph_root, node, &graph);
+                    let is_child_of_root = is_child_of_node(runbook.graph_root, node, &graph);
 
                     let constructs_execution_results =
-                        match manual.constructs_execution_results.get(&construct_uuid) {
+                        match runbook.constructs_execution_results.get(&construct_uuid) {
                             None => None,
                             Some(result) => match result {
-                                Ok(result) => {
-                                    Some(serde_json::to_value(result).map_err(|e| {
-                                        format!("failed to serialize manual data {e}")
-                                    })?)
-                                }
+                                Ok(result) => Some(serde_json::to_value(result).map_err(|e| {
+                                    format!("failed to serialize runbook data {e}")
+                                })?),
                                 Err(e) => Some(json!({"error": e})),
                             },
                         };
-                    let command_inputs_evaluation_results = manual
+                    let command_inputs_evaluation_results = runbook
                         .command_inputs_evaluation_results
                         .get(&construct_uuid);
                     result.push(json!({
@@ -140,6 +138,6 @@ impl Mutation {
             Err(e) => unimplemented!("could not acquire lock: {e}"),
         };
 
-        serde_json::to_string(&result).map_err(|e| format!("failed to serialize manual data {e}"))
+        serde_json::to_string(&result).map_err(|e| format!("failed to serialize runbook data {e}"))
     }
 }

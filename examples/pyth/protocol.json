@@ -1,9 +1,9 @@
 {
-    "manuals": {
+    "runbooks": {
         "consume_price_feeds": {
-            "root_package": "./man/stacks",
+            "root_package": "./run/stacks",
             "name": "Consume Price Feeds",
-            "category": "Usage Manuals"
+            "category": "Usage Runbooks"
         }
     }
 }

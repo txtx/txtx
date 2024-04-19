@@ -7,7 +7,7 @@ use std::{
 };
 use txtx_core::{
     kit::types::commands::EvalEvent,
-    types::{Manual, RuntimeContext},
+    types::{Runbook, RuntimeContext},
 };
 
 pub mod mutation;
@@ -21,7 +21,7 @@ pub struct Context {
 }
 
 pub struct ContextData {
-    pub manual: Arc<RwLock<Manual>>,
+    pub runbook: Arc<RwLock<Runbook>>,
     pub runtime_context: Arc<RwLock<RuntimeContext>>,
 }
 

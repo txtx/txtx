@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    types::{Manual, RuntimeContext},
+    types::{Runbook, RuntimeContext},
     EvalEvent,
 };
 use daggy::{Dag, NodeIndex, Walker};
@@ -78,13 +78,13 @@ pub fn is_child_of_node(
         .any(|(_, child)| child == maybe_child)
 }
 
-pub fn log_evaluated_outputs(manual: &Manual) {
-    for (_, package) in manual.packages.iter() {
+pub fn log_evaluated_outputs(runbook: &Runbook) {
+    for (_, package) in runbook.packages.iter() {
         for construct_uuid in package.outputs_uuids.iter() {
-            let construct = manual.commands_instances.get(construct_uuid).unwrap();
+            let construct = runbook.commands_instances.get(construct_uuid).unwrap();
             println!("Output '{}'", construct.name);
 
-            if let Some(result) = manual.constructs_execution_results.get(construct_uuid) {
+            if let Some(result) = runbook.constructs_execution_results.get(construct_uuid) {
                 match result {
                     Ok(result) => {
                         for (key, value) in result.outputs.iter() {
@@ -106,23 +106,23 @@ pub enum ConstructEvaluationStatus {
     NeedsUserInteraction(Vec<NodeIndex>),
 }
 
-/// Prepares for a reevaluation of all of `start_node`'s dependents within the `manual`.
+/// Prepares for a reevaluation of all of `start_node`'s dependents within the `runbook`.
 /// This involves setting the command instance state to `New` for all commands _except_
 /// the start node. The `New` state indicates to the evaluation loop that the data
 /// should be recomputed, and this should occur for all dependents of the updated
 /// start node, but not the start node itself.
-pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node: NodeIndex) {
-    match manual.read() {
-        Ok(manual) => {
-            let g = manual.constructs_graph.clone();
+pub fn prepare_constructs_reevaluation(runbook: &Arc<RwLock<Runbook>>, start_node: NodeIndex) {
+    match runbook.read() {
+        Ok(runbook) => {
+            let g = runbook.constructs_graph.clone();
             let nodes_to_reevaluate =
-                get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone());
+                get_ordered_dependent_nodes(start_node, runbook.constructs_graph.clone());
 
             for node in nodes_to_reevaluate.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
                 let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-                let Some(command_instance) = manual.commands_instances.get(&construct_uuid) else {
+                let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
                     continue;
                 };
                 if node == start_node {
@@ -147,26 +147,26 @@ pub fn prepare_constructs_reevaluation(manual: &Arc<RwLock<Manual>>, start_node:
 }
 
 pub fn run_constructs_evaluation(
-    manual: &Arc<RwLock<Manual>>,
+    runbook: &Arc<RwLock<Runbook>>,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
     start_node: Option<NodeIndex>,
     eval_tx: Sender<EvalEvent>,
 ) -> Result<(), Diagnostic> {
-    match manual.write() {
-        Ok(mut manual) => {
-            let g = manual.constructs_graph.clone();
+    match runbook.write() {
+        Ok(mut runbook) => {
+            let g = runbook.constructs_graph.clone();
 
             let ordered_nodes_to_process = match start_node {
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
-                    get_ordered_dependent_nodes(start_node, manual.constructs_graph.clone())
+                    get_ordered_dependent_nodes(start_node, runbook.constructs_graph.clone())
                 }
-                None => get_ordered_nodes(manual.graph_root, manual.constructs_graph.clone()),
+                None => get_ordered_nodes(runbook.graph_root, runbook.constructs_graph.clone()),
             };
 
-            let commands_instances = manual.commands_instances.clone();
-            let constructs_locations = manual.constructs_locations.clone();
+            let commands_instances = runbook.commands_instances.clone();
+            let constructs_locations = runbook.constructs_locations.clone();
 
             for node in ordered_nodes_to_process.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
@@ -194,7 +194,7 @@ pub fn run_constructs_evaluation(
                 // commands dependents
                 let input_evaluation_results = if let Some(start_node) = start_node {
                     if start_node == node {
-                        manual
+                        runbook
                             .command_inputs_evaluation_results
                             .get(&construct_uuid.clone())
                     } else {
@@ -217,7 +217,7 @@ pub fn run_constructs_evaluation(
                 let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
 
                 for expr in references_expressions.into_iter() {
-                    let res = manual
+                    let res = runbook
                         .try_resolve_construct_reference_in_expression(
                             package_uuid,
                             &expr,
@@ -226,7 +226,7 @@ pub fn run_constructs_evaluation(
                         .unwrap();
                     if let Some((dependency, _)) = res {
                         let evaluation_result_opt =
-                            manual.constructs_execution_results.get(&dependency);
+                            runbook.constructs_execution_results.get(&dependency);
 
                         if let Some(evaluation_result) = evaluation_result_opt {
                             match cached_dependency_execution_results.get(&dependency) {
@@ -260,7 +260,7 @@ pub fn run_constructs_evaluation(
                                 &cached_dependency_execution_results,
                                 &input_evaluation_results,
                                 package_uuid,
-                                &manual,
+                                &runbook,
                                 runtime_ctx,
                             );
 
@@ -281,13 +281,13 @@ pub fn run_constructs_evaluation(
                                 }
                             };
 
-                            manual
+                            runbook
                                 .command_inputs_evaluation_results
                                 .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
                             let execution_result = match command_instance.perform_execution(
                                 &evaluated_inputs,
-                                manual.uuid.clone(),
+                                runbook.uuid.clone(),
                                 construct_uuid.clone(),
                                 eval_tx.clone(),
                             ) {
@@ -313,7 +313,7 @@ pub fn run_constructs_evaluation(
                                     Err(e)
                                 }
                             };
-                            manual
+                            runbook
                                 .constructs_execution_results
                                 .insert(construct_uuid, execution_result);
                         }
@@ -324,8 +324,8 @@ pub fn run_constructs_evaluation(
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
 
-    match manual.read() {
-        Ok(readonly_manual) => log_evaluated_outputs(&readonly_manual),
+    match runbook.read() {
+        Ok(readonly_runbook) => log_evaluated_outputs(&readonly_runbook),
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
 
@@ -345,7 +345,7 @@ pub fn eval_expression(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     package_uuid: &PackageUuid,
-    manual: &Manual,
+    runbook: &Runbook,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
@@ -376,7 +376,7 @@ pub fn eval_expression(
                     entry_expr,
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -401,7 +401,7 @@ pub fn eval_expression(
                             k_expr,
                             dependencies_execution_results,
                             package_uuid,
-                            manual,
+                            runbook,
                             runtime_ctx,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => match result {
@@ -431,7 +431,7 @@ pub fn eval_expression(
                     v.expr(),
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
@@ -473,7 +473,7 @@ pub fn eval_expression(
                     expr,
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -493,7 +493,7 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components))) = manual
+            let Ok(Some((dependency, mut components))) = runbook
                 .try_resolve_construct_reference_in_expression(package_uuid, expr, runtime_ctx)
             else {
                 todo!("implement diagnostic for unresolvable references")
@@ -518,7 +518,7 @@ pub fn eval_expression(
                 &unary_op.expr,
                 dependencies_execution_results,
                 package_uuid,
-                manual,
+                runbook,
                 runtime_ctx,
             )?;
             match &unary_op.operator.value() {
@@ -533,7 +533,7 @@ pub fn eval_expression(
                 &binary_op.lhs_expr,
                 dependencies_execution_results,
                 package_uuid,
-                manual,
+                runbook,
                 runtime_ctx,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -548,7 +548,7 @@ pub fn eval_expression(
                 &binary_op.rhs_expr,
                 dependencies_execution_results,
                 package_uuid,
-                manual,
+                runbook,
                 runtime_ctx,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -607,7 +607,7 @@ pub fn perform_inputs_evaluation(
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
-    manual: &Manual,
+    runbook: &Runbook,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<CommandInputEvaluationStatus, String> {
     let mut results = CommandInputsEvaluationResult::new();
@@ -649,7 +649,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
@@ -708,7 +708,7 @@ pub fn perform_inputs_evaluation(
                 &expr,
                 dependencies_execution_results,
                 package_uuid,
-                manual,
+                runbook,
                 runtime_ctx,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
@@ -746,7 +746,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
@@ -776,7 +776,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_uuid,
-                    manual,
+                    runbook,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
