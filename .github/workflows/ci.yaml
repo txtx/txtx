@@ -95,8 +95,6 @@ jobs:
           ls txtx
           ls txtx-web-ui
 
-      - name: Change Directories
-        run: cd txtx
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
 
@@ -146,7 +144,9 @@ jobs:
 
       - name: Build - Cargo
         if: matrix.target != 'x86_64-unknown-linux-musl'
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: |
+          cd txtx
+          cargo build --release --locked --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (Linux)
