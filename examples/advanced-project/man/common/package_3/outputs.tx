@@ -1,4 +1,4 @@
-module "manual" {
+module "runbook" {
   name = "Package 3"
   description = "Lorem ipsum dolor sit amet"
 }
@@ -22,7 +22,7 @@ import "package_2" {
 // 2) How does the explainability work?
 // 3) How does the signing work?
 // 4) Can we engineer a 'mdx' extension?
-// 5) How do developers compose, publish and share their manuals?
+// 5) How do developers compose, publish and share their runbooks?
 
 // import "@uniswap/uniswap_v4/swap" {
 //     as = "uniswapv_v4_swap" 

@@ -6,13 +6,13 @@ use serde::{de::IntoDeserializer, Deserialize};
 use serde_json::json;
 use txtx_core::{
     eval::{get_ordered_nodes, is_child_of_node},
-    types::{ConstructUuid, Manual},
+    types::{ConstructUuid, Runbook},
 };
 
 #[derive(Clone)]
 pub struct ProtocolManifest {
     pub name: String,
-    pub manuals: Vec<ManualDescription>,
+    pub runbooks: Vec<RunbookDescription>,
 }
 
 #[graphql_object(context = Context)]
@@ -21,20 +21,20 @@ impl ProtocolManifest {
         self.name.clone()
     }
 
-    pub fn manuals(&self) -> Vec<ManualDescription> {
-        self.manuals.clone()
+    pub fn runbooks(&self) -> Vec<RunbookDescription> {
+        self.runbooks.clone()
     }
 }
 
 #[derive(Clone)]
-pub struct ManualDescription {
+pub struct RunbookDescription {
     pub identifier: String,
     pub name: Option<String>,
     pub description: Option<String>,
     pub construct_uuids: Vec<ConstructUuid>,
 }
 
-impl ManualDescription {
+impl RunbookDescription {
     pub fn new(
         identifier: &str,
         name: &Option<String>,
@@ -51,7 +51,7 @@ impl ManualDescription {
 }
 
 #[graphql_object(context = Context)]
-impl ManualDescription {
+impl RunbookDescription {
     pub fn uuid(&self) -> String {
         self.identifier.clone()
     }
@@ -70,13 +70,13 @@ impl ManualDescription {
     }
 }
 
-pub struct GqlManual {
+pub struct GqlRunbook {
     pub name: String,
-    pub data: Manual,
+    pub data: Runbook,
 }
 
-impl GqlManual {
-    pub fn new(name: String, data: Manual) -> GqlManual {
+impl GqlRunbook {
+    pub fn new(name: String, data: Runbook) -> GqlRunbook {
         Self {
             name: name.clone(),
             data: data.clone(),
@@ -85,7 +85,7 @@ impl GqlManual {
 }
 
 #[graphql_object(context = Context)]
-impl GqlManual {
+impl GqlRunbook {
     pub fn name(&self) -> String {
         self.name.clone()
     }
@@ -122,7 +122,7 @@ impl GqlManual {
                     Some(result) => match result {
                         Ok(result) => Some(
                             serde_json::to_value(result)
-                                .map_err(|e| format!("failed to serialize manual data {e}"))?,
+                                .map_err(|e| format!("failed to serialize runbook data {e}"))?,
                         ),
                         Err(e) => Some(json!({"error": e})),
                     },
@@ -142,7 +142,7 @@ impl GqlManual {
             }));
         }
 
-        serde_json::to_string(&data).map_err(|e| format!("failed to serialize manual data {e}"))
+        serde_json::to_string(&data).map_err(|e| format!("failed to serialize runbook data {e}"))
     }
 
     pub fn command_instance_state(&self, construct_uuid_string: String) -> Result<String, String> {

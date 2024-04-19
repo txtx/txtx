@@ -1,5 +1,5 @@
 use crate::types::constructs::Construct;
-use crate::types::manual::{GqlManual, ManualDescription, ProtocolManifest};
+use crate::types::runbook::{GqlRunbook, ProtocolManifest, RunbookDescription};
 
 use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;
@@ -16,17 +16,17 @@ impl Query {
         "1.0"
     }
 
-    async fn construct(context: &Context, manual_name: String, id: Uuid) -> Option<Construct> {
-        let Some(ContextData { manual, .. }) = context.data.get(&manual_name) else {
+    async fn construct(context: &Context, runbook_name: String, id: Uuid) -> Option<Construct> {
+        let Some(ContextData { runbook, .. }) = context.data.get(&runbook_name) else {
             return None;
         };
         let uuid = ConstructUuid::from_uuid(&id);
-        match manual.read() {
-            Ok(manual) => {
-                let Some(data) = manual.commands_instances.get(&uuid) else {
+        match runbook.read() {
+            Ok(runbook) => {
+                let Some(data) = runbook.commands_instances.get(&uuid) else {
                     return None;
                 };
-                let result = manual.constructs_execution_results.get(&uuid).cloned();
+                let result = runbook.constructs_execution_results.get(&uuid).cloned();
                 // Return item
                 Some(Construct::new(&uuid, data, result))
             }
@@ -34,27 +34,27 @@ impl Query {
         }
     }
 
-    async fn manual(context: &Context, manual_name: String) -> Option<GqlManual> {
-        let Some(ContextData { manual, .. }) = context.data.get(&manual_name) else {
+    async fn runbook(context: &Context, runbook_name: String) -> Option<GqlRunbook> {
+        let Some(ContextData { runbook, .. }) = context.data.get(&runbook_name) else {
             return None;
         };
-        match manual.read() {
-            Ok(manual) => Some(GqlManual::new(manual_name, manual.clone())),
+        match runbook.read() {
+            Ok(runbook) => Some(GqlRunbook::new(runbook_name, runbook.clone())),
             Err(e) => unimplemented!("could not acquire lock: {e}"),
         }
     }
 
     async fn protocol(context: &Context) -> ProtocolManifest {
-        let mut manuals = vec![];
-        for (id, ContextData { manual, .. }) in context.data.iter() {
-            match manual.read() {
-                Ok(manual) => {
-                    let _metadata = manual.get_metadata_module();
-                    let construct_uuids = manual.commands_instances.keys().cloned().collect();
-                    manuals.push(ManualDescription {
+        let mut runbooks = vec![];
+        for (id, ContextData { runbook, .. }) in context.data.iter() {
+            match runbook.read() {
+                Ok(runbook) => {
+                    let _metadata = runbook.get_metadata_module();
+                    let construct_uuids = runbook.commands_instances.keys().cloned().collect();
+                    runbooks.push(RunbookDescription {
                         identifier: id.clone(),
                         name: Some(id.clone()),
-                        description: manual.description.clone(),
+                        description: runbook.description.clone(),
                         construct_uuids,
                     });
                 }
@@ -63,7 +63,7 @@ impl Query {
         }
         ProtocolManifest {
             name: context.protocol_name.clone(),
-            manuals,
+            runbooks,
         }
     }
 }

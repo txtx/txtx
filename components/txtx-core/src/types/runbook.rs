@@ -33,11 +33,11 @@ impl SourceTree {
 }
 
 #[derive(Debug, Clone)]
-pub struct Manual {
+pub struct Runbook {
     pub uuid: Uuid,
     pub source_tree: Option<SourceTree>,
     pub packages_uuid_lookup: HashMap<FileLocation, PackageUuid>,
-    pub manual_metadata_construct_uuid: Option<ConstructUuid>,
+    pub runbook_metadata_construct_uuid: Option<ConstructUuid>,
     pub packages: HashMap<PackageUuid, Package>,
     pub graph_root: NodeIndex<u32>,
     pub packages_graph: Dag<Uuid, u32, u32>,
@@ -53,16 +53,16 @@ pub struct Manual {
     pub description: Option<String>,
 }
 
-impl Manual {
+impl Runbook {
     pub fn new(source_tree: Option<SourceTree>, description: Option<String>) -> Self {
         let uuid = PackageUuid::new();
         let mut packages_graph = Dag::new();
         let _ = packages_graph.add_node(uuid.value());
         let mut constructs_graph = Dag::new();
         let graph_root = constructs_graph.add_node(uuid.value());
-        let manual_uuid = Uuid::new_v4();
+        let runbook_uuid = Uuid::new_v4();
         Self {
-            uuid: manual_uuid,
+            uuid: runbook_uuid,
             source_tree,
             packages: HashMap::new(),
             packages_uuid_lookup: HashMap::new(),
@@ -71,7 +71,7 @@ impl Manual {
             constructs_graph_nodes: HashMap::new(),
             packages_graph_nodes: HashMap::new(),
             graph_root,
-            manual_metadata_construct_uuid: None,
+            runbook_metadata_construct_uuid: None,
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
@@ -126,8 +126,8 @@ impl Manual {
         // Update module
         match &construct_data {
             PreConstructData::Module(block) => {
-                if construct_name.eq("manual") && self.manual_metadata_construct_uuid.is_none() {
-                    self.manual_metadata_construct_uuid = Some(construct_uuid.clone());
+                if construct_name.eq("runbook") && self.runbook_metadata_construct_uuid.is_none() {
+                    self.runbook_metadata_construct_uuid = Some(construct_uuid.clone());
                 }
                 package.modules_uuids.insert(construct_uuid.clone());
                 package
@@ -215,7 +215,7 @@ impl Manual {
         Ok(())
     }
 
-    /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the manual's `packages`.
+    /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the runbook's `packages`.
     /// Iterates over the operators of `expression` to see if any of the blocks it references are cached as a
     /// `module`, `output`, `input`, `action`, or `prompt` in the package.
     pub fn try_resolve_construct_reference_in_expression(

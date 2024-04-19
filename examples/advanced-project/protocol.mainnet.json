@@ -1,8 +1,8 @@
 {
-    "manuals": {
-        "manual_v1": "./man/v1",
-        "manual_v2": "./man/common/package_2",
-        "manual_v3": "./man/common/package_3"
+    "runbooks": {
+        "runbook_v1": "./run/v1",
+        "runbook_v2": "./run/common/package_2",
+        "runbook_v3": "./run/common/package_3"
     },
     "txvars": {
         "package_1_variable_2": {
