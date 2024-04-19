@@ -10,7 +10,10 @@ use crate::{
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use txtx_addon_kit::{
-    hcl::expr::{BinaryOperator, Expression, UnaryOperator},
+    hcl::{
+        expr::{BinaryOperator, Expression, UnaryOperator},
+        template::Element,
+    },
     types::{
         commands::{
             CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
@@ -445,8 +448,37 @@ pub fn eval_expression(
             Value::Object(map)
         }
         // Represents a string containing template interpolations and template directives.
-        Expression::StringTemplate(_string_template) => {
-            unimplemented!()
+        Expression::StringTemplate(string_template) => {
+            let mut res = String::new();
+            for element in string_template.into_iter() {
+                match element {
+                    Element::Literal(literal) => {
+                        res.push_str(literal.value());
+                    }
+                    Element::Interpolation(interpolation) => {
+                        let value = match eval_expression(
+                            &interpolation.expr,
+                            dependencies_execution_results,
+                            package_uuid,
+                            runbook,
+                            runtime_ctx,
+                        )? {
+                            ExpressionEvaluationStatus::CompleteOk(result) => result.to_string(),
+                            ExpressionEvaluationStatus::CompleteErr(e) => {
+                                return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                            }
+                            ExpressionEvaluationStatus::DependencyNotComputed => {
+                                return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                            }
+                        };
+                        res.push_str(&value);
+                    }
+                    Element::Directive(_) => {
+                        unimplemented!("string templates with directives not yet supported")
+                    }
+                };
+            }
+            Value::string(res)
         }
         // Represents an HCL heredoc template.
         Expression::HeredocTemplate(_heredoc_template) => {
