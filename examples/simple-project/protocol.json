@@ -4,7 +4,7 @@
       {
         "name": "Another Runbook",
         "description": "This runbook does less things. Either way, check it out.",
-        "location": "./man3"
+        "location": "./run3"
       }
     ]
 }
