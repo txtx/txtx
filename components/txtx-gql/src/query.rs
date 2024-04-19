@@ -1,5 +1,5 @@
 use crate::types::constructs::Construct;
-use crate::types::manual::{GqlManual, ManualDescription, ProtocolManifest};
+use crate::types::runbook::{GqlManual, ManualDescription, ProtocolManifest};
 
 use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;

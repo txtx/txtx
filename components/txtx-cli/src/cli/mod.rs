@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use std::process;
 
-mod manuals;
+mod runbooks;
 
 #[derive(Clone)]
 pub struct Context {
@@ -118,13 +118,13 @@ pub fn main() {
 async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
     match opts.command {
         Command::Check(cmd) => {
-            manuals::handle_check_command(&cmd, ctx).await?;
+            runbooks::handle_check_command(&cmd, ctx).await?;
         }
         Command::Inspect(cmd) => {
-            manuals::handle_inspect_command(&cmd, ctx).await?;
+            runbooks::handle_inspect_command(&cmd, ctx).await?;
         }
         Command::Run(cmd) => {
-            manuals::handle_run_command(&cmd, ctx).await?;
+            runbooks::handle_run_command(&cmd, ctx).await?;
         }
     }
     Ok(())

@@ -1,10 +1,10 @@
 mod construct;
-mod manual;
 mod package;
+mod runbook;
 
 pub use construct::PreConstructData;
-pub use manual::{Manual, SourceTree};
 pub use package::Package;
+pub use runbook::{Manual, SourceTree};
 use std::collections::HashMap;
 pub use txtx_addon_kit::types::commands::CommandInstance;
 
