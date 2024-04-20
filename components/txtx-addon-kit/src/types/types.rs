@@ -157,6 +157,21 @@ impl Value {
             Type::Array(_) => todo!(),
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Value::Primitive(PrimitiveValue::String(val)) => val.clone(),
+            Value::Primitive(PrimitiveValue::Bool(val)) => val.to_string(),
+            Value::Primitive(PrimitiveValue::SignedInteger(val)) => val.to_string(),
+            Value::Primitive(PrimitiveValue::UnsignedInteger(val)) => val.to_string(),
+            Value::Primitive(PrimitiveValue::Float(val)) => val.to_string(),
+            Value::Primitive(PrimitiveValue::Null) => "null".to_string(),
+            Value::Primitive(PrimitiveValue::Buffer(_)) => todo!(),
+            Value::Object(_) => todo!(),
+            Value::Array(_) => todo!(),
+            Value::Addon(_) => todo!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -10,7 +10,10 @@ use crate::{
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use txtx_addon_kit::{
-    hcl::expr::{BinaryOperator, Expression, UnaryOperator},
+    hcl::{
+        expr::{BinaryOperator, Expression, UnaryOperator},
+        template::Element,
+    },
     types::{
         commands::{
             CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
@@ -445,8 +448,37 @@ pub fn eval_expression(
             Value::Object(map)
         }
         // Represents a string containing template interpolations and template directives.
-        Expression::StringTemplate(_string_template) => {
-            unimplemented!()
+        Expression::StringTemplate(string_template) => {
+            let mut res = String::new();
+            for element in string_template.into_iter() {
+                match element {
+                    Element::Literal(literal) => {
+                        res.push_str(literal.value());
+                    }
+                    Element::Interpolation(interpolation) => {
+                        let value = match eval_expression(
+                            &interpolation.expr,
+                            dependencies_execution_results,
+                            package_uuid,
+                            runbook,
+                            runtime_ctx,
+                        )? {
+                            ExpressionEvaluationStatus::CompleteOk(result) => result.to_string(),
+                            ExpressionEvaluationStatus::CompleteErr(e) => {
+                                return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                            }
+                            ExpressionEvaluationStatus::DependencyNotComputed => {
+                                return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                            }
+                        };
+                        res.push_str(&value);
+                    }
+                    Element::Directive(_) => {
+                        unimplemented!("string templates with directives not yet supported")
+                    }
+                };
+            }
+            Value::string(res)
         }
         // Represents an HCL heredoc template.
         Expression::HeredocTemplate(_heredoc_template) => {
@@ -562,23 +594,28 @@ pub fn eval_expression(
             if !lhs.is_type_eq(&rhs) {
                 unimplemented!() // todo(lgalabru): return diagnostic
             }
-            match &binary_op.operator.value() {
-                BinaryOperator::And => unimplemented!(),
-                BinaryOperator::Div => unimplemented!(),
-                BinaryOperator::Eq => unimplemented!(),
-                BinaryOperator::Greater => unimplemented!(),
-                BinaryOperator::GreaterEq => unimplemented!(),
-                BinaryOperator::Less => unimplemented!(),
-                BinaryOperator::LessEq => unimplemented!(),
-                BinaryOperator::Minus => unimplemented!(),
-                BinaryOperator::Mod => unimplemented!(),
-                BinaryOperator::Mul => unimplemented!(),
-                BinaryOperator::Plus => match runtime_ctx.write() {
-                    Ok(runtime_ctx) => runtime_ctx.execute_function("add_uint", &vec![lhs, rhs])?,
-                    Err(e) => unimplemented!("could not acquire lock: {e}"),
+
+            let func = match &binary_op.operator.value() {
+                BinaryOperator::And => "and_bool",
+                BinaryOperator::Div => match rhs {
+                    Value::Primitive(PrimitiveValue::SignedInteger(_)) => "div_int",
+                    _ => "div_uint",
                 },
-                BinaryOperator::NotEq => unimplemented!(),
-                BinaryOperator::Or => unimplemented!(),
+                BinaryOperator::Eq => "eq",
+                BinaryOperator::Greater => "gt",
+                BinaryOperator::GreaterEq => "gte",
+                BinaryOperator::Less => "lt",
+                BinaryOperator::LessEq => "lte",
+                BinaryOperator::Minus => "minus_uint",
+                BinaryOperator::Mod => "modulo_uint",
+                BinaryOperator::Mul => "multiply_uint",
+                BinaryOperator::Plus => "add_uint",
+                BinaryOperator::NotEq => "neq",
+                BinaryOperator::Or => "or_bool",
+            };
+            match runtime_ctx.write() {
+                Ok(runtime_ctx) => runtime_ctx.execute_function(func, &vec![lhs, rhs])?,
+                Err(e) => unimplemented!("could not acquire lock: {e}"),
             }
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
