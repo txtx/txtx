@@ -162,8 +162,8 @@ jobs:
       - name: Compress cargo artifact (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          cd txtx\target\${{ matrix.target }}\release
-          7z a ../../../../txtx-${{ env.SHORT_TARGET_NAME }}.zip txtx
+          cd txtx
+          7z a ../txtx-${{ env.SHORT_TARGET_NAME }}.zip target/${{ matrix.target }}/release/txtx
 
       # Separate uploads to prevent paths from being preserved
       - name: Upload cargo artifacts (Linux)
