@@ -157,12 +157,12 @@ jobs:
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (Linux)
         if: matrix.os != 'windows-latest'
-        run: tar -C target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
+        run: tar -C txtx/target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
 
       - name: Rename cargo artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: mv target/wix/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
+        run: mv txtx/target/wix/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
 
       # Separate uploads to prevent paths from being preserved
       - name: Upload cargo artifacts (Linux)
