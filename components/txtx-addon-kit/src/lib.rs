@@ -42,6 +42,7 @@ pub trait AddonContext: Debug + Sync + Send {
     fn create_command_instance(
         self: &Self,
         command_id: &CommandId,
+        namespace: &str,
         command_name: &str,
         block: &Block,
         package_uuid: &PackageUuid,

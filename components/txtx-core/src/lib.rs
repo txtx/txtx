@@ -103,7 +103,7 @@ impl AddonsContext {
         };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
         let command_id = CommandId::Action(command_id.to_string());
-        ctx.create_command_instance(&command_id, command_name, block, package_uuid)
+        ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
     }
 
     pub fn create_prompt_instance(
@@ -119,6 +119,6 @@ impl AddonsContext {
         };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
         let command_id = CommandId::Prompt(command_id.to_string());
-        ctx.create_command_instance(&command_id, command_name, block, package_uuid)
+        ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
     }
 }
