@@ -74,6 +74,12 @@ pub fn new_input_specification() -> CommandSpecification {
                     optional: true,
                     interpolable: true
                 },
+                description: {
+                    documentation: "Description of the input",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 type: {
                     documentation: "The type of the input output. Can be inferred from `value` or `default` if provided.",
                     typing: Type::string(),
