@@ -1,64 +1,77 @@
 input "network_id" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = "mainnet"
   type = "string"
 }
 
 input "contract_address" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG"
   type = "string"
 }
 
 input "token_principal" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststx-token"
   type = "string"
 }
 
 input "token_name" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = "stSTX"
   type = "string"
 }
 
 input "max_debt" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 3700000000000
   type = "uint"
 }
 
 input "vault_min_debt" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 500000000
   type = "uint"
 }
 
 input "stability_fee" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 400
   type = "uint"
 }
 
 input "liquidation_ratio" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 14000
   type = "uint"
 }
 
 input "liquidation_penalty" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 1000
   type = "uint"
 }
 
 input "redemption_fee_min" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 300
   type = "uint"
 }
 
 input "redemption_fee_max" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 700
   type = "uint"
 }
 
 input "redemption_fee_block_interval" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 144
   type = "uint"
 }
 
 input "redemption_fee_block_rate" {
+  description = "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
   value = 500000000
   type = "uint"
 }
