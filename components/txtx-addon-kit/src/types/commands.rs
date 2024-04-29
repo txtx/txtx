@@ -353,6 +353,15 @@ state_machine! {
   }
 
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommandInstanceType {
+    Input,
+    Output,
+    Action,
+    Prompt,
+    Module,
+}
 #[derive(Debug, Clone)]
 pub struct CommandInstance {
     pub specification: CommandSpecification,
@@ -360,6 +369,8 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
+    pub namespace: Option<String>, // todo: I think this field should probably be on
+    pub typing: CommandInstanceType, // the command specification, but it's a lot messier for the UX
 }
 pub enum CommandExecutionStatus {
     Complete(Result<CommandExecutionResult, Diagnostic>),
@@ -371,13 +382,15 @@ impl Serialize for CommandInstance {
     where
         S: Serializer,
     {
-        let mut ser = serializer.serialize_struct("CommandInstance", 4)?;
+        let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
         let state_machine = self.state.lock().map_err(S::Error::custom)?;
         let state = state_machine.state();
         ser.serialize_field("state", &state)?;
         ser.serialize_field("packageUuid", &self.package_uuid)?;
+        ser.serialize_field("namespace", &self.namespace)?;
+        ser.serialize_field("typing", &self.typing)?;
         ser.end()
     }
 }

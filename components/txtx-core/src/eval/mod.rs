@@ -46,6 +46,7 @@ pub fn get_ordered_dependent_nodes(
     visited_nodes_to_process
 }
 
+// todo: the sorting here is broken, we need to do topological sorting
 pub fn get_ordered_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
     let mut nodes_to_visit = VecDeque::new();
     let mut visited_nodes_to_process = IndexSet::new();
@@ -179,6 +180,7 @@ pub fn run_constructs_evaluation(
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
                 };
+                println!("processing {}", command_instance.name);
 
                 match command_instance.state.lock() {
                     Ok(state_machine) => match state_machine.state() {
@@ -456,6 +458,10 @@ pub fn eval_expression(
                         res.push_str(literal.value());
                     }
                     Element::Interpolation(interpolation) => {
+                        // println!(
+                        //     "running eval for string template with dep execs: {:?}",
+                        //     dependencies_execution_results
+                        // );
                         let value = match eval_expression(
                             &interpolation.expr,
                             dependencies_execution_results,

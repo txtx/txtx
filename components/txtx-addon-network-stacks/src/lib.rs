@@ -21,7 +21,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionResult, CommandId, CommandInstance, CommandInstanceOrParts,
-            CommandInstanceStateMachine, PreCommandSpecification,
+            CommandInstanceStateMachine, CommandInstanceType, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
@@ -97,12 +97,17 @@ impl AddonContext for StacksNetworkAddonContext {
     fn create_command_instance(
         self: &Self,
         command_id: &CommandId,
+        namespace: &str,
         command_name: &str,
         block: &Block,
         package_uuid: &PackageUuid,
     ) -> Result<CommandInstanceOrParts, Diagnostic> {
         let Some(pre_command_spec) = self.commands.get(command_id) else {
             todo!("return diagnostic: unknown command: {:?}", command_id)
+        };
+        let typing = match command_id {
+            CommandId::Action(_) => CommandInstanceType::Action,
+            CommandId::Prompt(_) => CommandInstanceType::Prompt,
         };
         match pre_command_spec {
             PreCommandSpecification::Atomic(command_spec) => {
@@ -114,6 +119,8 @@ impl AddonContext for StacksNetworkAddonContext {
                     name: command_name.to_string(),
                     block: block.clone(),
                     package_uuid: package_uuid.clone(),
+                    typing,
+                    namespace: Some(namespace.to_string()),
                 };
                 Ok(CommandInstanceOrParts::Instance(command_instance))
             }
