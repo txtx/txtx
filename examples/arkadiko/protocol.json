@@ -2,19 +2,9 @@
     "name": "Arkadiko",
     "runbooks": [
       {
-        "name": "Mint Diko",
-        "description": "This runbook uses your browser wallet to sign and broadcast a transaction calling the arkadiko-alex-dual-yield-v1-1 contract's mint-diko function.",
-        "location": "./mint"
-      },
-      {
-        "name": "Governance",
-        "description": "This runbook uses your browser wallet to sign and broadcast a transaction calling the arkadiko-governance-v4-2 contract's propose function with AIP 15 arguments.",
-        "location": "./governance"
-      },
-      {
-        "name": "Simple Contract Call",
-        "description": "This runbook uses your browser wallet to sign and broadcast the example-fruit-vote-contract contract's vote function.",
-        "location": "./simple"
+        "name": "Set Collateral Token",
+        "description": "This runbook calls the set-token function of the arkadiko-vaults-tokens-v1-1 contract.",
+        "location": "./run"
       }
     ]
 }
