@@ -4408,6 +4408,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "txtx-addon-network-bitcoin"
+version = "0.1.0"
+dependencies = [
+ "hmac 0.12.1",
+ "lazy_static",
+ "libsecp256k1 0.7.1",
+ "pbkdf2 0.12.2",
+ "rust-fsm",
+ "serde_json",
+ "sha2 0.10.8",
+ "tiny-hderive",
+ "txtx-addon-kit",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "txtx-addon-network-stacks"
 version = "0.1.0"
 dependencies = [

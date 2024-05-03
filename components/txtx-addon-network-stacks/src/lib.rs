@@ -16,18 +16,17 @@ mod typing;
 
 use rust_fsm::StateMachine;
 use txtx_addon_kit::{
-    hcl::{expr::Expression, structure::Block},
-    helpers::{fs::FileLocation, hcl::VisitorError},
+    hcl::structure::Block,
     types::{
         commands::{
-            CommandExecutionResult, CommandId, CommandInstance, CommandInstanceOrParts,
+            CommandId, CommandInstance, CommandInstanceOrParts,
             CommandInstanceStateMachine, CommandInstanceType, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
         ConstructUuid, PackageUuid,
     },
-    Addon, AddonConstruct, AddonContext,
+    Addon, AddonContext,
 };
 
 #[derive(Debug)]
@@ -45,15 +44,15 @@ impl Addon for StacksNetworkAddon {
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {
-        functions::STACKS_FUNCTIONS.clone()
+        functions::FUNCTIONS.clone()
     }
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        commands::actions::STACKS_ACTIONS.clone()
+        commands::actions::ACTIONS.clone()
     }
 
     fn get_prompts(&self) -> Vec<PreCommandSpecification> {
-        commands::prompts::STACKS_PROMPTS.clone()
+        commands::prompts::PROMPTS.clone()
     }
 
     fn create_context(&self) -> Box<dyn AddonContext> {
@@ -141,44 +140,4 @@ impl AddonContext for StacksNetworkAddonContext {
     ) -> Vec<ConstructUuid> {
         vec![]
     }
-}
-
-#[derive(Debug)]
-pub enum StacksNetworkConstructs {
-    ContractCall,
-    ContractDeploy,
-    Transaction,
-    Network,
-}
-
-impl AddonConstruct for StacksNetworkConstructs {
-    //
-    fn get_type(self: &Self) -> &str {
-        unimplemented!()
-    }
-
-    ///
-    fn get_name(self: &Self) -> &str {
-        unimplemented!()
-    }
-
-    ///
-    fn get_construct_uuid(self: &Self) -> &ConstructUuid {
-        unimplemented!()
-    }
-
-    ///
-    fn from_block(_block: &Block, _location: &FileLocation) -> Result<Box<Self>, VisitorError>
-    where
-        Self: Sized,
-    {
-        unimplemented!()
-    }
-
-    ///
-    fn collect_dependencies(self: &Self) -> Vec<Expression> {
-        unimplemented!()
-    }
-
-    fn eval(self: &Self, _dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>) {}
 }

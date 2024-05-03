@@ -3,13 +3,12 @@ extern crate serde_derive;
 
 pub use uuid;
 
-use hcl::{expr::Expression, structure::Block};
+use hcl::structure::Block;
 pub use hcl_edit as hcl;
-use helpers::{fs::FileLocation, hcl::VisitorError};
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 use types::{
     commands::{
-        CommandExecutionResult, CommandId, CommandInstanceOrParts, PreCommandSpecification,
+        CommandId, CommandInstanceOrParts, PreCommandSpecification,
     },
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
@@ -52,22 +51,4 @@ pub trait AddonContext: Debug + Sync + Send {
         self: &Self,
         construct_uuid: &ConstructUuid,
     ) -> Vec<ConstructUuid>;
-}
-
-///
-pub trait AddonConstruct: Debug + Sync + Send {
-    ///
-    fn get_type(self: &Self) -> &str;
-    ///
-    fn get_name(self: &Self) -> &str;
-    ///
-    fn get_construct_uuid(self: &Self) -> &ConstructUuid;
-    ///
-    fn from_block(block: &Block, location: &FileLocation) -> Result<Box<Self>, VisitorError>
-    where
-        Self: Sized;
-    ///
-    fn collect_dependencies(self: &Self) -> Vec<Expression>;
-    ///
-    fn eval(self: &Self, dependencies: HashMap<&ConstructUuid, &CommandExecutionResult>);
 }

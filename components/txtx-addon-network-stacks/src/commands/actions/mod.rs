@@ -12,7 +12,7 @@ use sign_transaction::SIGN_STACKS_TRANSACTION;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 
 lazy_static! {
-    pub static ref STACKS_ACTIONS: Vec<PreCommandSpecification> = vec![
+    pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_STACKS_TRANSACTION.clone(),
         DECODE_STACKS_CONTRACT_CALL.clone(),
         ENCODE_STACKS_CONTRACT_CALL.clone(),
