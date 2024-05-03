@@ -9,7 +9,9 @@ daggy = "0.8.0"
 txtx-addon-kit = { path = "../txtx-addon-kit", default-features = false}
 getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
-jaq-core = "1.2.1"
+jaq-interpret = "1.2.1"
+jaq-parse = "1.0.2"
+serde_json = "1.0.113"
 rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
 indexmap = "2.2.6"
 
