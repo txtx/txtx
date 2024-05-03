@@ -81,6 +81,62 @@ impl Value {
         Value::Array(Box::new(array))
     }
 
+    pub fn expect_string(&self) -> &str {
+        match &self {
+            Value::Primitive(PrimitiveValue::String(value)) => value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_uint(&self) -> u64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::UnsignedInteger(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_int(&self) -> i64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::SignedInteger(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_float(&self) -> f64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::Float(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_null(&self) -> () {
+        match &self {
+            Value::Primitive(PrimitiveValue::Null) => (),
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_bool(&self) -> bool {
+        match &self {
+            Value::Primitive(PrimitiveValue::Bool(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_buffer_data(&self) -> &BufferData {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(value)) => &value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_array(&self) -> &Box<Vec<Value>> {
+        match &self {
+            Value::Array(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn expect_object(&self) -> &HashMap<String, Result<Value, Diagnostic>> {
+        match &self {
+            Value::Object(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
         match (self, rhs) {
             (Value::Primitive(PrimitiveValue::Null), Value::Primitive(PrimitiveValue::Null)) => {

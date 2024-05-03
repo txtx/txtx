@@ -19,8 +19,8 @@ use txtx_addon_kit::{
     hcl::structure::Block,
     types::{
         commands::{
-            CommandId, CommandInstance, CommandInstanceOrParts,
-            CommandInstanceStateMachine, CommandInstanceType, PreCommandSpecification,
+            CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceStateMachine,
+            CommandInstanceType, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,

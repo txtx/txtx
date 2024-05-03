@@ -7,9 +7,7 @@ use hcl::structure::Block;
 pub use hcl_edit as hcl;
 use std::fmt::Debug;
 use types::{
-    commands::{
-        CommandId, CommandInstanceOrParts, PreCommandSpecification,
-    },
+    commands::{CommandId, CommandInstanceOrParts, PreCommandSpecification},
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     ConstructUuid, PackageUuid,
