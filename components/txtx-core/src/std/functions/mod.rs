@@ -1,3 +1,4 @@
+pub mod base64;
 pub mod json;
 pub mod list;
 pub mod operators;
@@ -9,6 +10,7 @@ lazy_static! {
         functions.extend(json::JSON_FUNCTIONS.clone());
         functions.extend(list::LIST_FUNCTIONS.clone());
         functions.extend(operators::OPERATORS_FUNCTIONS.clone());
+        functions.extend(base64::FUNCTIONS.clone());
         functions
     };
 }

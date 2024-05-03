@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 hex = "0.4.3"
 daggy = "0.8.0"
+base64 = "0.22.1"
 txtx-addon-kit = { path = "../txtx-addon-kit", default-features = false}
 getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
