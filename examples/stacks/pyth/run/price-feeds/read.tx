@@ -16,5 +16,5 @@ action "fetch_price" "std::send_http_request" {
 
 output "value" {
     description = "Prices informations for ${input.price_id.value}"
-    value = action.fetch_price.response_body
+    value = base64_decode(index(jq(action.fetch_price.response_body, ".[0].vaa"), 0))
 }
