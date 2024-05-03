@@ -16,7 +16,7 @@ use crate::{
 };
 
 lazy_static! {
-    pub static ref STACKS_FUNCTIONS: Vec<FunctionSpecification> = vec![
+    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
             EncodeClarityValueOk => {
                 name: "cv_ok",

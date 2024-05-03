@@ -44,15 +44,15 @@ impl Addon for StacksNetworkAddon {
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {
-        functions::STACKS_FUNCTIONS.clone()
+        functions::FUNCTIONS.clone()
     }
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        commands::actions::STACKS_ACTIONS.clone()
+        commands::actions::ACTIONS.clone()
     }
 
     fn get_prompts(&self) -> Vec<PreCommandSpecification> {
-        commands::prompts::STACKS_PROMPTS.clone()
+        commands::prompts::PROMPTS.clone()
     }
 
     fn create_context(&self) -> Box<dyn AddonContext> {
