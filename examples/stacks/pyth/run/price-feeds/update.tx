@@ -1,0 +1,26 @@
+input "price_id" {
+    description = "Price ID to retrieve"
+    value = "ec7a775f46379b5e943c3526b1c8d54cd49749176b0b98e02dde68d1bd335c17"
+}
+
+action "fetch_price" "std::send_http_request" {
+    description = "Retrieve latest prices from Hermes Prices API"
+
+    url = "https://hermes.pyth.network/api/latest_price_feeds?ids[]=${input.price_id.value}&binary=true"
+
+    request_headers = {
+      Accept = "application/json"
+    }
+    method = "GET"
+    request_timeout_ms = 1200
+}
+
+output "pyth_body" {
+    description = "Prices informations for ${input.price_id.value}"
+    value = action.fetch_price.response_body
+}
+
+output "pyth_status_code" {
+    description = "Prices informations for ${input.price_id.value}"
+    value = action.fetch_price.status_code
+}

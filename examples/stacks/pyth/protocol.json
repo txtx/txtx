@@ -1,9 +1,15 @@
 {
-    "runbooks": {
-        "consume_price_feeds": {
-            "root_package": "./run/stacks",
-            "name": "Consume Price Feeds",
-            "category": "Usage Runbooks"
-        }
-    }
+    "name": "Pyth",
+    "runbooks": [
+      {
+        "name": "Read Price Feed",
+        "description": "This runbook reads the price for a given Price feed ID.",
+        "location": "./run/price-feeds/read.tx"
+      },
+      {
+        "name": "Update Price Feed",
+        "description": "This runbook updated the price of a feed.",
+        "location": "./run/price-feeds/update.tx"
+      }
+    ]
 }
