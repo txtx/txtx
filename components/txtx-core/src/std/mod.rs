@@ -3,13 +3,10 @@ use txtx_addon_kit::{
     Addon,
 };
 
+use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
+
 pub mod commands;
 pub mod functions;
-
-lazy_static! {
-    pub static ref ACTIONS: Vec<PreCommandSpecification> =
-        vec![commands::http::SEND_HTTP_REQUEST.clone(),];
-}
 
 #[derive(Debug)]
 pub struct StdAddon;
@@ -26,7 +23,7 @@ impl Addon for StdAddon {
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {
-        vec![]
+        FUNCTIONS.clone()
     }
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
