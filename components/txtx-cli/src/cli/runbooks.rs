@@ -50,7 +50,7 @@ pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Res
     addons_ctx.register(Box::new(StdAddon::new()));
     addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
-    let runtime_context = RuntimeContext::new(addons_ctx);
+    let runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
 
     let moved_man = runbook.clone();
     let mutable_runbook = Arc::new(RwLock::new(moved_man));
@@ -89,7 +89,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         addons_ctx.register(Box::new(StdAddon::new()));
         addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
-        let runtime_context = RuntimeContext::new(addons_ctx);
+        let runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
 
         let runbook_rw_lock = Arc::new(RwLock::new(runbook.clone()));
         let runtime_ctx_rw_lock = Arc::new(RwLock::new(runtime_context));

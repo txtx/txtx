@@ -38,7 +38,7 @@ pub fn simulate_runbook(
 ) -> Result<(), String> {
     match runtime_context.write() {
         Ok(mut runtime_context) => {
-            let _ = run_constructs_indexing(runbook, &mut runtime_context.addons_ctx)?;
+            let _ = run_constructs_indexing(runbook, &mut runtime_context)?;
             let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
         }
         Err(e) => unimplemented!("could not acquire lock: {e}"),

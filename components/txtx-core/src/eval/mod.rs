@@ -160,6 +160,15 @@ pub fn run_constructs_evaluation(
         Ok(mut runbook) => {
             let g = runbook.constructs_graph.clone();
 
+            let environments_variables = runbook.environment_variables_values.clone();
+            for (env_variable_uuid, value) in environments_variables.into_iter() {
+                let mut res = CommandExecutionResult::new();
+                res.outputs.insert("value".into(), Value::string(value));
+                runbook
+                    .constructs_execution_results
+                    .insert(env_variable_uuid, Ok(res));
+            }
+
             let ordered_nodes_to_process = match start_node {
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
@@ -229,6 +238,7 @@ pub fn run_constructs_evaluation(
                             &runtime_ctx,
                         )
                         .unwrap();
+
                     if let Some((dependency, _)) = res {
                         let evaluation_result_opt =
                             runbook.constructs_execution_results.get(&dependency);
@@ -544,7 +554,7 @@ pub fn eval_expression(
                 },
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             };
-            let attribute = components.pop_front().unwrap();
+            let attribute = components.pop_front().unwrap_or("value".into());
             match res.outputs.get(&attribute) {
                 Some(output) => output.clone(),
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
@@ -841,8 +851,5 @@ pub fn perform_inputs_evaluation(
         }
     }
 
-    // if fatal_error {
-    //     return Err(format!("fatal error"));
-    // }
     Ok(CommandInputEvaluationStatus::Complete(results))
 }

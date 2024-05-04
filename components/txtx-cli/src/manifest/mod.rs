@@ -11,13 +11,20 @@ pub mod generator;
 pub struct ProtocolManifest {
     pub name: String,
     runbooks: Vec<RunbookMetadata>,
-    txvars: Option<BTreeMap<String, Txvar>>,
+    pub environments: Option<BTreeMap<String, HashMap<String, String>>>,
     #[serde(skip_serializing, skip_deserializing)]
     location: Option<FileLocation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunbookMetadata {
+    location: String,
+    name: String,
+    description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnvironmentMetadata {
     location: String,
     name: String,
     description: Option<String>,

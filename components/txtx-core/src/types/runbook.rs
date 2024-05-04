@@ -52,6 +52,8 @@ pub struct Runbook {
     pub constructs_execution_results:
         HashMap<ConstructUuid, Result<CommandExecutionResult, Diagnostic>>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
+    pub environment_variables_uuid_lookup: HashMap<String, ConstructUuid>,
+    pub environment_variables_values: HashMap<ConstructUuid, String>,
     pub description: Option<String>,
 }
 
@@ -79,6 +81,8 @@ impl Runbook {
             commands_instances: HashMap::new(),
             constructs_execution_results: HashMap::new(),
             command_inputs_evaluation_results: HashMap::new(),
+            environment_variables_uuid_lookup: HashMap::new(),
+            environment_variables_values: HashMap::new(),
             description,
         }
     }
@@ -143,7 +147,7 @@ impl Runbook {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        namespace: None,
+                        namespace: construct_name.clone(),
                         typing: CommandInstanceType::Module,
                     },
                 );
@@ -161,7 +165,7 @@ impl Runbook {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        namespace: None,
+                        namespace: construct_name.clone(),
                         typing: CommandInstanceType::Input,
                     },
                 );
@@ -179,7 +183,7 @@ impl Runbook {
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
-                        namespace: None,
+                        namespace: construct_name.clone(),
                         typing: CommandInstanceType::Output,
                     },
                 );
@@ -322,6 +326,20 @@ impl Runbook {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }
                 }
+
+                // Look for env variables
+                if component.eq_ignore_ascii_case("env") {
+                    let Some(env_variable_name) = components.pop_front() else {
+                        continue;
+                    };
+
+                    if let Some(construct_uuid) = self
+                        .environment_variables_uuid_lookup
+                        .get(&env_variable_name)
+                    {    
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
+                }
             }
 
             let imported_package = current_package
@@ -337,5 +355,25 @@ impl Runbook {
             }
         }
         Ok(None)
+    }
+
+    pub fn seed_environment_variables(&mut self, runtime_context: &RuntimeContext) {
+        for (k, v) in runtime_context
+            .get_active_environment_variables()
+            .into_iter()
+        {
+            let construct_uuid = ConstructUuid::new();
+            self.environment_variables_values
+                .insert(construct_uuid.clone(), v);
+            self.environment_variables_uuid_lookup
+                .insert(k, construct_uuid.clone());
+            let (_, node_index) = self.constructs_graph.add_child(
+                self.graph_root.clone(),
+                100,
+                construct_uuid.value(),
+            );
+            self.constructs_graph_nodes
+                .insert(construct_uuid.value(), node_index);
+        }
     }
 }
