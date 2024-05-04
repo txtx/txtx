@@ -24,8 +24,8 @@ lazy_static! {
                   optional: false,
                   interpolable: true
                 },
-                network_id: {
-                  documentation: "The id of the network to broadcast to.",
+                stacks_api_url: {
+                  documentation: "The URL of the Stacks API to broadcast to.",
                   typing: Type::string(),
                   optional: true,
                   interpolable: true
@@ -47,16 +47,28 @@ lazy_static! {
 pub struct BroadcastStacksTransaction;
 impl CommandImplementationAsync for BroadcastStacksTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+        //    Todo: check network consistency?
+        // let network = match transaction.version {
+        //     TransactionVersion::Mainnet => "mainnet".to_string(),
+        //     TransactionVersion::Testnet => "testnet".to_string(),
+        // };
+
+        // let network_id = args.get("network_id")
+        //     .and_then(|a| Some(a.expect_string()))
+        //     .or(defaults.keys.get("network_id").map(|x| x.as_str()))
+        //     .ok_or(Diagnostic::error_from_string(format!("Key 'network_id' is missing")))?;
         unimplemented!()
     }
 
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        defaults: &AddonDefaults,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
     {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
+        let defaults = defaults.clone();
         let future = async move {
             let buffer_data = {
                 let Some(bytes) = args.get("signed_transaction_bytes") else {
@@ -67,35 +79,15 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                     _ => unimplemented!(),
                 }
             };
-            let transaction = StacksTransaction::consensus_deserialize(&mut &buffer_data.bytes[..])
-                .map_err(|e| {
-                    Diagnostic::error_from_string(format!("Failed to deserialize transaction: {e}"))
-                })?;
-            let network = match transaction.version {
-                TransactionVersion::Mainnet => "mainnet".to_string(),
-                TransactionVersion::Testnet => "testnet".to_string(),
-            };
 
-            let network_id = match args.get("network_id") {
-                Some(network_id) => {
-                    match network_id {
-                        Value::Primitive(PrimitiveValue::String(network_id)) => {
-                            if network_id.eq(&network) {
-                                Ok(network_id)
-                            } else {
-                                Err(Diagnostic::error_from_string(format!("Specified network id, {}, does not match transaction version, {}.", network_id, network)))
-                            }
-                        }
-                        invalid => Err(Diagnostic::error_from_string(format!(
-                            "Network id must be a string, received {:?}.",
-                            invalid
-                        ))),
-                    }
-                }
-                None => Ok(&network),
-            }?;
-
-            let url = format!("https://api.{}.hiro.so/v2/transactions", network_id);
+            let api_url = args
+                .get("stacks_api_url")
+                .and_then(|a| Some(a.expect_string()))
+                .or(defaults.keys.get("stacks_api_url").map(|x| x.as_str()))
+                .ok_or(Diagnostic::error_from_string(format!(
+                    "Key 'stacks_api_url' is missing"
+                )))?
+                .to_string();
 
             let mut s = String::from("0x");
             s.write_str(
@@ -112,7 +104,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
             let client = reqwest::Client::new();
             let res = client
-                .post(&url)
+                .post(format!("{}/v2/transactions", api_url))
                 .header("Content-Type", "application/octet-stream")
                 .body(buffer_data.bytes)
                 .send()
