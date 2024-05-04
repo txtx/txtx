@@ -237,6 +237,13 @@ impl CommandSpecification {
                 optional: true,
                 interpolable: true,
             },
+            CommandInput {
+                name: "environments".into(),
+                documentation: "Only enable command for given environments (default: all)".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: false,
+            },
         ]
     }
 }
