@@ -73,7 +73,7 @@ lazy_static! {
             network_id: {
                 documentation: "The network id used to set the transaction version.",
                 typing: Type::string(),
-                optional: false,
+                optional: true,
                 interpolable: true
             }
           ],
@@ -100,7 +100,7 @@ impl CommandImplementation for SignStacksTransaction {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
+        defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
         // Extract nonce
@@ -147,10 +147,15 @@ impl CommandImplementation for SignStacksTransaction {
         };
 
         // Extract network_id
-        let network_id = match args.get("network_id") {
-            Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
-            _ => todo!("network_id missing or wrong type, return diagnostic"),
-        };
+        let network_id = args
+            .get("network_id")
+            .and_then(|a| Some(a.expect_string()))
+            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
+            .ok_or(Diagnostic::error_from_string(format!(
+                "Key 'network_id' is missing"
+            )))
+            .unwrap()
+            .to_string();
 
         let transaction_version = match network_id.as_str() {
             "mainnet" => TransactionVersion::Mainnet,

@@ -336,7 +336,7 @@ impl Runbook {
                     if let Some(construct_uuid) = self
                         .environment_variables_uuid_lookup
                         .get(&env_variable_name)
-                    {    
+                    {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }
                 }

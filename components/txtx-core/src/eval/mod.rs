@@ -23,7 +23,8 @@ use txtx_addon_kit::{
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
-    uuid::Uuid, AddonDefaults,
+    uuid::Uuid,
+    AddonDefaults,
 };
 
 pub fn get_ordered_dependent_nodes(
@@ -85,9 +86,7 @@ pub fn is_child_of_node(
 pub fn log_evaluated_outputs(runbook: &Runbook) {
     for (_, package) in runbook.packages.iter() {
         for construct_uuid in package.outputs_uuids.iter() {
-            let construct = runbook.commands_instances.get(construct_uuid).unwrap();
-            println!("Output '{}'", construct.name);
-
+            let _construct = runbook.commands_instances.get(construct_uuid).unwrap();
             if let Some(result) = runbook.constructs_execution_results.get(construct_uuid) {
                 match result {
                     Ok(result) => {
@@ -189,7 +188,6 @@ pub fn run_constructs_evaluation(
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
                 };
-                println!("processing {}", command_instance.name);
 
                 match command_instance.state.lock() {
                     Ok(state_machine) => match state_machine.state() {
@@ -381,7 +379,7 @@ pub fn run_constructs_evaluation(
     }
 
     match runbook.read() {
-        Ok(readonly_runbook) => log_evaluated_outputs(&readonly_runbook),
+        Ok(_readonly_runbook) => {}
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
 
