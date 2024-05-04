@@ -23,7 +23,7 @@ use txtx_addon_kit::{
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
-    uuid::Uuid,
+    uuid::Uuid, AddonDefaults,
 };
 
 pub fn get_ordered_dependent_nodes(
@@ -300,14 +300,55 @@ pub fn run_constructs_evaluation(
                                 .command_inputs_evaluation_results
                                 .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
-                            let execution_result = match command_instance.perform_execution(
-                                &evaluated_inputs,
-                                runbook.uuid.clone(),
-                                construct_uuid.clone(),
-                                eval_tx.clone(),
-                            ) {
+                            let execution_result = {
+                                if let Ok(runtime_ctx_reader) = runtime_ctx.read() {
+                                    let addon_context_key =
+                                        (package_uuid.clone(), command_instance.namespace.clone());
+                                    let addon_defaults = runtime_ctx_reader
+                                        .addons_ctx
+                                        .contexts
+                                        .get(&addon_context_key)
+                                        .and_then(|addon| Some(addon.defaults.clone()))
+                                        .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+                                    command_instance.perform_execution(
+                                        &evaluated_inputs,
+                                        runbook.uuid.clone(),
+                                        construct_uuid.clone(),
+                                        eval_tx.clone(),
+                                        addon_defaults,
+                                    )
+                                } else {
+                                    unimplemented!()
+                                }
+                            };
+
+                            let execution_result = match execution_result {
                                 // todo(lgalabru): return Diagnostic instead
                                 Ok(CommandExecutionStatus::Complete(result)) => {
+                                    if let Ok(ref execution) = result {
+                                        if command_instance.specification.update_addon_defaults {
+                                            if let Ok(mut runtime_ctx_writer) = runtime_ctx.write()
+                                            {
+                                                let addon_context_key = (
+                                                    package_uuid.clone(),
+                                                    command_instance.namespace.clone(),
+                                                );
+                                                if let Some(ref mut addon_context) =
+                                                    runtime_ctx_writer
+                                                        .addons_ctx
+                                                        .contexts
+                                                        .get_mut(&addon_context_key)
+                                                {
+                                                    for (k, v) in execution.outputs.iter() {
+                                                        addon_context
+                                                            .defaults
+                                                            .keys
+                                                            .insert(k.clone(), v.to_string());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     state_machine
                                         .consume(&CommandInstanceStateMachineInput::Successful)
                                         .unwrap();

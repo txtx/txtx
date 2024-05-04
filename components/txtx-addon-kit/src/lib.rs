@@ -71,14 +71,29 @@ pub trait Addon: Debug + Sync + Send {
         AddonContext {
             functions: self.build_function_lookup(),
             commands: self.build_command_lookup(),
+            defaults: AddonDefaults::new(),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct AddonDefaults {
+    pub keys: HashMap<String, String>,
+}
+
+impl AddonDefaults {
+    pub fn new() -> AddonDefaults {
+        AddonDefaults {
+            keys: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AddonContext {
     pub functions: HashMap<String, FunctionSpecification>,
     pub commands: HashMap<CommandId, PreCommandSpecification>,
+    pub defaults: AddonDefaults,
 }
 
 impl AddonContext {
@@ -108,7 +123,7 @@ impl AddonContext {
                     block: block.clone(),
                     package_uuid: package_uuid.clone(),
                     typing,
-                    namespace: Some(namespace.to_string()),
+                    namespace: namespace.to_string(),
                 };
                 Ok(CommandInstanceOrParts::Instance(command_instance))
             }

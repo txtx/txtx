@@ -46,6 +46,7 @@ macro_rules! define_command {
             documentation: String::from($doc),
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
+            update_addon_defaults: false,
             inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
@@ -86,6 +87,7 @@ macro_rules! define_async_command {
                 documentation: String::from($doc),
                 accepts_arbitrary_inputs: false,
                 create_output_for_each_input: false,
+                update_addon_defaults: false,
                 default_inputs: CommandSpecification::default_inputs(),
                 inputs: vec![$(CommandInput {
                     name: String::from(stringify!($input_name)),

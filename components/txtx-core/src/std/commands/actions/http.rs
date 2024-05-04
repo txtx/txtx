@@ -1,5 +1,4 @@
 use std::{collections::HashMap, pin::Pin};
-use txtx_addon_kit::define_async_command;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::{
@@ -10,6 +9,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::{define_async_command, AddonDefaults};
 
 lazy_static! {
     pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_async_command! {
@@ -71,6 +71,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
     {
         let mut result = CommandExecutionResult::new();

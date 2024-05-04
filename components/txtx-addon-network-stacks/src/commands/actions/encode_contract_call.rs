@@ -15,6 +15,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
     pub static ref ENCODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -71,6 +72,7 @@ impl CommandImplementation for EncodeStacksContractCall {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 

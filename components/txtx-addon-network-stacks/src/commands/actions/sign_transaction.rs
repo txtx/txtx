@@ -29,6 +29,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::STACKS_SIGNED_TRANSACTION;
 
@@ -99,6 +100,7 @@ impl CommandImplementation for SignStacksTransaction {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
         // Extract nonce
