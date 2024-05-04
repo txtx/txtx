@@ -55,14 +55,14 @@ enum Command {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CheckRunbooks {
-    /// Path to manifest (default to ./protocol.json)
+    /// Path to manifest (default to ./txtx.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
-    /// Path to manifest (default to ./protocol.json)
+    /// Path to manifest (default to ./txtx.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
     /// Disable Terminal UI
@@ -71,20 +71,20 @@ pub struct InspectRunbook {
     /// Path to runbook root file
     // #[clap(long = "runbook-path", conflicts_with = "runbook")]
     // pub runbook_path: Option<String>,
-    /// Name of runbook as indexed in protocol.json
+    /// Name of runbook as indexed in txtx.json
     #[clap(long = "runbook")]
     pub runbook: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct RunRunbook {
-    /// Path to manifest (default to ./protocol.json)
+    /// Path to manifest (default to ./txtx.json)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
     /// Path to runbook root file
     // #[clap(long = "runbook-path", conflicts_with = "runbook")]
     // pub runbook_path: Option<String>,
-    /// Name of runbook as indexed in protocol.json
+    /// Name of runbook as indexed in txtx.json
     #[clap(long = "runbook")]
     pub runbook: Option<String>,
 }

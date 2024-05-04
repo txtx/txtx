@@ -4,7 +4,7 @@ variable "package_2_variable_1" {
 }
 
 variable "package_2_variable_2" {
-    description = "Variable 2 from Package 2 loading its value from protocol.json"
+    description = "Variable 2 from Package 2 loading its value from txtx.json"
     default = "package_2_variable_2::default"
 }
 
