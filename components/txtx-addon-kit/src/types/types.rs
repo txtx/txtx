@@ -1,3 +1,4 @@
+use jaq_interpret::Val;
 use serde::{
     ser::{SerializeMap, SerializeSeq},
     Serialize, Serializer,
@@ -79,6 +80,62 @@ impl Value {
     }
     pub fn array(array: Vec<Value>) -> Value {
         Value::Array(Box::new(array))
+    }
+
+    pub fn expect_string(&self) -> &str {
+        match &self {
+            Value::Primitive(PrimitiveValue::String(value)) => value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_uint(&self) -> u64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::UnsignedInteger(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_int(&self) -> i64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::SignedInteger(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_float(&self) -> f64 {
+        match &self {
+            Value::Primitive(PrimitiveValue::Float(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_null(&self) -> () {
+        match &self {
+            Value::Primitive(PrimitiveValue::Null) => (),
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_bool(&self) -> bool {
+        match &self {
+            Value::Primitive(PrimitiveValue::Bool(value)) => *value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_buffer_data(&self) -> &BufferData {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(value)) => &value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_array(&self) -> &Box<Vec<Value>> {
+        match &self {
+            Value::Array(value) => value,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn expect_object(&self) -> &HashMap<String, Result<Value, Diagnostic>> {
+        match &self {
+            Value::Object(value) => value,
+            _ => unreachable!(),
+        }
     }
 
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
@@ -170,6 +227,31 @@ impl Value {
             Value::Object(_) => todo!(),
             Value::Array(_) => todo!(),
             Value::Addon(_) => todo!(),
+        }
+    }
+
+    pub fn from_jaq_value(value: Val) -> Value {
+        match value {
+            Val::Null => Value::null(),
+            Val::Bool(val) => Value::bool(val),
+            Val::Int(val) => Value::int(i64::try_from(val).unwrap()),
+            Val::Float(val) => Value::float(val),
+            Val::Num(val) => Value::uint(val.parse().unwrap()),
+            Val::Str(val) => Value::string(val.to_string()),
+            Val::Arr(val) => {
+                let mut arr = vec![];
+                val.iter().for_each(|v| {
+                    arr.push(Value::from_jaq_value(v.clone()));
+                });
+                Value::array(arr)
+            }
+            Val::Obj(val) => {
+                let mut obj = HashMap::new();
+                val.iter().for_each(|(k, v)| {
+                    obj.insert(k.to_string(), Ok(Value::from_jaq_value(v.clone())));
+                });
+                Value::Object(obj)
+            }
         }
     }
 }

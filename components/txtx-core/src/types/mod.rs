@@ -13,7 +13,6 @@ use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::types::Value;
 pub use txtx_addon_kit::types::ConstructUuid;
 
-use crate::std::functions::operators::OPERATORS_FUNCTIONS;
 use crate::AddonsContext;
 
 pub struct RuntimeContext {
@@ -24,9 +23,6 @@ pub struct RuntimeContext {
 impl RuntimeContext {
     pub fn new(addons_ctx: AddonsContext) -> RuntimeContext {
         let mut functions = HashMap::new();
-        for function in OPERATORS_FUNCTIONS.iter() {
-            functions.insert(function.name.clone(), function.clone());
-        }
 
         for (_, addon) in addons_ctx.addons.iter() {
             for function in addon.get_functions().iter() {
@@ -44,7 +40,7 @@ impl RuntimeContext {
         let function = match self.functions.get(name) {
             Some(function) => function,
             None => {
-                todo!("return diagnostic");
+                todo!("return diagnostic, could not find function {name}");
             }
         };
         (function.runner)(function, args)

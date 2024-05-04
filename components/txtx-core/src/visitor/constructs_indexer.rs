@@ -213,8 +213,14 @@ pub fn run_constructs_indexing(
                                 continue;
                             };
 
+                            let Some((namespace, command_id)) = namespaced_action.split_once("::")
+                            else {
+                                todo!("return diagnostic")
+                            };
+
                             match addons_ctx.create_action_instance(
-                                &namespaced_action.as_str(),
+                                namespace,
+                                command_id,
                                 command_name.as_str(),
                                 &package_uuid,
                                 &block,

@@ -4,6 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::types::commands::{CommandInstanceStateMachineInput, EvalEvent};
 use txtx_core::kit::uuid::Uuid;
+use txtx_core::std::StdAddon;
 use txtx_core::types::Runbook;
 use txtx_core::{
     eval::prepare_constructs_reevaluation, eval::run_constructs_evaluation,
@@ -44,9 +45,10 @@ pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Res
             "unable to find entry '{}' in manifest {}",
             runbook_name, manifest_file_path
         ))?;
-    let stacks_addon = StacksNetworkAddon::new();
+
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(stacks_addon));
+    addons_ctx.register(Box::new(StdAddon::new()));
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
     let runtime_context = RuntimeContext::new(addons_ctx);
 
@@ -83,9 +85,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     );
 
     for (runbook_name, runbook) in runbooks.iter() {
-        let stacks_addon = StacksNetworkAddon::new();
         let mut addons_ctx = AddonsContext::new();
-        addons_ctx.register(Box::new(stacks_addon));
+        addons_ctx.register(Box::new(StdAddon::new()));
+        addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
         let runtime_context = RuntimeContext::new(addons_ctx);
 

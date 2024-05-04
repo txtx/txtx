@@ -50,7 +50,7 @@ pub fn simulate_runbook(
 
 pub struct AddonsContext {
     addons: HashMap<String, Box<dyn Addon>>,
-    contexts: HashMap<(PackageUuid, String), Box<dyn AddonContext>>,
+    contexts: HashMap<(PackageUuid, String), AddonContext>,
 }
 
 impl AddonsContext {
@@ -78,7 +78,7 @@ impl AddonsContext {
         &mut self,
         namespace: &str,
         package_uuid: &PackageUuid,
-    ) -> Result<&Box<dyn AddonContext>, Diagnostic> {
+    ) -> Result<&AddonContext, Diagnostic> {
         let key = (package_uuid.clone(), namespace.to_string());
         if self.contexts.get(&key).is_none() {
             let Some(addon) = self.addons.get(namespace) else {
@@ -92,15 +92,13 @@ impl AddonsContext {
 
     pub fn create_action_instance(
         &mut self,
-        namespaced_action: &str,
+        namespace: &str,
+        command_id: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
         block: &Block,
         _location: &FileLocation,
     ) -> Result<CommandInstanceOrParts, Diagnostic> {
-        let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
-            todo!("return diagnostic")
-        };
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
         let command_id = CommandId::Action(command_id.to_string());
         ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
