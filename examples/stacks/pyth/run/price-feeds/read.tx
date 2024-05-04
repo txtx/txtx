@@ -1,3 +1,8 @@
+action "defaults" "stacks::set_default_network" {
+    network_id = env.stacks_network_id
+    stacks_api_url = env.stacks_api_url
+}
+
 input "price_id" {
     description = "Price ID to retrieve"
     value = "ec7a775f46379b5e943c3526b1c8d54cd49749176b0b98e02dde68d1bd335c17"
@@ -5,13 +10,7 @@ input "price_id" {
 
 action "fetch_price" "std::send_http_request" {
     description = "Retrieve latest prices from Hermes Prices API"
-
-    url = "https://hermes.pyth.network/api/latest_price_feeds?ids[]=${input.price_id.value}&binary=true"
-
-    request_headers = {
-      Accept = "application/json"
-    }
-    request_timeout_ms = 1200
+    url = "${env.pyth_hermes_api_url}/api/latest_price_feeds?ids[]=${input.price_id}&binary=true"
 }
 
 output "value" {
