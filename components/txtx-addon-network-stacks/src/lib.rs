@@ -4,6 +4,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod commands;
 mod functions;
 mod stacks_helpers;

@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate serde_derive;
 
+pub use hex;
 use rust_fsm::StateMachine;
 pub use uuid;
 
@@ -22,6 +23,7 @@ use types::{
 };
 
 pub use reqwest;
+pub use serde;
 
 pub mod helpers;
 pub mod macros;

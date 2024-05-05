@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-hex = "0.4.3"
 daggy = "0.8.0"
 base64 = "0.22.1"
 txtx-addon-kit = { path = "../txtx-addon-kit", default-features = false}
