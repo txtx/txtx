@@ -12,6 +12,7 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::AddonDefaults;
+use serde_json::Value as JsonValue;
 
 use crate::typing::CLARITY_VALUE;
 
@@ -91,8 +92,11 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
             .expect_buffer_data()
             .clone();
 
-        let confirmations_required =
-            args.get("confirmations").unwrap().expect_uint().clone() as usize;
+        let confirmations_required = args
+            .get("confirmations")
+            .unwrap_or(&Value::uint(3))
+            .expect_uint()
+            .clone() as usize;
 
         let api_url = args
             .get("stacks_api_url")
@@ -132,23 +136,32 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 })?;
 
             let status = res.status();
-            let transaction: PostTransactionResponse = res.json().await.map_err(|e| {
+            if !status.is_success() {
+                let transaction: PostTransactionResponseError = res.json().await.map_err(|e| {
+                    println!("{:?}", e.to_string());
+                    Diagnostic::error_from_string(format!(
+                        "Failed to parse broadcasted Stacks transaction result: {e}"
+                    ))
+                })?;
+                return Err(Diagnostic::error_from_string(format!("{:?}", transaction.reason)));
+            }
+            let mut txid = res.text().await.map_err(|e| {
+                println!("{:?}", e.to_string());
                 Diagnostic::error_from_string(format!(
                     "Failed to parse broadcasted Stacks transaction result: {e}"
                 ))
             })?;
 
-            if !status.is_success() {
-                return Err(Diagnostic::error_from_string(transaction.txid));
-            }
+            // Strip extra double quotes
+            txid = txid[1..65].to_string();
 
             result
                 .outputs
-                .insert(format!("tx_id"), Value::string(transaction.txid));
+                .insert(format!("tx_id"), Value::string(txid.clone()));
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
-
+            let backoff_ms = 5000;
             loop {
                 println!("{:?}", confirmed_blocks_ids);
 
@@ -157,8 +170,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 }
 
                 let node_info_response = client
-                    .post(format!("{}/v2/info", api_url))
-                    .header("Content-Type", "application/octet-stream")
+                    .get(format!("{}/v2/info", api_url))
                     .send()
                     .await
                     .map_err(|e| {
@@ -169,13 +181,13 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
                 let Ok(encoded_node_info) = node_info_response else {
                     // unable to fetch /v2/info
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 };
 
                 if !encoded_node_info.status().is_success() {
                     // unable to fetch /extended/v1/tx
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 }
 
@@ -184,13 +196,13 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
                 let Ok(node_info) = decoded_node_info else {
                     // unable to fetch /v2/info
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 };
 
                 if node_info.stacks_tip_height == block_height {
-                    // unable to fetch /v2/info
-                    sleep_ms(5000);
+                    // no new block
+                    sleep_ms(backoff_ms);
                     continue;
                 }
 
@@ -198,16 +210,15 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
                 if !confirmed_blocks_ids.is_empty() {
                     confirmed_blocks_ids.push_back(block_height);
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 }
 
                 let tx_encoded_response_res = client
-                    .post(format!(
+                    .get(format!(
                         "{}/extended/v1/tx/{}",
-                        api_url, node_info.stacks_tip
+                        api_url, txid
                     ))
-                    .header("Content-Type", "application/octet-stream")
                     .send()
                     .await
                     .map_err(|e| {
@@ -218,13 +229,13 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
 
                 let Ok(tx_encoded_response) = tx_encoded_response_res else {
                     // unable to fetch /v2/info
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 };
 
                 if !tx_encoded_response.status().is_success() {
                     // unable to fetch /extended/v1/tx
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 }
 
@@ -232,9 +243,10 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                     tx_encoded_response.json().await;
                 let Ok(tx_decoded) = tx_decoded_res else {
                     // unable to decode
-                    sleep_ms(5000);
+                    sleep_ms(backoff_ms);
                     continue;
                 };
+
                 let tx_result_bytes =
                     txtx_addon_kit::hex::decode(&tx_decoded.tx_result.hex[2..]).unwrap();
                 result.outputs.insert(
@@ -243,6 +255,9 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 );
                 confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
+
+            println!("Done! {:?}", confirmed_blocks_ids);
+
             Ok(result)
         };
 
@@ -271,8 +286,11 @@ pub struct GetNodeInfoResponse {
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
-pub struct PostTransactionResponse {
+pub struct PostTransactionResponseError {
     pub txid: String,
+    pub error: Option<String>,
+    pub reason: Option<String>,
+    pub reason_data: Option<JsonValue>,
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
