@@ -3,24 +3,13 @@ on:
   pull_request:
     branches:
       - main
-      - develop
-  push:
-    branches:
-      - main
-      - develop
-
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  pre_run:
-    name: Cancel previous runs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@ad6cb1b847ffb509a69b745b6ee2f1d14dfe14b8
-        with:
-          access_token: ${{ github.token }}
-          persist-credentials: false
   wasm_build:
     name: Build Project for WASM target
     runs-on: ubuntu-latest
