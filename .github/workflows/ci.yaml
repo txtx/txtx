@@ -13,36 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # wasm_build:
-  #   name: Build Project for WASM target
-  #   runs-on: ubuntu-latest
+  wasm_build:
+    name: Build Project for WASM target
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  #     - name: Install Rust toolchain
-  #       run: |
-  #         rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
-  #         rustup target add wasm32-unknown-unknown
-  #         echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup target add wasm32-unknown-unknown
+          echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
-  #     - name: Cache cargo
-  #       uses: actions/cache@v3
-  #       with:
-  #         path: |
-  #           ~/.cargo/
-  #           ./target/wasm32-unknown-unknown/release/
-  #         key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/
+            ./target/wasm32-unknown-unknown/release/
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
-  #     - name: Build WASM for txtx-core
-  #       run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
+      - name: Build WASM for txtx-core
+        run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
 
-  #     - name: Build WASM for txtx-addon-kit
-  #       run: cargo build --package txtx-addon-kit --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
+      - name: Build WASM for txtx-addon-kit
+        run: cargo build --package txtx-addon-kit --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
 
-  #     - name: Build WASM for txtx-addon-network-stacks
-  #       run: cargo build --package txtx-addon-network-stacks --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
+      - name: Build WASM for txtx-addon-network-stacks
+        run: cargo build --package txtx-addon-network-stacks --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
 
   dist_txtx:
     name: Build Txtx Distributions
@@ -57,18 +57,18 @@ jobs:
             target: x86_64-unknown-linux-gnu
             architecture: x64
             libc: glibc
-          # - os: windows-latest
-          #   platform: windows
-          #   target: x86_64-pc-windows-msvc
-          #   architecture: x64
-          # - os: macos-latest
-          #   platform: darwin
-          #   target: x86_64-apple-darwin
-          #   architecture: x64
-          # - os: macos-latest
-          #   platform: darwin
-          #   target: aarch64-apple-darwin
-          #   architecture: arm64
+          - os: windows-latest
+            platform: windows
+            target: x86_64-pc-windows-msvc
+            architecture: x64
+          - os: macos-latest
+            platform: darwin
+            target: x86_64-apple-darwin
+            architecture: x64
+          - os: macos-latest
+            platform: darwin
+            target: aarch64-apple-darwin
+            architecture: arm64
 
     steps:
       - name: Configure git to use LF (Windows)
@@ -180,9 +180,10 @@ jobs:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
 
-      - name: Upload to S3
+      - name: Upload to S3 (Linux)
+        if: matrix.os != 'windows-latest'
         uses: hkusu/s3-upload-action@v2
-        id: upload # specify some ID for use in subsequent steps
+        id: upload_linux
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -192,23 +193,23 @@ jobs:
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
-      - name: Show URL
-        run: echo '${{ steps.upload.outputs.file-url }}' 
+      - name: Show URL (Linux)
+        if: matrix.os != 'windows-latest'
+        run: echo '${{ steps.upload_linux.outputs.file-url }}' 
 
-      # - name: Upload to S3 (Linux)
-      #   if: matrix.os != 'windows-latest'
-      #   uses: shallwefootball/s3-upload-action@master
-      #   with:
-      #     aws_key_id: ${{secrets.AWS_KEY_ID}}
-      #     aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
-      #     aws_bucket: txtx
-      #     source_dir: ../txtx
-
-      # - name: Upload to S3 (Windows)
-      #   if: matrix.os == 'windows-latest'
-      #   uses: shallwefootball/s3-upload-action@master
-      #   with:
-      #     aws_key_id: ${{secrets.AWS_KEY_ID}}
-      #     aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
-      #     aws_bucket: txtx
-      #     source_dir: ../txtx
+      - name: Upload to S3 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: hkusu/s3-upload-action@v2
+        id: upload_windows
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: 'ap-northeast-1'
+          aws-bucket: txtx
+          file-path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
+          output-file-url: 'true' 
+          destination-dir: /releases
+          bucket-root: /
+      - name: Show URL (Windows)
+        if: matrix.os == 'windows-latest'
+        run: echo '${{ steps.upload_windows.outputs.file-url }}'
