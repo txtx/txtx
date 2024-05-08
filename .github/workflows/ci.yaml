@@ -187,7 +187,7 @@ jobs:
           aws_key_id: ${{secrets.AWS_KEY_ID}}
           aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws_bucket: txtx
-          path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
+          source_dir: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
       - name: Upload to S3 (Windows)
         if: matrix.os == 'windows-latest'
@@ -196,4 +196,4 @@ jobs:
           aws_key_id: ${{secrets.AWS_KEY_ID}}
           aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws_bucket: txtx
-          path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
+          source_dir: txtx-${{ env.SHORT_TARGET_NAME }}.msi
