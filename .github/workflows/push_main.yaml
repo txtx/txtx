@@ -159,6 +159,7 @@ jobs:
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
+          public: true
       - name: Show URL (Linux)
         if: matrix.os != 'windows-latest'
         run: echo '${{ steps.upload_linux.outputs.file-url }}' 
@@ -176,6 +177,7 @@ jobs:
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
+          public: true
       - name: Show URL (Windows)
         if: matrix.os == 'windows-latest'
         run: echo '${{ steps.upload_windows.outputs.file-url }}'
