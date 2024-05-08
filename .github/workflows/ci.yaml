@@ -179,3 +179,23 @@ jobs:
         with:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
+
+      - name: Upload to S3 (Linux)
+        if: matrix.os != 'windows-latest'
+        uses: shallwefootball/s3-upload-action@master
+        id: S3
+        with:
+          aws_key_id: ${{secrets.AWS_KEY_ID}}
+          aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          aws_bucket: txtx
+          path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
+
+      - name: Upload to S3 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: shallwefootball/s3-upload-action@master
+        id: S3
+        with:
+          aws_key_id: ${{secrets.AWS_KEY_ID}}
+          aws_secret_access_key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          aws_bucket: txtx
+          path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
