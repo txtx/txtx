@@ -1,0 +1,105 @@
+{{=<% %>=}}
+export const metadata = {
+    title: "<% addon_name %>",
+    description: "Add-on for <% addon_name %>",
+};
+
+# <% addon_name %> {{ id: "<% addon_namespace %>-constructs" }}
+
+<% addon_description %>
+
+---
+
+<%# functions %>
+
+## <% name %> {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+<% documentation %>
+
+### Inputs Documentation
+
+<Properties>
+
+<%# inputs %>
+
+  <Property name="<% name %>">
+    <% documentation %>
+  </Property>
+
+<%/ inputs %>
+
+</Properties>
+
+</Col>
+</Row>
+
+---
+
+<%/ functions %>
+
+<%# actions %>
+
+## <% matcher %> {{ tag: 'action' }}
+
+### <% name %>
+
+<% documentation %>
+
+### Inputs Documentation
+
+<Properties>
+
+<%# inputs %>
+
+  <Property name="<% name %>" type="required">
+    <% documentation %>
+  </Property>
+
+<%/ inputs %>
+
+</Properties>
+
+<CodeGroup title="Example using <% matcher %>">
+
+
+```hcl {{ title: 'main.tx' }}
+<%{ example }%>
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+### Outputs Documentation
+
+<Note>
+
+When the `<% matcher %>` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+<%# outputs %>
+
+  <Property name="<% name %>">
+    <% documentation %>
+  </Property>
+
+<%/ outputs %>
+
+</Properties>
+
+---
+
+<%/ actions %>
