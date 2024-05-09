@@ -334,7 +334,7 @@ checksum = "0261b2bb7617e0c91b452a837bbd1291fd34ad6990cb8e3ffc28239cc045b5ca"
 dependencies = [
  "bitcoincore-rpc-json",
  "jsonrpc",
- "log",
+ "log 0.4.21",
  "serde",
  "serde_json",
 ]
@@ -700,7 +700,7 @@ dependencies = [
  "httparse",
  "integer-sqrt",
  "lazy_static",
- "log",
+ "log 0.4.21",
  "memchr",
  "pico-args",
  "prettytable-rs",
@@ -1368,7 +1368,7 @@ checksum = "5cc16584ff22b460a382b7feec54b23d2908d858152e5739a120b949293bd74e"
 dependencies = [
  "cc",
  "libc",
- "log",
+ "log 0.4.21",
  "rustversion",
  "windows",
 ]
@@ -2195,6 +2195,15 @@ dependencies = [
 
 [[package]]
 name = "log"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e19e8d5c34a3e0e2223db8e060f9e8264aeeb5c5fc64a4ee9965c062211c024b"
+dependencies = [
+ "log 0.4.21",
+]
+
+[[package]]
+name = "log"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
@@ -2275,7 +2284,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
- "log",
+ "log 0.4.21",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.48.0",
 ]
@@ -2291,13 +2300,23 @@ dependencies = [
  "futures-util",
  "http 0.2.12",
  "httparse",
- "log",
+ "log 0.4.21",
  "memchr",
  "mime",
  "spin",
  "tokio",
  "tokio-util",
  "version_check",
+]
+
+[[package]]
+name = "mustache"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51956ef1c5d20a1384524d91e616fb44dfc7d8f249bf696d49c97dd3289ecab5"
+dependencies = [
+ "log 0.3.9",
+ "serde",
 ]
 
 [[package]]
@@ -2873,7 +2892,7 @@ dependencies = [
  "hyper-rustls 0.24.2",
  "ipnet",
  "js-sys",
- "log",
+ "log 0.4.21",
  "mime",
  "once_cell",
  "percent-encoding",
@@ -2913,7 +2932,7 @@ dependencies = [
  "hyper-util",
  "ipnet",
  "js-sys",
- "log",
+ "log 0.4.21",
  "mime",
  "once_cell",
  "percent-encoding",
@@ -2975,7 +2994,7 @@ dependencies = [
  "figment",
  "futures",
  "indexmap 2.2.6",
- "log",
+ "log 0.4.21",
  "memchr",
  "multer",
  "num_cpus",
@@ -3027,7 +3046,7 @@ dependencies = [
  "http 0.2.12",
  "hyper 0.14.28",
  "indexmap 2.2.6",
- "log",
+ "log 0.4.21",
  "memchr",
  "pear",
  "percent-encoding",
@@ -3185,7 +3204,7 @@ version = "0.21.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
 dependencies = [
- "log",
+ "log 0.4.21",
  "ring",
  "rustls-webpki 0.101.7",
  "sct",
@@ -3197,7 +3216,7 @@ version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99008d7ad0bbbea527ec27bddbc0e432c5b87d8175178cee68d2eec9c4a1813c"
 dependencies = [
- "log",
+ "log 0.4.21",
  "ring",
  "rustls-pki-types",
  "rustls-webpki 0.102.2",
@@ -3269,7 +3288,7 @@ dependencies = [
  "dirs-next",
  "fd-lock",
  "libc",
- "log",
+ "log 0.4.21",
  "memchr",
  "nix 0.23.2",
  "radix_trie",
@@ -4325,7 +4344,7 @@ version = "0.1.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3523ab5a71916ccf420eebdf5521fcef02141234bbc0b8a49f2fdc4544364ef"
 dependencies = [
- "log",
+ "log 0.4.21",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
@@ -4358,7 +4377,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
 dependencies = [
- "log",
+ "log 0.4.21",
  "once_cell",
  "tracing-core",
 ]
@@ -4394,7 +4413,9 @@ dependencies = [
  "getrandom 0.2.13",
  "hcl-edit",
  "hex",
+ "indoc",
  "jaq-interpret",
+ "lazy_static",
  "reqwest 0.12.3",
  "rust-fsm",
  "serde",
@@ -4456,6 +4477,7 @@ dependencies = [
  "hiro-system-kit 0.3.4",
  "itertools",
  "juniper_rocket",
+ "mustache",
  "npm_rs",
  "ratatui",
  "rocket",
@@ -4694,7 +4716,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95ce90fd5bcc06af55a641a86428ee4229e44e07033963a2290a8e241607ccb9"
 dependencies = [
  "bumpalo",
- "log",
+ "log 0.4.21",
  "once_cell",
  "proc-macro2",
  "quote",
