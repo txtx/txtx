@@ -395,7 +395,7 @@ pub struct CommandInstance {
     pub block: Block,
     pub package_uuid: PackageUuid,
     pub namespace: String,
-    pub typing: CommandInstanceType, // the command specification, but it's a lot messier for the UX
+    pub typing: CommandInstanceType, 
 }
 pub enum CommandExecutionStatus {
     Complete(Result<CommandExecutionResult, Diagnostic>),
