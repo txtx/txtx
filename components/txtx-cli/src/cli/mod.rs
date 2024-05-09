@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use std::process;
 
+mod docs;
 mod runbooks;
 
 #[derive(Clone)]
@@ -51,6 +52,9 @@ enum Command {
     /// Inspect deployment protocol
     #[clap(name = "run", bin_name = "run")]
     Run(RunRunbook),
+    /// Display Documentation
+    #[clap(name = "docs", bin_name = "docs")]
+    Docs(GetDocumentation),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -59,6 +63,9 @@ pub struct CheckRunbooks {
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
 }
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct GetDocumentation;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
@@ -125,6 +132,9 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         }
         Command::Run(cmd) => {
             runbooks::handle_run_command(&cmd, ctx).await?;
+        }
+        Command::Docs(cmd) => {
+            docs::handle_docs_command(&cmd, ctx).await?;
         }
     }
     Ok(())

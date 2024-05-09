@@ -11,25 +11,40 @@ lazy_static! {
     pub static ref SET_DEFAULT_NETWORK: PreCommandSpecification = {
         let mut command = define_command! {
             SetStacksGlobals => {
-            name: "Configure Stacks Network",
-            matcher: "set_default_network",
-            documentation: "Configure Stacks Network.",
-            inputs: [
-                network_id: {
-                    documentation: "Network to use (mainnet, testnet).",
-                    typing: Type::string(),
-                    optional: false,
-                    interpolable: true
-                },
-                stacks_api_url: {
-                    documentation: "Stacks API RPC URL.",
-                    typing: Type::string(),
-                    optional: false,
-                    interpolable: true
+                name: "Configure Stacks Network",
+                matcher: "set_default_network",
+                documentation: "Configure Stacks Network.",
+                inputs: [
+                    network_id: {
+                        documentation: "Network to use (mainnet, testnet).",
+                        typing: Type::string(),
+                        optional: false,
+                        interpolable: true
+                    },
+                    stacks_api_url: {
+                        documentation: "Stacks API RPC URL.",
+                        typing: Type::string(),
+                        optional: false,
+                        interpolable: true
+                    }
+                ],
+                outputs: [],
+                example: txtx_addon_kit::indoc! {r#"
+                action "my_ref" "stacks::set_default_network" {
+                    description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                    function_name = "verify-and-update-price-feeds"
+                    function_args = [
+                        encode_buffer(output.bitcoin_price_feed),
+                        encode_tuple({
+                            "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
+                            "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                            "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
+                        })
+                    ]
                 }
-            ],
-            outputs: [],
-            }
+            "#},
+                }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
             spec.update_addon_defaults = true;

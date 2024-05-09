@@ -1,7 +1,11 @@
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
+extern crate lazy_static;
+
 pub use hex;
+pub use indoc::indoc;
 use rust_fsm::StateMachine;
 pub use uuid;
 
@@ -29,8 +33,17 @@ pub mod helpers;
 pub mod macros;
 pub mod types;
 
+lazy_static! {
+    pub static ref DEFAULT_ADDON_DOCUMENTATION_TEMPLATE: String =
+        include_str!("doc/default_addon_template.mdx").to_string();
+}
+
 ///
 pub trait Addon: Debug + Sync + Send {
+    ///
+    fn get_name(self: &Self) -> &str;
+    ///
+    fn get_description(self: &Self) -> &str;
     ///
     fn get_namespace(self: &Self) -> &str;
     ///

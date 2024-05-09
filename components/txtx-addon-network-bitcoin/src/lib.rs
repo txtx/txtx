@@ -23,6 +23,14 @@ impl BitcoinNetworkAddon {
 }
 
 impl Addon for BitcoinNetworkAddon {
+    fn get_name(&self) -> &str {
+        "Bitcoin"
+    }
+
+    fn get_description(&self) -> &str {
+        "Lorem ipsum"
+    }
+
     fn get_namespace(&self) -> &str {
         "bitcoin"
     }

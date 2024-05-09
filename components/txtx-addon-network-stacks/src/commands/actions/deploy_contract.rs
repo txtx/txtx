@@ -32,6 +32,21 @@ lazy_static! {
                   typing: Type::buffer()
               }
           ],
+          example: txtx_addon_kit::indoc! {r#"
+            action "my_ref" "stacks::deploy_contract" {
+                description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                function_name = "verify-and-update-price-feeds"
+                function_args = [
+                    encode_buffer(output.bitcoin_price_feed),
+                    encode_tuple({
+                        "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
+                        "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                        "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
+                    })
+                ]
+            }
+        "#},
       }
     };
 }

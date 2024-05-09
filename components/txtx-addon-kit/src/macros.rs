@@ -36,6 +36,7 @@ macro_rules! define_command {
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
+        example: $example:expr,
     }) => {
         {
         use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
@@ -62,7 +63,8 @@ macro_rules! define_command {
             }),*],
             runner: CommandRunner::Sync($func_key::run),
             checker: $func_key::check,
-            user_input_parser: $func_key::update_input_evaluation_results_from_user_input
+            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
+            example: String::from($example),
         }
       )
     }
@@ -78,6 +80,7 @@ macro_rules! define_async_command {
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
+        example: $example:expr,
     }) => {
         {
             use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
@@ -105,6 +108,7 @@ macro_rules! define_async_command {
                 runner: CommandRunner::Async(Box::new($func_key::run)),
                 checker: $func_key::check,
                 user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
+                example: String::from($example),
             })
         }
     };
