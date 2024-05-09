@@ -202,6 +202,7 @@ pub struct CommandSpecification {
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
     pub update_addon_defaults: bool,
+    pub example: String,
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,

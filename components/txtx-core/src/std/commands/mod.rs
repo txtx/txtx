@@ -22,6 +22,7 @@ pub fn new_module_specification() -> CommandSpecification {
             documentation: "Read Construct attribute",
             inputs: [],
             outputs: [],
+            example: "",
         }
     };
     match command {
@@ -97,6 +98,7 @@ pub fn new_input_specification() -> CommandSpecification {
                     typing: Type::string()
                 }
             ],
+            example: "",
         }
     };
     match command {
@@ -187,6 +189,7 @@ pub fn new_output_specification() -> CommandSpecification {
                     typing: Type::string()
                 }
             ],
+            example: "",
         }
     };
     match command {

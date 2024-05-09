@@ -56,6 +56,7 @@ lazy_static! {
                   typing: Type::string()
               }
           ],
+          example: "",
       }
     };
 }

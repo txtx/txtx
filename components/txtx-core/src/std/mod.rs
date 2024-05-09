@@ -18,6 +18,14 @@ impl StdAddon {
 }
 
 impl Addon for StdAddon {
+    fn get_name(&self) -> &str {
+        "Standard"
+    }
+
+    fn get_description(&self) -> &str {
+        "Lorem ipsum"
+    }
+
     fn get_namespace(&self) -> &str {
         "std"
     }

@@ -59,6 +59,7 @@ lazy_static! {
                     typing: Type::uint()
                 }
             ],
+            example: "",
         }
     };
 }

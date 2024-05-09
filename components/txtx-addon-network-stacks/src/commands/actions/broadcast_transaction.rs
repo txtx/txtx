@@ -1,4 +1,5 @@
 use clarity::util::sleep_ms;
+use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
 use txtx_addon_kit::reqwest;
@@ -12,7 +13,6 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::AddonDefaults;
-use serde_json::Value as JsonValue;
 
 use crate::typing::CLARITY_VALUE;
 
@@ -58,6 +58,21 @@ lazy_static! {
                     typing: Type::buffer()
                 }
             ],
+            example: txtx_addon_kit::indoc! {r#"
+            action "my_ref" "stacks::broadcast_transaction" {
+                description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                function_name = "verify-and-update-price-feeds"
+                function_args = [
+                    encode_buffer(output.bitcoin_price_feed),
+                    encode_tuple({
+                        "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
+                        "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                        "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
+                    })
+                ]
+            }
+        "#},
         }
     };
 }
@@ -143,7 +158,10 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                         "Failed to parse broadcasted Stacks transaction result: {e}"
                     ))
                 })?;
-                return Err(Diagnostic::error_from_string(format!("{:?}", transaction.reason)));
+                return Err(Diagnostic::error_from_string(format!(
+                    "{:?}",
+                    transaction.reason
+                )));
             }
             let mut txid = res.text().await.map_err(|e| {
                 println!("{:?}", e.to_string());
@@ -215,10 +233,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 }
 
                 let tx_encoded_response_res = client
-                    .get(format!(
-                        "{}/extended/v1/tx/{}",
-                        api_url, txid
-                    ))
+                    .get(format!("{}/extended/v1/tx/{}", api_url, txid))
                     .send()
                     .await
                     .map_err(|e| {
