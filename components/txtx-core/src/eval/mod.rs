@@ -748,7 +748,6 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("returning early because eval expression needs user interaction");
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
@@ -815,7 +814,6 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                 Err(e) => Err(e),
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                    println!("returning early because eval expression needs user interaction");
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                 }
             };
