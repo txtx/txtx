@@ -51,7 +51,6 @@ impl CommandImplementation for SetStacksGlobals {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 
-        // Extract contract_id
         let stacks_network = args.get("network_id").unwrap().expect_string();
         let stacks_api_url = args.get("stacks_api_url").unwrap().expect_string();
 
