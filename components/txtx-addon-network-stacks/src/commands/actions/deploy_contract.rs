@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use txtx_addon_kit::types::{
-    commands::{
-        CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-        CommandSpecification, PreCommandSpecification,
+use txtx_addon_kit::{
+    types::{
+        commands::{
+            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+            CommandSpecification, PreCommandSpecification,
+        },
+        diagnostics::Diagnostic,
+        types::{Type, Value},
     },
-    diagnostics::Diagnostic,
-    types::{Type, Value},
+    AddonDefaults,
 };
 
 lazy_static! {
@@ -41,6 +44,7 @@ impl CommandImplementation for StacksDeployContract {
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         unimplemented!()
     }

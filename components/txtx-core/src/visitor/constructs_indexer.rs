@@ -5,8 +5,7 @@ use std::{
 
 use crate::{
     errors::{ConstructErrors, DiscoveryError},
-    types::{PreConstructData, Runbook},
-    AddonsContext,
+    types::{PreConstructData, Runbook, RuntimeContext},
 };
 use txtx_addon_kit::{
     hcl::structure::Block,
@@ -26,7 +25,7 @@ use txtx_addon_kit::{
 // todo(lgalabru): clean-up this function
 pub fn run_constructs_indexing(
     runbook: &Arc<RwLock<Runbook>>,
-    addons_ctx: &mut AddonsContext,
+    runtime_context: &mut RuntimeContext,
 ) -> Result<bool, String> {
     let mut has_errored = false;
     match runbook.write() {
@@ -34,6 +33,8 @@ pub fn run_constructs_indexing(
             let Some(source_tree) = runbook.source_tree.take() else {
                 return Ok(has_errored);
             };
+
+            runbook.seed_environment_variables(runtime_context);
 
             let mut sources = VecDeque::new();
             // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
@@ -218,7 +219,7 @@ pub fn run_constructs_indexing(
                                 todo!("return diagnostic")
                             };
 
-                            match addons_ctx.create_action_instance(
+                            match runtime_context.addons_ctx.create_action_instance(
                                 namespace,
                                 command_id,
                                 command_name.as_str(),
@@ -271,7 +272,7 @@ pub fn run_constructs_indexing(
                                 has_errored = true;
                                 continue;
                             };
-                            match addons_ctx.create_prompt_instance(
+                            match runtime_context.addons_ctx.create_prompt_instance(
                                 &namespaced_prompt.as_str(),
                                 command_name.as_str(),
                                 &package_uuid,

@@ -16,8 +16,11 @@ use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
 
-use crate::helpers::hcl::{
-    collect_constructs_references_from_expression, visit_optional_untyped_attribute,
+use crate::{
+    helpers::hcl::{
+        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
+    },
+    AddonDefaults,
 };
 
 use super::{
@@ -182,6 +185,15 @@ pub enum PreCommandSpecification {
     Composite(CompositeCommandSpecification),
 }
 
+impl PreCommandSpecification {
+    pub fn expect_atomic_specification(&self) -> &CommandSpecification {
+        match &self {
+            PreCommandSpecification::Atomic(spec) => spec,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
@@ -189,6 +201,7 @@ pub struct CommandSpecification {
     pub documentation: String,
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
+    pub update_addon_defaults: bool,
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
@@ -223,6 +236,13 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: true,
+            },
+            CommandInput {
+                name: "environments".into(),
+                documentation: "Only enable command for given environments (default: all)".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: false,
             },
         ]
     }
@@ -275,11 +295,14 @@ pub enum CommandRunner {
 type CommandRunnerSync = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
+    &AddonDefaults,
 ) -> Result<CommandExecutionResult, Diagnostic>;
+
 type CommandRunnerAsync = Box<
     fn(
         &CommandSpecification,
         &HashMap<String, Value>,
+        &AddonDefaults,
     ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>,
 >;
 
@@ -288,6 +311,7 @@ pub trait CommandImplementationAsync {
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
     fn update_input_evaluation_results_from_user_input(
         _ctx: &CommandSpecification,
@@ -301,6 +325,7 @@ pub trait CommandImplementation {
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic>;
     fn update_input_evaluation_results_from_user_input(
         _ctx: &CommandSpecification,
@@ -369,8 +394,8 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
-    pub namespace: Option<String>, // todo: I think this field should probably be on
-    pub typing: CommandInstanceType, // the command specification, but it's a lot messier for the UX
+    pub namespace: String,
+    pub typing: CommandInstanceType, 
 }
 pub enum CommandExecutionStatus {
     Complete(Result<CommandExecutionResult, Diagnostic>),
@@ -525,6 +550,7 @@ impl CommandInstance {
         runbook_uuid: Uuid,
         construct_uuid: ConstructUuid,
         eval_tx: Sender<EvalEvent>,
+        addon_defaults: AddonDefaults,
     ) -> Result<CommandExecutionStatus, Diagnostic> {
         // todo: I don't think this one needs to be a result
         let mut values = HashMap::new();
@@ -559,7 +585,8 @@ impl CommandInstance {
                             .enable_io()
                             .build()
                             .unwrap();
-                        let result = runtime.block_on((async_runner_moved)(&spec, &values));
+                        let result =
+                            runtime.block_on((async_runner_moved)(&spec, &values, &addon_defaults));
                         eval_tx.send(EvalEvent::AsyncRequestComplete {
                             runbook_uuid,
                             result: Ok(CommandExecutionStatus::Complete(result)),
@@ -572,7 +599,7 @@ impl CommandInstance {
                 panic!("async commands are not enabled for wasm")
             }
             CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
-                (sync_runner)(&self.specification, &values),
+                (sync_runner)(&self.specification, &values, &addon_defaults),
             )),
         }
     }

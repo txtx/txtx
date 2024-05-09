@@ -1,0 +1,28 @@
+{
+    "name": "Pyth",
+    "default_workspace": "development",
+    "environments": {
+      "development": {
+        "stacks_network_id": "testnet",
+        "stacks_api_url": "http://localhost:20443",
+        "pyth_hermes_api_url": "https://hermes.pyth.network"
+      },
+      "staging": {
+        "stacks_network_id": "testnet",
+        "stacks_api_url": "https://api.staging.hiro.so:20443",
+        "pyth_hermes_api_url": "https://hermes.pyth.network"
+      },
+      "production": {
+        "stacks_network_id": "mainnet",
+        "stacks_api_url": "https://api.staging.hiro.so:20443",
+        "pyth_hermes_api_url": "https://hermes.pyth.network"
+      }
+    },
+    "runbooks": [
+      {
+        "name": "Read Price Feed",
+        "description": "This runbook reads the price for a given Price feed ID.",
+        "location": "./run/price-feeds/read.tx"
+      }
+    ]
+}

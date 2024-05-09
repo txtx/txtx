@@ -42,7 +42,7 @@ impl FunctionImplementation for Base64Decode {
                 encoded, e
             ))
         })?;
-        let decoded = hex::encode(decoded);
+        let decoded = txtx_addon_kit::hex::encode(decoded);
         Ok(Value::string(format!("0x{decoded}")))
     }
 }

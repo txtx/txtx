@@ -1,5 +1,5 @@
 use clarity::vm::types::{
-    ASCIIData, CharType, PrincipalData, SequenceData, SequencedValue, UTF8Data,
+    ASCIIData, BuffData, CharType, PrincipalData, SequenceData, SequencedValue, UTF8Data,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
@@ -11,7 +11,8 @@ use txtx_addon_kit::types::{
 use crate::{
     stacks_helpers::value_to_tuple,
     typing::{
-        CLARITY_ASCII, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT, CLARITY_UTF8,
+        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
+        CLARITY_UTF8,
     },
 };
 
@@ -19,9 +20,9 @@ lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
             EncodeClarityValueOk => {
-                name: "cv_ok",
+                name: "encode_ok",
                 documentation: "Encode data",
-                example: "stacks_encode_ok(stacks_encode_uint(1))",
+                example: "encode_ok(encode_uint(1))",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -36,9 +37,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueErr => {
-                name: "cv_err",
+                name: "encode_err",
                 documentation: "",
-                example: "stacks_encode_err(stacks_encode_uint(1))",
+                example: "encode_err(encode_uint(1))",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -53,9 +54,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueUint => {
-                name: "cv_uint",
+                name: "encode_uint",
                 documentation: "",
-                example: "cv_uint(1)",
+                example: "encode_uint(1)",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -70,9 +71,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueInt => {
-                name: "cv_int",
+                name: "encode_int",
                 documentation: "",
-                example: "cv_int(1)",
+                example: "encode_int(1)",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -87,9 +88,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValuePrincipal => {
-                name: "cv_principal",
+                name: "encode_principal",
                 documentation: "",
-                example: "cv_principal('SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE')",
+                example: "encode_principal(\"SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE\")",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -104,9 +105,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValueAscii => {
-                name: "cv_ascii",
+                name: "encode_string_ascii",
                 documentation: "",
-                example: "cv_ascii('my ascii string')",
+                example: "encode_string_ascii(\"my ascii string\")",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -121,9 +122,9 @@ lazy_static! {
         },
         define_function! {
           EncodeClarityValueUTF8 => {
-                name: "cv_utf8",
+                name: "encode_string_utf8",
                 documentation: "",
-                example: "cv_utf8('🍊')",
+                example: "encode_string_utf8(\"🍊\")",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -138,9 +139,26 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueTuple => {
-                name: "cv_tuple",
+                name: "encode_tuple",
                 documentation: "",
-                example: "cv_tuple({ 'some_key': cv_uint(1) })",
+                example: "encode_tuple({ \"key\": encode_uint(1) })",
+                inputs: [
+                    clarity_value: {
+                        documentation: "Any valid Clarity value",
+                        typing: vec![Type::object(vec![])]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Type::int()
+                },
+            }
+        },
+        define_function! {
+            EncodeClarityValueBuffer => {
+                name: "encode_buffer",
+                documentation: "",
+                example: "encode_buffer(\"0x010203\")",
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value",
@@ -296,6 +314,30 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
         let clarity_value = UTF8Data::to_value(&entry.as_bytes().to_vec());
         let bytes = clarity_value.serialize_to_vec();
         Ok(Value::buffer(bytes, CLARITY_UTF8.clone()))
+    }
+}
+
+pub struct EncodeClarityValueBuffer;
+impl FunctionImplementation for EncodeClarityValueBuffer {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let data = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => {
+                if val.starts_with("0x") {
+                    txtx_addon_kit::hex::decode(&val[2..]).unwrap()
+                } else {
+                    txtx_addon_kit::hex::decode(&val[0..]).unwrap()
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        let bytes =
+            ClarityValue::Sequence(SequenceData::Buffer(BuffData { data })).serialize_to_vec();
+        Ok(Value::buffer(bytes, CLARITY_BUFFER.clone()))
     }
 }
 

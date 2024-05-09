@@ -5,7 +5,7 @@ mod runbook;
 pub use construct::PreConstructData;
 pub use package::Package;
 pub use runbook::{Runbook, SourceTree};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 pub use txtx_addon_kit::types::commands::CommandInstance;
 
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -18,10 +18,15 @@ use crate::AddonsContext;
 pub struct RuntimeContext {
     pub functions: HashMap<String, FunctionSpecification>,
     pub addons_ctx: AddonsContext,
+    pub selected_env: Option<String>,
+    pub environments: BTreeMap<String, HashMap<String, String>>,
 }
 
 impl RuntimeContext {
-    pub fn new(addons_ctx: AddonsContext) -> RuntimeContext {
+    pub fn new(
+        addons_ctx: AddonsContext,
+        environments_opt: Option<BTreeMap<String, HashMap<String, String>>>,
+    ) -> RuntimeContext {
         let mut functions = HashMap::new();
 
         for (_, addon) in addons_ctx.addons.iter() {
@@ -29,10 +34,16 @@ impl RuntimeContext {
                 functions.insert(function.name.clone(), function.clone());
             }
         }
-
+        let environments = environments_opt.unwrap_or(BTreeMap::new());
+        let selected_env = environments
+            .iter()
+            .next()
+            .and_then(|(k, _)| Some(k.clone()));
         RuntimeContext {
             functions,
             addons_ctx,
+            selected_env,
+            environments,
         }
     }
 
@@ -44,5 +55,15 @@ impl RuntimeContext {
             }
         };
         (function.runner)(function, args)
+    }
+
+    pub fn get_active_environment_variables(&self) -> HashMap<String, String> {
+        let Some(ref active_env) = self.selected_env else {
+            return HashMap::new();
+        };
+        match self.environments.get(active_env) {
+            Some(variables) => variables.clone(),
+            None => HashMap::new(),
+        }
     }
 }

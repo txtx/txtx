@@ -23,7 +23,7 @@ use super::{CheckRunbooks, Context, InspectRunbook, RunRunbook};
 pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
-        None => "protocol.json".to_string(),
+        None => "txtx.json".to_string(),
     };
     let manifest = read_manifest_at_path(&manifest_file_path)?;
     let _ = read_runbooks_from_manifest(&manifest, None)?;
@@ -34,7 +34,7 @@ pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result
 pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
-        None => "protocol.json".to_string(),
+        None => "txtx.json".to_string(),
     };
     let runbook_name = cmd.runbook.clone().unwrap();
     let manifest = read_manifest_at_path(&manifest_file_path)?;
@@ -50,7 +50,7 @@ pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Res
     addons_ctx.register(Box::new(StdAddon::new()));
     addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
-    let runtime_context = RuntimeContext::new(addons_ctx);
+    let runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
 
     let moved_man = runbook.clone();
     let mutable_runbook = Arc::new(RwLock::new(moved_man));
@@ -69,7 +69,7 @@ pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Res
 pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), String> {
     let manifest_file_path = match cmd.manifest_path {
         Some(ref path) => path.clone(),
-        None => "protocol.json".to_string(),
+        None => "txtx.json".to_string(),
     };
 
     let manifest = read_manifest_at_path(&manifest_file_path)?;
@@ -89,7 +89,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         addons_ctx.register(Box::new(StdAddon::new()));
         addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
-        let runtime_context = RuntimeContext::new(addons_ctx);
+        let runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
 
         let runbook_rw_lock = Arc::new(RwLock::new(runbook.clone()));
         let runtime_ctx_rw_lock = Arc::new(RwLock::new(runtime_context));

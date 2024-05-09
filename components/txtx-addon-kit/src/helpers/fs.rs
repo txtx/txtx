@@ -174,7 +174,7 @@ impl FileLocation {
             FileLocation::FileSystem { path } => {
                 let mut manifest_found = false;
                 while path.pop() {
-                    path.push("protocol.json");
+                    path.push("txtx.json");
                     if FileLocation::fs_exists(path) {
                         path.pop();
                         manifest_found = true;

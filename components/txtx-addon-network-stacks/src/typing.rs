@@ -40,10 +40,16 @@ lazy_static! {
             documentation: "Clarity tuple",
         }
     };
-    pub static ref CLARITY_SEQUENCE: TypeSpecification = define_addon_type! {
-        ClaritySequence => {
-            name: "clarity_sequence",
-            documentation: "Clarity sequence",
+    pub static ref CLARITY_LIST: TypeSpecification = define_addon_type! {
+        ClarityList => {
+            name: "clarity_list",
+            documentation: "Clarity list",
+        }
+    };
+    pub static ref CLARITY_BUFFER: TypeSpecification = define_addon_type! {
+        ClarityBuffer => {
+            name: "clarity_buffer",
+            documentation: "Clarity buffer",
         }
     };
     pub static ref CLARITY_VALUE: TypeSpecification = define_addon_type! {
@@ -104,8 +110,15 @@ impl TypeImplementation for ClarityTuple {
         unimplemented!()
     }
 }
-pub struct ClaritySequence;
-impl TypeImplementation for ClaritySequence {
+pub struct ClarityList;
+impl TypeImplementation for ClarityList {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct ClarityBuffer;
+impl TypeImplementation for ClarityBuffer {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }

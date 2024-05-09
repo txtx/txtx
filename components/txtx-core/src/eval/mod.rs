@@ -24,6 +24,7 @@ use txtx_addon_kit::{
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
+    AddonDefaults,
 };
 
 pub fn get_ordered_dependent_nodes(
@@ -85,9 +86,7 @@ pub fn is_child_of_node(
 pub fn log_evaluated_outputs(runbook: &Runbook) {
     for (_, package) in runbook.packages.iter() {
         for construct_uuid in package.outputs_uuids.iter() {
-            let construct = runbook.commands_instances.get(construct_uuid).unwrap();
-            println!("Output '{}'", construct.name);
-
+            let _construct = runbook.commands_instances.get(construct_uuid).unwrap();
             if let Some(result) = runbook.constructs_execution_results.get(construct_uuid) {
                 match result {
                     Ok(result) => {
@@ -160,6 +159,15 @@ pub fn run_constructs_evaluation(
         Ok(mut runbook) => {
             let g = runbook.constructs_graph.clone();
 
+            let environments_variables = runbook.environment_variables_values.clone();
+            for (env_variable_uuid, value) in environments_variables.into_iter() {
+                let mut res = CommandExecutionResult::new();
+                res.outputs.insert("value".into(), Value::string(value));
+                runbook
+                    .constructs_execution_results
+                    .insert(env_variable_uuid, Ok(res));
+            }
+
             let ordered_nodes_to_process = match start_node {
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
@@ -180,7 +188,6 @@ pub fn run_constructs_evaluation(
                     // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                     continue;
                 };
-                println!("processing {}", command_instance.name);
 
                 match command_instance.state.lock() {
                     Ok(state_machine) => match state_machine.state() {
@@ -229,6 +236,7 @@ pub fn run_constructs_evaluation(
                             &runtime_ctx,
                         )
                         .unwrap();
+
                     if let Some((dependency, _)) = res {
                         let evaluation_result_opt =
                             runbook.constructs_execution_results.get(&dependency);
@@ -290,14 +298,55 @@ pub fn run_constructs_evaluation(
                                 .command_inputs_evaluation_results
                                 .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
-                            let execution_result = match command_instance.perform_execution(
-                                &evaluated_inputs,
-                                runbook.uuid.clone(),
-                                construct_uuid.clone(),
-                                eval_tx.clone(),
-                            ) {
+                            let execution_result = {
+                                if let Ok(runtime_ctx_reader) = runtime_ctx.read() {
+                                    let addon_context_key =
+                                        (package_uuid.clone(), command_instance.namespace.clone());
+                                    let addon_defaults = runtime_ctx_reader
+                                        .addons_ctx
+                                        .contexts
+                                        .get(&addon_context_key)
+                                        .and_then(|addon| Some(addon.defaults.clone()))
+                                        .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+                                    command_instance.perform_execution(
+                                        &evaluated_inputs,
+                                        runbook.uuid.clone(),
+                                        construct_uuid.clone(),
+                                        eval_tx.clone(),
+                                        addon_defaults,
+                                    )
+                                } else {
+                                    unimplemented!()
+                                }
+                            };
+
+                            let execution_result = match execution_result {
                                 // todo(lgalabru): return Diagnostic instead
                                 Ok(CommandExecutionStatus::Complete(result)) => {
+                                    if let Ok(ref execution) = result {
+                                        if command_instance.specification.update_addon_defaults {
+                                            if let Ok(mut runtime_ctx_writer) = runtime_ctx.write()
+                                            {
+                                                let addon_context_key = (
+                                                    package_uuid.clone(),
+                                                    command_instance.namespace.clone(),
+                                                );
+                                                if let Some(ref mut addon_context) =
+                                                    runtime_ctx_writer
+                                                        .addons_ctx
+                                                        .contexts
+                                                        .get_mut(&addon_context_key)
+                                                {
+                                                    for (k, v) in execution.outputs.iter() {
+                                                        addon_context
+                                                            .defaults
+                                                            .keys
+                                                            .insert(k.clone(), v.to_string());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     state_machine
                                         .consume(&CommandInstanceStateMachineInput::Successful)
                                         .unwrap();
@@ -330,7 +379,7 @@ pub fn run_constructs_evaluation(
     }
 
     match runbook.read() {
-        Ok(readonly_runbook) => log_evaluated_outputs(&readonly_runbook),
+        Ok(_readonly_runbook) => {}
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
 
@@ -544,7 +593,7 @@ pub fn eval_expression(
                 },
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             };
-            let attribute = components.pop_front().unwrap();
+            let attribute = components.pop_front().unwrap_or("value".into());
             match res.outputs.get(&attribute) {
                 Some(output) => output.clone(),
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
@@ -699,7 +748,6 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("returning early because eval expression needs user interaction");
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
@@ -766,7 +814,6 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                 Err(e) => Err(e),
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                    println!("returning early because eval expression needs user interaction");
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                 }
             };
@@ -841,8 +888,5 @@ pub fn perform_inputs_evaluation(
         }
     }
 
-    // if fatal_error {
-    //     return Err(format!("fatal error"));
-    // }
     Ok(CommandInputEvaluationStatus::Complete(results))
 }

@@ -11,6 +11,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         types::{PrimitiveValue, Type, Value},
     },
+    AddonDefaults,
 };
 
 pub fn new_module_specification() -> CommandSpecification {
@@ -42,6 +43,7 @@ impl CommandImplementation for Module {
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let result = CommandExecutionResult::new();
         Ok(result)
@@ -114,6 +116,7 @@ impl CommandImplementation for Input {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
         if let Some(value) = args.get("value") {
@@ -203,6 +206,7 @@ impl CommandImplementation for Output {
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
