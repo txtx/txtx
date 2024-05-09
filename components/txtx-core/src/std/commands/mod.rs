@@ -130,84 +130,36 @@ impl CommandImplementation for Input {
         input_name: String,
         value: String,
     ) {
-        let (input_key, value) = match input_name.as_str() {
-            "value" => {
-                let value_input = ctx
-                    .inputs
-                    .iter()
-                    .find(|i| i.name == "value")
-                    .expect("Variable specification must have value input");
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    let type_casted_value = match current_input_evaluation_result
-                        .inputs
-                        .iter()
-                        .find(|(i, _)| i.name == "type")
-                    {
-                        Some((_, expected_type)) => match expected_type {
-                            Err(e) => Err(e.clone()),
-                            Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                                Value::from_string(value, Type::from(expected_type.clone()), None)
-                            }
-                            _ => Value::from_string(value, Type::default(), None),
-                        },
-                        None => unimplemented!("no type"), // todo
-                    };
-                    Some(type_casted_value)
-                };
-                (value_input, value)
-            }
-            "default" => {
-                let default_input = ctx
-                    .inputs
-                    .iter()
-                    .find(|i| i.name == "default")
-                    .expect("Variable specification must have default input");
-
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    let type_casted_value = match current_input_evaluation_result
-                        .inputs
-                        .iter()
-                        .find(|(i, _)| i.name == "type")
-                    {
-                        Some((_, expected_type)) => match expected_type {
-                            Err(e) => Err(e.clone()),
-                            Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                                Value::from_string(value, Type::from(expected_type.clone()), None)
-                            }
-                            _ => Value::from_string(value, Type::default(), None),
-                        },
-                        None => unimplemented!("no type"), // todo
-                    };
-                    Some(type_casted_value)
-                };
-                (default_input, value)
-            }
-            "description" => {
-                let description_input = ctx
-                    .inputs
-                    .iter()
-                    .find(|i| i.name == "description")
-                    .expect("Variable specification must have description input");
-
-                let expected_type = description_input.typing.clone();
-                let value = if value.is_empty() {
-                    None
-                } else {
-                    Some(Value::from_string(value, expected_type, None))
-                };
-                (description_input, value)
-            }
-            _ => unimplemented!("cannot parse serialized output for input {input_name}"),
+        let value_input = ctx
+            .inputs
+            .iter()
+            .find(|i| i.name == "value")
+            .expect("Variable specification must have value input");
+        let value = if value.is_empty() {
+            None
+        } else {
+            let type_casted_value = match current_input_evaluation_result
+                .inputs
+                .iter()
+                .find(|(i, _)| i.name == "type")
+            {
+                Some((_, expected_type)) => match expected_type {
+                    Err(e) => Err(e.clone()),
+                    Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
+                        Value::from_string(value, Type::from(expected_type.clone()), None)
+                    }
+                    _ => Value::from_string(value, Type::default(), None),
+                },
+                None => unimplemented!("no type"), // todo
+            };
+            Some(type_casted_value)
         };
+
         match value {
             Some(value) => current_input_evaluation_result
                 .inputs
-                .insert(input_key.clone(), value),
-            None => current_input_evaluation_result.inputs.remove(&input_key),
+                .insert(value_input.clone(), value),
+            None => current_input_evaluation_result.inputs.remove(&value_input),
         };
     }
 }
