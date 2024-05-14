@@ -219,6 +219,7 @@ pub struct CompositeCommandSpecification {
     pub parts: Vec<PreCommandSpecification>,
     pub default_inputs: Vec<CommandInput>,
     pub router: CommandRouter,
+    pub example: String,
 }
 
 impl CommandSpecification {
@@ -396,7 +397,7 @@ pub struct CommandInstance {
     pub block: Block,
     pub package_uuid: PackageUuid,
     pub namespace: String,
-    pub typing: CommandInstanceType, 
+    pub typing: CommandInstanceType,
 }
 pub enum CommandExecutionStatus {
     Complete(Result<CommandExecutionResult, Diagnostic>),

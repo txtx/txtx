@@ -56,7 +56,7 @@ lazy_static! {
                   typing: Type::string()
               }
           ],
-          example: "",
+          example: "// coming soon",
       }
     };
 }

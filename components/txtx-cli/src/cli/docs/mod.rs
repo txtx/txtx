@@ -264,6 +264,7 @@ fn insert_data_from_spec(
                 .insert_str("name", &spec.name)
                 .insert_str("matcher", &spec.matcher)
                 .insert_str("documentation", &spec.documentation)
+                .insert_str("example", &spec.example)
                 // .insert_str("example", spec.example)
                 // .insert_str("snippet", spec.snippet)
                 .insert_vec("inputs", |mut inputs_builder| {

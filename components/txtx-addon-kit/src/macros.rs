@@ -121,6 +121,7 @@ macro_rules! define_multistep_command {
       matcher: $matcher:expr,
       documentation: $doc:expr,
       parts: [$($part:expr),*],
+      example: $example:expr,
   }) => {
       {
           use txtx_addon_kit::types::commands::{PreCommandSpecification, CompositeCommandSpecification, CommandInput, CommandOutput, CommandRunner};
@@ -135,6 +136,7 @@ macro_rules! define_multistep_command {
               parts: parts,
               default_inputs: CommandSpecification::default_inputs(),
               router: $func_key::router,
+              example: String::from($example),
           })
       }
   };
