@@ -25,12 +25,12 @@ lazy_static! {
                 example: "encode_ok(encode_uint(1))",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "Any valid Clarity value.",
                         typing: vec![Type::bool()]
                     }
                 ],
                 output: {
-                    documentation: "The input wrapped in an `Ok` Clarity type",
+                    documentation: "The input wrapped in an `Ok` Clarity type.",
                     typing: Type::bool()
                 },
             }
@@ -42,12 +42,12 @@ lazy_static! {
                 example: "encode_err(encode_uint(1))",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "Any valid Clarity value.",
                         typing: vec![Type::bool()]
                     }
                 ],
                 output: {
-                    documentation: "The input wrapped in an `Err` Clarity type",
+                    documentation: "The input wrapped in an `Err` Clarity type.",
                     typing: Type::bool()
                 },
             }
@@ -59,12 +59,12 @@ lazy_static! {
                 example: "encode_uint(1)",
                 inputs: [
                     clarity_value: {
-                        documentation: "A positive integer between 0 and 2<sup>128</sup>-1",
+                        documentation: "A positive integer between 0 and 2<sup>128</sup>-1.",
                         typing: vec![Type::uint()]
                     }
                 ],
                 output: {
-                    documentation: "The input integer as a Clarity `uint`",
+                    documentation: "The input integer as a Clarity `uint`.",
                     typing: Type::uint()
                 },
             }
@@ -76,12 +76,12 @@ lazy_static! {
                 example: "encode_int(1)",
                 inputs: [
                     clarity_value: {
-                        documentation: "An integer between -2<sup>127</sup> and 2<sup>127</sup>-1",
+                        documentation: "An integer between -2<sup>127</sup> and 2<sup>127</sup>-1.",
                         typing: vec![Type::uint()]
                     }
                 ],
                 output: {
-                    documentation: "The input integer as a Clarity `int`",
+                    documentation: "The input integer as a Clarity `int`.",
                     typing: Type::int()
                 },
             }
@@ -93,12 +93,12 @@ lazy_static! {
                 example: "encode_principal(\"SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity principal string",
+                        documentation: "Any valid Clarity principal string.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The input string as a Clarity `principal`",
+                    documentation: "The input string as a Clarity `principal`.",
                     typing: Type::string()
                 },
             }
@@ -110,12 +110,12 @@ lazy_static! {
                 example: "encode_string_ascii(\"my ascii string\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid ASCII string",
+                        documentation: "Any valid ASCII string.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The input string as a Clarity ASCII string",
+                    documentation: "The input string as a Clarity ASCII string.",
                     typing: Type::string()
                 },
             }
@@ -127,12 +127,12 @@ lazy_static! {
                 example: "encode_string_utf8(\"🍊\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid UTF-8 string",
+                        documentation: "Any valid UTF-8 string.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The input string as a Clarity UTF-8 string",
+                    documentation: "The input string as a Clarity UTF-8 string.",
                     typing: Type::string()
                 },
             }
@@ -144,12 +144,12 @@ lazy_static! {
                 example: "encode_tuple({ \"key\": encode_uint(1) })",
                 inputs: [
                     clarity_value: {
-                        documentation: "An object where each key is a string and each value is a valid Clarity value",
+                        documentation: "An object where each key is a string and each value is a valid Clarity value.",
                         typing: vec![Type::object(vec![])]
                     }
                 ],
                 output: {
-                    documentation: "The input object as a Clarity tuple",
+                    documentation: "The input object as a Clarity tuple.",
                     typing: Type::int()
                 },
             }
@@ -161,12 +161,12 @@ lazy_static! {
                 example: "encode_buffer(\"0x010203\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "A hexadecimal string",
+                        documentation: "A hex string.",
                         typing: vec![Type::object(vec![])]
                     }
                 ],
                 output: {
-                    documentation: "The input string as a Clarity buffer",
+                    documentation: "The input string as a Clarity buffer.",
                     typing: Type::int()
                 },
             }
