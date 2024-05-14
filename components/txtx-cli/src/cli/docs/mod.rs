@@ -290,6 +290,10 @@ fn insert_data_from_spec(
 
 fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
         .insert("addon_name", &addon.get_name())
         .expect("Failed to encode name")
         .insert("addon_description", &addon.get_description())
