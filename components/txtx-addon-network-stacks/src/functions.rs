@@ -21,7 +21,7 @@ lazy_static! {
         define_function! {
             EncodeClarityValueOk => {
                 name: "encode_ok",
-                documentation: "Encode data",
+                documentation: "`encode_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.",
                 example: "encode_ok(encode_uint(1))",
                 inputs: [
                     clarity_value: {
@@ -30,7 +30,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Input wrapped into an Ok Clarity type",
+                    documentation: "The input wrapped in an `Ok` Clarity type",
                     typing: Type::bool()
                 },
             }
@@ -38,7 +38,7 @@ lazy_static! {
         define_function! {
             EncodeClarityValueErr => {
                 name: "encode_err",
-                documentation: "",
+                documentation: "`encode_err` returns the given Clarity value wrapped in an `Err` Clarity type.",
                 example: "encode_err(encode_uint(1))",
                 inputs: [
                     clarity_value: {
@@ -47,7 +47,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Input wrapped into an Err Clarity type",
+                    documentation: "The input wrapped in an `Err` Clarity type",
                     typing: Type::bool()
                 },
             }
@@ -55,16 +55,16 @@ lazy_static! {
         define_function! {
             EncodeClarityValueUint => {
                 name: "encode_uint",
-                documentation: "",
+                documentation: "`encode_uint` returns the given number as a Clarity `uint`.",
                 example: "encode_uint(1)",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "A positive integer between 0 and 2<sup>128</sup>-1",
                         typing: vec![Type::uint()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input integer as a Clarity `uint`",
                     typing: Type::uint()
                 },
             }
@@ -72,67 +72,67 @@ lazy_static! {
         define_function! {
             EncodeClarityValueInt => {
                 name: "encode_int",
-                documentation: "",
+                documentation: "`encode_int` returns the given number as a Clarity `int`.",
                 example: "encode_int(1)",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "An integer between -2<sup>127</sup> and 2<sup>127</sup>-1",
                         typing: vec![Type::uint()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input integer as a Clarity `int`",
                     typing: Type::int()
                 },
             }
         },
         define_function! {
-          EncodeClarityValuePrincipal => {
+            EncodeClarityValuePrincipal => {
                 name: "encode_principal",
-                documentation: "",
+                documentation: "`encode_principal` returns the given string as a Clarity `principal`. A Clarity `principal` represents a Stacks address on the blockchain. Clarity admits two different kinds of principals: _standard principals_ and _contract principals_. Standard principals are backed by a corresponding private key whilst contract principals point to a smart contract.",
                 example: "encode_principal(\"SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "Any valid Clarity principal string",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input string as a Clarity `principal`",
                     typing: Type::string()
                 },
             }
         },
         define_function! {
-          EncodeClarityValueAscii => {
+            EncodeClarityValueAscii => {
                 name: "encode_string_ascii",
-                documentation: "",
+                documentation: "`encode_string_ascii` returns the given string as a Clarity ASCII string.",
                 example: "encode_string_ascii(\"my ascii string\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "Any valid ASCII string",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input string as a Clarity ASCII string",
                     typing: Type::string()
                 },
             }
         },
         define_function! {
-          EncodeClarityValueUTF8 => {
+            EncodeClarityValueUTF8 => {
                 name: "encode_string_utf8",
-                documentation: "",
+                documentation: "`encode_string_utf8` returns the given string as a Clarity UTF-8 string.",
                 example: "encode_string_utf8(\"🍊\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "Any valid UTF-8 string",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input string as a Clarity UTF-8 string",
                     typing: Type::string()
                 },
             }
@@ -140,16 +140,16 @@ lazy_static! {
         define_function! {
             EncodeClarityValueTuple => {
                 name: "encode_tuple",
-                documentation: "",
+                documentation: "`encode_tuple` returns the given object as a Clarity tuple.",
                 example: "encode_tuple({ \"key\": encode_uint(1) })",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "An object where each key is a string and each value is a valid Clarity value",
                         typing: vec![Type::object(vec![])]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input object as a Clarity tuple",
                     typing: Type::int()
                 },
             }
@@ -157,16 +157,16 @@ lazy_static! {
         define_function! {
             EncodeClarityValueBuffer => {
                 name: "encode_buffer",
-                documentation: "",
+                documentation: "`encode_buffer` returns the given hex string as a Clarity buffer.",
                 example: "encode_buffer(\"0x010203\")",
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value",
+                        documentation: "A hexadecimal string",
                         typing: vec![Type::object(vec![])]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input string as a Clarity buffer",
                     typing: Type::int()
                 },
             }
