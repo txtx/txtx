@@ -9,6 +9,7 @@ use crate::{
 };
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
+use petgraph::algo::toposort;
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
@@ -27,49 +28,49 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
-pub fn get_ordered_dependent_nodes(
-    start_node: NodeIndex,
-    graph: Dag<Uuid, u32, u32>,
-) -> IndexSet<NodeIndex> {
-    let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = IndexSet::new();
-
-    nodes_to_visit.push_front(start_node);
-    while let Some(node) = nodes_to_visit.pop_front() {
-        // Enqueue all the children
+/// Gets all descendants of `node` within `graph`.
+pub fn get_descendants_of_node(node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
+    let mut descendant_nodes = VecDeque::new();
+    descendant_nodes.push_front(node);
+    let mut descendants = IndexSet::new();
+    while let Some(node) = descendant_nodes.pop_front() {
         for (_, child) in graph.children(node).iter(&graph) {
-            nodes_to_visit.push_back(child);
+            descendant_nodes.push_back(child);
+            descendants.insert(child);
         }
-        // Mark node as visited
-        visited_nodes_to_process.insert(node);
     }
-
-    visited_nodes_to_process
+    descendants
 }
 
-// todo: the sorting here is broken, we need to do topological sorting
-pub fn get_ordered_nodes(root_node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
-    let mut nodes_to_visit = VecDeque::new();
-    let mut visited_nodes_to_process = IndexSet::new();
+/// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
+pub fn get_sorted_descendants_of_node(
+    node: NodeIndex,
+    graph: Dag<Uuid, u32, u32>,
+) -> IndexSet<NodeIndex> {
+    let sorted = toposort(&graph, None)
+        .unwrap()
+        .into_iter()
+        .collect::<IndexSet<NodeIndex>>();
 
-    nodes_to_visit.push_front(root_node);
-    while let Some(node) = nodes_to_visit.pop_front() {
-        // All the parents must have been visited first
-        for (_, parent) in graph.parents(node).iter(&graph) {
-            if !visited_nodes_to_process.contains(&parent) {
-                nodes_to_visit.push_back(node)
-            }
+    let start_node_descendants = get_descendants_of_node(node, graph);
+    let mut sorted_descendants = IndexSet::new();
+
+    for this_node in sorted.into_iter() {
+        let is_descendant = start_node_descendants.iter().any(|d| d == &this_node);
+        let is_start_node = this_node == node;
+        if is_descendant || is_start_node {
+            sorted_descendants.insert(this_node);
         }
-        // Enqueue all the children
-        for (_, child) in graph.children(node).iter(&graph) {
-            nodes_to_visit.push_back(child);
-        }
-        // Mark node as visited
-        visited_nodes_to_process.insert(node);
     }
+    sorted_descendants
+}
 
-    visited_nodes_to_process.shift_remove(&root_node);
-    visited_nodes_to_process
+/// Returns a topologically sorted set of all nodes in the graph.
+pub fn get_sorted_nodes(graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
+    toposort(&graph, None)
+        .unwrap()
+        .into_iter()
+        .collect::<IndexSet<NodeIndex>>()
 }
 
 pub fn is_child_of_node(
@@ -119,7 +120,7 @@ pub fn prepare_constructs_reevaluation(runbook: &Arc<RwLock<Runbook>>, start_nod
         Ok(runbook) => {
             let g = runbook.constructs_graph.clone();
             let nodes_to_reevaluate =
-                get_ordered_dependent_nodes(start_node, runbook.constructs_graph.clone());
+                get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone());
 
             for node in nodes_to_reevaluate.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
@@ -172,9 +173,9 @@ pub fn run_constructs_evaluation(
                 Some(start_node) => {
                     // if we are walking the graph from a given start node, we only add the
                     // node and its dependents (not its parents) to the nodes we visit.
-                    get_ordered_dependent_nodes(start_node, runbook.constructs_graph.clone())
+                    get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone())
                 }
-                None => get_ordered_nodes(runbook.graph_root, runbook.constructs_graph.clone()),
+                None => get_sorted_nodes(runbook.constructs_graph.clone()),
             };
 
             let commands_instances = runbook.commands_instances.clone();

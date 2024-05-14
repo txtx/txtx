@@ -2,7 +2,7 @@ use crate::{Context, ContextData};
 use juniper_codegen::graphql_object;
 use serde_json::json;
 use txtx_core::eval::{
-    get_ordered_nodes, is_child_of_node, prepare_constructs_reevaluation, run_constructs_evaluation,
+    get_sorted_nodes, is_child_of_node, prepare_constructs_reevaluation, run_constructs_evaluation,
 };
 use txtx_core::kit::types::commands::CommandInstanceStateMachineInput;
 use txtx_core::types::ConstructUuid;
@@ -94,8 +94,7 @@ impl Mutation {
         let result = match runbook.read() {
             Ok(runbook) => {
                 let mut result = vec![];
-                let ordered_nodes =
-                    get_ordered_nodes(runbook.graph_root, runbook.constructs_graph.clone());
+                let ordered_nodes = get_sorted_nodes(runbook.constructs_graph.clone());
                 let graph = runbook.constructs_graph.clone();
 
                 for (i, node) in ordered_nodes.into_iter().enumerate() {
