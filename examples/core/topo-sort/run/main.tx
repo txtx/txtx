@@ -1,0 +1,43 @@
+input "A" {
+  description = "A"
+  type="uint"
+  default = 1
+}
+
+  input "B" {
+    description = "A -> B"
+    type="uint"
+    default = input.A.value + 1
+  }
+
+  input "C" {
+    description = "A -> B -> C"
+    type="uint"
+    default = input.B.value + 1
+  }
+    input "E" {
+      description = "A -> B -> C -> E"
+      type="uint"
+      default = input.C.value + 1
+    }
+      input "F" {
+        description = "A -> B -> C -> E -> F"
+        type="uint"
+        default = input.E.value + 1
+      }
+
+  input "D" {
+    description = "A -> B -> D"
+    type="uint"
+    default = input.B.value + 1
+  }
+  input "G" {
+    description = "A -> B -> D -> G"
+    type="uint"
+    default = input.D.value + 1
+  }
+    input "H" {
+      description = "A -> B -> D -> G -> H"
+      type="uint"
+      default = input.G.value + 1
+    }

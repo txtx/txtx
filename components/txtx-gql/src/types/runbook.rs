@@ -5,7 +5,7 @@ use juniper_codegen::graphql_object;
 use serde::{de::IntoDeserializer, Deserialize};
 use serde_json::json;
 use txtx_core::{
-    eval::{get_ordered_nodes, is_child_of_node},
+    eval::{get_sorted_nodes, is_child_of_node},
     types::{ConstructUuid, Runbook},
 };
 
@@ -100,8 +100,7 @@ impl GqlRunbook {
 
     pub fn data(&self) -> Result<String, String> {
         let mut data = vec![];
-        let ordered_nodes =
-            get_ordered_nodes(self.data.graph_root, self.data.constructs_graph.clone());
+        let ordered_nodes = get_sorted_nodes(self.data.constructs_graph.clone());
         let graph = self.data.constructs_graph.clone();
 
         for (i, node) in ordered_nodes.into_iter().enumerate() {

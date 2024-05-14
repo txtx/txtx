@@ -132,14 +132,14 @@ impl CommandImplementation for Input {
     fn update_input_evaluation_results_from_user_input(
         ctx: &CommandSpecification,
         current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        input_name: String,
+        _input_name: String,
         value: String,
     ) {
-        let value_input = ctx
+        let default_input = ctx
             .inputs
             .iter()
-            .find(|i| i.name == "value")
-            .expect("Variable specification must have value input");
+            .find(|i| i.name == "default")
+            .expect("Variable specification must have default input");
         let value = if value.is_empty() {
             None
         } else {
@@ -163,8 +163,10 @@ impl CommandImplementation for Input {
         match value {
             Some(value) => current_input_evaluation_result
                 .inputs
-                .insert(value_input.clone(), value),
-            None => current_input_evaluation_result.inputs.remove(&value_input),
+                .insert(default_input.clone(), value),
+            None => current_input_evaluation_result
+                .inputs
+                .remove(&default_input),
         };
     }
 }
