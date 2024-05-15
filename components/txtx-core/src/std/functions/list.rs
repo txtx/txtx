@@ -1,5 +1,5 @@
 use txtx_addon_kit::{
-    define_function,
+    define_function, indoc,
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
@@ -11,15 +11,20 @@ lazy_static! {
     pub static ref LIST_FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         Index => {
             name: "index",
-            documentation: "Get the entry from a list at the specified index",
-            example: "index(['a', 'b', 'c'], 1)",
+            documentation: "`index` gets the entry from a list at the specified index.",
+            example: indoc!{r#"
+            output "entry" { 
+                value = index(['a', 'b', 'c'], 1)
+            }
+            > entry: b
+          "#},
             inputs: [
                 list: {
-                    documentation: "The list",
+                    documentation: "The list to retrieve an entry from.",
                     typing: vec![Type::string(), Type::uint(), Type::int()] // todo: needs to be any
                 },
                 index: {
-                    documentation: "The index",
+                    documentation: "The index of the entry to retrieve.",
                     typing: vec![Type::uint()]
                 }
             ],
