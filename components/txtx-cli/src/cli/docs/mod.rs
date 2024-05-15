@@ -214,7 +214,13 @@ fn insert_inputs_from_spec(
 ) -> mustache::MapBuilder {
     input_builder
         .insert_str("name", &input_spec.name)
-        .insert_bool("required", !input_spec.optional)
+        .insert_str(
+            "requirementStatus",
+            match input_spec.optional {
+                true => "optional",
+                false => "required",
+            },
+        )
         .insert_str("documentation", &input_spec.documentation)
         .insert_str("type", format!("{:?}", input_spec.typing))
 }
