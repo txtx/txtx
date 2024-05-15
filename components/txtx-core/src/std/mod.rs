@@ -23,7 +23,9 @@ impl Addon for StdAddon {
     }
 
     fn get_description(&self) -> &str {
-        "Lorem ipsum"
+        txtx_addon_kit::indoc! {r#"
+      `txtx` standard commands and functions provide base functionality that can be used to build Runbooks.
+      "#}
     }
 
     fn get_namespace(&self) -> &str {
