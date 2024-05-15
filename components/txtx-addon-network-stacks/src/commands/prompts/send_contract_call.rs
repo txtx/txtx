@@ -13,10 +13,10 @@ lazy_static! {
         SendContractCall => {
             name: "Send Contract Call Transaction",
             matcher: "send_contract_call",
-            documentation: "Send an encoded transaction payload",
+            documentation: "The `send_contract_call` prompt encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
             parts: [ENCODE_STACKS_CONTRACT_CALL.clone(), SIGN_STACKS_TRANSACTION.clone(), BROADCAST_STACKS_TRANSACTION.clone()],
             example: txtx_addon_kit::indoc! {r#"
-              action "update_price_feed" "stacks::send_contract_call" {
+              action "my_ref" "stacks::send_contract_call" {
                   description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
                   contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                   function_name = "verify-and-update-price-feeds"
@@ -28,7 +28,15 @@ lazy_static! {
                           "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
                       })
                   ]
+              }            
+              output "tx_id" {
+                value = action.my_ref.tx_id
               }
+              output "result" {
+                value = action.my_ref.result
+              }
+              // > tx_id: 0x...
+              // > result: success
           "#},
         }
     };
