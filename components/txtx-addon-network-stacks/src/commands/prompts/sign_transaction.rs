@@ -19,28 +19,32 @@ lazy_static! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "Sign an encoded transaction payload",
+          documentation: "The `sign_transaction` prompt signs an encoded transaction payload in the txtx web ui with an in-browser wallet.",
           inputs: [
               transaction_payload_bytes: {
-                  documentation: "The encoded transaction bytes to be signed.",
+                documentation: "The transacction payload bytes, encoded as a clarity buffer.",
                   typing: Type::buffer(),
                   optional: false,
                   interpolable: true
               },
               signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
+                  documentation: indoc!{r#"
+                    The signed transaction bytes. 
+                    In most cases, this input should not be set. 
+                    Setting this input skips the Runbook step to sign in the browser.
+                  "#},
                   typing: Type::buffer(),
                   optional: true,
                   interpolable: true
               },
               nonce: {
-                  documentation: "The nonce of the address signing the transaction.",
+                  documentation: "The transaction nonce.",
                   typing: Type::uint(),
                   optional: true,
                   interpolable: true
               },
               network_id: {
-                  documentation: "The network id used to set the transaction version.",
+                  documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"testnet"` or `"mainnet"`."#},
                   typing: Type::string(),
                   optional: true,
                   interpolable: true
@@ -56,7 +60,16 @@ lazy_static! {
                   typing: Type::string()
               }
           ],
-          example: "// coming soon",
+          example: txtx_addon_kit::indoc! {r#"
+          prompt "my_ref" "stacks::sign_transaction" {
+              transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
+              network_id = "testnet"
+          }
+          output "signed_bytes" {
+            value = prompt.my_ref.signed_transaction_bytes
+          }
+          // > signed_bytes: 0x8080000000040063A5EDA39412C016478AE5A8C300843879F78245000000000000000100000000000004B0000182C1712C31B7F683F6C56EEE8920892F735FC0118C98FD10C1FDAA85ABEC2808063773E5F61229D76B29784B8BBBBAAEA72EEA701C92A4FE15EF3B9E32A373D8020100000000021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631
+      "#},
       }
     };
 }
