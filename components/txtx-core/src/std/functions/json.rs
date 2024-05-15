@@ -1,7 +1,7 @@
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::{
-    define_function,
+    define_function, indoc,
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
@@ -13,20 +13,28 @@ lazy_static! {
     pub static ref JSON_FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         JsonQuery => {
             name: "jq",
-            documentation: "Query Json data",
-            example: "jq(\"{ \"message\": \"Hello world!\" }\", \".root\")",
+            documentation: indoc!{r#"
+            The `jq` function allows slicing, filtering, and mapping JSON data. 
+            See the [jq](https://jqlang.github.io/jq/manual/) documentation for more details.
+            "#},                
+            example: indoc!{r#"
+              output "message" { 
+                  value = jq("{ \"message\": \"Hello world!\" }", ".message")
+              }
+              > message: Hello world!
+            "#},
             inputs: [
                 decoded_json: {
-                    documentation: "Json document",
+                    documentation: "A JSON object.",
                     typing: vec![Type::string()]
                 },
                 query: {
-                    documentation: "Json query (see jq documentation)",
+                    documentation: "A JSON query. See the [jq](https://jqlang.github.io/jq/manual/) documentation.",
                     typing: vec![Type::string()]
                 }
             ],
             output: {
-                documentation: "Result of the query",
+                documentation: "The result of the `jq` query.",
                 typing: Type::array(Type::string())
             },
         }
