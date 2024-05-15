@@ -18,7 +18,7 @@ export const metadata = {
 
 {{{ documentation }}}
 
-### Inputs Documentation
+### Inputs
 
 <Properties>
 
@@ -32,6 +32,32 @@ export const metadata = {
 
 </Properties>
 
+### Output
+
+<Properties>
+  <Property name="value">
+    {{{ output_documentation }}}
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using {{ name }}">
+
+
+```hcl {{double_open}} title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
 </Col>
 </Row>
 
@@ -43,21 +69,39 @@ export const metadata = {
 
 ## {{ matcher }} {{double_open}} tag: 'action' {{double_close}}
 
-### {{ name }}
-
 {{{ documentation }}}
 
-### Inputs Documentation
+### Inputs
 
 <Properties>
 
 {{# inputs }}
 
-  <Property name="{{ name }}" type="required">
+  <Property name="{{ name }}" type="{{ requirementStatus }}">
     {{{ documentation }}}
   </Property>
 
 {{/ inputs }}
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `{{ matcher }}` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+{{# outputs }}
+
+  <Property name="{{ name }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ outputs }}
 
 </Properties>
 
@@ -79,11 +123,35 @@ export const metadata = {
 
 </CodeGroup>
 
-### Outputs Documentation
+---
+
+{{/ actions }}
+
+{{# prompts }}
+
+## {{ matcher }} {{double_open}} tag: 'prompts' {{double_close}}
+
+{{{ documentation }}}
+
+### Inputs
+
+<Properties>
+
+{{# inputs }}
+
+  <Property name="{{ name }}" type="{{ requirementStatus  }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ inputs }}
+
+</Properties>
+
+### Outputs
 
 <Note>
 
-When the `{{ matcher }}` action is successfully executed, the following outputs are attached to the action
+When the `{{ matcher }}` prompt is successfully executed, the following outputs are attached to the prompt
 
 </Note>
 
@@ -96,32 +164,6 @@ When the `{{ matcher }}` action is successfully executed, the following outputs 
   </Property>
 
 {{/ outputs }}
-
-</Properties>
-
----
-
-{{/ actions }}
-
-{{# prompts }}
-
-## {{ matcher }} {{double_open}} tag: 'prompts' {{double_close}}
-
-### {{ name }}
-
-{{{ documentation }}}
-
-### Inputs Documentation
-
-<Properties>
-
-{{# inputs }}
-
-  <Property name="{{ name }}" type="required">
-    {{{ documentation }}}
-  </Property>
-
-{{/ inputs }}
 
 </Properties>
 
@@ -142,26 +184,6 @@ When the `{{ matcher }}` action is successfully executed, the following outputs 
 ```
 
 </CodeGroup>
-
-### Outputs Documentation
-
-<Note>
-
-When the `{{ matcher }}` prompt is successfully executed, the following outputs are attached to the prompt
-
-</Note>
-
-<Properties>
-
-{{# outputs }}
-
-  <Property name="{{ name }}">
-    {{{ documentation }}}
-  </Property>
-
-{{/ outputs }}
-
-</Properties>
 
 ---
 
