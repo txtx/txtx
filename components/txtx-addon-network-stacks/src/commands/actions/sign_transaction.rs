@@ -38,40 +38,40 @@ lazy_static! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "Sign an encoded transaction payload",
+          documentation: "The `sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
           inputs: [
             nonce: {
-                documentation: "Transaction nonce",
+                documentation: "The transaction nonce.",
                 typing: Type::uint(),
                 optional: false,
                 interpolable: true
             },
             transaction_payload_bytes: {
-                documentation: "Transaction payload",
+                documentation: "The transacction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             fee: {
-                documentation: "Transaction fee",
+                documentation: "The transaction fee.",
                 typing: Type::uint(),
                 optional: false,
                 interpolable: true
             },
             sender_mnemonic: {
-                documentation: "Mnemonic",
+                documentation: "The wallet mnemonic that will be used to generate a private key that will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             sender_derivation_path: {
-                documentation: "Derivation path",
+              documentation: "The derivation path that will be used to generate a private key that will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             network_id: {
-                documentation: "The network id used to set the transaction version.",
+                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"testnet"` or `"mainnet"`."#},
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
@@ -89,18 +89,17 @@ lazy_static! {
           ],
           example: txtx_addon_kit::indoc! {r#"
           action "my_ref" "stacks::sign_transaction" {
-              description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
-              contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-              function_name = "verify-and-update-price-feeds"
-              function_args = [
-                  encode_buffer(output.bitcoin_price_feed),
-                  encode_tuple({
-                      "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
-                      "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                      "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
-                  })
-              ]
+              transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
+              nonce = 1
+              fee = 1200
+              sender_mnemonic = "fetch outside black test wash cover just actual execute nice door want airport betray quantum stamp fish act pen trust portion fatigue scissors vague"
+              sender_derivation_path = "m/44'/5757'/0'/0/0"
+              network_id = "testnet"
           }
+          output "signed_bytes" {
+            value = action.my_ref.signed_transaction_bytes
+          }
+          // > signed_bytes: 0x8080000000040063A5EDA39412C016478AE5A8C300843879F78245000000000000000100000000000004B0000182C1712C31B7F683F6C56EEE8920892F735FC0118C98FD10C1FDAA85ABEC2808063773E5F61229D76B29784B8BBBBAAEA72EEA701C92A4FE15EF3B9E32A373D8020100000000021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631
       "#},
       }
     };
