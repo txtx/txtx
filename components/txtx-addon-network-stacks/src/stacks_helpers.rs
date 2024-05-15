@@ -1,17 +1,20 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use clarity::vm::{
     types::{
-        ASCIIData, BufferLength, CharType, SequenceData, SequenceSubtype, StringSubtype,
-        StringUTF8Length, TupleData, TupleTypeSignature, TypeSignature as ClarityType,
+        ASCIIData, BuffData, BufferLength, CharType, ListData, SequenceData, SequenceSubtype,
+        StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+        TypeSignature as ClarityType, UTF8Data,
     },
     ClarityName,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
-    types::{PrimitiveValue, TypeSpecification, Value},
+    types::{BufferData, PrimitiveValue, TypeSpecification, Value},
 };
+
+use crate::typing::CLARITY_BUFFER;
 
 pub fn parse_clarity_value(
     bytes: &Vec<u8>,
@@ -163,11 +166,33 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
             ))),
         },
         ClarityValue::Bool(val) => Ok(Value::Primitive(PrimitiveValue::Bool(val))),
-        ClarityValue::Sequence(_) => todo!(),
+        ClarityValue::Sequence(SequenceData::List(ListData { data, .. })) => {
+            let values = data
+                .into_iter()
+                .map(|v| clarity_value_to_value(v))
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            Ok(Value::Array(Box::new(values)))
+        }
+        ClarityValue::Sequence(SequenceData::Buffer(BuffData { data })) => {
+            Ok(Value::Primitive(PrimitiveValue::Buffer(BufferData {
+                bytes: data,
+                typing: CLARITY_BUFFER.clone(),
+            })))
+        }
+        ClarityValue::Sequence(SequenceData::String(val)) => {
+            let string = val.to_string();
+            Ok(Value::Primitive(PrimitiveValue::String(string)))
+        }
         ClarityValue::Principal(val) => {
             Ok(Value::Primitive(PrimitiveValue::String(val.to_string())))
         }
-        ClarityValue::Tuple(_) => todo!(),
+        ClarityValue::Tuple(TupleData { data_map, .. }) => {
+            let mut map = HashMap::new();
+            data_map.into_iter().for_each(|(k, v)| {
+                map.insert(k.to_string(), clarity_value_to_value(v));
+            });
+            Ok(Value::Object(map))
+        }
         ClarityValue::Optional(_) => todo!(),
         ClarityValue::Response(_) => todo!(),
         ClarityValue::CallableContract(val) => {
