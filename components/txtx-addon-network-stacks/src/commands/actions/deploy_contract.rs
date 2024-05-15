@@ -17,10 +17,10 @@ lazy_static! {
       StacksDeployContract => {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
-          documentation: "Encode contract deployment payload",
+          documentation: "Coming soon",
           inputs: [
               clarity_value: {
-                  documentation: "Any valid Clarity value",
+                  documentation: "",
                   typing: Type::bool(),
                   optional: true,
                   interpolable: true
@@ -28,24 +28,12 @@ lazy_static! {
           ],
           outputs: [
               bytes: {
-                  documentation: "Encoded contract call",
+                  documentation: "",
                   typing: Type::buffer()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-            action "my_ref" "stacks::deploy_contract" {
-                description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
-                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                function_name = "verify-and-update-price-feeds"
-                function_args = [
-                    encode_buffer(output.bitcoin_price_feed),
-                    encode_tuple({
-                        "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
-                        "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                        "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
-                    })
-                ]
-            }
+            // Coming soon
         "#},
       }
     };
