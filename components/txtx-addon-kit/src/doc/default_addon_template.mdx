@@ -1,105 +1,190 @@
-{{=<% %>=}}
 export const metadata = {
-    title: "<% addon_name %>",
-    description: "Add-on for <% addon_name %>",
+    title: "{{ addon_name }}",
+    description: "Add-on for {{ addon_name }}",
 };
 
-# <% addon_name %> {{ id: "<% addon_namespace %>-constructs" }}
+# {{ addon_name }} {{double_open}} id: "{{ addon_namespace }}-constructs" {{double_close}}
 
-<% addon_description %>
+{{ addon_description }}
 
 ---
 
-<%# functions %>
+{{# functions }}
 
-## <% name %> {{ tag: 'function' }}
+## {{ name }} {{double_open}} tag: 'function' {{double_close}}
 
 <Row>
   <Col>
 
-<% documentation %>
+{{{ documentation }}}
 
-### Inputs Documentation
+### Inputs
 
 <Properties>
 
-<%# inputs %>
+{{# inputs }}
 
-  <Property name="<% name %>">
-    <% documentation %>
+  <Property name="{{ name }}">
+    {{{ documentation }}}
   </Property>
 
-<%/ inputs %>
+{{/ inputs }}
 
 </Properties>
 
+### Output
+
+<Properties>
+  <Property name="value">
+    {{{ output_documentation }}}
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using {{ name }}">
+
+
+```hcl {{double_open}} title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
 </Col>
 </Row>
 
 ---
 
-<%/ functions %>
+{{/ functions }}
 
-<%# actions %>
+{{# actions }}
 
-## <% matcher %> {{ tag: 'action' }}
+## {{ matcher }} {{double_open}} tag: 'action' {{double_close}}
 
-### <% name %>
+{{{ documentation }}}
 
-<% documentation %>
-
-### Inputs Documentation
+### Inputs
 
 <Properties>
 
-<%# inputs %>
+{{# inputs }}
 
-  <Property name="<% name %>" type="required">
-    <% documentation %>
+  <Property name="{{ name }}" type="{{ requirementStatus }}">
+    {{{ documentation }}}
   </Property>
 
-<%/ inputs %>
+{{/ inputs }}
 
 </Properties>
 
-<CodeGroup title="Example using <% matcher %>">
-
-
-```hcl {{ title: 'main.tx' }}
-<%{ example }%>
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
-### Outputs Documentation
+### Outputs
 
 <Note>
 
-When the `<% matcher %>` action is successfully executed, the following outputs are attached to the action
+When the `{{ matcher }}` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
 <Properties>
 
-<%# outputs %>
+{{# outputs }}
 
-  <Property name="<% name %>">
-    <% documentation %>
+  <Property name="{{ name }}">
+    {{{ documentation }}}
   </Property>
 
-<%/ outputs %>
+{{/ outputs }}
 
 </Properties>
 
+<CodeGroup title="Example using {{ matcher }}">
+
+
+```hcl {{double_open}} title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
+
 ---
 
-<%/ actions %>
+{{/ actions }}
+
+{{# prompts }}
+
+## {{ matcher }} {{double_open}} tag: 'prompts' {{double_close}}
+
+{{{ documentation }}}
+
+### Inputs
+
+<Properties>
+
+{{# inputs }}
+
+  <Property name="{{ name }}" type="{{ requirementStatus  }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ inputs }}
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `{{ matcher }}` prompt is successfully executed, the following outputs are attached to the prompt
+
+</Note>
+
+<Properties>
+
+{{# outputs }}
+
+  <Property name="{{ name }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ outputs }}
+
+</Properties>
+
+<CodeGroup title="Example using {{ matcher }}">
+
+
+```hcl {{double_open}}title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+{{/ prompts }}

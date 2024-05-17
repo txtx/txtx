@@ -33,9 +33,10 @@ impl Addon for StacksNetworkAddon {
 
     fn get_description(&self) -> &str {
         txtx_addon_kit::indoc! {r#"
-            Stacks is a Bitcoin Layer for smart contracts; it enables smart contracts and decentralized applications to use Bitcoin as an asset and settle transactions on the Bitcoin blockchain.\n
-            Stacks has knowledge of the full Bitcoin state, thanks to its Proof of Transfer consensus and Clarity language, enabling it to read from Bitcoin at any time.\n
-            All transactions on the Stacks layer are automatically hashed and settled on the Bitcoin L1. Stacks blocks are secured by 100% Bitcoin hashpower. In order to re-order Stacks blocks/transactions, an attacker would have to reorg Bitcoin."#}
+            The Stacks `txtx` plugin enables building Runbooks that interact with the Stacks blockchain. 
+            The plugin provides utility functions that allow you to encode data in the proper Clarity format that is required by contracts on the Stacks blockchain.
+            The actions and prompts can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser wallet. 
+            "#}
     }
 
     fn get_namespace(&self) -> &str {

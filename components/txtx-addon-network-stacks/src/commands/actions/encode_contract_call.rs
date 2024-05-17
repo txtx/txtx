@@ -22,22 +22,22 @@ lazy_static! {
         EncodeStacksContractCall => {
           name: "Stacks Contract Call",
           matcher: "call_contract",
-          documentation: "Encode contract call payload",
+          documentation: "The `call_contract` action encodes a valid contract call payload and serializes it as a hex string.",
           inputs: [
               contract_id: {
-                  documentation: "Address and identifier of the contract to invoke",
+                  documentation: "The address and identifier of the contract to invoke.",
                   typing: Type::addon(CLARITY_PRINCIPAL.clone()),
                   optional: false,
                   interpolable: true
               },
               function_name: {
-                  documentation: "Method to invoke",
+                  documentation: "The contract method to invoke.",
                   typing: Type::string(),
                   optional: false,
                   interpolable: true
               },
               function_args: {
-                  documentation: "Args to provide",
+                  documentation: "The function arguments for the contract call.",
                   typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
                   optional: true,
                   interpolable: true
@@ -51,17 +51,17 @@ lazy_static! {
           ],
           outputs: [
               bytes: {
-                  documentation: "Encoded contract call",
+                  documentation: "The encoded contract call bytes.",
                   typing: Type::buffer()
               },
               network_id: {
-                  documentation: "Network id of the encoded transaction.",
+                  documentation: "The network id of the encoded transaction.",
                   typing: Type::string()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-            action "update_price_feed" "stacks::send_contract_call" {
-                description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+            action "my_ref" "stacks::call_contract" {
+                description = "Encodes the contract call transaction."
                 contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                 function_name = "verify-and-update-price-feeds"
                 function_args = [
@@ -73,6 +73,14 @@ lazy_static! {
                     })
                 ]
             }
+            output "bytes" {
+              value = action.my_ref.bytes
+            }
+            output "network_id" {
+              value = action.my_ref.network_id
+            }
+            // > bytes: 0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631
+            // > network_id: testnet
         "#},
       }
     };

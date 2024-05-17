@@ -9,14 +9,14 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::{define_async_command, AddonDefaults};
+use txtx_addon_kit::{define_async_command, indoc, AddonDefaults};
 
 lazy_static! {
     pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_async_command! {
         BroadcastStacksTransaction => {
             name: "Send an HTTP request",
             matcher: "send_http_request",
-            documentation: "The http command makes an HTTP GET request to the given URL and exports information about the response.",
+            documentation: "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
             inputs: [
                 url: {
                     documentation: "The URL for the request. Supported schemes are http and https.",
@@ -31,7 +31,10 @@ lazy_static! {
                   interpolable: true
                 },
                 method: {
-                  documentation: "The HTTP Method for the request. Allowed methods are a subset of methods defined in RFC7231 namely, GET, HEAD, and POST. POST support is only intended for read-only URLs, such as submitting a search.",
+                  documentation: indoc!{r#"
+                  The HTTP Method for the request. 
+                  Allowed methods are a subset of methods defined in RFC7231: GET, HEAD, and POST. 
+                  POST support is only intended for read-only URLs, such as submitting a search."#},
                   typing: Type::string(),
                   optional: true,
                   interpolable: true
@@ -59,7 +62,16 @@ lazy_static! {
                     typing: Type::uint()
                 }
             ],
-            example: "",
+            example: indoc!{r#"
+            action "example" "std::send_http_request" {
+              url = "https://example.com"
+            }
+          
+            output "status" {
+              value = action.example.status_code
+            }
+            // > status: 200
+            "#},
         }
     };
 }

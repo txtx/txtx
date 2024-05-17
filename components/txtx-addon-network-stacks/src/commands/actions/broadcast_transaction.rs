@@ -21,7 +21,7 @@ lazy_static! {
         BroadcastStacksTransaction => {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
-            documentation: "Broadcast a signed transaction payload",
+            documentation: "The `broadcast_transaction` action sends a signed transaction payload to the specified network.",
             inputs: [
                 signed_transaction_bytes: {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",
@@ -36,17 +36,18 @@ lazy_static! {
                   interpolable: true
                 },
                 confirmations: {
-                    documentation: "The number of blocks required.",
+                    documentation: "Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.",
                     typing: Type::uint(),
                     optional: true,
                     interpolable: true
-                },
-                success_required: {
-                    documentation: "Success required.",
-                    typing: Type::bool(),
-                    optional: true,
-                    interpolable: true
                 }
+                // todo:
+                // success_required: {
+                //     documentation: "Success required.",
+                //     typing: Type::bool(),
+                //     optional: true,
+                //     interpolable: true
+                // }
             ],
             outputs: [
               tx_id: {
@@ -54,24 +55,23 @@ lazy_static! {
                     typing: Type::string()
             },
                 result: {
-                    documentation: "The result of the transaction",
+                    documentation: "The transaction result.",
                     typing: Type::buffer()
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
             action "my_ref" "stacks::broadcast_transaction" {
-                description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
-                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                function_name = "verify-and-update-price-feeds"
-                function_args = [
-                    encode_buffer(output.bitcoin_price_feed),
-                    encode_tuple({
-                        "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
-                        "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                        "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
-                    })
-                ]
+                description = "Broadcasts the signed transaction bytes"
+                signed_transaction_bytes = "0x8080000000040063A5EDA39412C016478AE5A8C300843879F78245000000000000000100000000000004B0000182C1712C31B7F683F6C56EEE8920892F735FC0118C98FD10C1FDAA85ABEC2808063773E5F61229D76B29784B8BBBBAAEA72EEA701C92A4FE15EF3B9E32A373D8020100000000021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631"
             }
+            output "tx_id" {
+              value = action.my_ref.tx_id
+            }
+            output "result" {
+              value = action.my_ref.result
+            }
+            // > tx_id: 0x...
+            // > result: success
         "#},
         }
     };

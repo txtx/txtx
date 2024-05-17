@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose, Engine};
 use txtx_addon_kit::{
-    define_function,
+    define_function, indoc,
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
@@ -12,16 +12,21 @@ lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         Base64Decode => {
             name: "base64_decode",
-            documentation: "",
-            example: "base64_decode('UE5...')",
+            documentation: "`base64_decode` decodes a base64 encoded string and returns the result as a hex string.",
+            example: indoc!{r#"
+            output "decoded" { 
+                value = base64_decode("SGVsbG8gd29ybGQh")
+            }
+            > decoded: 0x48656c6c6f20776f726c6421
+          "#},
             inputs: [
                 base64_string: {
-                    documentation: "The base64 string to decode",
+                    documentation: "The base64 string to decode.",
                     typing: vec![Type::string()]
                 }
             ],
             output: {
-                documentation: "The base64 decoded string",
+                documentation: "The decoded base64 string, as a hex string.",
                 typing: Type::string()
             },
         }

@@ -214,7 +214,13 @@ fn insert_inputs_from_spec(
 ) -> mustache::MapBuilder {
     input_builder
         .insert_str("name", &input_spec.name)
-        .insert_bool("required", !input_spec.optional)
+        .insert_str(
+            "requirementStatus",
+            match input_spec.optional {
+                true => "optional",
+                false => "required",
+            },
+        )
         .insert_str("documentation", &input_spec.documentation)
         .insert_str("type", format!("{:?}", input_spec.typing))
 }
@@ -264,6 +270,7 @@ fn insert_data_from_spec(
                 .insert_str("name", &spec.name)
                 .insert_str("matcher", &spec.matcher)
                 .insert_str("documentation", &spec.documentation)
+                .insert_str("example", &spec.example)
                 // .insert_str("example", spec.example)
                 // .insert_str("snippet", spec.snippet)
                 .insert_vec("inputs", |mut inputs_builder| {
@@ -290,6 +297,10 @@ fn insert_data_from_spec(
 
 fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
         .insert("addon_name", &addon.get_name())
         .expect("Failed to encode name")
         .insert("addon_description", &addon.get_description())
