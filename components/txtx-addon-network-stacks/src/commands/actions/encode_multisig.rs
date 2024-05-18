@@ -121,6 +121,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
             stacks_public_keys.len(),
             &stacks_public_keys,
         );
+
         let auth = TransactionAuth::Standard(TransactionSpendingCondition::Multisig(
             MultisigSpendingCondition {
                 hash_mode: MultisigHashMode::P2SH,
@@ -131,12 +132,18 @@ impl CommandImplementation for EncodeMultisigTransaction {
                 signatures_required: stacks_public_keys.len() as u16,
             },
         ));
+
         let version = match network_id.as_str() {
             "testnet" => TransactionVersion::Testnet,
             "mainnet" => TransactionVersion::Mainnet,
             _ => unreachable!(),
         };
-        let tx = StacksTransaction::new(version, auth, payload);
+
+        let mut tx = StacksTransaction::new(version, auth, payload);
+        if let TransactionVersion::Testnet = version {
+            tx.chain_id = 0x80000000;
+        }
+
         let mut bytes = vec![];
         tx.consensus_serialize(&mut bytes).unwrap();
         result.outputs.insert(
