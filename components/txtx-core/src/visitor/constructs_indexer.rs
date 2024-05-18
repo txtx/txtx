@@ -26,7 +26,7 @@ use txtx_addon_kit::{
 pub fn run_constructs_indexing(
     runbook: &Arc<RwLock<Runbook>>,
     runtime_context: &mut RuntimeContext,
-) -> Result<bool, String> {
+) -> Result<bool, Vec<Diagnostic>> {
     let mut has_errored = false;
     match runbook.write() {
         Ok(mut runbook) => {
@@ -45,11 +45,15 @@ pub fn run_constructs_indexing(
             }
 
             while let Some((location, package_name, raw_content)) = sources.pop_front() {
-                let content = hcl::parser::parse_body(&raw_content)
-                    .map_err(|e: hcl::parser::Error| e.to_string())?;
-                let package_location = location.get_parent_location()?;
-                let package_uuid =
-                    runbook.find_or_create_package_uuid(&package_name, &package_location)?;
+                let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
+                    vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
+                })?;
+                let package_location = location
+                    .get_parent_location()
+                    .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
+                let package_uuid = runbook
+                    .find_or_create_package_uuid(&package_name, &package_location)
+                    .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
 
                 let mut blocks = content
                     .into_blocks()
@@ -81,7 +85,10 @@ pub fn run_constructs_indexing(
 
                             // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
                             let mut imported_package_location =
-                                location.get_parent_location().unwrap();
+                                location.get_parent_location().map_err(|e| {
+                                    vec![diagnosed_error!("{}", e.to_string()).location(&location)]
+                                })?;
+
                             imported_package_location.append_path(&path).unwrap();
 
                             match std::fs::read_dir(imported_package_location.to_string()) {
@@ -90,13 +97,18 @@ pub fn run_constructs_indexing(
                                         &imported_package_location.to_string(),
                                     )
                                     .map_err(|e| {
-                                        format!("unable to read directory: {}", e.to_string())
+                                        vec![diagnosed_error!("{}", e.to_string())
+                                            .location(&imported_package_location)]
                                     })?;
                                     for file_path in files.into_iter() {
                                         let file_location = FileLocation::from_path(file_path);
                                         if !files_visited.contains(&file_location) {
-                                            let raw_content =
-                                                file_location.read_content_as_utf8()?;
+                                            let raw_content = file_location
+                                                .read_content_as_utf8()
+                                                .map_err(|e| {
+                                                    vec![diagnosed_error!("{}", e.to_string())
+                                                        .location(&file_location)]
+                                                })?;
                                             let module_name = name.to_string();
                                             sources.push_back((
                                                 file_location,
@@ -108,7 +120,11 @@ pub fn run_constructs_indexing(
                                 }
                                 Err(_) => {
                                     if !files_visited.contains(&imported_package_location) {
-                                        let raw_content = location.read_content_as_utf8()?;
+                                        let raw_content =
+                                            location.read_content_as_utf8().map_err(|e| {
+                                                vec![diagnosed_error!("{}", e.to_string())
+                                                    .location(&location)]
+                                            })?;
                                         let module_name = name.to_string();
                                         sources.push_back((
                                             imported_package_location.clone(),

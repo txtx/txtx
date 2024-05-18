@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
+use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructUuid, PackageUuid};
 
 use crate::types::{Runbook, RuntimeContext};
 
@@ -12,7 +12,7 @@ pub fn run_constructs_dependencies_indexing(
         Vec<(ConstructUuid, ConstructUuid)>,
         Vec<(PackageUuid, PackageUuid)>,
     ),
-    String,
+    Vec<Diagnostic>,
 > {
     let mut constructs_edges = vec![];
     let packages_edges = vec![];
