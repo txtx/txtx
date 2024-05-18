@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hcl-edit = "0.7.5"
+hcl-edit = "0.8.0"
 serde = "1"
 serde_derive = "1"
 jaq-interpret = "1.2.1"

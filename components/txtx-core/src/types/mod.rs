@@ -7,6 +7,7 @@ pub use package::Package;
 pub use runbook::{Runbook, SourceTree};
 use std::collections::{BTreeMap, HashMap};
 pub use txtx_addon_kit::types::commands::CommandInstance;
+use txtx_addon_kit::types::PackageUuid;
 
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
@@ -47,12 +48,36 @@ impl RuntimeContext {
         }
     }
 
-    pub fn execute_function(&self, name: &str, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        let function = match self.functions.get(name) {
-            Some(function) => function,
-            None => {
-                todo!("return diagnostic, could not find function {name}");
-            }
+    pub fn execute_function(
+        &self,
+        package_uuid: PackageUuid,
+        namespace_opt: Option<String>,
+        name: &str,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let function = match namespace_opt {
+            Some(namespace) => match self
+                .addons_ctx
+                .contexts
+                .get(&(package_uuid, namespace.clone()))
+            {
+                Some(addon) => match addon.functions.get(name) {
+                    Some(function) => function,
+                    None => {
+                        return diagnosed_error!(
+                            "could not find function {name} in addon {}",
+                            namespace
+                        )
+                    }
+                },
+                None => return diagnosed_error!("could not find namespace {}", namespace),
+            },
+            None => match self.functions.get(name) {
+                Some(function) => function,
+                None => {
+                    return diagnosed_error!("could not find function {name}");
+                }
+            },
         };
         (function.runner)(function, args)
     }
