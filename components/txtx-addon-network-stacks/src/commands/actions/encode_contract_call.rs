@@ -93,7 +93,7 @@ impl CommandImplementation for EncodeStacksContractCall {
     }
 
     fn run(
-        _ctx: &CommandSpecification,
+        ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
@@ -105,26 +105,50 @@ impl CommandImplementation for EncodeStacksContractCall {
             .and_then(|a| Some(a.expect_string()))
             .or(defaults.keys.get("network_id").map(|x| x.as_str()))
             .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'network_id' is missing"
-            )))
-            .unwrap()
+                "command '{}': attribute 'network_id' is missing",
+                ctx.matcher
+            )))?
             .to_string();
 
         // Extract contract_address
-        let contract_id = match args.get("contract_id") {
-            Some(Value::Primitive(PrimitiveValue::Buffer(contract_id))) => {
-                match parse_clarity_value(&contract_id.bytes, &contract_id.typing) {
-                    Ok(cv) => match cv {
-                        clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
-                        cv => todo!("unexpected clarity value {cv}"),
-                    },
-                    Err(e) => return Err(e),
+
+        let Some(contract_id_value) = args.get("contract_id") else {
+            return Err(diagnosed_error!(
+                "command '{}': attribute 'contract_id' is missing",
+                ctx.matcher
+            ));
+        };
+
+        let contract_id = match contract_id_value {
+            Value::Primitive(PrimitiveValue::Buffer(contract_id)) => {
+                match parse_clarity_value(&contract_id.bytes, &contract_id.typing)? {
+                    clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
+                    cv => {
+                        return Err(diagnosed_error!(
+                            "command {}: unexpected clarity value {cv}",
+                            ctx.matcher
+                        ))
+                    }
                 }
             }
-            Some(Value::Primitive(PrimitiveValue::String(contract_id))) => {
-                clarity::vm::types::QualifiedContractIdentifier::parse(contract_id).unwrap()
+            Value::Primitive(PrimitiveValue::String(contract_id)) => {
+                match clarity::vm::types::QualifiedContractIdentifier::parse(contract_id) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(diagnosed_error!(
+                            "command {}: error parsing contract_id {}",
+                            ctx.matcher,
+                            e.to_string()
+                        ))
+                    }
+                }
             }
-            _ => todo!("contract_id is missing or wrong type, return diagnostic"),
+            _ => {
+                return Err(diagnosed_error!(
+                    "command {}: attribute 'contract_id' expecting type string",
+                    ctx.matcher
+                ))
+            }
         };
 
         // validate contract_id against network_id
@@ -140,32 +164,47 @@ impl CommandImplementation for EncodeStacksContractCall {
             );
         }
 
-        let function_name = match args.get("function_name") {
-            Some(Value::Primitive(PrimitiveValue::String(value))) => value.clone(),
-            _ => todo!("function_name missing or wrong type, return diagnostic"),
+        let Some(function_name_value) = args.get("function_name") else {
+            return Err(diagnosed_error!(
+                "command '{}': attribute 'function_name' is missing",
+                ctx.matcher
+            ));
         };
 
-        let function_args = match args.get("function_args") {
-            Some(Value::Array(args)) => {
-                let mut function_args = vec![];
-                for arg in args.iter() {
-                    let function_arg = match arg {
-                        // todo maybe we can assume some types?
-                        Value::Primitive(PrimitiveValue::Buffer(buffer_data)) => {
-                            match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
-                                Ok(v) => v,
-                                Err(e) => return Err(e),
-                            }
-                        }
-                        v => todo!("function argument is missing or wrong type {:?}", v), // return diag
-                    };
-
-                    function_args.push(function_arg)
-                }
-                function_args
-            }
-            _ => todo!("function_args missing, return diagnostic"),
+        let Some(function_name) = function_name_value.as_string() else {
+            return Err(diagnosed_error!(
+                "command {}: attribute 'function_name' expecting type string",
+                ctx.matcher
+            ));
         };
+
+        let Some(function_args_value) = args.get("function_args") else {
+            return Err(diagnosed_error!(
+                "command '{}': attribute 'function_name' is missing",
+                ctx.matcher
+            ));
+        };
+
+        let Some(function_args_values) = function_args_value.as_array() else {
+            return Err(diagnosed_error!(
+                "function '{}': expected array, got {:?}",
+                ctx.matcher,
+                function_args_value
+            ));
+        };
+
+        let mut function_args = vec![];
+        for arg_value in function_args_values.iter() {
+            let Some(buffer) = arg_value.as_buffer_data() else {
+                return Err(diagnosed_error!(
+                    "function '{}': expected array, got {:?}",
+                    ctx.matcher,
+                    arg_value
+                ));
+            };
+            let arg = parse_clarity_value(&buffer.bytes, &buffer.typing)?;
+            function_args.push(arg);
+        }
 
         let payload = TransactionPayload::ContractCall(TransactionContractCall {
             contract_name: contract_id.name.clone(),

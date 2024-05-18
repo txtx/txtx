@@ -4,6 +4,9 @@ extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+mod macros;
+
 pub use hex;
 pub use indoc::indoc;
 use rust_fsm::StateMachine;
@@ -30,7 +33,6 @@ pub use reqwest;
 pub use serde;
 
 pub mod helpers;
-pub mod macros;
 pub mod types;
 
 lazy_static! {

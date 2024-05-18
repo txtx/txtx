@@ -98,6 +98,19 @@ impl Diagnostic {
             parent_diagnostic: None,
         }
     }
+
+    pub fn location(mut self, location: &FileLocation) -> Self {
+        self.location = Some(location.clone());
+        self
+    }
+
+    pub fn is_error(&self) -> bool {
+        if let DiagnosticLevel::Error = self.level {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Display for Diagnostic {

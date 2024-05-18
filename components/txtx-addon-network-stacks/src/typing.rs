@@ -52,6 +52,12 @@ lazy_static! {
             documentation: "Clarity buffer",
         }
     };
+    pub static ref CLARITY_OK: TypeSpecification = define_addon_type! {
+        ClarityBuffer => {
+            name: "clarity_ok",
+            documentation: "Clarity Result Ok",
+        }
+    };
     pub static ref CLARITY_VALUE: TypeSpecification = define_addon_type! {
         ClarityValue => {
             name: "clarity_value",

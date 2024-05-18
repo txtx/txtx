@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+pub extern crate txtx_addon_kit as kit;
+
 pub mod errors;
 pub mod eval;
 pub mod std;
@@ -12,16 +15,15 @@ use ::std::sync::mpsc::Sender;
 use ::std::sync::Arc;
 use ::std::sync::RwLock;
 
-use kit::hcl::structure::Block;
-use kit::helpers::fs::FileLocation;
-use kit::types::commands::CommandId;
-use kit::types::commands::CommandInstanceOrParts;
-use kit::types::commands::EvalEvent;
-use kit::types::diagnostics::Diagnostic;
-use kit::types::functions::FunctionSpecification;
-use kit::types::PackageUuid;
-use kit::AddonContext;
-pub use txtx_addon_kit as kit;
+use txtx_addon_kit::hcl::structure::Block;
+use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::commands::CommandId;
+use txtx_addon_kit::types::commands::CommandInstanceOrParts;
+use txtx_addon_kit::types::commands::EvalEvent;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::functions::FunctionSpecification;
+use txtx_addon_kit::types::PackageUuid;
+use txtx_addon_kit::AddonContext;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
@@ -35,7 +37,7 @@ pub fn simulate_runbook(
     runbook: &Arc<RwLock<Runbook>>,
     runtime_context: &Arc<RwLock<RuntimeContext>>,
     eval_tx: Sender<EvalEvent>,
-) -> Result<(), String> {
+) -> Result<(), Vec<Diagnostic>> {
     match runtime_context.write() {
         Ok(mut runtime_context) => {
             let _ = run_constructs_indexing(runbook, &mut runtime_context)?;
@@ -44,7 +46,7 @@ pub fn simulate_runbook(
         Err(e) => unimplemented!("could not acquire lock: {e}"),
     }
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-    let _ = run_constructs_evaluation(runbook, runtime_context, None, eval_tx).unwrap();
+    let _ = run_constructs_evaluation(runbook, runtime_context, None, eval_tx)?;
     Ok(())
 }
 

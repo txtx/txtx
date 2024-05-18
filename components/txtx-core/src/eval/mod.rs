@@ -20,7 +20,7 @@ use txtx_addon_kit::{
             CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
-        diagnostics::{Diagnostic, DiagnosticLevel},
+        diagnostics::Diagnostic,
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
@@ -155,7 +155,7 @@ pub fn run_constructs_evaluation(
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
     start_node: Option<NodeIndex>,
     eval_tx: Sender<EvalEvent>,
-) -> Result<(), Diagnostic> {
+) -> Result<(), Vec<Diagnostic>> {
     match runbook.write() {
         Ok(mut runbook) => {
             let g = runbook.constructs_graph.clone();
@@ -288,6 +288,15 @@ pub fn run_constructs_evaluation(
                                             )
                                             .unwrap();
                                         continue;
+                                    }
+                                    CommandInputEvaluationStatus::Aborted(result) => {
+                                        let mut diags = vec![];
+                                        for (_k, res) in result.inputs.into_iter() {
+                                            if let Err(diag) = res {
+                                                diags.push(diag);
+                                            }
+                                        }
+                                        return Err(diags);
                                     }
                                 },
                                 Err(e) => {
@@ -554,7 +563,8 @@ pub fn eval_expression(
         }
         // Represents a function call.
         Expression::FuncCall(function_call) => {
-            let func = function_call.ident.to_string();
+            let func_namespace = function_call.name.namespace.first().map(|n| n.to_string());
+            let func_name = function_call.name.name.to_string();
             let mut args = vec![];
             for expr in function_call.args.iter() {
                 let value = match eval_expression(
@@ -575,7 +585,12 @@ pub fn eval_expression(
                 args.push(value);
             }
             match runtime_ctx.write() {
-                Ok(runtime_ctx) => runtime_ctx.execute_function(&func, &args)?,
+                Ok(runtime_ctx) => runtime_ctx
+                    .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
+                    .map_err(|e| {
+                        // todo: add more context to error
+                        e
+                    })?,
                 Err(e) => unimplemented!("could not acquire lock: {e}"),
             }
         }
@@ -670,7 +685,12 @@ pub fn eval_expression(
                 BinaryOperator::Or => "or_bool",
             };
             match runtime_ctx.write() {
-                Ok(runtime_ctx) => runtime_ctx.execute_function(func, &vec![lhs, rhs])?,
+                Ok(runtime_ctx) => runtime_ctx.execute_function(
+                    package_uuid.clone(),
+                    None,
+                    func,
+                    &vec![lhs, rhs],
+                )?,
                 Err(e) => unimplemented!("could not acquire lock: {e}"),
             }
         }
@@ -690,6 +710,7 @@ pub fn eval_expression(
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
     NeedsUserInteraction,
+    Aborted(CommandInputsEvaluationResult),
 }
 
 pub fn perform_inputs_evaluation(
@@ -702,10 +723,10 @@ pub fn perform_inputs_evaluation(
     package_uuid: &PackageUuid,
     runbook: &Runbook,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
-) -> Result<CommandInputEvaluationStatus, String> {
+) -> Result<CommandInputEvaluationStatus, Diagnostic> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();
-    let mut _fatal_error = false;
+    let mut fatal_error = false;
 
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
@@ -754,8 +775,8 @@ pub fn perform_inputs_evaluation(
                 };
 
                 if let Err(ref diag) = value {
-                    if let DiagnosticLevel::Error = diag.level {
-                        _fatal_error = true;
+                    if diag.is_error() {
+                        fatal_error = true;
                     }
                 }
 
@@ -820,8 +841,8 @@ pub fn perform_inputs_evaluation(
             };
 
             if let Err(ref diag) = value {
-                if let DiagnosticLevel::Error = diag.level {
-                    _fatal_error = true;
+                if diag.is_error() {
+                    fatal_error = true;
                 }
             }
 
@@ -850,8 +871,8 @@ pub fn perform_inputs_evaluation(
             };
 
             if let Err(ref diag) = value {
-                if let DiagnosticLevel::Error = diag.level {
-                    _fatal_error = true;
+                if diag.is_error() {
+                    fatal_error = true;
                 }
             }
 
@@ -880,8 +901,8 @@ pub fn perform_inputs_evaluation(
             };
 
             if let Err(ref diag) = value {
-                if let DiagnosticLevel::Error = diag.level {
-                    _fatal_error = true;
+                if diag.is_error() {
+                    fatal_error = true;
                 }
             }
 
@@ -889,5 +910,9 @@ pub fn perform_inputs_evaluation(
         }
     }
 
-    Ok(CommandInputEvaluationStatus::Complete(results))
+    let status = match fatal_error {
+        false => CommandInputEvaluationStatus::Complete(results),
+        true => CommandInputEvaluationStatus::Aborted(results),
+    };
+    Ok(status)
 }
