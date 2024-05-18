@@ -1,0 +1,10 @@
+{
+  "name": "Stacks Multisig",
+  "runbooks": [
+    {
+      "name": "Stacks Multisig",
+      "description": "Test stacks multisig",
+      "location": "./run"
+    }
+  ]
+}
