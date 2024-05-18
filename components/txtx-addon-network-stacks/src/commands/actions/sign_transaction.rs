@@ -47,7 +47,7 @@ lazy_static! {
                 interpolable: true
             },
             transaction_payload_bytes: {
-                documentation: "The transacction payload bytes, encoded as a clarity buffer.",
+                documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true

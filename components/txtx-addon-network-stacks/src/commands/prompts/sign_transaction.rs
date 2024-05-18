@@ -22,7 +22,7 @@ lazy_static! {
           documentation: "The `sign_transaction` prompt signs an encoded transaction payload in the txtx web ui with an in-browser wallet.",
           inputs: [
               transaction_payload_bytes: {
-                documentation: "The transacction payload bytes, encoded as a clarity buffer.",
+                documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                   typing: Type::buffer(),
                   optional: false,
                   interpolable: true
