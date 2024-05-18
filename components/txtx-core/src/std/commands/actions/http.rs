@@ -1,6 +1,8 @@
 use std::{collections::HashMap, pin::Pin};
+use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::PreCommandSpecification;
+use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -13,7 +15,7 @@ use txtx_addon_kit::{define_async_command, indoc, AddonDefaults};
 
 lazy_static! {
     pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_async_command! {
-        BroadcastStacksTransaction => {
+        SendHttpRequest => {
             name: "Send an HTTP request",
             matcher: "send_http_request",
             documentation: "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
@@ -47,7 +49,13 @@ lazy_static! {
                 },
                 request_headers: {
                     documentation: "A map of request header field names and values.",
-                    typing: Type::object(vec![]),
+                    typing: Type::object(vec![ObjectProperty {
+                        name: "Content-Type".into(),
+                        documentation: "Content-Type".into(),
+                        typing: Type::string(),
+                        optional: true,
+                        interpolable: true,
+                    }]),
                     optional: true,
                     interpolable: true
                 }
@@ -75,8 +83,8 @@ lazy_static! {
         }
     };
 }
-pub struct BroadcastStacksTransaction;
-impl CommandImplementationAsync for BroadcastStacksTransaction {
+pub struct SendHttpRequest;
+impl CommandImplementationAsync for SendHttpRequest {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -106,6 +114,8 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 .and_then(|value| Some(value.expect_object()));
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
+
+            req_builder = req_builder.header(CONTENT_TYPE, "application/json");
 
             if let Some(request_headers) = request_headers {
                 for (k, v) in request_headers.iter() {
