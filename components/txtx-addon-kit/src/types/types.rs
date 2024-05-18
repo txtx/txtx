@@ -138,6 +138,62 @@ impl Value {
         }
     }
 
+    pub fn as_string(&self) -> Option<&str> {
+        match &self {
+            Value::Primitive(PrimitiveValue::String(value)) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_uint(&self) -> Option<u64> {
+        match &self {
+            Value::Primitive(PrimitiveValue::UnsignedInteger(value)) => Some(*value),
+            _ => None,
+        }
+    }
+    pub fn as_int(&self) -> Option<i64> {
+        match &self {
+            Value::Primitive(PrimitiveValue::SignedInteger(value)) => Some(*value),
+            _ => None,
+        }
+    }
+    pub fn as_float(&self) -> Option<f64> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Float(value)) => Some(*value),
+            _ => None,
+        }
+    }
+    pub fn as_null(&self) -> Option<()> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Null) => Some(()),
+            _ => None,
+        }
+    }
+    pub fn as_bool(&self) -> Option<bool> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Bool(value)) => Some(*value),
+            _ => None,
+        }
+    }
+    pub fn as_buffer_data(&self) -> Option<&BufferData> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(value)) => Some(&value),
+            _ => None,
+        }
+    }
+    pub fn as_array(&self) -> Option<&Box<Vec<Value>>> {
+        match &self {
+            Value::Array(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_object(&self) -> Option<&HashMap<String, Result<Value, Diagnostic>>> {
+        match &self {
+            Value::Object(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
         match (self, rhs) {
             (Value::Primitive(PrimitiveValue::Null), Value::Primitive(PrimitiveValue::Null)) => {
