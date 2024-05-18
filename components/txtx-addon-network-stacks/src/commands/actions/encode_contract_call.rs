@@ -107,17 +107,16 @@ impl CommandImplementation for EncodeStacksContractCall {
             .ok_or(Diagnostic::error_from_string(format!(
                 "command '{}': attribute 'network_id' is missing",
                 ctx.matcher
-            )))
-            .unwrap()
+            )))?
             .to_string();
 
         // Extract contract_address
 
         let Some(contract_id_value) = args.get("contract_id") else {
-            return diagnosed_error!(
+            return Err(diagnosed_error!(
                 "command '{}': attribute 'contract_id' is missing",
                 ctx.matcher
-            );
+            ));
         };
 
         let contract_id = match contract_id_value {
@@ -125,7 +124,10 @@ impl CommandImplementation for EncodeStacksContractCall {
                 match parse_clarity_value(&contract_id.bytes, &contract_id.typing)? {
                     clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
                     cv => {
-                        return diagnosed_error!("command {}: unexpected clarity value {cv}", ctx.matcher)
+                        return Err(diagnosed_error!(
+                            "command {}: unexpected clarity value {cv}",
+                            ctx.matcher
+                        ))
                     }
                 }
             }
@@ -133,19 +135,19 @@ impl CommandImplementation for EncodeStacksContractCall {
                 match clarity::vm::types::QualifiedContractIdentifier::parse(contract_id) {
                     Ok(v) => v,
                     Err(e) => {
-                        return diagnosed_error!(
+                        return Err(diagnosed_error!(
                             "command {}: error parsing contract_id {}",
                             ctx.matcher,
                             e.to_string()
-                        )
+                        ))
                     }
                 }
             }
             _ => {
-                return diagnosed_error!(
+                return Err(diagnosed_error!(
                     "command {}: attribute 'contract_id' expecting type string",
                     ctx.matcher
-                )
+                ))
             }
         };
 
@@ -163,42 +165,42 @@ impl CommandImplementation for EncodeStacksContractCall {
         }
 
         let Some(function_name_value) = args.get("function_name") else {
-            return diagnosed_error!(
+            return Err(diagnosed_error!(
                 "command '{}': attribute 'function_name' is missing",
                 ctx.matcher
-            );
+            ));
         };
 
         let Some(function_name) = function_name_value.as_string() else {
-            return diagnosed_error!(
+            return Err(diagnosed_error!(
                 "command {}: attribute 'function_name' expecting type string",
                 ctx.matcher
-            );
+            ));
         };
 
         let Some(function_args_value) = args.get("function_args") else {
-            return diagnosed_error!(
+            return Err(diagnosed_error!(
                 "command '{}': attribute 'function_name' is missing",
                 ctx.matcher
-            );
+            ));
         };
 
         let Some(function_args_values) = function_args_value.as_array() else {
-            return diagnosed_error!(
+            return Err(diagnosed_error!(
                 "function '{}': expected array, got {:?}",
                 ctx.matcher,
                 function_args_value
-            );
+            ));
         };
 
         let mut function_args = vec![];
         for arg_value in function_args_values.iter() {
             let Some(buffer) = arg_value.as_buffer_data() else {
-                return diagnosed_error!(
+                return Err(diagnosed_error!(
                     "function '{}': expected array, got {:?}",
                     ctx.matcher,
                     arg_value
-                );
+                ));
             };
             let arg = parse_clarity_value(&buffer.bytes, &buffer.typing)?;
             function_args.push(arg);

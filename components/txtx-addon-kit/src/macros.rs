@@ -4,7 +4,7 @@ macro_rules! diagnosed_error {
         use txtx_addon_kit::types::diagnostics::{DiagnosticLevel, Diagnostic};
 
         let res = format_args!($($arg)*).to_string();
-        Err(Diagnostic {
+        Diagnostic {
             span: None,
             location: None,
             message: res,
@@ -12,7 +12,7 @@ macro_rules! diagnosed_error {
             documentation: None,
             example: None,
             parent_diagnostic: None,
-        })
+        }
     }};
 }
 

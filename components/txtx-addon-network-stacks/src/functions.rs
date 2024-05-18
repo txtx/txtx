@@ -487,7 +487,7 @@ impl FunctionImplementation for DecodeClarityValueOk {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let value = match args.get(0) {
             // todo maybe we can assume some types?
             Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => {
@@ -506,7 +506,18 @@ impl FunctionImplementation for DecodeClarityValueOk {
                     Err(e) => return Err(e),
                 }
             }
-            v => return diagnosed_error!("function argument is missing or wrong type {:?}", v),
+            Some(_v) => {
+                return Err(diagnosed_error!(
+                    "function '{}': argument type error",
+                    &ctx.name
+                ))
+            }
+            None => {
+                return Err(diagnosed_error!(
+                    "function '{}': argument missing",
+                    &ctx.name
+                ))
+            }
         };
 
         let inner_bytes: Vec<u8> = value.serialize_to_vec();

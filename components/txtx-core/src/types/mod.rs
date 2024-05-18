@@ -64,18 +64,18 @@ impl RuntimeContext {
                 Some(addon) => match addon.functions.get(name) {
                     Some(function) => function,
                     None => {
-                        return diagnosed_error!(
+                        return Err(diagnosed_error!(
                             "could not find function {name} in addon {}",
                             namespace
-                        )
+                        ))
                     }
                 },
-                None => return diagnosed_error!("could not find namespace {}", namespace),
+                None => return Err(diagnosed_error!("could not find namespace {}", namespace)),
             },
             None => match self.functions.get(name) {
                 Some(function) => function,
                 None => {
-                    return diagnosed_error!("could not find function {name}");
+                    return Err(diagnosed_error!("could not find function {name}"));
                 }
             },
         };

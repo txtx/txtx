@@ -57,7 +57,13 @@ pub async fn handle_inspect_command(cmd: &InspectRunbook, _ctx: &Context) -> Res
     let mutable_runbook = Arc::new(RwLock::new(moved_man));
     let runtime_context_rw_lock = Arc::new(RwLock::new(runtime_context));
     let (eval_tx, _) = channel();
-    simulate_runbook(&mutable_runbook, &runtime_context_rw_lock, eval_tx)?;
+    let res = simulate_runbook(&mutable_runbook, &runtime_context_rw_lock, eval_tx.clone());
+    if let Err(diags) = res {
+        for diag in diags.iter() {
+            println!("{} {}", red!("x"), diag);
+        }
+        std::process::exit(1);
+    }
 
     if cmd.no_tui {
         // runbook.inspect_constructs();
@@ -95,11 +101,17 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         let runbook_rw_lock = Arc::new(RwLock::new(runbook.clone()));
         let runtime_ctx_rw_lock = Arc::new(RwLock::new(runtime_context));
 
-        simulate_runbook(
+        let res = simulate_runbook(
             &runbook_rw_lock,
             &runtime_ctx_rw_lock,
             eval_event_tx.clone(),
-        )?;
+        );
+        if let Err(diags) = res {
+            for diag in diags.iter() {
+                println!("{} {}", red!("x"), diag);
+            }
+            std::process::exit(1);
+        }
 
         println!(
             "{} Runbook '{}' successfully checked and loaded",
@@ -124,11 +136,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         let res = eval_event_loop(eval_event_rx, moved_eval_event_tx, eval_event_ctx);
         if let Err(diags) = res {
             for diag in diags.iter() {
-                println!(
-                    "{} {}",
-                    red!("x"),
-                    diag
-                );
+                println!("{} {}", red!("x"), diag);
             }
         }
         std::process::exit(1);
