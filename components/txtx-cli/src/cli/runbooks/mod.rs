@@ -3,6 +3,7 @@ use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::types::commands::{CommandInstanceStateMachineInput, EvalEvent};
+use txtx_core::kit::types::diagnostics::Diagnostic;
 use txtx_core::kit::uuid::Uuid;
 use txtx_core::std::StdAddon;
 use txtx_core::types::Runbook;
@@ -120,7 +121,17 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     // start thread to listen for evaluation events
     let moved_eval_event_tx = eval_event_tx.clone();
     let _ = std::thread::spawn(move || {
-        eval_event_loop(eval_event_rx, moved_eval_event_tx, eval_event_ctx);
+        let res = eval_event_loop(eval_event_rx, moved_eval_event_tx, eval_event_ctx);
+        if let Err(diags) = res {
+            for diag in diags.iter() {
+                println!(
+                    "{} {}",
+                    red!("x"),
+                    diag
+                );
+            }
+        }
+        std::process::exit(1);
     });
 
     // start web ui server
@@ -151,7 +162,7 @@ fn eval_event_loop(
     eval_rx: Receiver<EvalEvent>,
     eval_tx: Sender<EvalEvent>,
     context: HashMap<Uuid, (Arc<RwLock<Runbook>>, Arc<RwLock<RuntimeContext>>)>,
-) {
+) -> Result<(), Vec<Diagnostic>> {
     loop {
         match eval_rx.recv() {
             Ok(EvalEvent::AsyncRequestComplete {
@@ -227,8 +238,7 @@ fn eval_event_loop(
                     runtime_ctx_rw_lock,
                     Some(command_graph_node),
                     eval_tx.clone(),
-                )
-                .unwrap();
+                )?;
             }
             Err(e) => unimplemented!("Channel failed {e}"),
         }
