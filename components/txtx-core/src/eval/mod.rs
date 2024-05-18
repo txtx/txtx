@@ -14,14 +14,13 @@ use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
         template::Element,
-        Span,
     },
     types::{
         commands::{
             CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
-        diagnostics::{Diagnostic, DiagnosticLevel, DiagnosticSpan},
+        diagnostics::Diagnostic,
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
@@ -588,7 +587,7 @@ pub fn eval_expression(
             match runtime_ctx.write() {
                 Ok(runtime_ctx) => runtime_ctx
                     .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
-                    .map_err(|mut e| {
+                    .map_err(|e| {
                         // todo: add more context to error
                         e
                     })?,

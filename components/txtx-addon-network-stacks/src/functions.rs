@@ -5,13 +5,13 @@ use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
-    types::{PrimitiveValue, Type, TypeSpecification, Value},
+    types::{PrimitiveValue, Type, Value},
 };
 
 use crate::{
     stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
-        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_OK, CLARITY_PRINCIPAL, CLARITY_TUPLE,
+        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE,
         CLARITY_UINT, CLARITY_UTF8, CLARITY_VALUE,
     },
 };

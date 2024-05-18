@@ -4,7 +4,7 @@ use clarity::vm::{
     types::{
         ASCIIData, BuffData, BufferLength, CharType, ListData, SequenceData, SequenceSubtype,
         StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
-        TypeSignature as ClarityType, UTF8Data,
+        TypeSignature as ClarityType,
     },
     ClarityName,
 };

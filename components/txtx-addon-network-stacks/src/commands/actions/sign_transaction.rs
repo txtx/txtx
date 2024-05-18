@@ -112,7 +112,7 @@ impl CommandImplementation for SignStacksTransaction {
     }
 
     fn run(
-        _ctx: &CommandSpecification,
+        ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
@@ -166,7 +166,8 @@ impl CommandImplementation for SignStacksTransaction {
             .and_then(|a| Some(a.expect_string()))
             .or(defaults.keys.get("network_id").map(|x| x.as_str()))
             .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'network_id' is missing"
+                "command '{}': attribute 'network_id' is missing",
+                ctx.matcher
             )))
             .unwrap()
             .to_string();
