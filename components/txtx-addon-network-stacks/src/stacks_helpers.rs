@@ -22,7 +22,7 @@ pub fn parse_clarity_value(
 ) -> Result<ClarityValue, Diagnostic> {
     match typing.id.as_str() {
         "clarity_uint" | "clarity_int" | "clarity_bool" | "clarity_tuple" | "clarity_principal"
-        | "clarity_ascii" | "clarity_utf8" | "clarity_buffer" => {
+        | "clarity_ascii" | "clarity_utf8" | "clarity_buffer" | "clarity_ok" | "clarity_value" => {
             match ClarityValue::consensus_deserialize(&mut &bytes[..]) {
                 Ok(v) => Ok(v),
                 Err(e) => Err(Diagnostic::error_from_string(e.to_string())),
@@ -69,6 +69,7 @@ fn extract_clarity_type(typing: &TypeSpecification, value: &Value) -> ClarityTyp
             let tuple_data = value_to_tuple(value);
             ClarityType::TupleType(tuple_data.type_signature)
         }
+        "clarity_ok" => todo!("implement clarity_ok"),
         "clarity_buffer" => todo!("implement clarity_buffer"),
         "clarity_list" => todo!("implement clarity_list"),
         _ => ClarityType::NoType,

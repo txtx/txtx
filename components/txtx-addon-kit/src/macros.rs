@@ -1,4 +1,22 @@
 #[macro_export]
+macro_rules! diagnosed_error {
+    ($($arg:tt)*) => {{
+        use txtx_addon_kit::types::diagnostics::{DiagnosticLevel, Diagnostic};
+
+        let res = format_args!($($arg)*).to_string();
+        Err(Diagnostic {
+            span: None,
+            location: None,
+            message: res,
+            level: DiagnosticLevel::Error,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        })
+    }};
+}
+
+#[macro_export]
 macro_rules! define_function {
     ($func_key:ident => {
         name: $fn_name:expr,

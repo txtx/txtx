@@ -246,6 +246,13 @@ impl CommandSpecification {
                 optional: true,
                 interpolable: false,
             },
+            CommandInput {
+                name: "redacted".into(),
+                documentation: "...".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: false,
+            },
         ]
     }
 }
@@ -501,21 +508,22 @@ impl CommandInstance {
     pub fn get_expression_from_input(
         &self,
         input: &CommandInput,
-    ) -> Result<Option<Expression>, String> {
+    ) -> Result<Option<Expression>, Diagnostic> {
         let res = match &input.typing {
             Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
-                visit_optional_untyped_attribute(&input.name, &self.block)
-                    .map_err(|e| format!("{:?}", e))?
+                visit_optional_untyped_attribute(&input.name, &self.block)?
             }
             Type::Object(_) => unreachable!(),
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => Err(format!(
+            (None, false) => todo!(
                 "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, input.name
-            )),
+                self.name,
+                self.specification.matcher,
+                input.name
+            ),
         }
     }
 
@@ -523,26 +531,30 @@ impl CommandInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, String> {
+    ) -> Result<Option<Expression>, Diagnostic> {
         let object = self.block.body.get_blocks(&input.name).next();
         match (object, input.optional) {
             (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)
-                    .map_err(|e| format!("{:?}", e))?;
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)?;
                 match (expr_res, prop.optional) {
                     (Some(expression), _) => Ok(Some(expression)),
                     (None, true) => Ok(None),
-                    (None, false) => Err(format!(
+                    (None, false) => todo!(
                         "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name, self.specification.matcher, prop.name, input.name
-                    )),
+                        self.name,
+                        self.specification.matcher,
+                        prop.name,
+                        input.name
+                    ),
                 }
             }
             (None, true) => Ok(None),
-            (None, false) => Err(format!(
+            (None, false) => todo!(
                 "command '{}' (type '{}') is missing object '{}'",
-                self.name, self.specification.matcher, input.name
-            )),
+                self.name,
+                self.specification.matcher,
+                input.name
+            ),
         }
     }
 

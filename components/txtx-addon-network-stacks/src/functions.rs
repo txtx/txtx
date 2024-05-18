@@ -5,14 +5,14 @@ use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
-    types::{PrimitiveValue, Type, Value},
+    types::{PrimitiveValue, Type, TypeSpecification, Value},
 };
 
 use crate::{
-    stacks_helpers::value_to_tuple,
+    stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
-        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
-        CLARITY_UTF8,
+        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_OK, CLARITY_PRINCIPAL, CLARITY_TUPLE,
+        CLARITY_UINT, CLARITY_UTF8, CLARITY_VALUE,
     },
 };
 
@@ -209,6 +209,23 @@ lazy_static! {
                 output: {
                     documentation: "The input wrapped in an `Err` Clarity type.",
                     typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            DecodeClarityValueOk => {
+                name: "decode_ok",
+                documentation: "`decode_ok` returns the inner value as a Clarity buffer.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    clarity_value: {
+                        documentation: "Any valid Clarity value.",
+                        typing: vec![Type::buffer()]
+                    }
+                ],
+                output: {
+                    documentation: "The inner value that was wrapped in an `Ok` Clarity type.",
+                    typing: Type::buffer()
                 },
             }
         },
@@ -461,5 +478,39 @@ impl FunctionImplementation for StacksEncodeTuple {
 
     fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
         unimplemented!()
+    }
+}
+
+pub struct DecodeClarityValueOk;
+impl FunctionImplementation for DecodeClarityValueOk {
+    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let value = match args.get(0) {
+            // todo maybe we can assume some types?
+            Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => {
+                match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                }
+            }
+            Some(Value::Primitive(PrimitiveValue::String(buffer_hex))) => {
+                if !buffer_hex.starts_with("0x") {
+                    unreachable!()
+                }
+                let bytes = txtx_addon_kit::hex::decode(&buffer_hex[2..]).unwrap();
+                match parse_clarity_value(&bytes, &CLARITY_VALUE) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                }
+            }
+            v => return diagnosed_error!("function argument is missing or wrong type {:?}", v),
+        };
+
+        let inner_bytes: Vec<u8> = value.serialize_to_vec();
+
+        Ok(Value::buffer(inner_bytes, CLARITY_VALUE.clone()))
     }
 }

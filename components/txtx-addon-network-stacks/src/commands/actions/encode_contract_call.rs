@@ -157,7 +157,7 @@ impl CommandImplementation for EncodeStacksContractCall {
                                 Err(e) => return Err(e),
                             }
                         }
-                        v => todo!("function argument is missing or wrong type {:?}", v), // return diag
+                        v => return diagnosed_error!("function argument is missing or wrong type {:?}", v),
                     };
 
                     function_args.push(function_arg)
