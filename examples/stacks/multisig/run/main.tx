@@ -1,0 +1,26 @@
+
+action "encode_vote" "stacks::call_contract" {
+    description = "Invokes contract call of the method specified in contract_method."
+    network_id = "testnet" 
+    contract_id = "ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract"
+    function_name = "vote"
+    function_args = [encode_string_utf8("🍊")]
+}
+
+action "multisig_encoded_vote" "stacks::encode_multisig" {
+  bytes = action.encode_vote.bytes
+  public_keys = ["038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7", "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7"]
+  network_id = action.encode_vote.network_id
+}
+
+prompt "sign_update_price_feed_0" "stacks::multisig" {
+  transaction_payload_bytes = action.multisig_encoded_vote.bytes
+  network_id = action.encode_vote.network_id
+  public_key = index(action.multisig_encoded_vote.public_keys, 0)
+}
+
+prompt "sign_update_price_feed_1" "stacks::multisig" {
+  transaction_payload_bytes = prompt.sign_update_price_feed_0.signed_transaction_bytes
+  network_id = action.encode_vote.network_id
+  public_key = index(action.multisig_encoded_vote.public_keys, 1)
+}
