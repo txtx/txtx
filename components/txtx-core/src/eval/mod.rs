@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
-    sync::{mpsc::Sender, Arc, RwLock},
+    sync::{mpsc::Sender, Arc, Mutex, RwLock},
 };
 
 use crate::{
@@ -10,6 +10,7 @@ use crate::{
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use petgraph::algo::toposort;
+use rust_fsm::StateMachine;
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
@@ -17,11 +18,13 @@ use txtx_addon_kit::{
     },
     types::{
         commands::{
-            CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
-            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+            CommandExecutionResult, CommandExecutionStatus, CommandInput,
+            CommandInputsEvaluationResult, CommandInstance, CommandInstanceStateMachine,
+            CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::Diagnostic,
-        types::{PrimitiveValue, Value},
+        types::{ObjectProperty, PrimitiveValue, Value},
+        wallets::WalletInstance,
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
@@ -150,6 +153,85 @@ pub fn prepare_constructs_reevaluation(runbook: &Arc<RwLock<Runbook>>, start_nod
     }
 }
 
+pub enum ConstructInstance {
+    Command(CommandInstance),
+    Wallet(WalletInstance),
+}
+
+impl ConstructInstance {
+    fn get_expressions_referencing_commands_from_inputs(&self) -> Result<Vec<Expression>, String> {
+        match self {
+            ConstructInstance::Command(instance) => {
+                instance.get_expressions_referencing_commands_from_inputs()
+            }
+            ConstructInstance::Wallet(_) => todo!(),
+        }
+    }
+
+    fn get_state_machine(&self) -> Arc<Mutex<StateMachine<CommandInstanceStateMachine>>> {
+        match self {
+            ConstructInstance::Command(instance) => instance.state.clone(),
+            ConstructInstance::Wallet(instance) => instance.state.clone(),
+        }
+    }
+
+    fn get_inputs(&self) -> Vec<CommandInput> {
+        match self {
+            ConstructInstance::Command(instance) => instance.specification.inputs.clone(),
+            ConstructInstance::Wallet(instance) => instance.specification.inputs.clone(),
+        }
+    }
+    fn get_namespace(&self) -> String {
+        match self {
+            ConstructInstance::Command(instance) => instance.namespace.clone(),
+            ConstructInstance::Wallet(instance) => instance.namespace.clone(),
+        }
+    }
+
+    fn get_expression_from_object_property(
+        &self,
+        input: &CommandInput,
+        prop: &ObjectProperty,
+    ) -> Result<Option<Expression>, Diagnostic> {
+        match self {
+            ConstructInstance::Command(instance) => {
+                instance.get_expression_from_object_property(input, prop)
+            }
+            ConstructInstance::Wallet(_instance) => todo!(),
+        }
+    }
+
+    fn get_expression_from_input(
+        &self,
+        input: &CommandInput,
+    ) -> Result<Option<Expression>, Diagnostic> {
+        match self {
+            ConstructInstance::Command(instance) => instance.get_expression_from_input(input),
+            ConstructInstance::Wallet(_instance) => todo!(),
+        }
+    }
+
+    fn perform_execution(
+        &self,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        runbook_uuid: Uuid,
+        construct_uuid: ConstructUuid,
+        eval_tx: Sender<EvalEvent>,
+        addon_defaults: AddonDefaults,
+    ) -> Result<CommandExecutionStatus, Diagnostic> {
+        match self {
+            ConstructInstance::Command(instance) => instance.perform_execution(
+                evaluated_inputs,
+                runbook_uuid,
+                construct_uuid,
+                eval_tx,
+                addon_defaults,
+            ),
+            ConstructInstance::Wallet(_instance) => todo!(),
+        }
+    }
+}
+
 pub fn run_constructs_evaluation(
     runbook: &Arc<RwLock<Runbook>>,
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
@@ -179,19 +261,23 @@ pub fn run_constructs_evaluation(
             };
 
             let commands_instances = runbook.commands_instances.clone();
+            let wallet_instances = runbook.wallet_instances.clone();
             let constructs_locations = runbook.constructs_locations.clone();
 
             for node in ordered_nodes_to_process.into_iter() {
                 let uuid = g.node_weight(node).expect("unable to retrieve construct");
                 let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-                let Some(command_instance) = commands_instances.get(&construct_uuid) else {
-                    // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
-                    continue;
+                let construct = match commands_instances.get(&construct_uuid) {
+                    Some(command_instance) => ConstructInstance::Command(command_instance.clone()),
+                    None => match wallet_instances.get(&construct_uuid) {
+                        Some(wallet_instance) => ConstructInstance::Wallet(wallet_instance.clone()),
+                        None => continue,
+                    },
                 };
 
-                match command_instance.state.lock() {
-                    Ok(state_machine) => match state_machine.state() {
+                match construct.get_state_machine().lock() {
+                    Ok(sm) => match sm.state() {
                         CommandInstanceStateMachineState::Failed => {
                             println!("continuing past failed state command");
                             continue;
@@ -204,7 +290,7 @@ pub fn run_constructs_evaluation(
                 // we want to recompute the whole graph in case anything has changed since our last traversal.
                 // however, if there was a start_node provided, this evaluation was initiated from a user interaction
                 // that is stored in the input evaluation results, and we want to keep that data to evaluate that
-                // commands dependents
+                // command's dependents
                 let input_evaluation_results = if let Some(start_node) = start_node {
                     if start_node == node {
                         runbook
@@ -224,7 +310,7 @@ pub fn run_constructs_evaluation(
 
                 // Retrieve the construct_uuid of the inputs
                 // Collect the outputs
-                let references_expressions: Vec<Expression> = command_instance
+                let references_expressions: Vec<Expression> = construct
                     .get_expressions_referencing_commands_from_inputs()
                     .unwrap();
                 let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
@@ -261,7 +347,7 @@ pub fn run_constructs_evaluation(
                     }
                 }
 
-                if let Ok(mut state_machine) = command_instance.state.lock() {
+                if let Ok(mut state_machine) = construct.get_state_machine().lock() {
                     match state_machine.state() {
                         CommandInstanceStateMachineState::Evaluated => {}
                         CommandInstanceStateMachineState::Failed
@@ -270,7 +356,7 @@ pub fn run_constructs_evaluation(
                         }
                         _state => {
                             let evaluated_inputs_res = perform_inputs_evaluation(
-                                command_instance,
+                                &construct,
                                 &cached_dependency_execution_results,
                                 &input_evaluation_results,
                                 package_uuid,
@@ -311,16 +397,17 @@ pub fn run_constructs_evaluation(
                             let execution_result = {
                                 if let Ok(runtime_ctx_reader) = runtime_ctx.read() {
                                     let addon_context_key =
-                                        (package_uuid.clone(), command_instance.namespace.clone());
+                                        (package_uuid.clone(), construct.get_namespace());
                                     let addon_defaults = runtime_ctx_reader
                                         .addons_ctx
                                         .contexts
                                         .get(&addon_context_key)
                                         .and_then(|addon| Some(addon.defaults.clone()))
                                         .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
-                                    command_instance.perform_execution(
+
+                                    construct.perform_execution(
                                         &evaluated_inputs,
-                                        runbook.uuid.clone(),
+                                        runbook.uuid,
                                         construct_uuid.clone(),
                                         eval_tx.clone(),
                                         addon_defaults,
@@ -334,24 +421,30 @@ pub fn run_constructs_evaluation(
                                 // todo(lgalabru): return Diagnostic instead
                                 Ok(CommandExecutionStatus::Complete(result)) => {
                                     if let Ok(ref execution) = result {
-                                        if command_instance.specification.update_addon_defaults {
-                                            if let Ok(mut runtime_ctx_writer) = runtime_ctx.write()
+                                        if let ConstructInstance::Command(command_instance) =
+                                            construct
+                                        {
+                                            if command_instance.specification.update_addon_defaults
                                             {
-                                                let addon_context_key = (
-                                                    package_uuid.clone(),
-                                                    command_instance.namespace.clone(),
-                                                );
-                                                if let Some(ref mut addon_context) =
-                                                    runtime_ctx_writer
-                                                        .addons_ctx
-                                                        .contexts
-                                                        .get_mut(&addon_context_key)
+                                                if let Ok(mut runtime_ctx_writer) =
+                                                    runtime_ctx.write()
                                                 {
-                                                    for (k, v) in execution.outputs.iter() {
-                                                        addon_context
-                                                            .defaults
-                                                            .keys
-                                                            .insert(k.clone(), v.to_string());
+                                                    let addon_context_key = (
+                                                        package_uuid.clone(),
+                                                        command_instance.namespace.clone(),
+                                                    );
+                                                    if let Some(ref mut addon_context) =
+                                                        runtime_ctx_writer
+                                                            .addons_ctx
+                                                            .contexts
+                                                            .get_mut(&addon_context_key)
+                                                    {
+                                                        for (k, v) in execution.outputs.iter() {
+                                                            addon_context
+                                                                .defaults
+                                                                .keys
+                                                                .insert(k.clone(), v.to_string());
+                                                        }
                                                     }
                                                 }
                                             }
@@ -714,7 +807,7 @@ pub enum CommandInputEvaluationStatus {
 }
 
 pub fn perform_inputs_evaluation(
-    command_instance: &CommandInstance,
+    construct_instance: &ConstructInstance,
     dependencies_execution_results: &HashMap<
         ConstructUuid,
         Result<&CommandExecutionResult, &Diagnostic>,
@@ -725,7 +818,7 @@ pub fn perform_inputs_evaluation(
     runtime_ctx: &Arc<RwLock<RuntimeContext>>,
 ) -> Result<CommandInputEvaluationStatus, Diagnostic> {
     let mut results = CommandInputsEvaluationResult::new();
-    let inputs = command_instance.specification.inputs.clone();
+    let inputs = construct_instance.get_inputs();
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
@@ -755,7 +848,7 @@ pub fn perform_inputs_evaluation(
                 }
 
                 let Some(expr) =
-                    command_instance.get_expression_from_object_property(&input, &prop)?
+                    construct_instance.get_expression_from_object_property(&input, &prop)?
                 else {
                     continue;
                 };
@@ -814,7 +907,7 @@ pub fn perform_inputs_evaluation(
                 }
             }
 
-            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = construct_instance.get_expression_from_input(&input)? else {
                 continue;
             };
             let value = match eval_expression(
@@ -851,7 +944,7 @@ pub fn perform_inputs_evaluation(
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
             } else {
-                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                let Some(expr) = construct_instance.get_expression_from_input(&input)? else {
                     continue;
                 };
                 match eval_expression(
@@ -881,7 +974,7 @@ pub fn perform_inputs_evaluation(
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
             } else {
-                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                let Some(expr) = construct_instance.get_expression_from_input(&input)? else {
                     continue;
                 };
                 match eval_expression(
