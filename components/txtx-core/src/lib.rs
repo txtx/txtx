@@ -15,6 +15,7 @@ use ::std::sync::mpsc::Sender;
 use ::std::sync::Arc;
 use ::std::sync::RwLock;
 
+use kit::types::wallets::WalletInstance;
 use txtx_addon_kit::hcl::structure::Block;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandId;
@@ -120,5 +121,20 @@ impl AddonsContext {
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
         let command_id = CommandId::Prompt(command_id.to_string());
         ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
+    }
+
+    pub fn create_wallet_instance(
+        &mut self,
+        namespaced_action: &str,
+        wallet_name: &str,
+        package_uuid: &PackageUuid,
+        block: &Block,
+        _location: &FileLocation,
+    ) -> Result<WalletInstance, Diagnostic> {
+        let Some((namespace, wallet_id)) = namespaced_action.split_once("::") else {
+            todo!("return diagnostic")
+        };
+        let ctx = self.find_or_create_context(namespace, package_uuid)?;
+        ctx.create_wallet_instance(wallet_id, namespace, wallet_name, block, package_uuid)
     }
 }

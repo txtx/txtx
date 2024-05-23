@@ -284,7 +284,7 @@ impl Serialize for CompositeCommandSpecification {
     }
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 // type CommandRunner = Box<
 //     fn(
 //         &CommandSpecification,

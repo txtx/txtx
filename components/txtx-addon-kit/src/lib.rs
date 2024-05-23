@@ -26,6 +26,7 @@ use types::{
     },
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
+    wallets::{WalletInstance, WalletSpecification},
     ConstructUuid, PackageUuid,
 };
 
@@ -55,6 +56,8 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_prompts(&self) -> Vec<PreCommandSpecification>;
     ///
+    fn get_wallets(&self) -> Vec<WalletSpecification>;
+    ///
     fn build_function_lookup(self: &Self) -> HashMap<String, FunctionSpecification> {
         let mut functions = HashMap::new();
         for function in self.get_functions().into_iter() {
@@ -83,11 +86,22 @@ pub trait Addon: Debug + Sync + Send {
         }
         commands
     }
+    ///
+    fn build_wallet_lookup(self: &Self) -> HashMap<String, WalletSpecification> {
+        let mut wallet_specs = HashMap::new();
+
+        for wallet in self.get_wallets().into_iter() {
+            wallet_specs.insert(wallet.matcher.clone(), wallet);
+        }
+
+        wallet_specs
+    }
 
     fn create_context(&self) -> AddonContext {
         AddonContext {
             functions: self.build_function_lookup(),
             commands: self.build_command_lookup(),
+            wallets: self.build_wallet_lookup(),
             defaults: AddonDefaults::new(),
         }
     }
@@ -110,6 +124,7 @@ impl AddonDefaults {
 pub struct AddonContext {
     pub functions: HashMap<String, FunctionSpecification>,
     pub commands: HashMap<CommandId, PreCommandSpecification>,
+    pub wallets: HashMap<String, WalletSpecification>,
     pub defaults: AddonDefaults,
 }
 
@@ -155,6 +170,28 @@ impl AddonContext {
         }
     }
 
+    pub fn create_wallet_instance(
+        self: &Self,
+        wallet_id: &str,
+        namespace: &str,
+        wallet_name: &str,
+        block: &Block,
+        package_uuid: &PackageUuid,
+    ) -> Result<WalletInstance, Diagnostic> {
+        let Some(wallet_spec) = self.wallets.get(wallet_id) else {
+            todo!("return diagnostic: unknown wallet: {:?}", wallet_id)
+        };
+        Ok(WalletInstance {
+            specification: wallet_spec.clone(),
+            state: Arc::new(Mutex::new(
+                StateMachine::<CommandInstanceStateMachine>::new(),
+            )),
+            name: wallet_name.to_string(),
+            block: block.clone(),
+            package_uuid: package_uuid.clone(),
+            namespace: namespace.to_string(),
+        })
+    }
     pub fn resolve_construct_dependencies(
         self: &Self,
         _construct_uuid: &ConstructUuid,

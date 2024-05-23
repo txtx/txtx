@@ -8,6 +8,7 @@ pub mod commands;
 pub mod diagnostics;
 pub mod functions;
 pub mod types;
+pub mod wallets;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstructUuid {

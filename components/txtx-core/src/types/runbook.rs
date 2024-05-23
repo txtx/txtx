@@ -14,6 +14,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -47,6 +48,7 @@ pub struct Runbook {
     pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
+    pub wallet_instances: HashMap<ConstructUuid, WalletInstance>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
     pub constructs_execution_results:
@@ -79,6 +81,7 @@ impl Runbook {
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
+            wallet_instances: HashMap::new(),
             constructs_execution_results: HashMap::new(),
             command_inputs_evaluation_results: HashMap::new(),
             environment_variables_uuid_lookup: HashMap::new(),
@@ -212,6 +215,14 @@ impl Runbook {
                 self.commands_instances
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
+            PreConstructData::Wallet(wallet_instance) => {
+                package.addons_uuids.insert(construct_uuid.clone());
+                package
+                    .addons_uuids_lookup
+                    .insert(construct_name, construct_uuid.clone());
+                self.wallet_instances
+                    .insert(construct_uuid.clone(), wallet_instance.clone());
+            }
             PreConstructData::Root => unreachable!(),
         }
         let (_, node_index) =
@@ -322,6 +333,19 @@ impl Runbook {
                     if let Some(construct_uuid) = current_package
                         .addons_uuids_lookup
                         .get(&CommandId::Prompt(prompt_name).to_string())
+                    {
+                        return Ok(Some((construct_uuid.clone(), components)));
+                    }
+                }
+
+                // Look for wallets
+                if component.eq_ignore_ascii_case("wallet") {
+                    is_root = false;
+                    let Some(wallet_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_uuid) =
+                        current_package.addons_uuids_lookup.get(&wallet_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }

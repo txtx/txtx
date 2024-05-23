@@ -322,6 +322,47 @@ pub fn run_constructs_indexing(
                                 }
                             };
                         }
+                        "wallet" => {
+                            let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
+                                (block.labels.get(0), block.labels.get(1))
+                            else {
+                                runbook.errors.push(ConstructErrors::Discovery(
+                                    DiscoveryError::OutputConstruct(Diagnostic {
+                                        location: Some(location.clone()),
+                                        span: None,
+                                        message: "action syntax invalid".to_string(),
+                                        level: DiagnosticLevel::Error,
+                                        documentation: None,
+                                        example: None,
+                                        parent_diagnostic: None,
+                                    }),
+                                ));
+                                has_errored = true;
+                                continue;
+                            };
+                            match runtime_context.addons_ctx.create_wallet_instance(
+                                &namespaced_wallet_cmd.as_str(),
+                                wallet_name.as_str(),
+                                &package_uuid,
+                                &block,
+                                &location,
+                            ) {
+                                Ok(wallet_instance) => {
+                                    let _ = runbook.index_construct(
+                                        wallet_name.to_string(),
+                                        location.clone(),
+                                        PreConstructData::Wallet(wallet_instance),
+                                        &package_uuid,
+                                    );
+                                }
+                                Err(diagnostic) => {
+                                    runbook.errors.push(ConstructErrors::Discovery(
+                                        DiscoveryError::AddonConstruct(diagnostic),
+                                    ));
+                                    continue;
+                                }
+                            }
+                        }
                         _ => {
                             runbook.errors.push(ConstructErrors::Discovery(
                                 DiscoveryError::UnknownConstruct(Diagnostic {
