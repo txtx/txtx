@@ -5,15 +5,38 @@ pub enum RunbookExecutionState {
     RunbookGlobalsUpdated,
 }
 
+#[derive(Debug, Clone)]
 pub enum Block {
-    Checklist(Checklist),
+    ActionPanel(ActionPanelData),
 }
 
-pub struct Checklist {
-    uuid: Uuid,
-    name: String,
-    description: String,
-    items: Vec<ChecklistAction>,
+#[derive(Debug, Clone)]
+pub struct ActionPanelData {
+    pub uuid: Uuid,
+    pub title: String,
+    pub description: String,
+    pub groups: Vec<ActionGroup>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActionGroup {
+    pub title: String,
+    pub sub_groups: Vec<ActionSubGroup>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActionSubGroup {
+    pub action_items: Vec<ActionItem>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ActionItem {
+    pub uuid: Uuid,
+    pub index: u16,
+    pub title: String,
+    pub description: String,
+    pub action_status: ActionItemStatus,
+    pub action_type: ActionItemType,
 }
 
 pub enum ChecklistActionResultProvider {
@@ -22,7 +45,8 @@ pub enum ChecklistActionResultProvider {
     RemoteWebConsole,
 }
 
-pub enum ChecklistActionStatus {
+#[derive(Debug, Clone)]
+pub enum ActionItemStatus {
     Todo,
     Success,
     InProgress(String),
@@ -30,15 +54,8 @@ pub enum ChecklistActionStatus {
     Warning(Diagnostic),
 }
 
-pub struct ChecklistAction {
-    uuid: Uuid,
-    name: String,
-    description: String,
-    status: ChecklistActionStatus,
-    action_type: ChecklistActionType,
-}
-
-pub enum ChecklistActionType {
+#[derive(Debug, Clone)]
+pub enum ActionItemType {
     ReviewInput,
     ProvideInput,
     ProvidePublicKey(ProvidePublicKeyData),
@@ -46,15 +63,17 @@ pub enum ChecklistActionType {
     ValidateChecklist,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProvidePublicKeyData {
-    check_expectation_action_uuid: Option<Uuid>,
+    pub check_expectation_action_uuid: Option<Uuid>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ProvideSignedTransactionData {
-    check_expectation_action_uuid: Option<Uuid>,
+    pub check_expectation_action_uuid: Option<Uuid>,
 }
 
-pub struct ChecklistActionEvent {
-    checklist_action_uuid: Uuid,
-    payload: Vec<u8>,
+pub struct ActionItemEvent {
+    pub action_item_uuid: Uuid,
+    pub payload: Vec<u8>,
 }

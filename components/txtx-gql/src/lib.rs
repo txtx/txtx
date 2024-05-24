@@ -8,7 +8,7 @@ use std::{
 use txtx_core::{
     channel::{Receiver, Sender},
     types::{
-        frontend::{Block, ChecklistAction, ChecklistActionEvent},
+        frontend::{ActionItem, ActionItemEvent, Block},
         Runbook, RuntimeContext,
     },
 };
@@ -21,8 +21,8 @@ pub struct Context {
     pub protocol_name: String,
     pub data: HashMap<String, ContextData>,
     pub block_rx: Receiver<Block>,
-    pub checklist_action_updates_rx: Receiver<ChecklistAction>,
-    pub checklist_action_events_tx: Sender<ChecklistActionEvent>,
+    pub action_item_updates_rx: Receiver<ActionItem>,
+    pub action_item_events_tx: Sender<ActionItemEvent>,
 }
 
 pub struct ContextData {

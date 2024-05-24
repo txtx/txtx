@@ -18,6 +18,7 @@ use ::std::collections::HashMap;
 use channel::Receiver;
 use channel::Sender;
 use channel::TryRecvError;
+use kit::uuid::Uuid;
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandId;
@@ -27,9 +28,10 @@ use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::PackageUuid;
 use txtx_addon_kit::AddonContext;
+use types::frontend::ActionItem;
+use types::frontend::ActionItemEvent;
+use types::frontend::ActionPanelData;
 use types::frontend::Block;
-use types::frontend::ChecklistAction;
-use types::frontend::ChecklistActionEvent;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
@@ -142,19 +144,63 @@ pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     block_tx: Sender<Block>,
-    checklist_action_updates_tx: Sender<ChecklistAction>,
-    checklist_action_events_rx: Receiver<ChecklistActionEvent>,
+    action_item_updates_tx: Sender<ActionItem>,
+    action_item_events_rx: Receiver<ActionItemEvent>,
     environments: BTreeMap<String, BTreeMap<String, String>>,
     interactive_by_default: bool,
 ) -> Result<(), Vec<Diagnostic>> {
+    // let mut runbook_state = BTreeMap::new();
+
+    let mut runbook_initialized = false;
+    let mut current_block = None;
+
     loop {
-        let action = match checklist_action_events_rx.try_recv() {
+        let event_opt = match action_item_events_rx.try_recv() {
             Ok(action) => Some(action),
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 unimplemented!()
             }
         };
+
+        if runbook_initialized {
+            runbook_initialized = true;
+
+            let environment_selection_required: bool = environments.len() > 1;
+
+            let genesis_block = Block::ActionPanel(ActionPanelData {
+                uuid: Uuid::new_v4(),
+                title: "Runbook Checklist".into(),
+                description: "Lorem Ipsum".into(),
+                groups: vec![],
+            });
+
+            let _ = block_tx.send(genesis_block.clone());
+            current_block = Some(genesis_block);
+        }
+
+        let Some(event) = event_opt else {
+            continue;
+        };
+
+        // Retrieve action via its UUID
+        // event.checklist_action_uuid
+
+        // the action is pointing to the construct
+        // "send" the payload to the construct, it will know what to do with it?
+        // the action can also have a "next action"
+
+        // do we have an ongoing checklist?
+        // retrieve all the actions of the checklist
+
+        // recompute the graph
+
+        // while promises are being returned
+        // collect the promises
+
+        // Runbook Execution returns
+        // - 1 result
+        // - 1 action
     }
 
     // Step 1

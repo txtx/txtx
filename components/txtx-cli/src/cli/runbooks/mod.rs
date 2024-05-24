@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use txtx_core::{
     pre_compute_runbook, start_runbook_runloop,
-    types::frontend::{Block, ChecklistAction, ChecklistActionEvent},
+    types::frontend::{ActionItem, ActionItemEvent, Block},
 };
 use txtx_gql::Context as GqlContext;
 
@@ -62,10 +62,10 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = txtx_core::channel::unbounded::<Block>();
-    let (checklist_action_updates_tx, checklist_action_updates_rx) =
-        txtx_core::channel::unbounded::<ChecklistAction>();
-    let (checklist_action_events_tx, checklist_action_events_rx) =
-        txtx_core::channel::unbounded::<ChecklistActionEvent>();
+    let (action_item_updates_tx, action_item_updates_rx) =
+        txtx_core::channel::unbounded::<ActionItem>();
+    let (action_item_events_tx, action_item_events_rx) =
+        txtx_core::channel::unbounded::<ActionItemEvent>();
 
     // Frontend:
     // - block_rx
@@ -95,8 +95,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             &mut runbook,
             &mut runtime_context,
             block_tx,
-            checklist_action_updates_tx,
-            checklist_action_events_rx,
+            action_item_updates_tx,
+            action_item_events_rx,
             environments,
             interactive_by_default,
         );
@@ -114,8 +114,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             protocol_name: manifest.name,
             data: gql_data,
             block_rx,
-            checklist_action_updates_rx,
-            checklist_action_events_tx,
+            action_item_updates_rx,
+            action_item_events_tx,
         };
 
         let port = 8488;
