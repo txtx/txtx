@@ -3,6 +3,7 @@ use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::types::ObjectProperty;
+use txtx_addon_kit::types::wallets::WalletSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -93,6 +94,7 @@ impl CommandImplementationAsync for SendHttpRequest {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
     {
         let mut result = CommandExecutionResult::new();

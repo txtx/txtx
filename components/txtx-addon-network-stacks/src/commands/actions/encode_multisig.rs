@@ -8,6 +8,7 @@ use clarity_repl::codec::{
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
+use txtx_addon_kit::types::wallets::WalletSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -73,6 +74,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 

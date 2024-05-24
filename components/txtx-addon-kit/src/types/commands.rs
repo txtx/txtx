@@ -26,6 +26,7 @@ use crate::{
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     types::{ObjectProperty, Type, TypeSpecification, Value},
+    wallets::WalletSpecification,
     ConstructUuid, PackageUuid,
 };
 
@@ -305,6 +306,7 @@ type CommandRunnerSync = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
     &AddonDefaults,
+    &HashMap<String, WalletSpecification>,
 ) -> Result<CommandExecutionResult, Diagnostic>;
 
 type CommandRunnerAsync = Box<
@@ -312,6 +314,7 @@ type CommandRunnerAsync = Box<
         &CommandSpecification,
         &HashMap<String, Value>,
         &AddonDefaults,
+        &HashMap<String, WalletSpecification>,
     ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>,
 >;
 
@@ -321,6 +324,7 @@ pub trait CommandImplementationAsync {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
     fn update_input_evaluation_results_from_user_input(
         _ctx: &CommandSpecification,
@@ -335,6 +339,7 @@ pub trait CommandImplementation {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic>;
     fn update_input_evaluation_results_from_user_input(
         _ctx: &CommandSpecification,
@@ -565,6 +570,7 @@ impl CommandInstance {
         construct_uuid: ConstructUuid,
         eval_tx: Sender<EvalEvent>,
         addon_defaults: AddonDefaults,
+        wallets: HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionStatus, Diagnostic> {
         // todo: I don't think this one needs to be a result
         let mut values = HashMap::new();
@@ -599,8 +605,12 @@ impl CommandInstance {
                             .enable_io()
                             .build()
                             .unwrap();
-                        let result =
-                            runtime.block_on((async_runner_moved)(&spec, &values, &addon_defaults));
+                        let result = runtime.block_on((async_runner_moved)(
+                            &spec,
+                            &values,
+                            &addon_defaults,
+                            &wallets,
+                        ));
                         eval_tx.send(EvalEvent::AsyncRequestComplete {
                             runbook_uuid,
                             result: Ok(CommandExecutionStatus::Complete(result)),
@@ -613,7 +623,7 @@ impl CommandInstance {
                 panic!("async commands are not enabled for wasm")
             }
             CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
-                (sync_runner)(&self.specification, &values, &addon_defaults),
+                (sync_runner)(&self.specification, &values, &addon_defaults, &wallets),
             )),
         }
     }

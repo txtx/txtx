@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{CommandImplementation, PreCommandSpecification};
+use txtx_addon_kit::types::wallets::WalletSpecification;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification},
     diagnostics::Diagnostic,
@@ -70,6 +71,7 @@ impl CommandImplementation for SetStacksGlobals {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
 

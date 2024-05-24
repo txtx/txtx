@@ -8,6 +8,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         types::{Type, Value},
+        wallets::WalletSpecification,
     },
     AddonDefaults,
 };
@@ -48,6 +49,7 @@ impl CommandImplementation for StacksDeployContract {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         unimplemented!()
     }

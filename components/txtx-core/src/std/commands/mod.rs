@@ -10,6 +10,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         types::{PrimitiveValue, Type, Value},
+        wallets::WalletSpecification,
     },
     AddonDefaults,
 };
@@ -45,6 +46,7 @@ impl CommandImplementation for Module {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let result = CommandExecutionResult::new();
         Ok(result)
@@ -119,6 +121,7 @@ impl CommandImplementation for Input {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut result = CommandExecutionResult::new();
         if let Some(value) = args.get("value") {
@@ -212,6 +215,7 @@ impl CommandImplementation for Output {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();

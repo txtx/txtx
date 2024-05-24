@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
 use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
+use txtx_addon_kit::types::wallets::WalletSpecification;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -96,6 +97,7 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
     {
         let mut result = CommandExecutionResult::new();
