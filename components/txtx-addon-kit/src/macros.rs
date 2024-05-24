@@ -193,3 +193,46 @@ macro_rules! define_addon_type {
         };
     };
 }
+
+#[macro_export]
+macro_rules! define_wallet {
+    ($func_key:ident => {
+        name: $fn_name:expr,
+        matcher: $matcher:expr,
+        documentation: $doc:expr,
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
+        outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
+        example: $example:expr,
+    }) => {
+        {
+          use txtx_addon_kit::types::wallets::{WalletSpecification, WalletRunner, PublicKeySetter};
+          use txtx_addon_kit::types::commands::{CommandInput, CommandOutput};
+          WalletSpecification {
+            name: String::from($fn_name),
+            matcher: String::from($matcher),
+            documentation: String::from($doc),
+            accepts_arbitrary_inputs: false,
+            create_output_for_each_input: false,
+            update_addon_defaults: false,
+            inputs: vec![$(CommandInput {
+                name: String::from(stringify!($input_name)),
+                documentation: String::from($input_doc),
+                typing: $input_ts,
+                optional: $optional,
+                interpolable: $interpolable,
+            }),*],
+            default_inputs: CommandSpecification::default_inputs(),
+            outputs: vec![$(CommandOutput {
+                name: String::from(stringify!($output_name)),
+                documentation: String::from($output_doc),
+                typing: $output_ts,
+            }),*],
+            signer: WalletRunner::Async(Box::new($func_key::sign)),
+            public_key_setter: $func_key::set_public_keys,
+            checker: $func_key::check,
+            example: String::from($example),
+        }
+
+    }
+    };
+}
