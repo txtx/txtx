@@ -31,7 +31,7 @@ impl Mutation {
         } = context
             .data
             .get(&runbook_name)
-            .ok_or(format!("could not fine runbook {runbook_name}"))?;
+            .ok_or(format!("could not find runbook {runbook_name}"))?;
 
         let command_uuid = ConstructUuid::Local(command_uuid);
         let command_graph_node = match runbook.write() {
