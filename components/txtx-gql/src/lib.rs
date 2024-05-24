@@ -3,11 +3,14 @@ use mutation::Mutation;
 use query::Query;
 use std::{
     collections::HashMap,
-    sync::{mpsc::Sender, Arc, RwLock},
+    sync::{Arc, RwLock},
 };
 use txtx_core::{
-    kit::types::commands::EvalEvent,
-    types::{Runbook, RuntimeContext},
+    channel::{Receiver, Sender},
+    types::{
+        frontend::{Block, ChecklistAction, ChecklistActionEvent},
+        Runbook, RuntimeContext,
+    },
 };
 
 pub mod mutation;
@@ -17,7 +20,9 @@ pub mod types;
 pub struct Context {
     pub protocol_name: String,
     pub data: HashMap<String, ContextData>,
-    pub eval_tx: Sender<EvalEvent>,
+    pub block_rx: Receiver<Block>,
+    pub checklist_action_updates_rx: Receiver<ChecklistAction>,
+    pub checklist_action_events_tx: Sender<ChecklistActionEvent>,
 }
 
 pub struct ContextData {

@@ -15,7 +15,7 @@ pub mod generator;
 pub struct ProtocolManifest {
     pub name: String,
     runbooks: Vec<RunbookMetadata>,
-    pub environments: Option<BTreeMap<String, HashMap<String, String>>>,
+    pub environments: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(skip_serializing, skip_deserializing)]
     location: Option<FileLocation>,
 }
@@ -95,11 +95,14 @@ pub fn read_runbooks_from_manifest(
         let mut addons_ctx = AddonsContext::new();
         addons_ctx.register(Box::new(StdAddon::new()));
         addons_ctx.register(Box::new(StacksNetworkAddon::new()));
-        let mut runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
+        let runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
 
         runbooks.insert(
             runbook_name.to_string(),
-            (Runbook::new(Some(source_tree), description.clone()), runtime_context),
+            (
+                Runbook::new(Some(source_tree), description.clone()),
+                runtime_context,
+            ),
         );
     }
     Ok(runbooks)

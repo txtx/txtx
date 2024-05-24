@@ -4,15 +4,21 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+pub extern crate crossbeam_channel as channel;
+
 pub mod errors;
 pub mod eval;
 pub mod std;
 pub mod types;
 pub mod visitor;
 
+use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
 
-use txtx_addon_kit::hcl::structure::Block;
+use channel::Receiver;
+use channel::Sender;
+use channel::TryRecvError;
+use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandId;
 use txtx_addon_kit::types::commands::CommandInstanceOrParts;
@@ -21,6 +27,9 @@ use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::PackageUuid;
 use txtx_addon_kit::AddonContext;
+use types::frontend::Block;
+use types::frontend::ChecklistAction;
+use types::frontend::ChecklistActionEvent;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
@@ -104,7 +113,7 @@ impl AddonsContext {
         command_id: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
-        block: &Block,
+        block: &CodeBlock,
         _location: &FileLocation,
     ) -> Result<CommandInstanceOrParts, Diagnostic> {
         let ctx = self.find_or_create_context(namespace, package_uuid)?;
@@ -117,7 +126,7 @@ impl AddonsContext {
         namespaced_action: &str,
         command_name: &str,
         package_uuid: &PackageUuid,
-        block: &Block,
+        block: &CodeBlock,
         _location: &FileLocation,
     ) -> Result<CommandInstanceOrParts, Diagnostic> {
         let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
@@ -127,4 +136,30 @@ impl AddonsContext {
         let command_id = CommandId::Prompt(command_id.to_string());
         ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
     }
+}
+
+pub async fn start_runbook_runloop(
+    runbook: &mut Runbook,
+    runtime_context: &mut RuntimeContext,
+    block_tx: Sender<Block>,
+    checklist_action_updates_tx: Sender<ChecklistAction>,
+    checklist_action_events_rx: Receiver<ChecklistActionEvent>,
+    environments: BTreeMap<String, BTreeMap<String, String>>,
+    interactive_by_default: bool,
+) -> Result<(), Vec<Diagnostic>> {
+    loop {
+        let action = match checklist_action_events_rx.try_recv() {
+            Ok(action) => Some(action),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                unimplemented!()
+            }
+        };
+    }
+
+    // Step 1
+    // Select environment, if multiple
+    if environments.len() > 1 {}
+
+    Ok(())
 }
