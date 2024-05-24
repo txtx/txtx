@@ -2,8 +2,12 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use serde_json::Value;
+use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use txtx_core::std::StdAddon;
+use txtx_core::types::RuntimeContext;
 use txtx_core::types::{Runbook, SourceTree};
+use txtx_core::AddonsContext;
 
 pub mod generator;
 
@@ -48,7 +52,7 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
 pub fn read_runbooks_from_manifest(
     manifest: &ProtocolManifest,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<HashMap<String, Runbook>, String> {
+) -> Result<HashMap<String, (Runbook, RuntimeContext)>, String> {
     let mut runbooks = HashMap::new();
 
     let root_path = manifest
@@ -87,9 +91,15 @@ pub fn read_runbooks_from_manifest(
                 source_tree.add_source(runbook_name.to_string(), package_location, file_content);
             }
         }
+
+        let mut addons_ctx = AddonsContext::new();
+        addons_ctx.register(Box::new(StdAddon::new()));
+        addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+        let mut runtime_context = RuntimeContext::new(addons_ctx, manifest.environments.clone());
+
         runbooks.insert(
             runbook_name.to_string(),
-            Runbook::new(Some(source_tree), description.clone()),
+            (Runbook::new(Some(source_tree), description.clone()), runtime_context),
         );
     }
     Ok(runbooks)

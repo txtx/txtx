@@ -6,7 +6,7 @@ use daggy::{Dag, NodeIndex};
 use rust_fsm::StateMachine;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{
@@ -234,7 +234,7 @@ impl Runbook {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
-        _runtime_context: &Arc<RwLock<RuntimeContext>>,
+        _runtime_context: &RuntimeContext,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);

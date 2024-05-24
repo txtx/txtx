@@ -11,9 +11,6 @@ pub mod types;
 pub mod visitor;
 
 use ::std::collections::HashMap;
-use ::std::sync::mpsc::Sender;
-use ::std::sync::Arc;
-use ::std::sync::RwLock;
 
 use txtx_addon_kit::hcl::structure::Block;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -27,28 +24,37 @@ use txtx_addon_kit::AddonContext;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
-use eval::run_constructs_evaluation;
 use txtx_addon_kit::Addon;
 use types::Runbook;
 use visitor::run_constructs_checks;
 use visitor::run_constructs_indexing;
 
-pub fn simulate_runbook(
-    runbook: &Arc<RwLock<Runbook>>,
-    runtime_context: &Arc<RwLock<RuntimeContext>>,
-    eval_tx: Sender<EvalEvent>,
+pub fn pre_compute_runbook(
+    runbook: &mut Runbook,
+    runtime_context: &mut RuntimeContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    match runtime_context.write() {
-        Ok(mut runtime_context) => {
-            let _ = run_constructs_indexing(runbook, &mut runtime_context)?;
-            let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
-        }
-        Err(e) => unimplemented!("could not acquire lock: {e}"),
-    }
+    let _ = run_constructs_indexing(runbook, runtime_context)?;
+    let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-    let _ = run_constructs_evaluation(runbook, runtime_context, None, eval_tx)?;
     Ok(())
 }
+
+// pub fn simulate_runbook(
+//     runbook: &Arc<RwLock<Runbook>>,
+//     runtime_context: &Arc<RwLock<RuntimeContext>>,
+//     eval_tx: Sender<EvalEvent>,
+// ) -> Result<(), Vec<Diagnostic>> {
+//     match runtime_context.write() {
+//         Ok(mut runtime_context) => {
+//             let _ = run_constructs_indexing(runbook, &mut runtime_context)?;
+//             let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
+//             let _ = run_constructs_dependencies_indexing(runbook, &mut runtime_context)?;
+//         }
+//         Err(e) => unimplemented!("could not acquire lock: {e}"),
+//     }
+//     let _ = run_constructs_evaluation(runbook, runtime_context, None, eval_tx)?;
+//     Ok(())
+// }
 
 pub struct AddonsContext {
     addons: HashMap<String, Box<dyn Addon>>,

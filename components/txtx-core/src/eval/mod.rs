@@ -151,246 +151,214 @@ pub fn prepare_constructs_reevaluation(runbook: &Arc<RwLock<Runbook>>, start_nod
 }
 
 pub fn run_constructs_evaluation(
-    runbook: &Arc<RwLock<Runbook>>,
-    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
+    runbook: &mut Runbook,
+    runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
     eval_tx: Sender<EvalEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
-    match runbook.write() {
-        Ok(mut runbook) => {
-            let g = runbook.constructs_graph.clone();
+    let g = runbook.constructs_graph.clone();
 
-            let environments_variables = runbook.environment_variables_values.clone();
-            for (env_variable_uuid, value) in environments_variables.into_iter() {
-                let mut res = CommandExecutionResult::new();
-                res.outputs.insert("value".into(), Value::string(value));
-                runbook
-                    .constructs_execution_results
-                    .insert(env_variable_uuid, Ok(res));
-            }
+    let environments_variables = runbook.environment_variables_values.clone();
+    for (env_variable_uuid, value) in environments_variables.into_iter() {
+        let mut res = CommandExecutionResult::new();
+        res.outputs.insert("value".into(), Value::string(value));
+        runbook
+            .constructs_execution_results
+            .insert(env_variable_uuid, Ok(res));
+    }
 
-            let ordered_nodes_to_process = match start_node {
-                Some(start_node) => {
-                    // if we are walking the graph from a given start node, we only add the
-                    // node and its dependents (not its parents) to the nodes we visit.
-                    get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone())
-                }
-                None => get_sorted_nodes(runbook.constructs_graph.clone()),
-            };
+    let ordered_nodes_to_process = match start_node {
+        Some(start_node) => {
+            // if we are walking the graph from a given start node, we only add the
+            // node and its dependents (not its parents) to the nodes we visit.
+            get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone())
+        }
+        None => get_sorted_nodes(runbook.constructs_graph.clone()),
+    };
 
-            let commands_instances = runbook.commands_instances.clone();
-            let constructs_locations = runbook.constructs_locations.clone();
+    let commands_instances = runbook.commands_instances.clone();
+    let constructs_locations = runbook.constructs_locations.clone();
 
-            for node in ordered_nodes_to_process.into_iter() {
-                let uuid = g.node_weight(node).expect("unable to retrieve construct");
-                let construct_uuid = ConstructUuid::Local(uuid.clone());
+    for node in ordered_nodes_to_process.into_iter() {
+        let uuid = g.node_weight(node).expect("unable to retrieve construct");
+        let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-                let Some(command_instance) = commands_instances.get(&construct_uuid) else {
-                    // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+        let Some(command_instance) = commands_instances.get(&construct_uuid) else {
+            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+            continue;
+        };
+
+        match command_instance.state.lock() {
+            Ok(state_machine) => match state_machine.state() {
+                CommandInstanceStateMachineState::Failed => {
+                    println!("continuing past failed state command");
                     continue;
-                };
-
-                match command_instance.state.lock() {
-                    Ok(state_machine) => match state_machine.state() {
-                        CommandInstanceStateMachineState::Failed => {
-                            println!("continuing past failed state command");
-                            continue;
-                        }
-                        _ => {}
-                    },
-                    Err(e) => unimplemented!("unable to acquire lock {e}"),
                 }
-                // in general we want to ignore previous input evaluation results when evaluating for outputs.
-                // we want to recompute the whole graph in case anything has changed since our last traversal.
-                // however, if there was a start_node provided, this evaluation was initiated from a user interaction
-                // that is stored in the input evaluation results, and we want to keep that data to evaluate that
-                // commands dependents
-                let input_evaluation_results = if let Some(start_node) = start_node {
-                    if start_node == node {
-                        runbook
-                            .command_inputs_evaluation_results
-                            .get(&construct_uuid.clone())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
+                _ => {}
+            },
+            Err(e) => unimplemented!("unable to acquire lock {e}"),
+        }
+        // in general we want to ignore previous input evaluation results when evaluating for outputs.
+        // we want to recompute the whole graph in case anything has changed since our last traversal.
+        // however, if there was a start_node provided, this evaluation was initiated from a user interaction
+        // that is stored in the input evaluation results, and we want to keep that data to evaluate that
+        // commands dependents
+        let input_evaluation_results = if let Some(start_node) = start_node {
+            if start_node == node {
+                runbook
+                    .command_inputs_evaluation_results
+                    .get(&construct_uuid.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
-                let mut cached_dependency_execution_results: HashMap<
-                    ConstructUuid,
-                    Result<&CommandExecutionResult, &Diagnostic>,
-                > = HashMap::new();
+        let mut cached_dependency_execution_results: HashMap<
+            ConstructUuid,
+            Result<&CommandExecutionResult, &Diagnostic>,
+        > = HashMap::new();
 
-                // Retrieve the construct_uuid of the inputs
-                // Collect the outputs
-                let references_expressions: Vec<Expression> = command_instance
-                    .get_expressions_referencing_commands_from_inputs()
-                    .unwrap();
-                let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+        // Retrieve the construct_uuid of the inputs
+        // Collect the outputs
+        let references_expressions: Vec<Expression> = command_instance
+            .get_expressions_referencing_commands_from_inputs()
+            .unwrap();
+        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
 
-                for expr in references_expressions.into_iter() {
-                    let res = runbook
-                        .try_resolve_construct_reference_in_expression(
-                            package_uuid,
-                            &expr,
-                            &runtime_ctx,
-                        )
-                        .unwrap();
+        for expr in references_expressions.into_iter() {
+            let res = runbook
+                .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
+                .unwrap();
 
-                    if let Some((dependency, _)) = res {
-                        let evaluation_result_opt =
-                            runbook.constructs_execution_results.get(&dependency);
+            if let Some((dependency, _)) = res {
+                let evaluation_result_opt = runbook.constructs_execution_results.get(&dependency);
 
-                        if let Some(evaluation_result) = evaluation_result_opt {
-                            match cached_dependency_execution_results.get(&dependency) {
-                                None => match evaluation_result {
-                                    Ok(evaluation_result) => {
-                                        cached_dependency_execution_results
-                                            .insert(dependency, Ok(evaluation_result));
-                                    }
-                                    Err(e) => {
-                                        cached_dependency_execution_results
-                                            .insert(dependency, Err(e));
-                                    }
-                                },
-                                Some(Err(_)) => continue,
-                                Some(Ok(_)) => {}
+                if let Some(evaluation_result) = evaluation_result_opt {
+                    match cached_dependency_execution_results.get(&dependency) {
+                        None => match evaluation_result {
+                            Ok(evaluation_result) => {
+                                cached_dependency_execution_results
+                                    .insert(dependency, Ok(evaluation_result));
                             }
-                        }
-                    }
-                }
-
-                if let Ok(mut state_machine) = command_instance.state.lock() {
-                    match state_machine.state() {
-                        CommandInstanceStateMachineState::Evaluated => {}
-                        CommandInstanceStateMachineState::Failed
-                        | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
-                            continue;
-                        }
-                        _state => {
-                            let evaluated_inputs_res = perform_inputs_evaluation(
-                                command_instance,
-                                &cached_dependency_execution_results,
-                                &input_evaluation_results,
-                                package_uuid,
-                                &runbook,
-                                runtime_ctx,
-                            );
-
-                            let evaluated_inputs = match evaluated_inputs_res {
-                                Ok(result) => match result {
-                                    CommandInputEvaluationStatus::Complete(result) => result,
-                                    CommandInputEvaluationStatus::NeedsUserInteraction => {
-                                        state_machine
-                                            .consume(
-                                                &CommandInstanceStateMachineInput::NeedsUserInput,
-                                            )
-                                            .unwrap();
-                                        continue;
-                                    }
-                                    CommandInputEvaluationStatus::Aborted(result) => {
-                                        let mut diags = vec![];
-                                        for (_k, res) in result.inputs.into_iter() {
-                                            if let Err(diag) = res {
-                                                diags.push(diag);
-                                            }
-                                        }
-                                        return Err(diags);
-                                    }
-                                },
-                                Err(e) => {
-                                    todo!("build input evaluation diagnostic: {}", e)
-                                }
-                            };
-
-                            runbook
-                                .command_inputs_evaluation_results
-                                .insert(construct_uuid.clone(), evaluated_inputs.clone());
-
-                            let execution_result = {
-                                if let Ok(runtime_ctx_reader) = runtime_ctx.read() {
-                                    let addon_context_key =
-                                        (package_uuid.clone(), command_instance.namespace.clone());
-                                    let addon_defaults = runtime_ctx_reader
-                                        .addons_ctx
-                                        .contexts
-                                        .get(&addon_context_key)
-                                        .and_then(|addon| Some(addon.defaults.clone()))
-                                        .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
-                                    command_instance.perform_execution(
-                                        &evaluated_inputs,
-                                        runbook.uuid.clone(),
-                                        construct_uuid.clone(),
-                                        eval_tx.clone(),
-                                        addon_defaults,
-                                    )
-                                } else {
-                                    unimplemented!()
-                                }
-                            };
-
-                            let execution_result = match execution_result {
-                                // todo(lgalabru): return Diagnostic instead
-                                Ok(CommandExecutionStatus::Complete(result)) => {
-                                    if let Ok(ref execution) = result {
-                                        if command_instance.specification.update_addon_defaults {
-                                            if let Ok(mut runtime_ctx_writer) = runtime_ctx.write()
-                                            {
-                                                let addon_context_key = (
-                                                    package_uuid.clone(),
-                                                    command_instance.namespace.clone(),
-                                                );
-                                                if let Some(ref mut addon_context) =
-                                                    runtime_ctx_writer
-                                                        .addons_ctx
-                                                        .contexts
-                                                        .get_mut(&addon_context_key)
-                                                {
-                                                    for (k, v) in execution.outputs.iter() {
-                                                        addon_context
-                                                            .defaults
-                                                            .keys
-                                                            .insert(k.clone(), v.to_string());
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    state_machine
-                                        .consume(&CommandInstanceStateMachineInput::Successful)
-                                        .unwrap();
-                                    result
-                                }
-                                Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
-                                    state_machine
-                                        .consume(
-                                            &CommandInstanceStateMachineInput::NeedsAsyncRequest,
-                                        )
-                                        .unwrap();
-                                    continue;
-                                }
-                                Err(e) => {
-                                    state_machine
-                                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
-                                        .unwrap();
-                                    Err(e)
-                                }
-                            };
-                            runbook
-                                .constructs_execution_results
-                                .insert(construct_uuid, execution_result);
-                        }
+                            Err(e) => {
+                                cached_dependency_execution_results.insert(dependency, Err(e));
+                            }
+                        },
+                        Some(Err(_)) => continue,
+                        Some(Ok(_)) => {}
                     }
                 }
             }
         }
-        Err(e) => unimplemented!("could not acquire lock: {e}"),
-    }
 
-    match runbook.read() {
-        Ok(_readonly_runbook) => {}
-        Err(e) => unimplemented!("could not acquire lock: {e}"),
+        if let Ok(mut state_machine) = command_instance.state.lock() {
+            match state_machine.state() {
+                CommandInstanceStateMachineState::Evaluated => {}
+                CommandInstanceStateMachineState::Failed
+                | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
+                    continue;
+                }
+                _state => {
+                    let evaluated_inputs_res = perform_inputs_evaluation(
+                        command_instance,
+                        &cached_dependency_execution_results,
+                        &input_evaluation_results,
+                        package_uuid,
+                        &runbook,
+                        runtime_ctx,
+                    );
+
+                    let evaluated_inputs = match evaluated_inputs_res {
+                        Ok(result) => match result {
+                            CommandInputEvaluationStatus::Complete(result) => result,
+                            CommandInputEvaluationStatus::NeedsUserInteraction => {
+                                state_machine
+                                    .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
+                                    .unwrap();
+                                continue;
+                            }
+                            CommandInputEvaluationStatus::Aborted(result) => {
+                                let mut diags = vec![];
+                                for (_k, res) in result.inputs.into_iter() {
+                                    if let Err(diag) = res {
+                                        diags.push(diag);
+                                    }
+                                }
+                                return Err(diags);
+                            }
+                        },
+                        Err(e) => {
+                            todo!("build input evaluation diagnostic: {}", e)
+                        }
+                    };
+
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+                    let execution_result = {
+                        let addon_context_key =
+                            (package_uuid.clone(), command_instance.namespace.clone());
+                        let addon_defaults = runtime_ctx
+                            .addons_ctx
+                            .contexts
+                            .get(&addon_context_key)
+                            .and_then(|addon| Some(addon.defaults.clone()))
+                            .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+                        command_instance.perform_execution(
+                            &evaluated_inputs,
+                            runbook.uuid.clone(),
+                            construct_uuid.clone(),
+                            eval_tx.clone(),
+                            addon_defaults,
+                        )
+                    };
+
+                    let execution_result = match execution_result {
+                        // todo(lgalabru): return Diagnostic instead
+                        Ok(CommandExecutionStatus::Complete(result)) => {
+                            if let Ok(ref execution) = result {
+                                if command_instance.specification.update_addon_defaults {
+                                    let addon_context_key =
+                                        (package_uuid.clone(), command_instance.namespace.clone());
+                                    if let Some(ref mut addon_context) =
+                                        runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                                    {
+                                        for (k, v) in execution.outputs.iter() {
+                                            addon_context
+                                                .defaults
+                                                .keys
+                                                .insert(k.clone(), v.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::Successful)
+                                .unwrap();
+                            result
+                        }
+                        Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::NeedsAsyncRequest)
+                                .unwrap();
+                            continue;
+                        }
+                        Err(e) => {
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                                .unwrap();
+                            Err(e)
+                        }
+                    };
+                    runbook
+                        .constructs_execution_results
+                        .insert(construct_uuid, execution_result);
+                }
+            }
+        }
     }
 
     Ok(())
@@ -410,7 +378,7 @@ pub fn eval_expression(
     >,
     package_uuid: &PackageUuid,
     runbook: &Runbook,
-    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
+    runtime_ctx: &RuntimeContext,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
         // Represents a null value.
@@ -584,15 +552,12 @@ pub fn eval_expression(
                 };
                 args.push(value);
             }
-            match runtime_ctx.write() {
-                Ok(runtime_ctx) => runtime_ctx
-                    .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
-                    .map_err(|e| {
-                        // todo: add more context to error
-                        e
-                    })?,
-                Err(e) => unimplemented!("could not acquire lock: {e}"),
-            }
+            runtime_ctx
+                .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
+                .map_err(|e| {
+                    // todo: add more context to error
+                    e
+                })?
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
@@ -684,15 +649,7 @@ pub fn eval_expression(
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
-            match runtime_ctx.write() {
-                Ok(runtime_ctx) => runtime_ctx.execute_function(
-                    package_uuid.clone(),
-                    None,
-                    func,
-                    &vec![lhs, rhs],
-                )?,
-                Err(e) => unimplemented!("could not acquire lock: {e}"),
-            }
+            runtime_ctx.execute_function(package_uuid.clone(), None, func, &vec![lhs, rhs])?
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
         Expression::ForExpr(_for_expr) => {
@@ -722,7 +679,7 @@ pub fn perform_inputs_evaluation(
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_uuid: &PackageUuid,
     runbook: &Runbook,
-    runtime_ctx: &Arc<RwLock<RuntimeContext>>,
+    runtime_ctx: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Diagnostic> {
     let mut results = CommandInputsEvaluationResult::new();
     let inputs = command_instance.specification.inputs.clone();
