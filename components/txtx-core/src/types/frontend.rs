@@ -27,6 +27,7 @@ pub struct ActionGroup {
 #[derive(Debug, Clone)]
 pub struct ActionSubGroup {
     pub action_items: Vec<ActionItem>,
+    pub allow_batch_completion: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -58,9 +59,16 @@ pub enum ActionItemStatus {
 pub enum ActionItemType {
     ReviewInput,
     ProvideInput,
+    PickInputOption(Vec<InputOption>),
     ProvidePublicKey(ProvidePublicKeyData),
     ProvideSignedTransaction(ProvideSignedTransactionData),
     ValidateChecklist,
+}
+
+#[derive(Debug, Clone)]
+pub struct InputOption {
+    pub value: String,
+    pub displayed_value: String,
 }
 
 #[derive(Debug, Clone)]

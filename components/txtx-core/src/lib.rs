@@ -18,6 +18,7 @@ use ::std::collections::HashMap;
 use channel::Receiver;
 use channel::Sender;
 use channel::TryRecvError;
+use kit::reqwest::redirect::Action;
 use kit::uuid::Uuid;
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -28,10 +29,15 @@ use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::PackageUuid;
 use txtx_addon_kit::AddonContext;
+use types::frontend::ActionGroup;
 use types::frontend::ActionItem;
 use types::frontend::ActionItemEvent;
+use types::frontend::ActionItemStatus;
+use types::frontend::ActionItemType;
 use types::frontend::ActionPanelData;
+use types::frontend::ActionSubGroup;
 use types::frontend::Block;
+use types::frontend::InputOption;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
 
@@ -154,6 +160,9 @@ pub async fn start_runbook_runloop(
     let mut runbook_initialized = false;
     let mut current_block = None;
 
+    // Compute number of steps
+    // A step is
+
     loop {
         let event_opt = match action_item_events_rx.try_recv() {
             Ok(action) => Some(action),
@@ -164,17 +173,42 @@ pub async fn start_runbook_runloop(
         };
 
         if runbook_initialized {
-            runbook_initialized = true;
-
+            runbook_initialized = false;
+            // Step 1
+            // Select environment, if multiple
             let environment_selection_required: bool = environments.len() > 1;
 
-            let genesis_block = Block::ActionPanel(ActionPanelData {
+            let input_options: Vec<InputOption> = environments
+                .keys()
+                .map(|k| InputOption {
+                    value: k.to_string(),
+                    displayed_value: k.to_string(),
+                })
+                .collect();
+
+            let env_selector = ActionItem {
+                uuid: Uuid::new_v4(),
+                index: 0,
+                title: "SELECT ENVIRONMENT".into(),
+                description: "".into(),
+                action_status: ActionItemStatus::Todo,
+                action_type: ActionItemType::PickInputOption(input_options),
+            };
+
+            let genesis_panel_data = ActionPanelData {
                 uuid: Uuid::new_v4(),
                 title: "Runbook Checklist".into(),
-                description: "Lorem Ipsum".into(),
-                groups: vec![],
-            });
+                description: "".to_string(),
+                groups: vec![ActionGroup {
+                    title: "Lorem ipsum".into(),
+                    sub_groups: vec![ActionSubGroup {
+                        action_items: vec![env_selector],
+                        allow_batch_completion: true,
+                    }],
+                }],
+            };
 
+            let genesis_block = Block::ActionPanel(genesis_panel_data);
             let _ = block_tx.send(genesis_block.clone());
             current_block = Some(genesis_block);
         }
@@ -190,7 +224,7 @@ pub async fn start_runbook_runloop(
         // "send" the payload to the construct, it will know what to do with it?
         // the action can also have a "next action"
 
-        // do we have an ongoing checklist?
+        // do we have an ongoing block?
         // retrieve all the actions of the checklist
 
         // recompute the graph
@@ -202,10 +236,6 @@ pub async fn start_runbook_runloop(
         // - 1 result
         // - 1 action
     }
-
-    // Step 1
-    // Select environment, if multiple
-    if environments.len() > 1 {}
 
     Ok(())
 }
