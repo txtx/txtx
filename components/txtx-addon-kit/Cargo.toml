@@ -14,7 +14,7 @@ url = { version = "2.2.2", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["v4"] }
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-rust-fsm = { version = "0.6.1", git="https://github.com/MicaiahReid/rust-fsm.git", branch="add-sm-derivations"}
+rust-fsm = "0.6.2"
 reqwest = { version = "0.12.3", default-features = false, features = [
     "json",
     "rustls-tls",

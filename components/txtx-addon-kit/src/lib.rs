@@ -9,6 +9,7 @@ mod macros;
 
 pub use hex;
 pub use indoc::indoc;
+pub use rust_fsm as fsm;
 use rust_fsm::StateMachine;
 pub use uuid;
 

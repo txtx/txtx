@@ -3137,16 +3137,18 @@ dependencies = [
 
 [[package]]
 name = "rust-fsm"
-version = "0.6.1"
-source = "git+https://github.com/MicaiahReid/rust-fsm.git?branch=add-sm-derivations#ebbe8189bb7170674f872b120db37e20ddf0b402"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "496dfc1e9384e6e6f53e1f0386825724d86c5b47a7f37ddcad84600744064144"
 dependencies = [
  "rust-fsm-dsl",
 ]
 
 [[package]]
 name = "rust-fsm-dsl"
-version = "0.6.1"
-source = "git+https://github.com/MicaiahReid/rust-fsm.git?branch=add-sm-derivations#ebbe8189bb7170674f872b120db37e20ddf0b402"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3967e3a7a0ff2cb3d652b971ddb7bb1404e4525f5074b2aa27a0ca723855109"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4433,7 +4435,6 @@ dependencies = [
  "lazy_static",
  "libsecp256k1 0.7.1",
  "pbkdf2 0.12.2",
- "rust-fsm",
  "serde_json",
  "sha2 0.10.8",
  "tiny-hderive",
@@ -4453,7 +4454,6 @@ dependencies = [
  "lazy_static",
  "libsecp256k1 0.7.1",
  "pbkdf2 0.12.2",
- "rust-fsm",
  "serde",
  "serde_derive",
  "serde_json",
@@ -4505,7 +4505,6 @@ dependencies = [
  "jaq-parse",
  "lazy_static",
  "petgraph",
- "rust-fsm",
  "serde_json",
  "txtx-addon-kit",
 ]
