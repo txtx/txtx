@@ -24,7 +24,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         types::{ObjectProperty, PrimitiveValue, Value},
-        wallets::WalletInstance,
+        wallets::{WalletInstance, WalletSpecification},
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
@@ -164,7 +164,9 @@ impl ConstructInstance {
             ConstructInstance::Command(instance) => {
                 instance.get_expressions_referencing_commands_from_inputs()
             }
-            ConstructInstance::Wallet(_) => todo!(),
+            ConstructInstance::Wallet(instance) => {
+                instance.get_expressions_referencing_commands_from_inputs()
+            }
         }
     }
 
@@ -197,7 +199,9 @@ impl ConstructInstance {
             ConstructInstance::Command(instance) => {
                 instance.get_expression_from_object_property(input, prop)
             }
-            ConstructInstance::Wallet(_instance) => todo!(),
+            ConstructInstance::Wallet(instance) => {
+                instance.get_expression_from_object_property(input, prop)
+            }
         }
     }
 
@@ -207,7 +211,7 @@ impl ConstructInstance {
     ) -> Result<Option<Expression>, Diagnostic> {
         match self {
             ConstructInstance::Command(instance) => instance.get_expression_from_input(input),
-            ConstructInstance::Wallet(_instance) => todo!(),
+            ConstructInstance::Wallet(instance) => instance.get_expression_from_input(input),
         }
     }
 
@@ -218,6 +222,7 @@ impl ConstructInstance {
         construct_uuid: ConstructUuid,
         eval_tx: Sender<EvalEvent>,
         addon_defaults: AddonDefaults,
+        wallets: HashMap<String, WalletSpecification>,
     ) -> Result<CommandExecutionStatus, Diagnostic> {
         match self {
             ConstructInstance::Command(instance) => instance.perform_execution(
@@ -226,8 +231,15 @@ impl ConstructInstance {
                 construct_uuid,
                 eval_tx,
                 addon_defaults,
+                wallets,
             ),
-            ConstructInstance::Wallet(_instance) => todo!(),
+            ConstructInstance::Wallet(instance) => instance.perform_execution(
+                evaluated_inputs,
+                runbook_uuid,
+                construct_uuid,
+                eval_tx,
+                addon_defaults,
+            ),
         }
     }
 }
@@ -398,12 +410,17 @@ pub fn run_constructs_evaluation(
                                 if let Ok(runtime_ctx_reader) = runtime_ctx.read() {
                                     let addon_context_key =
                                         (package_uuid.clone(), construct.get_namespace());
-                                    let addon_defaults = runtime_ctx_reader
+                                    let addon_ctx = runtime_ctx_reader
                                         .addons_ctx
                                         .contexts
-                                        .get(&addon_context_key)
+                                        .get(&addon_context_key);
+
+                                    let addon_defaults = addon_ctx
                                         .and_then(|addon| Some(addon.defaults.clone()))
                                         .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+                                    let wallets = addon_ctx
+                                        .and_then(|addon| Some(addon.wallets.clone()))
+                                        .unwrap_or(HashMap::new());
 
                                     construct.perform_execution(
                                         &evaluated_inputs,
@@ -411,6 +428,7 @@ pub fn run_constructs_evaluation(
                                         construct_uuid.clone(),
                                         eval_tx.clone(),
                                         addon_defaults,
+                                        wallets,
                                     )
                                 } else {
                                     unimplemented!()
