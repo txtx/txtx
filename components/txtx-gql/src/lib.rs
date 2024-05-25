@@ -1,16 +1,14 @@
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;
+use uuid::Uuid;
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     sync::{Arc, RwLock},
 };
 use txtx_core::{
-    channel::{Receiver, Sender},
-    types::{
-        frontend::{ActionItem, ActionItemEvent, Block},
-        Runbook, RuntimeContext,
-    },
+    channel::Sender,
+    types::frontend::{ActionItemEvent, Block},
 };
 
 pub mod mutation;
@@ -19,15 +17,8 @@ pub mod types;
 
 pub struct Context {
     pub protocol_name: String,
-    pub data: HashMap<String, ContextData>,
-    pub block_rx: Receiver<Block>,
-    pub action_item_updates_rx: Receiver<ActionItem>,
+    pub block_store: Arc<RwLock<BTreeMap<Uuid, Block>>>,
     pub action_item_events_tx: Sender<ActionItemEvent>,
-}
-
-pub struct ContextData {
-    pub runbook: Arc<RwLock<Runbook>>,
-    pub runtime_context: Arc<RwLock<RuntimeContext>>,
 }
 
 impl juniper::Context for Context {}

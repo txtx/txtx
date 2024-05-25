@@ -58,7 +58,9 @@ pub async fn start_server(
         .ignite()
         .await?;
 
-    let _ = ignite.launch().await;
+    let _ = std::thread::spawn(move || {
+        let _ = hiro_system_kit::nestable_block_on(ignite.launch());
+    });
     Ok(())
 }
 

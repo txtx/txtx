@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::{BTreeMap, HashMap}, sync::RwLock};
 use txtx_core::{
     pre_compute_runbook, start_runbook_runloop,
     types::frontend::{ActionItem, ActionItemEvent, Block},
@@ -90,7 +90,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     let environments = manifest.environments.clone();
 
     // Start runloop
-    let _ = std::thread::spawn(move || {
+    let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
@@ -108,13 +108,14 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         std::process::exit(1);
     });
 
+    // Start runloop
+    let block_store = Arc::new(RwLock::new(BTreeMap::new())); 
+
     if cmd.web_console {
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: manifest.name,
-            data: gql_data,
-            block_rx,
-            action_item_updates_rx,
+            block_store: block_store.clone(),
             action_item_events_tx,
         };
 
@@ -127,6 +128,21 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
         let _ = web_ui::http::start_server(gql_context, port, ctx).await;
     }
+
+    let _ = hiro_system_kit::thread_named("Blocks Store Update Runloop").spawn(move || loop {
+        select! {
+            recv(block_rx) -> msg => {
+                if let Ok((new_block)) = msg {
+                    // Add new_block to block_store
+                }
+            }
+            recv(action_item_updates_rx) -> msg => {
+                if let Ok(new_action_update) = msg {
+                    // Retrieve item to update from store
+                }
+            }
+        }
+    });
 
     Ok(())
 }

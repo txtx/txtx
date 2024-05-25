@@ -14,6 +14,8 @@ pub mod visitor;
 
 use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
+use ::std::thread::sleep;
+use ::std::time::Duration;
 
 use channel::Receiver;
 use channel::Sender;
@@ -174,48 +176,20 @@ pub async fn start_runbook_runloop(
 
         if runbook_initialized {
             runbook_initialized = false;
-            // Step 1
-            // Select environment, if multiple
-            let environment_selection_required: bool = environments.len() > 1;
-
-            let input_options: Vec<InputOption> = environments
-                .keys()
-                .map(|k| InputOption {
-                    value: k.to_string(),
-                    displayed_value: k.to_string(),
-                })
-                .collect();
-
-            let env_selector = ActionItem {
-                uuid: Uuid::new_v4(),
-                index: 0,
-                title: "SELECT ENVIRONMENT".into(),
-                description: "".into(),
-                action_status: ActionItemStatus::Todo,
-                action_type: ActionItemType::PickInputOption(input_options),
-            };
-
-            let genesis_panel_data = ActionPanelData {
-                uuid: Uuid::new_v4(),
-                title: "Runbook Checklist".into(),
-                description: "".to_string(),
-                groups: vec![ActionGroup {
-                    title: "Lorem ipsum".into(),
-                    sub_groups: vec![ActionSubGroup {
-                        action_items: vec![env_selector],
-                        allow_batch_completion: true,
-                    }],
-                }],
-            };
-
-            let genesis_block = Block::ActionPanel(genesis_panel_data);
-            let _ = block_tx.send(genesis_block.clone());
-            current_block = Some(genesis_block);
+            let genesis_panel = Block::ActionPanel(build_genesis_panel(&environments, &runbook));
+            let _ = block_tx.send(genesis_panel.clone());
+            current_block = Some(genesis_panel);
         }
 
+        // Cooldown
         let Some(event) = event_opt else {
+            sleep(Duration::from_millis(3000));
             continue;
         };
+
+
+
+
 
         // Retrieve action via its UUID
         // event.checklist_action_uuid
@@ -238,4 +212,52 @@ pub async fn start_runbook_runloop(
     }
 
     Ok(())
+}
+
+pub fn build_genesis_panel(environments: &BTreeMap<String, BTreeMap<String, String>>, runbook: &Runbook) -> ActionPanelData {
+    let input_options: Vec<InputOption> = environments
+        .keys()
+        .map(|k| InputOption {
+            value: k.to_string(),
+            displayed_value: k.to_string(),
+        })
+        .collect();
+
+    let env_selector = ActionItem {
+        uuid: Uuid::new_v4(),
+        index: 0,
+        title: "SELECT ENVIRONMENT".into(),
+        description: "".into(),
+        action_status: ActionItemStatus::Todo,
+        action_type: ActionItemType::PickInputOption(input_options),
+    };
+
+    let start_runbook_action = ActionItem {
+        uuid: Uuid::new_v4(),
+        index: 0,
+        title: "START RUNBOOK".into(),
+        description: "".into(),
+        action_status: ActionItemStatus::Todo,
+        action_type: ActionItemType::ValidatePanel,
+    };
+
+    let environment_selection_required: bool = environments.len() > 1;
+
+    ActionPanelData {
+        uuid: Uuid::new_v4(),
+        title: "Runbook Checklist".into(),
+        description: "".to_string(),
+        groups: vec![ActionGroup {
+            title: "Lorem ipsum".into(),
+            sub_groups: vec![ActionSubGroup {
+                action_items: vec![env_selector, start_runbook_action],
+                allow_batch_completion: true,
+            }],
+        }],
+    }
+}
+
+#[test]
+fn test_genesis_panel() {
+    // build_genesis_panel()
 }

@@ -62,7 +62,7 @@ pub enum ActionItemType {
     PickInputOption(Vec<InputOption>),
     ProvidePublicKey(ProvidePublicKeyData),
     ProvideSignedTransaction(ProvideSignedTransactionData),
-    ValidateChecklist,
+    ValidatePanel,
 }
 
 #[derive(Debug, Clone)]
