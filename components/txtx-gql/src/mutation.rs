@@ -1,12 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use serde_json::json;
-use txtx_core::eval::{
-    get_sorted_nodes, is_child_of_node, prepare_constructs_reevaluation, run_constructs_evaluation,
-};
-use txtx_core::kit::types::commands::CommandInstanceStateMachineInput;
-use txtx_core::types::ConstructUuid;
-use uuid::Uuid;
+use txtx_core::kit::types::frontend::ActionItemEvent;
 
 pub struct Mutation;
 
@@ -16,5 +10,12 @@ pub struct Mutation;
 impl Mutation {
     fn api_version() -> &'static str {
         "1.0"
+    }
+
+    fn update_action_item(context: &Context, event: String) -> Result<String, String> {
+        println!("received mutation");
+        let event: ActionItemEvent = serde_json::from_str(&event).map_err(|e| e.to_string())?;
+        let _ = context.action_item_events_tx.send(event);
+        Ok("Ok".to_string())
     }
 }
