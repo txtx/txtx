@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
-    CommandImplementation, CommandInstance, PreCommandSpecification,
+    return_synchronous_ok, CommandExecutionFutureResult, CommandImplementation, CommandInstance,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
@@ -65,6 +67,7 @@ lazy_static! {
 }
 
 pub struct SetStacksGlobals;
+
 impl CommandImplementation for SetStacksGlobals {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -83,7 +86,7 @@ impl CommandImplementation for SetStacksGlobals {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         let stacks_network = args.get("network_id").unwrap().expect_string();
@@ -98,6 +101,6 @@ impl CommandImplementation for SetStacksGlobals {
             "stacks_api_url".to_string(),
             Value::string(stacks_api_url.into()),
         );
-        Ok(result)
+        return_synchronous_ok(result)
     }
 }

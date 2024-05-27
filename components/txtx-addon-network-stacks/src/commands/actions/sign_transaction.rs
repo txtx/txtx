@@ -20,7 +20,10 @@ use clarity_repl::{
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{collections::HashMap, str::FromStr};
 use tiny_hderive::bip32::ExtendedPrivKey;
-use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::async_trait::async_trait;
+use txtx_addon_kit::types::commands::{
+    return_synchronous_ok, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
@@ -105,6 +108,7 @@ lazy_static! {
 }
 
 pub struct SignStacksTransaction;
+
 impl CommandImplementation for SignStacksTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -123,7 +127,7 @@ impl CommandImplementation for SignStacksTransaction {
         ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         // Extract nonce
         let nonce = match args.get("nonce") {
@@ -212,7 +216,7 @@ impl CommandImplementation for SignStacksTransaction {
             .outputs
             .insert("network_id".to_string(), Value::string(network_id));
 
-        Ok(result)
+        return_synchronous_ok(result)
     }
 }
 

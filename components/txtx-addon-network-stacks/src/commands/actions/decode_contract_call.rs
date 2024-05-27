@@ -1,8 +1,10 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
+use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
-    CommandImplementation, CommandInstance, PreCommandSpecification,
+    return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
+    CommandInstance, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
@@ -63,6 +65,7 @@ lazy_static! {
 }
 
 pub struct EncodeStacksContractCall;
+
 impl CommandImplementation for EncodeStacksContractCall {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -81,7 +84,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_id
@@ -105,7 +108,8 @@ impl CommandImplementation for EncodeStacksContractCall {
                             .function_args
                             .into_iter()
                             .map(|a| clarity_value_to_value(a))
-                            .collect::<Result<Vec<_>, _>>()?;
+                            .collect::<Result<Vec<_>, _>>()
+                            .unwrap();
                         result
                             .outputs
                             .insert("function_args".to_string(), Value::array(function_args));
@@ -132,6 +136,6 @@ impl CommandImplementation for EncodeStacksContractCall {
             Err(e) => unimplemented!("deserialize failed; return diagnostic: {}", e),
         };
 
-        Ok(result)
+        return_synchronous_result(Ok(result))
     }
 }

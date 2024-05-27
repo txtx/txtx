@@ -1,19 +1,23 @@
-use std::{collections::HashMap, pin::Pin};
+use std::collections::HashMap;
+use std::pin::pin;
+use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
-use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::types::commands::{
+    CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
-    commands::{CommandExecutionResult, CommandImplementationAsync, CommandSpecification},
+    commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::{define_async_command, indoc, AddonDefaults};
+use txtx_addon_kit::{define_command, indoc, AddonDefaults};
 
 lazy_static! {
-    pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_async_command! {
+    pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_command! {
         SendHttpRequest => {
             name: "Send an HTTP request",
             matcher: "send_http_request",
@@ -83,7 +87,8 @@ lazy_static! {
     };
 }
 pub struct SendHttpRequest;
-impl CommandImplementationAsync for SendHttpRequest {
+
+impl CommandImplementation for SendHttpRequest {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -103,10 +108,10 @@ impl CommandImplementationAsync for SendHttpRequest {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
-    {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
+
         let future = async move {
             let url = args.get("url").unwrap().expect_string();
             let request_body = args
@@ -163,7 +168,6 @@ impl CommandImplementationAsync for SendHttpRequest {
 
             Ok(result)
         };
-
         Box::pin(future)
     }
 }

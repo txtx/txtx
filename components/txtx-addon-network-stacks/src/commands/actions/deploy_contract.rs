@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use txtx_addon_kit::{
+    async_trait::async_trait,
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInstance, CommandSpecification,
-            PreCommandSpecification,
+            CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+            CommandInstance, CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::ActionItem,
@@ -41,6 +42,7 @@ lazy_static! {
     };
 }
 pub struct StacksDeployContract;
+
 impl CommandImplementation for StacksDeployContract {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -59,7 +61,7 @@ impl CommandImplementation for StacksDeployContract {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         unimplemented!()
     }
 }

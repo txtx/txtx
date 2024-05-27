@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::async_trait::async_trait;
+use txtx_addon_kit::types::commands::{
+    return_synchronous_ok, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
@@ -89,7 +92,7 @@ impl CommandImplementation for SignStacksTransaction {
         ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         match args.get("signed_transaction_bytes") {
@@ -116,6 +119,6 @@ impl CommandImplementation for SignStacksTransaction {
             .outputs
             .insert("network_id".to_string(), Value::string(network_id));
 
-        Ok(result)
+        return_synchronous_ok(result)
     }
 }

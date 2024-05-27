@@ -248,7 +248,7 @@ pub async fn start_runbook_runloop(
             let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
 
             let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-            let _ = run_constructs_evaluation(runbook, runtime_context, None, tx.clone())?;
+            let _ = run_constructs_evaluation(runbook, runtime_context, None, tx.clone()).await?;
 
             let ordered_nodes = get_sorted_nodes(runbook.constructs_graph.clone());
             let graph = runbook.constructs_graph.clone();
@@ -418,7 +418,9 @@ pub async fn start_runbook_runloop(
                         runtime_context,
                         Some(command_graph_node.clone()),
                         tx.clone(),
-                    ) {
+                    )
+                    .await
+                    {
                         Ok(()) => println!("successfully reevaluated constructs after mutation"),
                         Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
                     }

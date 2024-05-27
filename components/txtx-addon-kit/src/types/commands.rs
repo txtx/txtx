@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use rust_fsm::{state_machine, StateMachine};
 use serde::{
     ser::{Error, SerializeMap, SerializeStruct},
@@ -5,13 +6,12 @@ use serde::{
 };
 use std::{
     collections::HashMap,
-    future::Future,
+    future::{self, Future},
     hash::Hash,
     pin::Pin,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{Arc, Mutex},
 };
 #[cfg(not(feature = "wasm"))]
-use tokio::runtime::Builder as RuntimeBuilder;
 use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
@@ -285,13 +285,17 @@ impl Serialize for CompositeCommandSpecification {
     }
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
-// type CommandRunner = Box<
-//     fn(
-//         &CommandSpecification,
-//         &HashMap<String, Value>,
-//     ) -> Result<CommandExecutionResult, Diagnostic>,
-// >;
+pub type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type CommandExecutionFutureResult =
+    Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
+
+pub type CommandRunner = Box<
+    fn(
+        &CommandSpecification,
+        &HashMap<String, Value>,
+        &AddonDefaults,
+    ) -> CommandExecutionFutureResult,
+>;
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 type ActionInitializer = fn(
@@ -303,42 +307,21 @@ type ActionInitializer = fn(
     &CommandInstance,
 ) -> Option<ActionItem>;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum CommandRunner {
-    Async(CommandRunnerAsync),
-    Sync(CommandRunnerSync),
+pub fn return_synchronous_result(
+    res: Result<CommandExecutionResult, Diagnostic>,
+) -> CommandExecutionFutureResult {
+    Box::pin(future::ready(res))
 }
 
-type CommandRunnerSync = fn(
-    &CommandSpecification,
-    &HashMap<String, Value>,
-    &AddonDefaults,
-) -> Result<CommandExecutionResult, Diagnostic>;
-
-type CommandRunnerAsync = Box<
-    fn(
-        &CommandSpecification,
-        &HashMap<String, Value>,
-        &AddonDefaults,
-    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>,
->;
-
-pub trait CommandImplementationAsync {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
-    fn get_action(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-        _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem>;
-    fn run(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
+pub fn return_synchronous_ok(res: CommandExecutionResult) -> CommandExecutionFutureResult {
+    return_synchronous_result(Ok(res))
 }
+
+pub fn return_synchronous_err(diag: Diagnostic) -> CommandExecutionFutureResult {
+    return_synchronous_result(Err(diag))
+}
+
+#[async_trait(?Send)]
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
     fn get_action(
@@ -353,7 +336,7 @@ pub trait CommandImplementation {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic>;
+    ) -> CommandExecutionFutureResult;
 }
 
 pub trait CompositeCommandImplementation {
@@ -610,15 +593,11 @@ impl CommandInstance {
         )
     }
 
-    pub fn perform_execution(
+    pub async fn perform_execution(
         &self,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        runbook_uuid: Uuid,
-        construct_uuid: ConstructUuid,
-        eval_tx: Sender<EvalEvent>,
         addon_defaults: AddonDefaults,
-    ) -> Result<CommandExecutionStatus, Diagnostic> {
-        // todo: I don't think this one needs to be a result
+    ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(&input.name) {
@@ -639,35 +618,8 @@ impl CommandInstance {
             }?;
             values.insert(input.name.clone(), value);
         }
-        match &self.specification.runner {
-            CommandRunner::Async(async_runner) => {
-                #[cfg(not(feature = "wasm"))]
-                {
-                    let spec = self.specification.clone();
-                    let async_runner_moved = async_runner.clone();
-                    let _ = std::thread::spawn(move || {
-                        let runtime = RuntimeBuilder::new_current_thread()
-                            .enable_time()
-                            .enable_io()
-                            .build()
-                            .unwrap();
-                        let result =
-                            runtime.block_on((async_runner_moved)(&spec, &values, &addon_defaults));
-                        eval_tx.send(EvalEvent::AsyncRequestComplete {
-                            runbook_uuid,
-                            result: Ok(CommandExecutionStatus::Complete(result)),
-                            construct_uuid,
-                        })
-                    });
-                    Ok(CommandExecutionStatus::NeedsAsyncRequest)
-                }
-                #[cfg(feature = "wasm")]
-                panic!("async commands are not enabled for wasm")
-            }
-            CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
-                (sync_runner)(&self.specification, &values, &addon_defaults),
-            )),
-        }
+
+        (&self.specification.runner)(&self.specification, &values, &addon_defaults).await
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {

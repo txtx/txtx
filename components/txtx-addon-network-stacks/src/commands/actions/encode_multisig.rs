@@ -7,7 +7,10 @@ use clarity_repl::codec::{
 };
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::async_trait::async_trait;
+use txtx_addon_kit::types::commands::{
+    return_synchronous_ok, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
@@ -63,6 +66,7 @@ lazy_static! {
 }
 
 pub struct EncodeMultisigTransaction;
+
 impl CommandImplementation for EncodeMultisigTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -81,7 +85,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
@@ -100,7 +104,8 @@ impl CommandImplementation for EncodeMultisigTransaction {
             .and_then(|a| Some(a.expect_buffer_data()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "Key 'bytes' is missing"
-            )))?
+            )))
+            .unwrap()
             .bytes;
 
         let public_keys = args
@@ -108,7 +113,8 @@ impl CommandImplementation for EncodeMultisigTransaction {
             .and_then(|a| Some(a.expect_array()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "Key 'public_keys' is missing"
-            )))?
+            )))
+            .unwrap()
             .clone();
 
         let stacks_public_keys: Vec<StacksPublicKey> = public_keys
@@ -123,7 +129,8 @@ impl CommandImplementation for EncodeMultisigTransaction {
             .collect::<Vec<StacksPublicKey>>();
 
         let payload = TransactionPayload::consensus_deserialize(&mut &bytes[..])
-            .map_err(|e| Diagnostic::error_from_string(e.to_string()))?;
+            .map_err(|e| Diagnostic::error_from_string(e.to_string()))
+            .unwrap();
         let address_hash = public_keys_to_address_hash(
             &AddressHashMode::SerializeP2SH,
             stacks_public_keys.len(),
@@ -167,6 +174,6 @@ impl CommandImplementation for EncodeMultisigTransaction {
             Value::array(public_keys.clone().into_iter().collect()),
         );
 
-        Ok(result)
+        return_synchronous_ok(result)
     }
 }

@@ -145,7 +145,7 @@ pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIn
     }
 }
 
-pub fn run_constructs_evaluation(
+pub async fn run_constructs_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
@@ -302,44 +302,32 @@ pub fn run_constructs_evaluation(
                             .get(&addon_context_key)
                             .and_then(|addon| Some(addon.defaults.clone()))
                             .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
-                        command_instance.perform_execution(
-                            &evaluated_inputs,
-                            runbook.uuid.clone(),
-                            construct_uuid.clone(),
-                            eval_tx.clone(),
-                            addon_defaults,
-                        )
+                        command_instance
+                            .perform_execution(&evaluated_inputs, addon_defaults)
+                            .await
                     };
 
                     let execution_result = match execution_result {
                         // todo(lgalabru): return Diagnostic instead
-                        Ok(CommandExecutionStatus::Complete(result)) => {
-                            if let Ok(ref execution) = result {
-                                if command_instance.specification.update_addon_defaults {
-                                    let addon_context_key =
-                                        (package_uuid.clone(), command_instance.namespace.clone());
-                                    if let Some(ref mut addon_context) =
-                                        runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
-                                    {
-                                        for (k, v) in execution.outputs.iter() {
-                                            addon_context
-                                                .defaults
-                                                .keys
-                                                .insert(k.clone(), v.to_string());
-                                        }
+                        Ok(result) => {
+                            if command_instance.specification.update_addon_defaults {
+                                let addon_context_key =
+                                    (package_uuid.clone(), command_instance.namespace.clone());
+                                if let Some(ref mut addon_context) =
+                                    runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                                {
+                                    for (k, v) in result.outputs.iter() {
+                                        addon_context
+                                            .defaults
+                                            .keys
+                                            .insert(k.clone(), v.to_string());
                                     }
                                 }
                             }
                             state_machine
                                 .consume(&CommandInstanceStateMachineInput::Successful)
                                 .unwrap();
-                            result
-                        }
-                        Ok(CommandExecutionStatus::NeedsAsyncRequest) => {
-                            state_machine
-                                .consume(&CommandInstanceStateMachineInput::NeedsAsyncRequest)
-                                .unwrap();
-                            continue;
+                            Ok(result)
                         }
                         Err(e) => {
                             state_machine

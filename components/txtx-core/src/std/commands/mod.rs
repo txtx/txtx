@@ -1,12 +1,14 @@
 pub mod actions;
 
 use std::collections::HashMap;
+use txtx_addon_kit::async_trait::async_trait;
+use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::{
     define_command,
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInstance, CommandSpecification,
-            PreCommandSpecification,
+            CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+            CommandInstance, CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::{ActionItem, ActionItemStatus, ActionItemType, ProvideInputContext},
@@ -38,6 +40,7 @@ pub fn new_module_specification() -> CommandSpecification {
 }
 
 pub struct Module;
+#[async_trait(?Send)]
 impl CommandImplementation for Module {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -58,9 +61,9 @@ impl CommandImplementation for Module {
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
-        Ok(result)
+        return_synchronous_result(Ok(result))
     }
 }
 
@@ -114,6 +117,7 @@ pub fn new_input_specification() -> CommandSpecification {
 }
 
 pub struct Input;
+
 impl CommandImplementation for Input {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -165,14 +169,14 @@ impl CommandImplementation for Input {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         if let Some(value) = args.get("value") {
             result.outputs.insert("value".to_string(), value.clone());
         } else if let Some(default) = args.get("default") {
             result.outputs.insert("value".to_string(), default.clone());
         }
-        Ok(result)
+        return_synchronous_result(Ok(result))
     }
 }
 
@@ -208,6 +212,7 @@ pub fn new_output_specification() -> CommandSpecification {
 }
 
 pub struct Output;
+
 impl CommandImplementation for Output {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -238,10 +243,10 @@ impl CommandImplementation for Output {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> CommandExecutionFutureResult {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
-        Ok(result)
+        return_synchronous_result(Ok(result))
     }
 }

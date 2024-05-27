@@ -2,12 +2,15 @@ use clarity::util::sleep_ms;
 use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write, pin::Pin};
+use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::reqwest;
-use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::types::commands::{
+    CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
-    commands::{CommandExecutionResult, CommandImplementationAsync, CommandSpecification},
+    commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
@@ -16,7 +19,7 @@ use txtx_addon_kit::AddonDefaults;
 use crate::typing::CLARITY_VALUE;
 
 lazy_static! {
-    pub static ref BROADCAST_STACKS_TRANSACTION: PreCommandSpecification = define_async_command! {
+    pub static ref BROADCAST_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
         BroadcastStacksTransaction => {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
@@ -76,7 +79,7 @@ lazy_static! {
     };
 }
 pub struct BroadcastStacksTransaction;
-impl CommandImplementationAsync for BroadcastStacksTransaction {
+impl CommandImplementation for BroadcastStacksTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         //    Todo: check network consistency?
         // let network = match transaction.version {
@@ -104,11 +107,9 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<CommandExecutionResult, Diagnostic>>>> //todo: alias type
-    {
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
-
         let transaction_bytes = args
             .get("signed_transaction_bytes")
             .unwrap()
@@ -279,11 +280,8 @@ impl CommandImplementationAsync for BroadcastStacksTransaction {
                 confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
 
-            println!("Done! {:?}", confirmed_blocks_ids);
-
             Ok(result)
         };
-
         Box::pin(future)
     }
 }
