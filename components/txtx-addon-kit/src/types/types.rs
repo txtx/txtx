@@ -390,6 +390,18 @@ impl PrimitiveValue {
             },
         }
     }
+
+    pub fn get_type(&self) -> PrimitiveType {
+        match self {
+            PrimitiveValue::String(_) => PrimitiveType::String,
+            PrimitiveValue::UnsignedInteger(_) => PrimitiveType::UnsignedInteger,
+            PrimitiveValue::SignedInteger(_) => PrimitiveType::SignedInteger,
+            PrimitiveValue::Float(_) => PrimitiveType::Float,
+            PrimitiveValue::Bool(_) => PrimitiveType::Bool,
+            PrimitiveValue::Null => PrimitiveType::Null,
+            PrimitiveValue::Buffer(_) => PrimitiveType::Buffer,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
