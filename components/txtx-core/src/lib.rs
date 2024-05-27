@@ -482,25 +482,31 @@ pub fn build_genesis_panel(
         })
         .collect();
 
-    let env_selector = ActionItem {
-        uuid: SET_ENV_UUID.clone(),
-        index: 0,
-        title: "select environment".into(),
-        description: selected_env.clone().unwrap_or("".to_string()),
-        action_status: ActionItemStatus::Todo,
-        action_type: ActionItemType::PickInputOption(input_options),
-    };
+    let mut action_items = vec![];
 
-    let start_runbook_action = ActionItem {
+    if environments.len() > 0 {
+        action_items.push(ActionItem {
+            uuid: SET_ENV_UUID.clone(),
+            index: 0,
+            title: "select environment".into(),
+            description: selected_env.clone().unwrap_or("".to_string()),
+            action_status: ActionItemStatus::Todo,
+            action_type: ActionItemType::PickInputOption(input_options),
+        })
+    }
+
+    action_items.push(ActionItem {
         uuid: Uuid::new_v4(),
         index: 0,
         title: "start runbook".into(),
         description: "".into(),
-        action_status: ActionItemStatus::Todo,
+        action_status: if action_items.is_empty() {
+            ActionItemStatus::Success
+        } else {
+            ActionItemStatus::Todo
+        },
         action_type: ActionItemType::ValidatePanel,
-    };
-
-    let environment_selection_required: bool = environments.len() > 1;
+    });
 
     ActionPanelData {
         title: "runbook checklist".into(),
@@ -508,7 +514,7 @@ pub fn build_genesis_panel(
         groups: vec![ActionGroup {
             title: "lorem ipsum".into(),
             sub_groups: vec![ActionSubGroup {
-                action_items: vec![env_selector, start_runbook_action],
+                action_items,
                 allow_batch_completion: true,
             }],
         }],

@@ -169,7 +169,7 @@ pub enum ChecklistActionResultProvider {
     RemoteWebConsole,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ActionItemStatus {
     Todo,

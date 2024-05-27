@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, time::Duration};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     hiro_system_kit,
-    types::frontend::{ActionItem, ActionItemEvent, BlockEvent},
+    types::frontend::{ActionItem, ActionItemEvent, ActionItemPayload, ActionItemStatus, BlockEvent},
 };
 
 use crate::{
@@ -67,4 +67,29 @@ fn test_abc_runbook_no_env() {
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
+    assert_eq!(action_panel_data.groups.len(), 1);
+    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[0].action_items.len(),
+        1
+    );
+
+    let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Success);
+    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+
+    // Complete start_runbook action
+    let _ = action_item_events_tx.send(ActionItemEvent {
+        action_item_uuid: start_runbook.uuid.clone(),
+        payload: ActionItemPayload::ValidatePanel
+    });
+
+    // let Ok(event) = block_rx.recv_timeout(Duration::from_secs(1)) else {
+    //     assert!(false, "unable to receive genesis block");
+    //     panic!()
+    // };
+
+    // eprintln!("{:?}", event);
+
+
 }
