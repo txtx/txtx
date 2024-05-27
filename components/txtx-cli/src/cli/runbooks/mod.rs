@@ -3,7 +3,7 @@ use std::{
     sync::{mpsc::channel, Arc, RwLock},
 };
 use txtx_core::{
-    channel::select,
+    kit::channel::{self, select},
     kit::types::frontend::{ActionItem, ActionItemEvent, ActionItemPayload, BlockEvent},
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
 };
@@ -63,11 +63,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let (block_tx, block_rx) = txtx_core::channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, action_item_updates_rx) =
-        txtx_core::channel::unbounded::<ActionItem>();
-    let (action_item_events_tx, action_item_events_rx) =
-        txtx_core::channel::unbounded::<ActionItemEvent>();
+    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
+    let (action_item_updates_tx, action_item_updates_rx) = channel::unbounded::<ActionItem>();
+    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemEvent>();
 
     // Frontend:
     // - block_rx

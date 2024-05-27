@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionFutureResult, CommandImplementation, CommandInstance,
-            CommandSpecification, PreCommandSpecification,
+            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
+            CommandInstance, CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::ActionItem,
@@ -43,23 +43,29 @@ lazy_static! {
 pub struct StacksDeployContract;
 
 impl CommandImplementation for StacksDeployContract {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-    fn get_action(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
+
+    fn check_executability(
         _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        todo!()
-    }
-    fn run(
-        _ctx: &CommandSpecification,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        unimplemented!()
+    }
+
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

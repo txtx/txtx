@@ -1,6 +1,6 @@
 use rust_fsm::{state_machine, StateMachine};
 use serde::{
-    ser::{Error, SerializeMap, SerializeStruct},
+    ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
 };
 use std::{
@@ -8,10 +8,7 @@ use std::{
     future::{self, Future},
     hash::Hash,
     pin::Pin,
-    sync::{Arc, Mutex},
 };
-#[cfg(not(feature = "wasm"))]
-use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -28,6 +25,11 @@ use super::{
     types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };
+
+#[derive(Clone, Debug)]
+pub struct CommandExecutionContext {
+    pub review_defaults: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -206,9 +208,9 @@ pub struct CommandSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub action_initializer: ActionInitializer,
-    pub runner: CommandRunner,
-    pub checker: CommandChecker,
+    pub check_executability: ExecutabilityChecker,
+    pub check_instantiability: InstantiabilityChecker,
+    pub execute: CommandRunner,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -248,10 +250,17 @@ impl CommandSpecification {
             },
             CommandInput {
                 name: "redacted".into(),
-                documentation: "...".into(),
+                documentation: "Never include value in logs".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: false,
+            },
+            CommandInput {
+                name: "group".into(),
+                documentation: "Name used for grouping commands together".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: true,
             },
         ]
     }
@@ -284,27 +293,28 @@ impl Serialize for CompositeCommandSpecification {
     }
 }
 
-pub type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type InstantiabilityChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 pub type CommandExecutionFutureResult =
     Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
 
 pub type CommandRunner = Box<
     fn(
+        &ConstructUuid,
         &CommandSpecification,
         &HashMap<String, Value>,
         &AddonDefaults,
+        &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult,
 >;
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
-type ActionInitializer = fn(
+type ExecutabilityChecker = fn(
+    &ConstructUuid,
     &CommandSpecification,
     &HashMap<String, Value>,
     &AddonDefaults,
-    &ConstructUuid,
-    u16,
-    &CommandInstance,
-) -> Option<ActionItem>;
+    &CommandExecutionContext,
+) -> Result<(), ActionItem>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -321,19 +331,25 @@ pub fn return_synchronous_err(diag: Diagnostic) -> CommandExecutionFutureResult 
 }
 
 pub trait CommandImplementation {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
-    fn get_action(
+    fn check_instantiability(
         _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic>;
+    fn check_executability(
         _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem>;
-    fn run(
-        _ctx: &CommandSpecification,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        Ok(())
+    }
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult;
 }
 
@@ -389,10 +405,11 @@ pub enum CommandInstanceType {
     Prompt,
     Module,
 }
+
 #[derive(Debug, Clone)]
 pub struct CommandInstance {
     pub specification: CommandSpecification,
-    pub state: Arc<Mutex<StateMachine<CommandInstanceStateMachine>>>,
+    pub state_machine: StateMachine<CommandInstanceStateMachine>,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
@@ -412,8 +429,7 @@ impl Serialize for CommandInstance {
         let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
-        let state_machine = self.state.lock().map_err(S::Error::custom)?;
-        let state = state_machine.state();
+        let state = self.state_machine.state();
         ser.serialize_field("state", &state)?;
         ser.serialize_field("packageUuid", &self.package_uuid)?;
         ser.serialize_field("namespace", &self.namespace)?;
@@ -551,13 +567,13 @@ impl CommandInstance {
         }
     }
 
-    pub fn get_action(
+    pub fn check_executability(
         &self,
+        construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        construct_uuid: ConstructUuid,
         addon_defaults: AddonDefaults,
-        index: u16,
-    ) -> Option<ActionItem> {
+        execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(&input.name) {
@@ -581,20 +597,21 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        (spec.action_initializer)(
-            &spec,
+        (spec.check_executability)(
+            &construct_uuid,
+            &self.specification,
             &values,
             &addon_defaults,
-            &construct_uuid,
-            index,
-            &self,
+            &execution_context,
         )
     }
 
     pub async fn perform_execution(
         &self,
+        construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
+        progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
@@ -617,7 +634,14 @@ impl CommandInstance {
             values.insert(input.name.clone(), value);
         }
 
-        (&self.specification.runner)(&self.specification, &values, &addon_defaults).await
+        (&self.specification.execute)(
+            &construct_uuid,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            progress_tx,
+        )
+        .await
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {

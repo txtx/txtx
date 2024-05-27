@@ -412,7 +412,10 @@ lazy_static! {
 
 pub struct UnaryNegInteger;
 impl FunctionImplementation for UnaryNegInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -423,7 +426,10 @@ impl FunctionImplementation for UnaryNegInteger {
 
 pub struct UnaryNotBool;
 impl FunctionImplementation for UnaryNotBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -434,7 +440,10 @@ impl FunctionImplementation for UnaryNotBool {
 
 pub struct BinaryAndBool;
 impl FunctionImplementation for BinaryAndBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -451,7 +460,10 @@ impl FunctionImplementation for BinaryAndBool {
 
 pub struct BinaryOrBool;
 impl FunctionImplementation for BinaryOrBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -468,7 +480,10 @@ impl FunctionImplementation for BinaryOrBool {
 
 pub struct BinaryDivSignedInteger;
 impl FunctionImplementation for BinaryDivSignedInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -491,7 +506,10 @@ impl FunctionImplementation for BinaryDivSignedInteger {
 
 pub struct BinaryDivUnsignedInteger;
 impl FunctionImplementation for BinaryDivUnsignedInteger {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -514,7 +532,10 @@ impl FunctionImplementation for BinaryDivUnsignedInteger {
 
 pub struct BinaryEq;
 impl FunctionImplementation for BinaryEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -564,7 +585,10 @@ impl FunctionImplementation for BinaryEq {
 
 pub struct BinaryGreater;
 impl FunctionImplementation for BinaryGreater {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -581,7 +605,10 @@ impl FunctionImplementation for BinaryGreater {
 
 pub struct BinaryGreaterEq;
 impl FunctionImplementation for BinaryGreaterEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -598,7 +625,10 @@ impl FunctionImplementation for BinaryGreaterEq {
 
 pub struct BinaryLess;
 impl FunctionImplementation for BinaryLess {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -615,7 +645,10 @@ impl FunctionImplementation for BinaryLess {
 
 pub struct BinaryLessEq;
 impl FunctionImplementation for BinaryLessEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -632,7 +665,10 @@ impl FunctionImplementation for BinaryLessEq {
 
 pub struct BinaryNotEq;
 impl FunctionImplementation for BinaryNotEq {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -649,7 +685,10 @@ impl FunctionImplementation for BinaryNotEq {
 
 pub struct BinaryMinusUInt;
 impl FunctionImplementation for BinaryMinusUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -666,7 +705,10 @@ impl FunctionImplementation for BinaryMinusUInt {
 
 pub struct BinaryModuloUInt;
 impl FunctionImplementation for BinaryModuloUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -683,7 +725,10 @@ impl FunctionImplementation for BinaryModuloUInt {
 
 pub struct BinaryMulUInt;
 impl FunctionImplementation for BinaryMulUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -700,7 +745,10 @@ impl FunctionImplementation for BinaryMulUInt {
 
 pub struct BinaryPlusUInt;
 impl FunctionImplementation for BinaryPlusUInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

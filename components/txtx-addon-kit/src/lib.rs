@@ -13,6 +13,7 @@ pub use indoc::indoc;
 pub use rust_fsm as fsm;
 use rust_fsm::StateMachine;
 pub use uuid;
+pub extern crate crossbeam_channel as channel;
 
 use hcl::structure::Block;
 pub use hcl_edit as hcl;
@@ -135,9 +136,7 @@ impl AddonContext {
             PreCommandSpecification::Atomic(command_spec) => {
                 let command_instance = CommandInstance {
                     specification: command_spec.clone(),
-                    state: Arc::new(Mutex::new(
-                        StateMachine::<CommandInstanceStateMachine>::new(),
-                    )),
+                    state_machine: StateMachine::<CommandInstanceStateMachine>::new(),
                     name: command_name.to_string(),
                     block: block.clone(),
                     package_uuid: package_uuid.clone(),

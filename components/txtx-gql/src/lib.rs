@@ -5,9 +5,9 @@ use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
-use txtx_core::{
+use txtx_core::kit::{
     channel::Sender,
-    kit::types::frontend::{ActionItemEvent, Block},
+    types::frontend::{ActionItemEvent, Block},
 };
 use uuid::Uuid;
 

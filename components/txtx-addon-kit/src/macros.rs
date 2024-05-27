@@ -40,7 +40,7 @@ macro_rules! define_function {
             example: String::from($example),
             snippet: String::from(""),
             runner: $func_key::run,
-            checker: $func_key::check,
+            checker: $func_key::check_instantiability,
         };
     };
 }
@@ -79,9 +79,9 @@ macro_rules! define_command {
                 documentation: String::from($output_doc),
                 typing: $output_ts,
             }),*],
-            action_initializer: $func_key::get_action,
-            runner: Box::new($func_key::run),
-            checker: $func_key::check,
+            check_instantiability: $func_key::check_instantiability,
+            check_executability: $func_key::check_executability,
+            execute: Box::new($func_key::execute),
             example: String::from($example),
         }
       )

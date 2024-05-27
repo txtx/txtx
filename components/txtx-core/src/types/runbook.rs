@@ -143,7 +143,7 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_module_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
+                        state_machine: StateMachine::new(),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -161,7 +161,7 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_input_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
+                        state_machine: StateMachine::new(),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -179,7 +179,7 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_output_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
+                        state_machine: StateMachine::new(),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),

@@ -7,8 +7,8 @@ use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    return_synchronous_err, return_synchronous_ok, CommandExecutionFutureResult, CommandInstance,
-    PreCommandSpecification,
+    return_synchronous_err, return_synchronous_ok, CommandExecutionContext,
+    CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
@@ -91,23 +91,29 @@ lazy_static! {
 pub struct EncodeStacksContractCall;
 
 impl CommandImplementation for EncodeStacksContractCall {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-    fn get_action(
-        _ctx: &CommandSpecification,
+
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        None
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        unimplemented!()
     }
-    fn run(
-        ctx: &CommandSpecification,
+
+    fn execute(
+        _uuid: &ConstructUuid,
+        spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
@@ -118,7 +124,7 @@ impl CommandImplementation for EncodeStacksContractCall {
             .or(defaults.keys.get("network_id").map(|x| x.as_str()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "command '{}': attribute 'network_id' is missing",
-                ctx.matcher
+                spec.matcher
             )))
             .unwrap()
             .to_string();
@@ -128,7 +134,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         let Some(contract_id_value) = args.get("contract_id") else {
             return return_synchronous_err(diagnosed_error!(
                 "command '{}': attribute 'contract_id' is missing",
-                ctx.matcher
+                spec.matcher
             ));
         };
 
@@ -139,7 +145,7 @@ impl CommandImplementation for EncodeStacksContractCall {
                     cv => {
                         return return_synchronous_err(diagnosed_error!(
                             "command {}: unexpected clarity value {cv}",
-                            ctx.matcher
+                            spec.matcher
                         ))
                     }
                 }
@@ -150,7 +156,7 @@ impl CommandImplementation for EncodeStacksContractCall {
                     Err(e) => {
                         return return_synchronous_err(diagnosed_error!(
                             "command {}: error parsing contract_id {}",
-                            ctx.matcher,
+                            spec.matcher,
                             e.to_string()
                         ))
                     }
@@ -159,7 +165,7 @@ impl CommandImplementation for EncodeStacksContractCall {
             _ => {
                 return return_synchronous_err(diagnosed_error!(
                     "command {}: attribute 'contract_id' expecting type string",
-                    ctx.matcher
+                    spec.matcher
                 ))
             }
         };
@@ -180,28 +186,28 @@ impl CommandImplementation for EncodeStacksContractCall {
         let Some(function_name_value) = args.get("function_name") else {
             return return_synchronous_err(diagnosed_error!(
                 "command '{}': attribute 'function_name' is missing",
-                ctx.matcher
+                spec.matcher
             ));
         };
 
         let Some(function_name) = function_name_value.as_string() else {
             return return_synchronous_err(diagnosed_error!(
                 "command {}: attribute 'function_name' expecting type string",
-                ctx.matcher
+                spec.matcher
             ));
         };
 
         let Some(function_args_value) = args.get("function_args") else {
             return return_synchronous_err(diagnosed_error!(
                 "command '{}': attribute 'function_name' is missing",
-                ctx.matcher
+                spec.matcher
             ));
         };
 
         let Some(function_args_values) = function_args_value.as_array() else {
             return return_synchronous_err(diagnosed_error!(
                 "function '{}': expected array, got {:?}",
-                ctx.matcher,
+                spec.matcher,
                 function_args_value
             ));
         };
@@ -211,7 +217,7 @@ impl CommandImplementation for EncodeStacksContractCall {
             let Some(buffer) = arg_value.as_buffer_data() else {
                 return return_synchronous_err(diagnosed_error!(
                     "function '{}': expected array, got {:?}",
-                    ctx.matcher,
+                    spec.matcher,
                     arg_value
                 ));
             };

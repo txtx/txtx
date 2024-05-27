@@ -4412,6 +4412,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 name = "txtx-addon-kit"
 version = "0.1.0"
 dependencies = [
+ "crossbeam-channel",
  "getrandom 0.2.13",
  "hcl-edit",
  "hex",
@@ -4498,7 +4499,6 @@ name = "txtx-core"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "crossbeam-channel",
  "daggy",
  "getrandom 0.2.13",
  "indexmap 2.2.6",

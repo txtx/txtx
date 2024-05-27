@@ -14,7 +14,6 @@ jaq-parse = "1.0.2"
 serde_json = "1.0.113"
 indexmap = "2.2.6"
 petgraph = "0.6.5"
-crossbeam-channel = "0.5.8"
 
 [features]
 default = ["txtx-addon-kit/default"]

@@ -2,8 +2,8 @@ use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendin
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
-    CommandInstance, PreCommandSpecification,
+    return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
+    CommandImplementation, CommandInstance, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
@@ -66,23 +66,29 @@ lazy_static! {
 pub struct EncodeStacksContractCall;
 
 impl CommandImplementation for EncodeStacksContractCall {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-    fn get_action(
-        _ctx: &CommandSpecification,
+
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        None
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        unimplemented!()
     }
-    fn run(
-        _ctx: &CommandSpecification,
+
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 

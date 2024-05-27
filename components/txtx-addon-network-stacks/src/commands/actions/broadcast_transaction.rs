@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write};
 use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+    CommandExecutionContext, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
@@ -79,7 +79,10 @@ lazy_static! {
 }
 pub struct BroadcastStacksTransaction;
 impl CommandImplementation for BroadcastStacksTransaction {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         //    Todo: check network consistency?
         // let network = match transaction.version {
         //     TransactionVersion::Mainnet => "mainnet".to_string(),
@@ -92,20 +95,23 @@ impl CommandImplementation for BroadcastStacksTransaction {
         //     .ok_or(Diagnostic::error_from_string(format!("Key 'network_id' is missing")))?;
         unimplemented!()
     }
-    fn get_action(
-        _ctx: &CommandSpecification,
+
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        None
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        unimplemented!()
     }
-    fn run(
-        _ctx: &CommandSpecification,
+
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();

@@ -32,6 +32,9 @@ type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Result<Value, D
 type FunctionChecker = fn(&FunctionSpecification, &Vec<Type>) -> Result<Type, Diagnostic>;
 
 pub trait FunctionImplementation {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic>;
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic>;
     fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic>;
 }

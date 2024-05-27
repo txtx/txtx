@@ -236,6 +236,15 @@ pub enum ActionItemPayload {
     ValidatePanel,
 }
 
+impl ActionItemPayload {
+    pub fn is_validate_panel(&self) -> bool {
+        match &self {
+            ActionItemPayload::ValidatePanel => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvidedInputData {

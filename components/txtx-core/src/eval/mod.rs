@@ -118,24 +118,22 @@ pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIn
         let uuid = g.node_weight(node).expect("unable to retrieve construct");
         let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
+        let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             continue;
         };
         if node == start_node {
             continue;
         }
 
-        if let Ok(mut state_machine) = command_instance.state.lock() {
-            match state_machine.state() {
-                CommandInstanceStateMachineState::New
-                | CommandInstanceStateMachineState::Failed => {}
-                _ => {
-                    state_machine
-                        .consume(&CommandInstanceStateMachineInput::ReEvaluate)
-                        .unwrap();
-                }
-            };
-        }
+        match command_instance.state_machine.state() {
+            CommandInstanceStateMachineState::New | CommandInstanceStateMachineState::Failed => {}
+            _ => {
+                command_instance
+                    .state_machine
+                    .consume(&CommandInstanceStateMachineInput::ReEvaluate)
+                    .unwrap();
+            }
+        };
     }
 }
 
@@ -143,9 +141,11 @@ pub async fn run_constructs_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
+    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<(), Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
+    // No comprendo
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
@@ -164,27 +164,23 @@ pub async fn run_constructs_evaluation(
         None => get_sorted_nodes(runbook.constructs_graph.clone()),
     };
 
-    let commands_instances = runbook.commands_instances.clone();
     let constructs_locations = runbook.constructs_locations.clone();
 
     for node in ordered_nodes_to_process.into_iter() {
         let uuid = g.node_weight(node).expect("unable to retrieve construct");
         let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-        let Some(command_instance) = commands_instances.get(&construct_uuid) else {
+        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
 
-        match command_instance.state.lock() {
-            Ok(state_machine) => match state_machine.state() {
-                CommandInstanceStateMachineState::Failed => {
-                    println!("continuing past failed state command");
-                    continue;
-                }
-                _ => {}
-            },
-            Err(e) => unimplemented!("unable to acquire lock {e}"),
+        match command_instance.state_machine.state() {
+            CommandInstanceStateMachineState::Failed => {
+                println!("continuing past failed state command");
+                continue;
+            }
+            _ => {}
         }
         // in general we want to ignore previous input evaluation results when evaluating for outputs.
         // we want to recompute the whole graph in case anything has changed since our last traversal.
@@ -241,100 +237,107 @@ pub async fn run_constructs_evaluation(
             }
         }
 
-        if let Ok(mut state_machine) = command_instance.state.lock() {
-            match state_machine.state() {
-                CommandInstanceStateMachineState::Evaluated => {}
-                CommandInstanceStateMachineState::Failed
-                | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
+        match command_instance.state_machine.state() {
+            CommandInstanceStateMachineState::Evaluated
+            | CommandInstanceStateMachineState::Failed
+            | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
+                continue;
+            }
+            _ => {}
+        }
+
+        let evaluated_inputs_res = perform_inputs_evaluation(
+            command_instance,
+            &cached_dependency_execution_results,
+            &input_evaluation_results,
+            package_uuid,
+            &runbook,
+            runtime_ctx,
+        );
+
+        let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
+            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+            continue;
+        };
+
+        let evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction => {
+                    command_instance
+                        .state_machine
+                        .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
+                        .unwrap();
                     continue;
                 }
-                _state => {
-                    let evaluated_inputs_res = perform_inputs_evaluation(
-                        command_instance,
-                        &cached_dependency_execution_results,
-                        &input_evaluation_results,
-                        package_uuid,
-                        &runbook,
-                        runtime_ctx,
-                    );
-
-                    let evaluated_inputs = match evaluated_inputs_res {
-                        Ok(result) => match result {
-                            CommandInputEvaluationStatus::Complete(result) => result,
-                            CommandInputEvaluationStatus::NeedsUserInteraction => {
-                                state_machine
-                                    .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
-                                    .unwrap();
-                                continue;
-                            }
-                            CommandInputEvaluationStatus::Aborted(result) => {
-                                let mut diags = vec![];
-                                for (_k, res) in result.inputs.into_iter() {
-                                    if let Err(diag) = res {
-                                        diags.push(diag);
-                                    }
-                                }
-                                return Err(diags);
-                            }
-                        },
-                        Err(e) => {
-                            todo!("build input evaluation diagnostic: {}", e)
+                CommandInputEvaluationStatus::Aborted(result) => {
+                    let mut diags = vec![];
+                    for (_k, res) in result.inputs.into_iter() {
+                        if let Err(diag) = res {
+                            diags.push(diag);
                         }
-                    };
-
-                    runbook
-                        .command_inputs_evaluation_results
-                        .insert(construct_uuid.clone(), evaluated_inputs.clone());
-
-                    let execution_result = {
-                        let addon_context_key =
-                            (package_uuid.clone(), command_instance.namespace.clone());
-                        let addon_defaults = runtime_ctx
-                            .addons_ctx
-                            .contexts
-                            .get(&addon_context_key)
-                            .and_then(|addon| Some(addon.defaults.clone()))
-                            .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
-                        command_instance
-                            .perform_execution(&evaluated_inputs, addon_defaults)
-                            .await
-                    };
-
-                    let execution_result = match execution_result {
-                        // todo(lgalabru): return Diagnostic instead
-                        Ok(result) => {
-                            if command_instance.specification.update_addon_defaults {
-                                let addon_context_key =
-                                    (package_uuid.clone(), command_instance.namespace.clone());
-                                if let Some(ref mut addon_context) =
-                                    runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
-                                {
-                                    for (k, v) in result.outputs.iter() {
-                                        addon_context
-                                            .defaults
-                                            .keys
-                                            .insert(k.clone(), v.to_string());
-                                    }
-                                }
-                            }
-                            state_machine
-                                .consume(&CommandInstanceStateMachineInput::Successful)
-                                .unwrap();
-                            Ok(result)
-                        }
-                        Err(e) => {
-                            state_machine
-                                .consume(&CommandInstanceStateMachineInput::Unsuccessful)
-                                .unwrap();
-                            Err(e)
-                        }
-                    };
-                    runbook
-                        .constructs_execution_results
-                        .insert(construct_uuid, execution_result);
+                    }
+                    return Err(diags);
                 }
+            },
+            Err(e) => {
+                todo!("build input evaluation diagnostic: {}", e)
             }
-        }
+        };
+
+        runbook
+            .command_inputs_evaluation_results
+            .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+        let execution_result = {
+            let addon_context_key = (package_uuid.clone(), command_instance.namespace.clone());
+            let addon_defaults = runtime_ctx
+                .addons_ctx
+                .contexts
+                .get(&addon_context_key)
+                .and_then(|addon| Some(addon.defaults.clone()))
+                .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+            command_instance
+                .perform_execution(
+                    &construct_uuid,
+                    &evaluated_inputs,
+                    addon_defaults,
+                    progress_tx,
+                )
+                .await
+        };
+
+        let execution_result = match execution_result {
+            // todo(lgalabru): return Diagnostic instead
+            Ok(result) => {
+                if command_instance.specification.update_addon_defaults {
+                    let addon_context_key =
+                        (package_uuid.clone(), command_instance.namespace.clone());
+                    if let Some(ref mut addon_context) =
+                        runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                    {
+                        for (k, v) in result.outputs.iter() {
+                            addon_context.defaults.keys.insert(k.clone(), v.to_string());
+                        }
+                    }
+                }
+                command_instance
+                    .state_machine
+                    .consume(&CommandInstanceStateMachineInput::Successful)
+                    .unwrap();
+                Ok(result)
+            }
+            Err(e) => {
+                command_instance
+                    .state_machine
+                    .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                    .unwrap();
+                Err(e)
+            }
+        };
+        runbook
+            .constructs_execution_results
+            .insert(construct_uuid, execution_result);
     }
 
     Ok(())
