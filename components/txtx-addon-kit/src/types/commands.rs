@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use rust_fsm::{state_machine, StateMachine};
 use serde::{
     ser::{Error, SerializeMap, SerializeStruct},
@@ -321,7 +320,6 @@ pub fn return_synchronous_err(diag: Diagnostic) -> CommandExecutionFutureResult 
     return_synchronous_result(Err(diag))
 }
 
-#[async_trait(?Send)]
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
     fn get_action(
@@ -650,12 +648,4 @@ impl CommandInstance {
         }
         dependencies
     }
-}
-
-pub enum EvalEvent {
-    AsyncRequestComplete {
-        runbook_uuid: Uuid,
-        result: Result<CommandExecutionStatus, Diagnostic>,
-        construct_uuid: ConstructUuid,
-    },
 }

@@ -6,10 +6,9 @@ use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
-    return_synchronous_err, return_synchronous_ok, return_synchronous_result,
-    CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+    return_synchronous_err, return_synchronous_ok, CommandExecutionFutureResult, CommandInstance,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;

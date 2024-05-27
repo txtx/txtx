@@ -20,7 +20,6 @@ use clarity_repl::{
 use libsecp256k1::{PublicKey, SecretKey};
 use std::{collections::HashMap, str::FromStr};
 use tiny_hderive::bip32::ExtendedPrivKey;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
 };

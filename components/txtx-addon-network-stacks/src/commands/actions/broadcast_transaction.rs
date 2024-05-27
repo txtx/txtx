@@ -1,8 +1,7 @@
 use clarity::util::sleep_ms;
 use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
-use std::{collections::HashMap, fmt::Write, pin::Pin};
-use txtx_addon_kit::async_trait::async_trait;
+use std::{collections::HashMap, fmt::Write};
 use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,

@@ -1,7 +1,6 @@
 pub mod actions;
 
 use std::collections::HashMap;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::{
     define_command,
@@ -40,7 +39,6 @@ pub fn new_module_specification() -> CommandSpecification {
 }
 
 pub struct Module;
-#[async_trait(?Send)]
 impl CommandImplementation for Module {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()

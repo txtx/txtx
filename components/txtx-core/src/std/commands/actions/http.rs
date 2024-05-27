@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::pin::pin;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{

@@ -1,12 +1,6 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{mpsc::Sender, Arc, RwLock},
-};
+use std::collections::{HashMap, VecDeque};
 
-use crate::{
-    types::{Runbook, RuntimeContext},
-    EvalEvent,
-};
+use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use petgraph::algo::toposort;
@@ -17,8 +11,8 @@ use txtx_addon_kit::{
     },
     types::{
         commands::{
-            CommandExecutionResult, CommandExecutionStatus, CommandInputsEvaluationResult,
-            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+            CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance,
+            CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::Diagnostic,
         types::{PrimitiveValue, Value},
@@ -149,7 +143,6 @@ pub async fn run_constructs_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
-    eval_tx: Sender<EvalEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 

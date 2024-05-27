@@ -38,7 +38,6 @@ use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::CommandId;
 use txtx_addon_kit::types::commands::CommandInstanceOrParts;
-use txtx_addon_kit::types::commands::EvalEvent;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionGroup;
 use txtx_addon_kit::types::frontend::ActionItem;
@@ -175,7 +174,6 @@ pub async fn start_runbook_runloop(
 
     let mut runbook_initialized = false;
     let mut current_block = None;
-    let (tx, rx) = channel();
 
     // Compute number of steps
     // A step is
@@ -248,7 +246,7 @@ pub async fn start_runbook_runloop(
             let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
 
             let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-            let _ = run_constructs_evaluation(runbook, runtime_context, None, tx.clone()).await?;
+            let _ = run_constructs_evaluation(runbook, runtime_context, None).await?;
 
             let ordered_nodes = get_sorted_nodes(runbook.constructs_graph.clone());
             let graph = runbook.constructs_graph.clone();
@@ -417,7 +415,6 @@ pub async fn start_runbook_runloop(
                         runbook,
                         runtime_context,
                         Some(command_graph_node.clone()),
-                        tx.clone(),
                     )
                     .await
                     {

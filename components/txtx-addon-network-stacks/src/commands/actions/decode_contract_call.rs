@@ -1,7 +1,6 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
     CommandInstance, PreCommandSpecification,

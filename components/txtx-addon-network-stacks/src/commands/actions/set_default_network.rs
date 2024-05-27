@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use txtx_addon_kit::async_trait::async_trait;
 use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionFutureResult, CommandImplementation, CommandInstance,
     PreCommandSpecification,

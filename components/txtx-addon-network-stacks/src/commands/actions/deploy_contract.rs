@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use txtx_addon_kit::{
-    async_trait::async_trait,
     types::{
         commands::{
-            CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
-            CommandInstance, CommandSpecification, PreCommandSpecification,
+            CommandExecutionFutureResult, CommandImplementation, CommandInstance,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::ActionItem,
