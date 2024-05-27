@@ -12,6 +12,8 @@ pub fn run_constructs_dependencies_indexing(
     ),
     Vec<Diagnostic>,
 > {
+    runbook.seed_environment_variables(runtime_ctx);
+
     let mut constructs_edges = vec![];
     let packages_edges = vec![];
 

@@ -30,8 +30,6 @@ pub fn run_constructs_indexing(
         return Ok(has_errored);
     };
 
-    runbook.seed_environment_variables(runtime_context);
-
     let mut sources = VecDeque::new();
     // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
     let mut files_visited = HashSet::new();
