@@ -2,10 +2,27 @@ use super::{diagnostics::Diagnostic, types::PrimitiveType};
 use serde::Serialize;
 use uuid::Uuid;
 
+#[derive(Debug, Clone)]
 pub enum BlockEvent {
     Append(Block),
     Clear,
     SetActionItemStatus((Uuid, Uuid, ActionItemStatus)),
+}
+
+impl BlockEvent {
+    pub fn as_block(&self) -> Option<&Block> {
+        match &self {
+            BlockEvent::Append(ref block) => Some(block),
+            _ => None,
+        }
+    }
+
+    pub fn expect_block(&self) -> &Block {
+        match &self {
+            BlockEvent::Append(ref block) => block,
+            _ => unreachable!("block expected"),
+        }
+    }
 }
 
 pub enum RunbookExecutionState {
@@ -16,6 +33,7 @@ pub enum RunbookExecutionState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
+    #[serde(skip_serializing)]
     pub uuid: Uuid,
     #[serde(flatten)]
     pub panel: Panel,
@@ -57,6 +75,20 @@ impl Panel {
             description: description.to_string(),
             groups,
         })
+    }
+
+    pub fn as_action_panel(&self) -> Option<&ActionPanelData> {
+        match &self {
+            Panel::ActionPanel(ref data) => Some(data),
+            _ => None,
+        }
+    }
+
+    pub fn expect_action_panel(&self) -> &ActionPanelData {
+        match &self {
+            Panel::ActionPanel(ref data) => data,
+            _ => unreachable!("action panel expected"),
+        }
     }
 }
 

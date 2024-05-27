@@ -12,9 +12,11 @@ pub mod std;
 pub mod types;
 pub mod visitor;
 
+#[cfg(test)]
+mod tests;
+
 use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
-use ::std::sync::mpsc::channel;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 
@@ -161,6 +163,7 @@ impl AddonsContext {
 lazy_static! {
     pub static ref SET_ENV_UUID: Uuid = Uuid::new_v4();
 }
+
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
@@ -510,9 +513,4 @@ pub fn build_genesis_panel(
             }],
         }],
     }
-}
-
-#[test]
-fn test_genesis_panel() {
-    // build_genesis_panel()
 }
