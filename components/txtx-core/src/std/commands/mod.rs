@@ -137,13 +137,25 @@ impl CommandImplementation for Input {
                 ActionItemType::ReviewInput,
             ));
         } else if let Some(default) = args.get("default") {
+            let typing =
+                if let Some(Value::Primitive(PrimitiveValue::String(typing))) = args.get("type") {
+                    match serde_json::from_str(&typing) {
+                        Ok(typing) => typing,
+                        Err(_) => PrimitiveType::String, // todo, maybe return action item with error?
+                    }
+                } else {
+                    PrimitiveType::String
+                };
             return Some(ActionItem::new(
                 &uuid.value(),
                 index,
                 &instance.name,
                 &default.to_string(),
                 ActionItemStatus::Todo,
-                ActionItemType::ProvideInput,
+                ActionItemType::ProvideInput(ProvideInputContext {
+                    input_name: "default".to_string(),
+                    typing,
+                }),
             ));
         }
         None

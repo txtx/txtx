@@ -151,11 +151,18 @@ pub enum ActionItemStatus {
 #[serde(rename_all = "camelCase")]
 pub enum ActionItemType {
     ReviewInput,
-    ProvideInput,
+    ProvideInput(ProvideInputContext),
     PickInputOption(Vec<InputOption>),
     ProvidePublicKey(ProvidePublicKeyData),
     ProvideSignedTransaction(ProvideSignedTransactionData),
     ValidatePanel,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvideInputContext {
+    pub input_name: String,
+    pub typing: PrimitiveType,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -198,7 +205,9 @@ pub enum ActionItemPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProvidedInputData {
+    pub input_name: String,
     pub value: String,
     pub typing: PrimitiveType,
 }
