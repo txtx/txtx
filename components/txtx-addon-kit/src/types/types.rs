@@ -494,10 +494,13 @@ impl Serialize for Type {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PrimitiveType {
     String,
+    #[serde(rename = "uint")]
     UnsignedInteger,
+    #[serde(rename = "int")]
     SignedInteger,
     Float,
     Bool,
