@@ -22,7 +22,9 @@ use channel::Receiver;
 use channel::Sender;
 use channel::TryRecvError;
 use eval::get_sorted_nodes;
+use eval::prepare_constructs_reevaluation;
 use eval::run_constructs_evaluation;
+use kit::types::commands::CommandInstanceStateMachineInput;
 use kit::types::frontend::ActionItemPayload;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
@@ -180,7 +182,10 @@ pub async fn start_runbook_runloop(
 
     loop {
         let event_opt = match action_item_events_rx.try_recv() {
-            Ok(action) => Some(action),
+            Ok(action) => {
+                println!("received action");
+                Some(action)
+            }
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 unimplemented!()
@@ -277,7 +282,7 @@ pub async fn start_runbook_runloop(
                 };
                 match command_instance.specification.matcher.as_str() {
                     "input" => match action.action_type {
-                        ActionItemType::ProvideInput => {
+                        ActionItemType::ProvideInput(_) => {
                             action.index = provide_input_actions.len() as u16;
                             provide_input_actions.push(action);
                         }
@@ -348,6 +353,7 @@ pub async fn start_runbook_runloop(
             continue;
         } else {
             let Some(current_block) = current_block.clone() else {
+                println!("not found in current block");
                 continue;
             };
             let Some(action_item) = current_block.find_action(action_item_uuid) else {
@@ -360,38 +366,69 @@ pub async fn start_runbook_runloop(
                     action_item.uuid,
                     ActionItemStatus::Success,
                 ),
-                ActionItemPayload::ProvideInput(ProvidedInputData { value, typing }) => {
-                    let val = Value::from_string(value, Type::Primitive(typing), None);
-                    match val {
-                        Ok(val) => {
-                            let construct_uuid = ConstructUuid::Local(action_item_uuid);
+                ActionItemPayload::ProvideInput(ProvidedInputData {
+                    input_name,
+                    value,
+                    typing,
+                }) => {
+                    println!("got provide input event!");
+                    let value: Result<Value, Diagnostic> =
+                        Value::from_string(value, Type::Primitive(typing), None);
 
-                            let Some(command_instance) =
-                                runbook.commands_instances.get(&construct_uuid)
-                            else {
-                                continue;
-                            };
+                    let construct_uuid = ConstructUuid::Local(action_item_uuid);
 
-                            // let mut input_eval_results = runbook
-                            //     .command_inputs_evaluation_results
-                            //     .get_mut(&construct_uuid);
-                            // match input_eval_results {
-                            //     Some(input_eval_results) => {
-                            //         input_eval_results.insert(command_input, value)
-                            //     }
-                            //     None => {}
-                            // }
-                            // command_instance.update_input_evaluation_results_from_user_input(
-                            //     input_evaluation_results,
-                            //     "".to_string(),
-                            //     val,
-                            // );
-                            (
-                                current_block.uuid,
-                                action_item.uuid,
-                                ActionItemStatus::Success,
-                            )
+                    let input_eval_results = runbook
+                        .command_inputs_evaluation_results
+                        .get_mut(&construct_uuid);
+                    match input_eval_results {
+                        Some(input_eval_results) => {
+                            input_eval_results.insert(&input_name, value.clone())
                         }
+                        None => {}
+                    }
+
+                    let Some(command_instance) =
+                        runbook.commands_instances.get_mut(&construct_uuid)
+                    else {
+                        println!("couldn't find command instance");
+                        continue;
+                    };
+                    match command_instance.state.lock() {
+                        Ok(mut state_machine) => {
+                            state_machine
+                                .consume(&CommandInstanceStateMachineInput::ReEvaluate)
+                                .unwrap();
+                        }
+                        Err(e) => panic!("unable to acquire lock {e}"),
+                    };
+
+                    let Some(command_graph_node) = runbook
+                        .constructs_graph_nodes
+                        .get(&construct_uuid.value())
+                        .cloned()
+                    else {
+                        println!("missing from graph?");
+                        // if somehow this construct is not part of the graph, we don't need to reevaluate it
+                        continue;
+                    };
+
+                    prepare_constructs_reevaluation(runbook, command_graph_node.clone());
+                    match run_constructs_evaluation(
+                        runbook,
+                        runtime_context,
+                        Some(command_graph_node.clone()),
+                        tx.clone(),
+                    ) {
+                        Ok(()) => println!("successfully reevaluated constructs after mutation"),
+                        Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
+                    }
+
+                    match value {
+                        Ok(_) => (
+                            current_block.uuid,
+                            action_item.uuid,
+                            ActionItemStatus::Success,
+                        ),
                         Err(e) => (
                             current_block.uuid,
                             action_item.uuid,
