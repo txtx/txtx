@@ -60,7 +60,6 @@ pub fn pre_compute_runbook(
 ) -> Result<(), Vec<Diagnostic>> {
     let _ = run_constructs_indexing(runbook, runtime_context)?;
     let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
-    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
     Ok(())
 }
 
