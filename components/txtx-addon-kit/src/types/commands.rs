@@ -25,6 +25,7 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
+    frontend::ActionItem,
     types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };
@@ -206,6 +207,7 @@ pub struct CommandSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
+    pub action_initializer: ActionInitializer,
     pub runner: CommandRunner,
     pub checker: CommandChecker,
     pub user_input_parser: CommandParser,
@@ -294,6 +296,14 @@ type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagn
 type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
+type ActionInitializer = fn(
+    &CommandSpecification,
+    &HashMap<String, Value>,
+    &AddonDefaults,
+    &ConstructUuid,
+    u16,
+    &CommandInstance,
+) -> Option<ActionItem>;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum CommandRunner {
@@ -317,6 +327,14 @@ type CommandRunnerAsync = Box<
 
 pub trait CommandImplementationAsync {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem>;
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
@@ -331,6 +349,14 @@ pub trait CommandImplementationAsync {
 }
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem>;
     fn run(
         _ctx: &CommandSpecification,
         _args: &HashMap<String, Value>,
@@ -556,6 +582,46 @@ impl CommandInstance {
                 input.name
             ),
         }
+    }
+
+    pub fn get_action(
+        &self,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        construct_uuid: ConstructUuid,
+        addon_defaults: AddonDefaults,
+        index: u16,
+    ) -> Option<ActionItem> {
+        let mut values = HashMap::new();
+        for input in self.specification.inputs.iter() {
+            let value = match evaluated_inputs.inputs.get(input) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => Err(Diagnostic {
+                    span: None,
+                    location: None,
+                    message: format!("Cannot execute command due to erroring inputs"),
+                    level: DiagnosticLevel::Error,
+                    documentation: None,
+                    example: None,
+                    parent_diagnostic: Some(Box::new(e.clone())),
+                }),
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!(), // todo: return diagnostic
+                },
+            }
+            .unwrap();
+            values.insert(input.name.clone(), value);
+        }
+
+        let spec = &self.specification;
+        (spec.action_initializer)(
+            &spec,
+            &values,
+            &addon_defaults,
+            &construct_uuid,
+            index,
+            &self,
+        )
     }
 
     pub fn perform_execution(

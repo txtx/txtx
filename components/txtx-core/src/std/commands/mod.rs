@@ -6,10 +6,12 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-            CommandSpecification, PreCommandSpecification,
+            CommandInstance, CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
+        frontend::{ActionItem, ActionItemStatus, ActionItemType},
         types::{PrimitiveValue, Type, Value},
+        ConstructUuid,
     },
     AddonDefaults,
 };
@@ -39,6 +41,17 @@ pub struct Module;
 impl CommandImplementation for Module {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
+    }
+
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        todo!()
     }
 
     fn run(
@@ -113,6 +126,36 @@ pub struct Input;
 impl CommandImplementation for Input {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
+    }
+
+    fn get_action(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        uuid: &ConstructUuid,
+        index: u16,
+        instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        if let Some(value) = args.get("value") {
+            return Some(ActionItem::new(
+                &uuid.value(),
+                index,
+                &instance.name,
+                &value.to_string(),
+                ActionItemStatus::Todo,
+                ActionItemType::ReviewInput,
+            ));
+        } else if let Some(default) = args.get("default") {
+            return Some(ActionItem::new(
+                &uuid.value(),
+                index,
+                &instance.name,
+                &default.to_string(),
+                ActionItemStatus::Todo,
+                ActionItemType::ProvideInput,
+            ));
+        }
+        None
     }
 
     fn run(
@@ -206,6 +249,27 @@ pub struct Output;
 impl CommandImplementation for Output {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
+    }
+
+    fn get_action(
+        _ctx: &CommandSpecification,
+        args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        uuid: &ConstructUuid,
+        index: u16,
+        instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        if let Some(value) = args.get("value") {
+            return Some(ActionItem {
+                uuid: uuid.value().clone(),
+                index,
+                title: instance.name.clone(),
+                description: value.expect_string().to_string(),
+                action_status: ActionItemStatus::Todo,
+                action_type: ActionItemType::ReviewInput,
+            });
+        }
+        None
     }
 
     fn run(

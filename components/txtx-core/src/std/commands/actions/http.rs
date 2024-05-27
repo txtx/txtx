@@ -1,8 +1,10 @@
 use std::{collections::HashMap, pin::Pin};
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
-use txtx_addon_kit::types::commands::PreCommandSpecification;
+use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::types::ObjectProperty;
+use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementationAsync, CommandInputsEvaluationResult,
@@ -87,6 +89,17 @@ pub struct SendHttpRequest;
 impl CommandImplementationAsync for SendHttpRequest {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
+    }
+
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        todo!()
     }
 
     fn run(

@@ -1,5 +1,9 @@
 use std::collections::HashMap;
-use txtx_addon_kit::types::commands::{CommandImplementation, PreCommandSpecification};
+use txtx_addon_kit::types::commands::{
+    CommandImplementation, CommandInstance, PreCommandSpecification,
+};
+use txtx_addon_kit::types::frontend::ActionItem;
+use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification},
     diagnostics::Diagnostic,
@@ -65,7 +69,16 @@ impl CommandImplementation for SetStacksGlobals {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        None
+    }
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,

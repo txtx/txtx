@@ -7,7 +7,9 @@ use clarity_repl::codec::{
 };
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
-use txtx_addon_kit::types::commands::PreCommandSpecification;
+use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
+use txtx_addon_kit::types::frontend::ActionItem;
+use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{
         CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
@@ -68,7 +70,16 @@ impl CommandImplementation for EncodeMultisigTransaction {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-
+    fn get_action(
+        _ctx: &CommandSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _uuid: &ConstructUuid,
+        _index: u16,
+        _instance: &CommandInstance,
+    ) -> Option<ActionItem> {
+        None
+    }
     fn run(
         _ctx: &CommandSpecification,
         args: &HashMap<String, Value>,
