@@ -1,13 +1,17 @@
-use std::{collections::{BTreeMap, HashMap}, sync::RwLock};
+use std::{
+    collections::BTreeMap,
+    sync::{mpsc::channel, Arc, RwLock},
+};
 use txtx_core::{
-    pre_compute_runbook, start_runbook_runloop,
-    types::frontend::{ActionItem, ActionItemEvent, Block},
+    channel::select,
+    kit::types::frontend::{ActionItem, ActionItemEvent, ActionItemPayload, BlockEvent},
+    pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
 };
 use txtx_gql::Context as GqlContext;
 
 use crate::{
     manifest::{read_manifest_at_path, read_runbooks_from_manifest},
-    term_ui, web_ui,
+    web_ui,
 };
 
 use super::{CheckRunbooks, Context, RunRunbook};
@@ -31,8 +35,6 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     let manifest = read_manifest_at_path(&manifest_file_path)?;
     let mut runbooks = read_runbooks_from_manifest(&manifest, None)?;
-
-    let gql_data = HashMap::new();
 
     println!(
         "\n{} Processing manifest '{}'",

@@ -1,15 +1,15 @@
 use juniper::{EmptySubscription, RootNode};
 use mutation::Mutation;
 use query::Query;
-use uuid::Uuid;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
 };
 use txtx_core::{
     channel::Sender,
-    types::frontend::{ActionItemEvent, Block},
+    kit::types::frontend::{ActionItemEvent, Block},
 };
+use uuid::Uuid;
 
 pub mod mutation;
 pub mod query;
