@@ -5,6 +5,7 @@ use uuid::Uuid;
 pub enum BlockEvent {
     Append(Block),
     Clear,
+    SetActionItemStatus((Uuid, Uuid, ActionItemStatus)),
 }
 
 pub enum RunbookExecutionState {
@@ -13,15 +14,21 @@ pub enum RunbookExecutionState {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "blockType")]
-pub enum Block {
-    ActionPanel(ActionPanelData),
+#[serde(rename_all = "camelCase")]
+pub struct Block {
+    pub uuid: Uuid,
+    #[serde(flatten)]
+    pub panel: Panel,
 }
 
 impl Block {
+    pub fn new(uuid: Uuid, panel: Panel) -> Self {
+        Block { uuid, panel }
+    }
+
     pub fn find_action(&self, uuid: Uuid) -> Option<ActionItem> {
-        match self {
-            Block::ActionPanel(panel) => {
+        match &self.panel {
+            Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter() {
                     for sub_group in group.sub_groups.iter() {
                         for action in sub_group.action_items.iter() {
@@ -35,10 +42,17 @@ impl Block {
             }
         }
     }
+}
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Panel {
+    ActionPanel(ActionPanelData),
+}
+
+impl Panel {
     pub fn new_action_panel(title: &str, description: &str, groups: Vec<ActionGroup>) -> Self {
-        Block::ActionPanel(ActionPanelData {
-            uuid: Uuid::new_v4(),
+        Panel::ActionPanel(ActionPanelData {
             title: title.to_string(),
             description: description.to_string(),
             groups,
@@ -49,7 +63,6 @@ impl Block {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionPanelData {
-    pub uuid: Uuid,
     pub title: String,
     pub description: String,
     pub groups: Vec<ActionGroup>,
