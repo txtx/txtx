@@ -5,12 +5,12 @@ use txtx_addon_kit::{
     define_command,
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-            CommandInstance, CommandSpecification, PreCommandSpecification,
+            CommandExecutionResult, CommandImplementation, CommandInstance, CommandSpecification,
+            PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::{ActionItem, ActionItemStatus, ActionItemType},
-        types::{PrimitiveValue, Type, Value},
+        frontend::{ActionItem, ActionItemStatus, ActionItemType, ProvideInputContext},
+        types::{PrimitiveType, PrimitiveValue, Type, Value},
         ConstructUuid,
     },
     AddonDefaults,
@@ -61,15 +61,6 @@ impl CommandImplementation for Module {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let result = CommandExecutionResult::new();
         Ok(result)
-    }
-
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
     }
 }
 
@@ -171,47 +162,6 @@ impl CommandImplementation for Input {
         }
         Ok(result)
     }
-
-    fn update_input_evaluation_results_from_user_input(
-        ctx: &CommandSpecification,
-        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        value: String,
-    ) {
-        let default_input = ctx
-            .inputs
-            .iter()
-            .find(|i| i.name == "default")
-            .expect("Variable specification must have default input");
-        let value = if value.is_empty() {
-            None
-        } else {
-            let type_casted_value = match current_input_evaluation_result
-                .inputs
-                .iter()
-                .find(|(i, _)| i.name == "type")
-            {
-                Some((_, expected_type)) => match expected_type {
-                    Err(e) => Err(e.clone()),
-                    Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                        Value::from_string(value, Type::from(expected_type.clone()), None)
-                    }
-                    _ => Value::from_string(value, Type::default(), None),
-                },
-                None => unimplemented!("no type"), // todo
-            };
-            Some(type_casted_value)
-        };
-
-        match value {
-            Some(value) => current_input_evaluation_result
-                .inputs
-                .insert(default_input.clone(), value),
-            None => current_input_evaluation_result
-                .inputs
-                .remove(&default_input),
-        };
-    }
 }
 
 pub fn new_output_specification() -> CommandSpecification {
@@ -281,14 +231,5 @@ impl CommandImplementation for Output {
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value);
         Ok(result)
-    }
-
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
     }
 }

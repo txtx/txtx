@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-            CommandInstance, CommandSpecification, PreCommandSpecification,
+            CommandExecutionResult, CommandImplementation, CommandInstance, CommandSpecification,
+            PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::ActionItem,
@@ -61,14 +61,5 @@ impl CommandImplementation for StacksDeployContract {
         _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         unimplemented!()
-    }
-
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
     }
 }

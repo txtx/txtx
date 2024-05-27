@@ -57,7 +57,7 @@ impl CommandExecutionResult {
 
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
-    pub inputs: HashMap<CommandInput, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
+    pub inputs: HashMap<String, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -71,7 +71,7 @@ impl Serialize for CommandInputsEvaluationResult {
                 Ok(v) => Some(v),
                 Err(_) => None,
             };
-            map.serialize_entry(&k.name, &value)?;
+            map.serialize_entry(&k, &value)?;
         }
         map.end()
     }
@@ -84,8 +84,8 @@ impl CommandInputsEvaluationResult {
         }
     }
 
-    pub fn insert(&mut self, command_input: CommandInput, value: Result<Value, Diagnostic>) {
-        self.inputs.insert(command_input, value);
+    pub fn insert(&mut self, key: &str, value: Result<Value, Diagnostic>) {
+        self.inputs.insert(key.to_string(), value);
     }
 }
 
@@ -210,7 +210,6 @@ pub struct CommandSpecification {
     pub action_initializer: ActionInitializer,
     pub runner: CommandRunner,
     pub checker: CommandChecker,
-    pub user_input_parser: CommandParser,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -293,7 +292,6 @@ type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagn
 //         &HashMap<String, Value>,
 //     ) -> Result<CommandExecutionResult, Diagnostic>,
 // >;
-type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 type ActionInitializer = fn(
@@ -340,12 +338,6 @@ pub trait CommandImplementationAsync {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
     ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    );
 }
 pub trait CommandImplementation {
     fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
@@ -362,12 +354,6 @@ pub trait CommandImplementation {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
     ) -> Result<CommandExecutionResult, Diagnostic>;
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    );
 }
 
 pub trait CompositeCommandImplementation {
@@ -593,7 +579,7 @@ impl CommandInstance {
     ) -> Option<ActionItem> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
-            let value = match evaluated_inputs.inputs.get(input) {
+            let value = match evaluated_inputs.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(Diagnostic {
                     span: None,
@@ -635,7 +621,7 @@ impl CommandInstance {
         // todo: I don't think this one needs to be a result
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
-            let value = match evaluated_inputs.inputs.get(input) {
+            let value = match evaluated_inputs.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(Diagnostic {
                     span: None,
@@ -711,15 +697,6 @@ impl CommandInstance {
             }
         }
         dependencies
-    }
-
-    pub fn update_input_evaluation_results_from_user_input(
-        self,
-        inputs: &mut CommandInputsEvaluationResult,
-        input_name: String,
-        value: String,
-    ) {
-        (self.specification.user_input_parser)(&self.specification, inputs, input_name, value);
     }
 }
 

@@ -115,38 +115,33 @@ pub enum ConstructEvaluationStatus {
 /// the start node. The `New` state indicates to the evaluation loop that the data
 /// should be recomputed, and this should occur for all dependents of the updated
 /// start node, but not the start node itself.
-pub fn prepare_constructs_reevaluation(runbook: &Arc<RwLock<Runbook>>, start_node: NodeIndex) {
-    match runbook.read() {
-        Ok(runbook) => {
-            let g = runbook.constructs_graph.clone();
-            let nodes_to_reevaluate =
-                get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone());
+pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIndex) {
+    let g = runbook.constructs_graph.clone();
+    let nodes_to_reevaluate =
+        get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone());
 
-            for node in nodes_to_reevaluate.into_iter() {
-                let uuid = g.node_weight(node).expect("unable to retrieve construct");
-                let construct_uuid = ConstructUuid::Local(uuid.clone());
+    for node in nodes_to_reevaluate.into_iter() {
+        let uuid = g.node_weight(node).expect("unable to retrieve construct");
+        let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-                let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
-                    continue;
-                };
-                if node == start_node {
-                    continue;
-                }
-
-                if let Ok(mut state_machine) = command_instance.state.lock() {
-                    match state_machine.state() {
-                        CommandInstanceStateMachineState::New
-                        | CommandInstanceStateMachineState::Failed => {}
-                        _ => {
-                            state_machine
-                                .consume(&CommandInstanceStateMachineInput::ReEvaluate)
-                                .unwrap();
-                        }
-                    };
-                }
-            }
+        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
+            continue;
+        };
+        if node == start_node {
+            continue;
         }
-        Err(e) => unimplemented!("could not acquire lock: {e}"),
+
+        if let Ok(mut state_machine) = command_instance.state.lock() {
+            match state_machine.state() {
+                CommandInstanceStateMachineState::New
+                | CommandInstanceStateMachineState::Failed => {}
+                _ => {
+                    state_machine
+                        .consume(&CommandInstanceStateMachineInput::ReEvaluate)
+                        .unwrap();
+                }
+            };
+        }
     }
 }
 
@@ -688,7 +683,7 @@ pub fn perform_inputs_evaluation(
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
         let previously_evaluated_input = match input_evaluation_results {
-            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input),
+            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input.name),
             None => None,
         };
         if let Some(object_props) = input.as_object() {
@@ -752,7 +747,7 @@ pub fn perform_inputs_evaluation(
                 };
             }
             if !object_values.is_empty() {
-                results.insert(input, Ok(Value::Object(object_values)));
+                results.insert(&input.name, Ok(Value::Object(object_values)));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
@@ -762,7 +757,7 @@ pub fn perform_inputs_evaluation(
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
                     Err(diag) => {
-                        results.insert(input, Err(diag));
+                        results.insert(&input.name, Err(diag));
                         continue;
                     }
                     Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
@@ -803,7 +798,7 @@ pub fn perform_inputs_evaluation(
                 }
             }
 
-            results.insert(input, value);
+            results.insert(&input.name, value);
         } else if let Some(_) = input.as_action() {
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
@@ -833,7 +828,7 @@ pub fn perform_inputs_evaluation(
                 }
             }
 
-            results.insert(input, value);
+            results.insert(&input.name, value);
         } else {
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
@@ -863,7 +858,7 @@ pub fn perform_inputs_evaluation(
                 }
             }
 
-            results.insert(input, value);
+            results.insert(&input.name, value);
         }
     }
 

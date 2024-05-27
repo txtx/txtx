@@ -11,10 +11,7 @@ use txtx_addon_kit::types::commands::{CommandInstance, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::ActionItem;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
-    commands::{
-        CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
-        CommandSpecification,
-    },
+    commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
@@ -171,14 +168,5 @@ impl CommandImplementation for EncodeMultisigTransaction {
         );
 
         Ok(result)
-    }
-
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
     }
 }

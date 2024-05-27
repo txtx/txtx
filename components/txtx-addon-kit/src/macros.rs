@@ -82,7 +82,6 @@ macro_rules! define_command {
             action_initializer: $func_key::get_action,
             runner: CommandRunner::Sync($func_key::run),
             checker: $func_key::check,
-            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
             example: String::from($example),
         }
       )
@@ -127,7 +126,6 @@ macro_rules! define_async_command {
                 // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
                 runner: CommandRunner::Async(Box::new($func_key::run)),
                 checker: $func_key::check,
-                user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
                 example: String::from($example),
             })
         }
