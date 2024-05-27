@@ -1,10 +1,5 @@
-use crate::types::constructs::Construct;
-use crate::types::runbook::{GqlRunbook, ProtocolManifest, RunbookDescription};
-
-use crate::Context;
+use crate::{types::block::GqlBlock, Context};
 use juniper_codegen::graphql_object;
-use txtx_core::types::ConstructUuid;
-use uuid::Uuid;
 
 pub struct Query;
 
@@ -14,5 +9,11 @@ pub struct Query;
 impl Query {
     fn api_version() -> &'static str {
         "1.0"
+    }
+
+    fn block(context: &Context) -> GqlBlock {
+        let block_store = context.block_store.read().unwrap();
+        let block = block_store.values().next().unwrap();
+        GqlBlock::new(block.clone())
     }
 }
