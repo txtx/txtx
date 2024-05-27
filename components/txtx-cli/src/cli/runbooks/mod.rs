@@ -63,7 +63,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let (block_tx, block_rx) = txtx_core::channel::unbounded::<Block>();
+    let (block_tx, block_rx) = txtx_core::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, action_item_updates_rx) =
         txtx_core::channel::unbounded::<ActionItem>();
     let (action_item_events_tx, action_item_events_rx) =
@@ -111,14 +111,14 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     });
 
     // Start runloop
-    let block_store = Arc::new(RwLock::new(BTreeMap::new())); 
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
 
     if cmd.web_console {
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: manifest.name,
             block_store: block_store.clone(),
-            action_item_events_tx,
+            action_item_events_tx: action_item_events_tx.clone(),
         };
 
         let port = 8488;
@@ -129,22 +129,48 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         );
 
         let _ = web_ui::http::start_server(gql_context, port, ctx).await;
+        let _ = action_item_events_tx.send(ActionItemEvent {
+            action_item_uuid: SET_ENV_UUID.clone(),
+            payload: ActionItemPayload::PickInputOption("staging".to_string()),
+        });
     }
 
     let _ = hiro_system_kit::thread_named("Blocks Store Update Runloop").spawn(move || loop {
         select! {
             recv(block_rx) -> msg => {
-                if let Ok((new_block)) = msg {
-                    // Add new_block to block_store
+                if let Ok(block_event) = msg {
+                  let Ok(mut block_store) = block_store.write() else {
+                    continue;
+                  };
+
+                  match block_event {
+                    BlockEvent::Append(new_block) => {
+                      block_store.insert(new_block.uuid, new_block);
+                    },
+                    BlockEvent::Clear => {*block_store = BTreeMap::new();}
+                    BlockEvent::SetActionItemStatus((block_uuid, action_item_uuid, new_status)) => {
+                      let block = block_store.get(&block_uuid).unwrap();
+                      let mut action_item = block.find_action(action_item_uuid).unwrap();
+                      action_item.action_status = new_status;
+                    }
+                  }
                 }
+                let s = block_store.read().unwrap();
+                println!("block store: {}", serde_json::to_string(&*s).unwrap());
             }
             recv(action_item_updates_rx) -> msg => {
-                if let Ok(new_action_update) = msg {
+                if let Ok(_new_action_update) = msg {
                     // Retrieve item to update from store
                 }
             }
         }
     });
+    let (web_ui_tx, web_ui_rx) = channel();
+    match web_ui_rx.recv() {
+        Ok(_) => {}
+        Err(_) => {}
+    };
+    let _ = web_ui_tx.send(true);
 
     Ok(())
 }

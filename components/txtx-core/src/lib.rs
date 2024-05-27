@@ -25,6 +25,10 @@ use eval::get_sorted_nodes;
 use eval::run_constructs_evaluation;
 use kit::types::frontend::ActionItemPayload;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::Panel;
+use kit::types::frontend::ProvidedInputData;
+use kit::types::types::Type;
+use kit::types::types::Value;
 use kit::types::ConstructUuid;
 use kit::uuid::Uuid;
 use kit::AddonDefaults;
@@ -153,10 +157,13 @@ impl AddonsContext {
     }
 }
 
+lazy_static! {
+    pub static ref SET_ENV_UUID: Uuid = Uuid::new_v4();
+}
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
-    block_tx: Sender<Block>,
+    block_tx: Sender<BlockEvent>,
     action_item_updates_tx: Sender<ActionItem>,
     action_item_events_rx: Receiver<ActionItemEvent>,
     environments: BTreeMap<String, BTreeMap<String, String>>,
@@ -166,6 +173,7 @@ pub async fn start_runbook_runloop(
 
     let mut runbook_initialized = false;
     let mut current_block = None;
+    let (tx, rx) = channel();
 
     // Compute number of steps
     // A step is
@@ -179,10 +187,17 @@ pub async fn start_runbook_runloop(
             }
         };
 
-        if runbook_initialized {
-            runbook_initialized = false;
-            let genesis_panel = Block::ActionPanel(build_genesis_panel(&environments, &runbook));
-            let _ = block_tx.send(genesis_panel.clone());
+        if !runbook_initialized {
+            runbook_initialized = true;
+            let genesis_panel = Block::new(
+                Uuid::new_v4(),
+                Panel::ActionPanel(build_genesis_panel(
+                    &environments,
+                    &runtime_context.selected_env,
+                    &runbook,
+                )),
+            );
+            let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
             current_block = Some(genesis_panel);
         }
 
@@ -192,9 +207,205 @@ pub async fn start_runbook_runloop(
             continue;
         };
 
+        let ActionItemEvent {
+            action_item_uuid,
+            payload,
+        } = event;
 
+        if action_item_uuid == SET_ENV_UUID.clone() {
+            let ActionItemPayload::PickInputOption(env) = payload else {
+                // todo: we can probably just continue here, but for now we'll panic to see if this is ever a problem
+                unreachable!(
+                    "Action item event wih environment uuid sent with invalid payload {:?}",
+                    payload
+                );
+            };
 
+            let env = match environments.get(&env) {
+                Some(_) => env,
+                None => {
+                    // an invalid environment variable was sent
+                    continue;
+                }
+            };
 
+            let _ = block_tx.send(BlockEvent::Clear);
+            runtime_context.set_active_environment(env);
+
+            let genesis_panel = Block::new(
+                Uuid::new_v4(),
+                Panel::ActionPanel(build_genesis_panel(
+                    &environments,
+                    &runtime_context.selected_env,
+                    &runbook,
+                )),
+            );
+            let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
+
+            let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
+            let _ = run_constructs_evaluation(runbook, runtime_context, None, tx.clone())?;
+
+            let ordered_nodes = get_sorted_nodes(runbook.constructs_graph.clone());
+            let graph = runbook.constructs_graph.clone();
+
+            let mut provide_input_actions = vec![];
+            let mut review_input_actions = vec![];
+            let mut review_output_actions = vec![];
+            let mut panels = vec![];
+            for (_, node) in ordered_nodes.into_iter().enumerate() {
+                let uuid = graph
+                    .node_weight(node)
+                    .expect("unable to retrieve construct");
+                let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+                let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
+                    continue;
+                };
+
+                let evaluated_inputs = runbook
+                    .command_inputs_evaluation_results
+                    .get(&construct_uuid)
+                    .unwrap();
+
+                let Some(mut action) = command_instance.get_action(
+                    evaluated_inputs,
+                    construct_uuid,
+                    AddonDefaults::new(), // todo
+                    0,
+                ) else {
+                    continue;
+                };
+                match command_instance.specification.matcher.as_str() {
+                    "input" => match action.action_type {
+                        ActionItemType::ProvideInput => {
+                            action.index = provide_input_actions.len() as u16;
+                            provide_input_actions.push(action);
+                        }
+                        ActionItemType::ReviewInput => {
+                            action.index = review_input_actions.len() as u16;
+                            review_input_actions.push(action);
+                        }
+                        _ => unreachable!(),
+                    },
+                    "output" => {
+                        action.index = review_output_actions.len() as u16;
+                        review_output_actions.push(action);
+                    }
+                    _ => {
+                        panels.push(Block::new(
+                            Uuid::new_v4(),
+                            Panel::new_action_panel(
+                                &command_instance.specification.name,
+                                "",
+                                vec![ActionGroup::new(
+                                    "lorem ipsum",
+                                    vec![ActionSubGroup::new(vec![action], false)],
+                                )],
+                            ),
+                        ));
+                    }
+                };
+            }
+
+            // send the input block
+            let input_panel = Block::new(
+                Uuid::new_v4(),
+                Panel::new_action_panel(
+                    "inputs review",
+                    "",
+                    vec![
+                        ActionGroup::new(
+                            "provide inputs",
+                            vec![ActionSubGroup::new(provide_input_actions, true)],
+                        ),
+                        ActionGroup::new(
+                            "review inputs",
+                            vec![ActionSubGroup::new(review_input_actions, true)],
+                        ),
+                    ],
+                ),
+            );
+            let _ = block_tx.send(BlockEvent::Append(input_panel)).unwrap();
+
+            // then send each of the other blocks
+            for panel in panels {
+                let _ = block_tx.send(BlockEvent::Append(panel)).unwrap();
+            }
+            // finally, send our output block
+            let output_panel = Block::new(
+                Uuid::new_v4(),
+                Panel::new_action_panel(
+                    "outputs review",
+                    "",
+                    vec![ActionGroup::new(
+                        "review outputs",
+                        vec![ActionSubGroup::new(review_output_actions, true)],
+                    )],
+                ),
+            );
+
+            let _ = block_tx.send(BlockEvent::Append(output_panel)).unwrap();
+            continue;
+        } else {
+            let Some(current_block) = current_block.clone() else {
+                continue;
+            };
+            let Some(action_item) = current_block.find_action(action_item_uuid) else {
+                continue;
+            };
+
+            let new_status_payload = match payload {
+                ActionItemPayload::ReviewInput => (
+                    current_block.uuid,
+                    action_item.uuid,
+                    ActionItemStatus::Success,
+                ),
+                ActionItemPayload::ProvideInput(ProvidedInputData { value, typing }) => {
+                    let val = Value::from_string(value, Type::Primitive(typing), None);
+                    match val {
+                        Ok(val) => {
+                            let construct_uuid = ConstructUuid::Local(action_item_uuid);
+
+                            let Some(command_instance) =
+                                runbook.commands_instances.get(&construct_uuid)
+                            else {
+                                continue;
+                            };
+
+                            // let mut input_eval_results = runbook
+                            //     .command_inputs_evaluation_results
+                            //     .get_mut(&construct_uuid);
+                            // match input_eval_results {
+                            //     Some(input_eval_results) => {
+                            //         input_eval_results.insert(command_input, value)
+                            //     }
+                            //     None => {}
+                            // }
+                            // command_instance.update_input_evaluation_results_from_user_input(
+                            //     input_evaluation_results,
+                            //     "".to_string(),
+                            //     val,
+                            // );
+                            (
+                                current_block.uuid,
+                                action_item.uuid,
+                                ActionItemStatus::Success,
+                            )
+                        }
+                        Err(e) => (
+                            current_block.uuid,
+                            action_item.uuid,
+                            ActionItemStatus::Error(e),
+                        ),
+                    }
+                }
+                ActionItemPayload::PickInputOption(_) => todo!(),
+                ActionItemPayload::ProvidePublicKey(_) => todo!(),
+                ActionItemPayload::ProvideSignedTransaction(_) => todo!(),
+                ActionItemPayload::ValidatePanel => todo!(),
+            };
+            let _ = block_tx.send(BlockEvent::SetActionItemStatus(new_status_payload));
+        }
 
         // Retrieve action via its UUID
         // event.checklist_action_uuid
@@ -219,7 +430,11 @@ pub async fn start_runbook_runloop(
     Ok(())
 }
 
-pub fn build_genesis_panel(environments: &BTreeMap<String, BTreeMap<String, String>>, runbook: &Runbook) -> ActionPanelData {
+pub fn build_genesis_panel(
+    environments: &BTreeMap<String, BTreeMap<String, String>>,
+    selected_env: &Option<String>,
+    runbook: &Runbook,
+) -> ActionPanelData {
     let input_options: Vec<InputOption> = environments
         .keys()
         .map(|k| InputOption {
@@ -229,10 +444,10 @@ pub fn build_genesis_panel(environments: &BTreeMap<String, BTreeMap<String, Stri
         .collect();
 
     let env_selector = ActionItem {
-        uuid: Uuid::new_v4(),
+        uuid: SET_ENV_UUID.clone(),
         index: 0,
-        title: "SELECT ENVIRONMENT".into(),
-        description: "".into(),
+        title: "select environment".into(),
+        description: selected_env.clone().unwrap_or("".to_string()),
         action_status: ActionItemStatus::Todo,
         action_type: ActionItemType::PickInputOption(input_options),
     };
@@ -240,7 +455,7 @@ pub fn build_genesis_panel(environments: &BTreeMap<String, BTreeMap<String, Stri
     let start_runbook_action = ActionItem {
         uuid: Uuid::new_v4(),
         index: 0,
-        title: "START RUNBOOK".into(),
+        title: "start runbook".into(),
         description: "".into(),
         action_status: ActionItemStatus::Todo,
         action_type: ActionItemType::ValidatePanel,
@@ -249,11 +464,10 @@ pub fn build_genesis_panel(environments: &BTreeMap<String, BTreeMap<String, Stri
     let environment_selection_required: bool = environments.len() > 1;
 
     ActionPanelData {
-        uuid: Uuid::new_v4(),
-        title: "Runbook Checklist".into(),
+        title: "runbook checklist".into(),
         description: "".to_string(),
         groups: vec![ActionGroup {
-            title: "Lorem ipsum".into(),
+            title: "lorem ipsum".into(),
             sub_groups: vec![ActionSubGroup {
                 action_items: vec![env_selector, start_runbook_action],
                 allow_batch_completion: true,
