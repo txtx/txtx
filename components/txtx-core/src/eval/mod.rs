@@ -151,6 +151,7 @@ pub async fn run_constructs_evaluation(
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
+    let wallets = HashMap::new();
     let mut action_items = BTreeMap::new();
 
     let environments_variables = runbook.environment_variables_values.clone();
@@ -305,6 +306,7 @@ pub async fn run_constructs_evaluation(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
+            &wallets,
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
@@ -325,6 +327,7 @@ pub async fn run_constructs_evaluation(
                     &construct_uuid,
                     &evaluated_inputs,
                     addon_defaults.clone(),
+                    &wallets,
                     progress_tx,
                 )
                 .await

@@ -23,6 +23,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
+    wallets::WalletSpecification,
     ConstructUuid, PackageUuid,
 };
 
@@ -316,6 +317,7 @@ pub type CommandRunner = Box<
         &CommandSpecification,
         &HashMap<String, Value>,
         &AddonDefaults,
+        &HashMap<String, WalletSpecification>,
         &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult,
 >;
@@ -327,6 +329,7 @@ type ExecutabilityChecker = fn(
     &CommandSpecification,
     &HashMap<String, Value>,
     &AddonDefaults,
+    &HashMap<String, WalletSpecification>,
     &CommandExecutionContext,
 ) -> Result<(), ActionItemRequest>;
 
@@ -355,6 +358,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         Ok(())
@@ -364,6 +368,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _wallets: &HashMap<String, WalletSpecification>,
         _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult;
 }
@@ -594,6 +599,7 @@ impl CommandInstance {
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
+        wallets: &HashMap<String, WalletSpecification>,
         action_item_response: &Option<&ActionItemResponseType>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
@@ -649,6 +655,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
+            &wallets,
             &execution_context,
         )
     }
@@ -658,6 +665,7 @@ impl CommandInstance {
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
+        wallets: &HashMap<String, WalletSpecification>,
         progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = HashMap::new();
@@ -686,6 +694,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
+            &wallets,
             progress_tx,
         )
         .await

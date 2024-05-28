@@ -6,8 +6,7 @@ use txtx_core::{
     kit::{
         channel::{self, select},
         types::frontend::{
-            ActionItemRequest, ActionItemResponse, ActionItemResponseType,
-            BlockEvent,
+            ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
