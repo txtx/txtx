@@ -3,7 +3,7 @@ use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
-    CommandImplementation, CommandInstance, PreCommandSpecification,
+    CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::ConstructUuid;

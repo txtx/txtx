@@ -6,7 +6,7 @@ use txtx_core::{
     kit::{
         channel::{self, select},
         types::frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemResponse, ActionItemResponseType,
+            ActionItemRequest, ActionItemResponse, ActionItemResponseType,
             BlockEvent,
         },
     },

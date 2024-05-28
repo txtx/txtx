@@ -8,7 +8,7 @@ use clarity_repl::codec::{
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult, CommandInstance,
+    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;

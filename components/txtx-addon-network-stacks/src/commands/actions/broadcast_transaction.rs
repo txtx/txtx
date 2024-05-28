@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write};
 use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::ConstructUuid;

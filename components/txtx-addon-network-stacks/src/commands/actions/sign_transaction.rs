@@ -21,7 +21,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use std::{collections::HashMap, str::FromStr};
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{
-    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult, CommandInstance,
+    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;

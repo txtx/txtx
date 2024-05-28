@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
-            CommandInstance, CommandSpecification, PreCommandSpecification,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
