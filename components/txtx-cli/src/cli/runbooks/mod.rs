@@ -64,6 +64,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     // Select first runbook by default
     let (runbook_name, (mut runbook, mut runtime_context)) = runbooks.into_iter().next().unwrap();
+    let runbook_description = runbook.description.clone();
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
@@ -120,6 +121,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: manifest.name,
+            runbook_name: runbook_name,
+            runbook_description: runbook_description,
             block_store: block_store.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         };

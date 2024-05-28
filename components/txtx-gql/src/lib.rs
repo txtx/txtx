@@ -17,6 +17,8 @@ pub mod types;
 
 pub struct Context {
     pub protocol_name: String,
+    pub runbook_name: String,
+    pub runbook_description: Option<String>,
     pub block_store: Arc<RwLock<BTreeMap<Uuid, Block>>>,
     pub action_item_events_tx: Sender<ActionItemResponse>,
 }
