@@ -72,6 +72,8 @@ macro_rules! define_command {
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
+                check_required: false,
+                check_performed: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {

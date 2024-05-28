@@ -1,7 +1,7 @@
 use jaq_interpret::Val;
 use serde::{
     ser::{SerializeMap, SerializeSeq},
-    Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -53,6 +53,15 @@ impl Serialize for Value {
                 map.end()
             }
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for Value {
+    fn deserialize<D>(_deserializer: D) -> Result<Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        unimplemented!()
     }
 }
 

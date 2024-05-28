@@ -15,27 +15,18 @@ mod tests;
 
 use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
-use ::std::sync::mpsc::channel;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 
-use eval::get_sorted_nodes;
-use eval::prepare_constructs_reevaluation;
+use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use kit::types::commands::CommandExecutionContext;
-use kit::types::commands::CommandInstanceStateMachine;
-use kit::types::commands::CommandInstanceStateMachineInput;
-use kit::types::commands::CommandInstanceStateMachineState;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
-use kit::types::types::Type;
-use kit::types::types::Value;
-use kit::types::ConstructUuid;
 use kit::uuid::Uuid;
-use kit::AddonDefaults;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -159,7 +150,6 @@ pub async fn start_runbook_runloop(
     // let mut runbook_state = BTreeMap::new();
 
     let mut runbook_initialized = false;
-    let mut current_block = None;
     let mut current_node = None;
 
     let execution_context = CommandExecutionContext {
@@ -171,12 +161,12 @@ pub async fn start_runbook_runloop(
     // A step is
     let (progress_tx, progress_rx) = txtx_addon_kit::channel::unbounded();
 
+    let mut action_item_requests = HashMap::new();
+    let mut action_item_responses = HashMap::new();
+
     loop {
         let event_opt = match action_item_events_rx.try_recv() {
-            Ok(action) => {
-                println!("received action");
-                Some(action)
-            }
+            Ok(action) => Some(action),
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 unimplemented!()
@@ -194,7 +184,6 @@ pub async fn start_runbook_runloop(
                 )),
             );
             let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
-            current_block = Some(genesis_panel);
         }
 
         // Cooldown
@@ -212,185 +201,81 @@ pub async fn start_runbook_runloop(
             continue;
         }
 
-        if payload.is_validate_panel() {
-            // recompute graph
-            // send the input block
+        action_item_responses.insert(action_item_uuid.clone(), payload.clone());
 
-            let mut groups = run_constructs_evaluation(
-                runbook,
-                runtime_context,
-                current_node,
-                &execution_context,
-                &progress_tx,
-            )
-            .await?;
+        match &payload {
+            ActionItemResponseType::ValidatePanel => {
+                let mut runbook_completed = false;
+                let mut groups = run_constructs_evaluation(
+                    runbook,
+                    runtime_context,
+                    current_node,
+                    &execution_context,
+                    &action_item_responses,
+                    &progress_tx,
+                )
+                .await?;
 
-            let Some((group, mut action_items)) = groups.pop_first() else {
-                continue;
-            };
+                if groups.is_empty() {
+                    runbook_completed = true;
+                    groups = collect_runbook_outputs(&runbook, &runtime_context);
+                }
+                let mut sub_groups = vec![];
+                let Some((group, action_items)) = groups.pop_first() else {
+                    continue;
+                };
 
-            action_items.push(ActionItemRequest {
-                uuid: Uuid::new_v4(),
-                index: 0,
-                title: "Validate".into(),
-                description: "".into(),
-                action_status: if action_items.is_empty() {
+                for request in action_items.iter() {
+                    action_item_requests.insert(request.uuid.clone(), request.action_type.clone());
+                }
+
+                let action_status = if action_items.is_empty() {
                     ActionItemStatus::Success
                 } else {
                     ActionItemStatus::Todo
-                },
-                action_type: ActionItemRequestType::ValidatePanel,
-            });
+                };
 
-            let panel = Block::new(
-                Uuid::new_v4(),
-                Panel::ActionPanel(ActionPanelData {
-                    title: group,
-                    description: "".to_string(),
-                    groups: vec![ActionGroup {
-                        title: "".into(),
-                        sub_groups: vec![ActionSubGroup {
-                            action_items,
-                            allow_batch_completion: true,
+                sub_groups.push(ActionSubGroup {
+                    action_items,
+                    allow_batch_completion: true,
+                });
+
+                if !runbook_completed {
+                    sub_groups.push(ActionSubGroup {
+                        action_items: vec![ActionItemRequest {
+                            uuid: Uuid::new_v4(),
+                            index: 0,
+                            title: "Validate".into(),
+                            description: "".into(),
+                            action_status,
+                            action_type: ActionItemRequestType::ValidatePanel,
                         }],
-                    }],
-                }),
-            );
-            let _ = block_tx.send(BlockEvent::Append(panel.clone()));
-            current_block = Some(panel);
-        }
+                        allow_batch_completion: true,
+                    });
+                }
 
-        //     // then send each of the other blocks
-        //     for panel in panels {
-        //         let _ = block_tx.send(BlockEvent::Append(panel)).unwrap();
-        //     }
-        //     // finally, send our output block
-        //     let output_panel = Block::new(
-        //         Uuid::new_v4(),
-        //         Panel::new_action_panel(
-        //             "outputs review",
-        //             "",
-        //             vec![ActionGroup::new(
-        //                 "review outputs",
-        //                 vec![ActionSubGroup::new(review_output_actions, true)],
-        //             )],
-        //         ),
-        //     );
+                let panel = Block::new(
+                    Uuid::new_v4(),
+                    Panel::ActionPanel(ActionPanelData {
+                        title: group,
+                        description: "".to_string(),
+                        groups: vec![ActionGroup {
+                            title: "".into(),
+                            sub_groups,
+                        }],
+                    }),
+                );
 
-        //     let _ = block_tx.send(BlockEvent::Append(output_panel)).unwrap();
-        //     continue;
-        // } else {
-        //     let Some(current_block) = current_block.clone() else {
-        //         println!("not found in current block");
-        //         continue;
-        //     };
-        //     let Some(action_item) = current_block.find_action(action_item_uuid) else {
-        //         continue;
-        //     };
-
-        //     let new_status_payload = match payload {
-        //         ActionItemPayload::ReviewInput => (
-        //             current_block.uuid,
-        //             action_item.uuid,
-        //             ActionItemStatus::Success,
-        //         ),
-        //         ActionItemPayload::ProvideInput(ProvidedInputData {
-        //             input_name,
-        //             value,
-        //             typing,
-        //         }) => {
-        //             println!("got provide input event!");
-        //             let value: Result<Value, Diagnostic> =
-        //                 Value::from_string(value, Type::Primitive(typing), None);
-
-        //             let construct_uuid = ConstructUuid::Local(action_item_uuid);
-
-        //             let input_eval_results = runbook
-        //                 .command_inputs_evaluation_results
-        //                 .get_mut(&construct_uuid);
-        //             match input_eval_results {
-        //                 Some(input_eval_results) => {
-        //                     input_eval_results.insert(&input_name, value.clone())
-        //                 }
-        //                 None => {}
-        //             }
-
-        //             let Some(command_instance) =
-        //                 runbook.commands_instances.get_mut(&construct_uuid)
-        //             else {
-        //                 println!("couldn't find command instance");
-        //                 continue;
-        //             };
-        //             match command_instance.state.lock() {
-        //                 Ok(mut state_machine) => {
-        //                     state_machine
-        //                         .consume(&CommandInstanceStateMachineInput::ReEvaluate)
-        //                         .unwrap();
-        //                 }
-        //                 Err(e) => panic!("unable to acquire lock {e}"),
-        //             };
-
-        //             let Some(command_graph_node) = runbook
-        //                 .constructs_graph_nodes
-        //                 .get(&construct_uuid.value())
-        //                 .cloned()
-        //             else {
-        //                 println!("missing from graph?");
-        //                 // if somehow this construct is not part of the graph, we don't need to reevaluate it
-        //                 continue;
-        //             };
-
-        //             prepare_constructs_reevaluation(runbook, command_graph_node.clone());
-        //             match run_constructs_evaluation(
-        //                 runbook,
-        //                 runtime_context,
-        //                 Some(command_graph_node.clone()),
-        //             )
-        //             .await
-        //             {
-        //                 Ok(()) => println!("successfully reevaluated constructs after mutation"),
-        //                 Err(e) => println!("error reevaluating constructs after mutation: {:?}", e),
-        //             }
-
-        //             match value {
-        //                 Ok(_) => (
-        //                     current_block.uuid,
-        //                     action_item.uuid,
-        //                     ActionItemStatus::Success,
-        //                 ),
-        //                 Err(e) => (
-        //                     current_block.uuid,
-        //                     action_item.uuid,
-        //                     ActionItemStatus::Error(e),
-        //                 ),
-        //             }
-        //         }
-        //         ActionItemPayload::PickInputOption(_) => todo!(),
-        //         ActionItemPayload::ProvidePublicKey(_) => todo!(),
-        //         ActionItemPayload::ProvideSignedTransaction(_) => todo!(),
-        //         ActionItemPayload::ValidatePanel => todo!(),
-        //     };
-        //     let _ = block_tx.send(BlockEvent::SetActionItemStatus(new_status_payload));
-        // }
-
-        // Retrieve action via its UUID
-        // event.checklist_action_uuid
-
-        // the action is pointing to the construct
-        // "send" the payload to the construct, it will know what to do with it?
-        // the action can also have a "next action"
-
-        // do we have an ongoing block?
-        // retrieve all the actions of the checklist
-
-        // recompute the graph
-
-        // while promises are being returned
-        // collect the promises
-
-        // Runbook Execution returns
-        // - 1 result
-        // - 1 action
+                let _ = block_tx.send(BlockEvent::Append(panel));
+            }
+            ActionItemResponseType::PickInputOption(response) => {
+                // collected_responses.insert(k, v)
+            }
+            ActionItemResponseType::ProvideInput(_) => {}
+            ActionItemResponseType::ReviewInput(_) => {}
+            ActionItemResponseType::ProvidePublicKey(_) => todo!(),
+            ActionItemResponseType::ProvideSignedTransaction(_) => todo!(),
+        };
     }
 
     Ok(())

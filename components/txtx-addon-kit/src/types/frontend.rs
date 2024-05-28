@@ -1,4 +1,7 @@
-use super::{diagnostics::Diagnostic, types::PrimitiveType};
+use super::{
+    diagnostics::Diagnostic,
+    types::{PrimitiveType, Value},
+};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -186,6 +189,7 @@ pub enum ActionItemRequestType {
     PickInputOption(Vec<InputOption>),
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
+    DisplayOutput(DisplayOutputRequest),
     ValidatePanel,
 }
 
@@ -194,6 +198,14 @@ pub enum ActionItemRequestType {
 pub struct ProvideInputRequest {
     pub input_name: String,
     pub typing: PrimitiveType,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayOutputRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub value: Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -226,7 +238,7 @@ pub struct ActionItemResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemResponseType {
-    ReviewInput(bool),
+    ReviewInput(ReviewedInputResponse),
     ProvideInput(ProvidedInputResponse),
     PickInputOption(String),
     ProvidePublicKey(ProvidePublicKeyResponse),
@@ -245,9 +257,16 @@ impl ActionItemResponseType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReviewedInputResponse {
+    pub input_name: String,
+    pub value_checked: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProvidedInputResponse {
     pub input_name: String,
-    pub updated_value: String,
+    pub updated_value: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

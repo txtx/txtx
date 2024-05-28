@@ -15,7 +15,10 @@ use txtx_addon_kit::{
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItemRequest,
+        frontend::{
+            ActionItemRequest, ActionItemRequestType, ActionItemResponse, ActionItemResponseType,
+            ActionItemStatus, DisplayOutputRequest,
+        },
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
@@ -143,6 +146,7 @@ pub async fn run_constructs_evaluation(
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
+    action_item_responses: &HashMap<Uuid, ActionItemResponseType>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
@@ -272,7 +276,7 @@ pub async fn run_constructs_evaluation(
             continue;
         };
 
-        let evaluated_inputs = match evaluated_inputs_res {
+        let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
                 CommandInputEvaluationStatus::NeedsUserInteraction => {
@@ -299,8 +303,9 @@ pub async fn run_constructs_evaluation(
 
         if let Err(action_item) = command_instance.check_executability(
             &construct_uuid,
-            &evaluated_inputs,
+            &mut evaluated_inputs,
             addon_defaults.clone(),
+            &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
             action_items
@@ -359,6 +364,64 @@ pub async fn run_constructs_evaluation(
     }
 
     Ok(action_items)
+}
+
+pub fn collect_runbook_outputs(
+    runbook: &Runbook,
+    runtime_ctx: &RuntimeContext,
+) -> BTreeMap<String, Vec<ActionItemRequest>> {
+    let g = runbook.constructs_graph.clone();
+
+    let mut action_items = BTreeMap::new();
+
+    let ordered_nodes_to_process = get_sorted_nodes(runbook.constructs_graph.clone());
+
+    let constructs_locations = runbook.constructs_locations.clone();
+
+    for node in ordered_nodes_to_process.into_iter() {
+        let uuid = g.node_weight(node).expect("unable to retrieve construct");
+        let construct_uuid = ConstructUuid::Local(uuid.clone());
+
+        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
+            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+            continue;
+        };
+
+        if command_instance
+            .specification
+            .name
+            .to_lowercase()
+            .eq("output")
+        {
+            let Some(Ok(execution_result)) =
+                runbook.constructs_execution_results.get(&construct_uuid)
+            else {
+                unreachable!()
+            };
+
+            let Some(value) = execution_result.outputs.get("value") else {
+                unreachable!()
+            };
+
+            action_items
+                .entry(command_instance.get_group())
+                .or_insert_with(Vec::new)
+                .push(ActionItemRequest {
+                    uuid: construct_uuid.value(),
+                    index: 0,
+                    title: command_instance.name.to_string(),
+                    description: "".to_string(),
+                    action_status: ActionItemStatus::Todo,
+                    action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                        name: command_instance.name.to_string(),
+                        description: None,
+                        value: value.clone(),
+                    }),
+                });
+        }
+    }
+
+    action_items
 }
 
 pub enum ExpressionEvaluationStatus {

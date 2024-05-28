@@ -4,10 +4,14 @@ use txtx_addon_kit::{
     channel::RecvTimeoutError,
     helpers::fs::FileLocation,
     hiro_system_kit,
-    types::frontend::{
-        ActionItemRequest, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
-        BlockEvent, ProvidedInputResponse,
+    types::{
+        frontend::{
+            ActionItemRequest, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
+            BlockEvent, ProvidedInputResponse, ReviewedInputResponse,
+        },
+        types::Value,
     },
+    uuid::Uuid,
 };
 
 use crate::{
@@ -97,31 +101,58 @@ fn test_abc_runbook_no_env() {
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");
     assert_eq!(inputs_panel_data.groups.len(), 1);
-    assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 2);
     assert_eq!(
         inputs_panel_data.groups[0].sub_groups[0].action_items.len(),
-        3
+        2
     );
     let input_a_uuid = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
+    let input_b_uuid = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
 
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: input_a_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ReviewInput(true),
+        payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+            value_checked: true,
+            input_name: "value".into(),
+        }),
     });
 
     // Should be a no-op
-    let Err(RecvTimeoutError::Timeout) = block_rx.recv_timeout(Duration::from_secs(3)) else {
+    let Err(_) = block_rx.recv_timeout(Duration::from_secs(3)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
 
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: input_a_uuid.uuid.clone(),
+        action_item_uuid: input_b_uuid.uuid.clone(),
         payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
-            updated_value: "5".into(),
-            input_name: "a".into(),
+            updated_value: Value::uint(5),
+            input_name: "value".into(),
         }),
     });
+
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: Uuid::new_v4(),
+        payload: ActionItemResponseType::ValidatePanel,
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    println!("{:?}", event);
+
+    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
+    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUTS REVIEW");
+    assert_eq!(outputs_panel_data.groups.len(), 1);
+    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(
+        outputs_panel_data.groups[0].sub_groups[0]
+            .action_items
+            .len(),
+        1
+    );
 }
 
 // Retrieve all the nodes we can compute

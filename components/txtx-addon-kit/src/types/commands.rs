@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::ActionItemRequest,
+    frontend::{ActionItemRequest, ActionItemResponse, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };
@@ -98,6 +98,8 @@ pub struct CommandInput {
     pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
+    pub check_required: bool,
+    pub check_performed: bool,
 }
 
 impl CommandInput {
@@ -234,6 +236,8 @@ impl CommandSpecification {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -241,6 +245,8 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -248,6 +254,8 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: false,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "redacted".into(),
@@ -255,6 +263,8 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: false,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "group".into(),
@@ -262,6 +272,8 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
         ]
     }
@@ -578,12 +590,38 @@ impl CommandInstance {
     }
 
     pub fn check_executability(
-        &self,
+        &mut self,
         construct_uuid: &ConstructUuid,
-        input_evaluation_results: &CommandInputsEvaluationResult,
+        input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
+        action_item_response: &Option<&ActionItemResponseType>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
+        match action_item_response {
+            Some(ActionItemResponseType::ReviewInput(update)) => {
+                for input in self.specification.inputs.iter_mut() {
+                    if input.name == update.input_name {
+                        input.check_performed = true;
+                        break;
+                    }
+                }
+            }
+            Some(ActionItemResponseType::ProvideInput(update)) => {
+                input_evaluation_results
+                    .inputs
+                    .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
+                for input in self.specification.inputs.iter_mut() {
+                    if input.name == update.input_name {
+                        input.check_performed = true;
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        println!("INPUTS = {:?}", self.specification.inputs);
+
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {

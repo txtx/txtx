@@ -137,12 +137,17 @@ impl CommandImplementation for Input {
     fn check_executability(
         uuid: &ConstructUuid,
         instance_name: &str,
-        _spec: &CommandSpecification,
+        spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         if let Some(value) = args.get("value") {
+            for input_spec in spec.inputs.iter() {
+                if input_spec.name == "value" && input_spec.check_performed {
+                    return Ok(());
+                }
+            }
             if execution_context.review_input_values {
                 return Err(ActionItemRequest::new(
                     &uuid.value(),
@@ -158,10 +163,17 @@ impl CommandImplementation for Input {
         }
 
         let (default_value, typing) = match args.get("default") {
-            Some(default_value) => (
-                Some(default_value.to_string()),
-                default_value.expect_primitive().get_type(),
-            ),
+            Some(default_value) => {
+                for input_spec in spec.inputs.iter() {
+                    if input_spec.name == "value" && input_spec.check_performed {
+                        return Ok(());
+                    }
+                }
+                (
+                    Some(default_value.to_string()),
+                    default_value.expect_primitive().get_type(),
+                )
+            }
             None => match args.get("type") {
                 Some(typing) => (None, serde_json::de::from_str(&typing.to_string()).unwrap()),
                 None => unreachable!("responsibility of 'check_instantiability'"),
