@@ -169,7 +169,7 @@ pub enum ChecklistActionResultProvider {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(tag = "status", content = "status_data")]
+#[serde(tag = "status", content = "data")]
 pub enum ActionItemStatus {
     Todo,
     Success,
@@ -179,7 +179,7 @@ pub enum ActionItemStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", content = "type_data")]
+#[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {
     ReviewInput,
     ProvideInput(ProvideInputRequest),
