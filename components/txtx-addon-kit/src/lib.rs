@@ -17,11 +17,7 @@ pub extern crate crossbeam_channel as channel;
 
 use hcl::structure::Block;
 pub use hcl_edit as hcl;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, fmt::Debug};
 use types::{
     commands::{
         CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceStateMachine,

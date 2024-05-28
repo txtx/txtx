@@ -1,12 +1,10 @@
 pub mod actions;
 
 use std::collections::HashMap;
-use txtx_addon_kit::serde::Serialize;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
-use txtx_addon_kit::types::types::PrimitiveType;
 use txtx_addon_kit::{
     define_command,
     types::{
@@ -255,9 +253,9 @@ impl CommandImplementation for Output {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
-        defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         Ok(())
     }

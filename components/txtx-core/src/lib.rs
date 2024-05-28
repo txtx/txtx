@@ -142,15 +142,14 @@ pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     block_tx: Sender<BlockEvent>,
-    action_item_updates_tx: Sender<ActionItemRequest>,
-    action_item_events_rx: Receiver<ActionItemResponse>,
+    _action_item_request_tx: Sender<ActionItemRequest>,
+    action_item_responses_rx: Receiver<ActionItemResponse>,
     environments: BTreeMap<String, BTreeMap<String, String>>,
     interactive_by_default: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
     let mut runbook_initialized = false;
-    let mut current_node = None;
 
     let execution_context = CommandExecutionContext {
         review_input_default_values: interactive_by_default,
@@ -159,13 +158,13 @@ pub async fn start_runbook_runloop(
 
     // Compute number of steps
     // A step is
-    let (progress_tx, progress_rx) = txtx_addon_kit::channel::unbounded();
+    let (progress_tx, _progress_rx) = txtx_addon_kit::channel::unbounded();
 
     let mut action_item_requests = HashMap::new();
     let mut action_item_responses = HashMap::new();
 
     loop {
-        let event_opt = match action_item_events_rx.try_recv() {
+        let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
@@ -209,7 +208,7 @@ pub async fn start_runbook_runloop(
                 let mut groups = run_constructs_evaluation(
                     runbook,
                     runtime_context,
-                    current_node,
+                    None,
                     &execution_context,
                     &action_item_responses,
                     &progress_tx,
@@ -268,7 +267,7 @@ pub async fn start_runbook_runloop(
 
                 let _ = block_tx.send(BlockEvent::Append(panel));
             }
-            ActionItemResponseType::PickInputOption(response) => {
+            ActionItemResponseType::PickInputOption(_response) => {
                 // collected_responses.insert(k, v)
             }
             ActionItemResponseType::ProvideInput(_) => {}
@@ -277,8 +276,6 @@ pub async fn start_runbook_runloop(
             ActionItemResponseType::ProvideSignedTransaction(_) => todo!(),
         };
     }
-
-    Ok(())
 }
 
 pub fn reset_runbook_execution(
@@ -295,7 +292,7 @@ pub fn reset_runbook_execution(
         );
     };
 
-    let Some(environment_values) = environments.get(environment_key.as_str()) else {
+    if environments.get(environment_key.as_str()).is_none() {
         unreachable!("Invalid environment variable was sent",);
     };
 
@@ -317,7 +314,7 @@ pub fn reset_runbook_execution(
 pub fn build_genesis_panel(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     selected_env: &Option<String>,
-    runbook: &Runbook,
+    _runbook: &Runbook,
 ) -> ActionPanelData {
     let input_options: Vec<InputOption> = environments
         .keys()

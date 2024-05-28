@@ -16,8 +16,8 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemResponse, ActionItemResponseType,
-            ActionItemStatus, DisplayOutputRequest,
+            ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
+            DisplayOutputRequest,
         },
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
@@ -368,15 +368,13 @@ pub async fn run_constructs_evaluation(
 
 pub fn collect_runbook_outputs(
     runbook: &Runbook,
-    runtime_ctx: &RuntimeContext,
+    _runtime_ctx: &RuntimeContext,
 ) -> BTreeMap<String, Vec<ActionItemRequest>> {
     let g = runbook.constructs_graph.clone();
 
     let mut action_items = BTreeMap::new();
 
     let ordered_nodes_to_process = get_sorted_nodes(runbook.constructs_graph.clone());
-
-    let constructs_locations = runbook.constructs_locations.clone();
 
     for node in ordered_nodes_to_process.into_iter() {
         let uuid = g.node_weight(node).expect("unable to retrieve construct");

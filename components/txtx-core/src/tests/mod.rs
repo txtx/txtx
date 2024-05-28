@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
 use txtx_addon_kit::{
-    channel::RecvTimeoutError,
     helpers::fs::FileLocation,
     hiro_system_kit,
     types::{

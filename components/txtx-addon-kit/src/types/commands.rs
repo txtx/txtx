@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::{ActionItemRequest, ActionItemResponse, ActionItemResponseType},
+    frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };

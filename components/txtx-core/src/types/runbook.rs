@@ -5,7 +5,6 @@ use crate::std::commands;
 use daggy::{Dag, NodeIndex};
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
 use txtx_addon_kit::fsm::StateMachine;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;

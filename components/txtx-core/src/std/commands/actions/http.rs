@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
+    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::types::ObjectProperty;

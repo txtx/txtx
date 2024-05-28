@@ -82,14 +82,12 @@ impl Panel {
     pub fn as_action_panel(&self) -> Option<&ActionPanelData> {
         match &self {
             Panel::ActionPanel(ref data) => Some(data),
-            _ => None,
         }
     }
 
     pub fn expect_action_panel(&self) -> &ActionPanelData {
         match &self {
             Panel::ActionPanel(ref data) => data,
-            _ => unreachable!("action panel expected"),
         }
     }
 }
