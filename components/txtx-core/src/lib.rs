@@ -192,7 +192,7 @@ pub async fn start_runbook_runloop(
             payload,
         }) = event_opt
         else {
-            sleep(Duration::from_millis(3000));
+            sleep(Duration::from_millis(1000));
             continue;
         };
 

@@ -620,8 +620,6 @@ impl CommandInstance {
             _ => {}
         }
 
-        println!("INPUTS = {:?}", self.specification.inputs);
-
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {

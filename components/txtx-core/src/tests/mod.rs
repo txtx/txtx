@@ -22,13 +22,13 @@ use crate::{
 };
 
 #[test]
-fn test_abc_runbook_no_env() {
+fn test_ab_c_runbook_no_env() {
     // Load Runbook abc.tx
-    let abc_tx = include_str!("./fixtures/abc.tx");
+    let abc_tx = include_str!("./fixtures/ab_c.tx");
 
     let mut source_tree = SourceTree::new();
     source_tree.add_source(
-        "abc.tx".into(),
+        "ab_c.tx".into(),
         FileLocation::from_path_string(".").unwrap(),
         abc_tx.into(),
     );
@@ -69,7 +69,7 @@ fn test_abc_runbook_no_env() {
         }
     });
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(1)) else {
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
         assert!(false, "unable to receive genesis block");
         panic!()
     };
@@ -118,7 +118,7 @@ fn test_abc_runbook_no_env() {
     });
 
     // Should be a no-op
-    let Err(_) = block_rx.recv_timeout(Duration::from_secs(3)) else {
+    let Err(_) = block_rx.recv_timeout(Duration::from_secs(2)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
@@ -136,12 +136,10 @@ fn test_abc_runbook_no_env() {
         payload: ActionItemResponseType::ValidatePanel,
     });
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
-
-    println!("{:?}", event);
 
     let outputs_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUTS REVIEW");
