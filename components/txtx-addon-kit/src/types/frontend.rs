@@ -43,7 +43,7 @@ impl Block {
         Block { uuid, panel }
     }
 
-    pub fn find_action(&self, uuid: Uuid) -> Option<ActionItem> {
+    pub fn find_action(&self, uuid: Uuid) -> Option<ActionItemRequest> {
         match &self.panel {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter() {
@@ -118,12 +118,12 @@ impl ActionGroup {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionSubGroup {
-    pub action_items: Vec<ActionItem>,
+    pub action_items: Vec<ActionItemRequest>,
     pub allow_batch_completion: bool,
 }
 
 impl ActionSubGroup {
-    pub fn new(action_items: Vec<ActionItem>, allow_batch_completion: bool) -> Self {
+    pub fn new(action_items: Vec<ActionItemRequest>, allow_batch_completion: bool) -> Self {
         ActionSubGroup {
             action_items,
             allow_batch_completion,
@@ -133,25 +133,25 @@ impl ActionSubGroup {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ActionItem {
+pub struct ActionItemRequest {
     pub uuid: Uuid,
     pub index: u16,
     pub title: String,
     pub description: String,
     pub action_status: ActionItemStatus,
-    pub action_type: ActionItemType,
+    pub action_type: ActionItemRequestType,
 }
 
-impl ActionItem {
+impl ActionItemRequest {
     pub fn new(
         uuid: &Uuid,
         index: u16,
         title: &str,
         description: &str,
         action_status: ActionItemStatus,
-        action_type: ActionItemType,
+        action_type: ActionItemRequestType,
     ) -> Self {
-        ActionItem {
+        ActionItemRequest {
             uuid: uuid.clone(),
             index,
             title: title.to_string(),
@@ -169,6 +169,7 @@ pub enum ChecklistActionResultProvider {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", tag = "status", content = "status_data")]
 pub enum ActionItemStatus {
     Todo,
     Success,
@@ -178,18 +179,19 @@ pub enum ActionItemStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub enum ActionItemType {
+#[serde(rename_all = "camelCase", tag = "type", content = "type_data")]
+pub enum ActionItemRequestType {
     ReviewInput,
-    ProvideInput(ProvideInputContext),
+    ProvideInput(ProvideInputRequest),
     PickInputOption(Vec<InputOption>),
-    ProvidePublicKey(ProvidePublicKeyData),
-    ProvideSignedTransaction(ProvideSignedTransactionData),
+    ProvidePublicKey(ProvidePublicKeyRequest),
+    ProvideSignedTransaction(ProvideSignedTransactionRequest),
     ValidatePanel,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvideInputContext {
+pub struct ProvideInputRequest {
     pub input_name: String,
     pub typing: PrimitiveType,
 }
@@ -203,39 +205,39 @@ pub struct InputOption {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvidePublicKeyData {
+pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvideSignedTransactionData {
+pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ActionItemEvent {
+pub struct ActionItemResponse {
     pub action_item_uuid: Uuid,
     #[serde(flatten)]
-    pub payload: ActionItemPayload,
+    pub payload: ActionItemResponseType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data")]
-pub enum ActionItemPayload {
-    ReviewInput,
-    ProvideInput(ProvidedInputData),
+#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+pub enum ActionItemResponseType {
+    ReviewInput(bool),
+    ProvideInput(ProvidedInputResponse),
     PickInputOption(String),
-    ProvidePublicKey(ProvidePublicKeyData),
-    ProvideSignedTransaction(ProvideSignedTransactionData),
+    ProvidePublicKey(ProvidePublicKeyResponse),
+    ProvideSignedTransaction(ProvideSignedTransactionResponse),
     ValidatePanel,
 }
 
-impl ActionItemPayload {
+impl ActionItemResponseType {
     pub fn is_validate_panel(&self) -> bool {
         match &self {
-            ActionItemPayload::ValidatePanel => true,
+            ActionItemResponseType::ValidatePanel => true,
             _ => false,
         }
     }
@@ -243,8 +245,15 @@ impl ActionItemPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvidedInputData {
+pub struct ProvidedInputResponse {
     pub input_name: String,
-    pub value: String,
-    pub typing: PrimitiveType,
+    pub updated_value: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidePublicKeyResponse {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvideSignedTransactionResponse {}

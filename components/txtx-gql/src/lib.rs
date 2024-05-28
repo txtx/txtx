@@ -7,7 +7,7 @@ use std::{
 };
 use txtx_core::kit::{
     channel::Sender,
-    types::frontend::{ActionItemEvent, Block},
+    types::frontend::{ActionItemResponse, Block},
 };
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ pub mod types;
 pub struct Context {
     pub protocol_name: String,
     pub block_store: Arc<RwLock<BTreeMap<Uuid, Block>>>,
-    pub action_item_events_tx: Sender<ActionItemEvent>,
+    pub action_item_events_tx: Sender<ActionItemResponse>,
 }
 
 impl juniper::Context for Context {}

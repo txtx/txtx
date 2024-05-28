@@ -1,6 +1,8 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_core::kit::types::frontend::{ActionGroup, ActionItem, ActionSubGroup, Block, Panel};
+use txtx_core::kit::types::frontend::{
+    ActionGroup, ActionItemRequest, ActionSubGroup, Block, Panel,
+};
 
 pub struct GqlBlock {
     block: Block,
@@ -82,26 +84,26 @@ impl GqlActionSubGroup {
         self.sub_group.allow_batch_completion.clone()
     }
 
-    pub fn action_items(&self) -> Vec<GqlActionItem> {
+    pub fn action_items(&self) -> Vec<GqlActionItemRequest> {
         self.sub_group
             .action_items
             .clone()
             .into_iter()
-            .map(GqlActionItem::new)
+            .map(GqlActionItemRequest::new)
             .collect()
     }
 }
 
-pub struct GqlActionItem {
-    action_item: ActionItem,
+pub struct GqlActionItemRequest {
+    action_item: ActionItemRequest,
 }
-impl GqlActionItem {
-    pub fn new(action_item: ActionItem) -> Self {
-        GqlActionItem { action_item }
+impl GqlActionItemRequest {
+    pub fn new(action_item: ActionItemRequest) -> Self {
+        GqlActionItemRequest { action_item }
     }
 }
 #[graphql_object(context = Context)]
-impl GqlActionItem {
+impl GqlActionItemRequest {
     pub fn uuid(&self) -> String {
         self.action_item.uuid.to_string()
     }

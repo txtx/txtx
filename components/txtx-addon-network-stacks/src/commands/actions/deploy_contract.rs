@@ -7,7 +7,7 @@ use txtx_addon_kit::{
             CommandInstance, CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItem,
+        frontend::ActionItemRequest,
         types::{Type, Value},
         ConstructUuid,
     },
@@ -57,7 +57,7 @@ impl CommandImplementation for StacksDeployContract {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         unimplemented!()
     }
 

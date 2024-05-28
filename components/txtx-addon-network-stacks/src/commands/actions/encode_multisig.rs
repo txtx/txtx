@@ -11,7 +11,7 @@ use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult, CommandInstance,
     PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItem;
+use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -82,7 +82,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         unimplemented!()
     }
 

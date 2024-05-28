@@ -26,10 +26,11 @@ use kit::types::commands::CommandExecutionContext;
 use kit::types::commands::CommandInstanceStateMachine;
 use kit::types::commands::CommandInstanceStateMachineInput;
 use kit::types::commands::CommandInstanceStateMachineState;
-use kit::types::frontend::ActionItemPayload;
+use kit::types::frontend::ActionItemRequestType;
+use kit::types::frontend::ActionItemResponse;
+use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
-use kit::types::frontend::ProvidedInputData;
 use kit::types::types::Type;
 use kit::types::types::Value;
 use kit::types::ConstructUuid;
@@ -42,10 +43,8 @@ use txtx_addon_kit::types::commands::CommandId;
 use txtx_addon_kit::types::commands::CommandInstanceOrParts;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionGroup;
-use txtx_addon_kit::types::frontend::ActionItem;
-use txtx_addon_kit::types::frontend::ActionItemEvent;
+use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
-use txtx_addon_kit::types::frontend::ActionItemType;
 use txtx_addon_kit::types::frontend::ActionPanelData;
 use txtx_addon_kit::types::frontend::ActionSubGroup;
 use txtx_addon_kit::types::frontend::Block;
@@ -152,8 +151,8 @@ pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     block_tx: Sender<BlockEvent>,
-    action_item_updates_tx: Sender<ActionItem>,
-    action_item_events_rx: Receiver<ActionItemEvent>,
+    action_item_updates_tx: Sender<ActionItemRequest>,
+    action_item_events_rx: Receiver<ActionItemResponse>,
     environments: BTreeMap<String, BTreeMap<String, String>>,
     interactive_by_default: bool,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -199,7 +198,7 @@ pub async fn start_runbook_runloop(
         }
 
         // Cooldown
-        let Some(ActionItemEvent {
+        let Some(ActionItemResponse {
             action_item_uuid,
             payload,
         }) = event_opt
@@ -217,11 +216,6 @@ pub async fn start_runbook_runloop(
             // recompute graph
             // send the input block
 
-            let next_panel = Block::new(
-                Uuid::new_v4(),
-                Panel::new_action_panel("inputs review", "", vec![]),
-            );
-
             let mut groups = run_constructs_evaluation(
                 runbook,
                 runtime_context,
@@ -235,7 +229,7 @@ pub async fn start_runbook_runloop(
                 continue;
             };
 
-            action_items.push(ActionItem {
+            action_items.push(ActionItemRequest {
                 uuid: Uuid::new_v4(),
                 index: 0,
                 title: "Validate".into(),
@@ -245,7 +239,7 @@ pub async fn start_runbook_runloop(
                 } else {
                     ActionItemStatus::Todo
                 },
-                action_type: ActionItemType::ValidatePanel,
+                action_type: ActionItemRequestType::ValidatePanel,
             });
 
             let panel = Block::new(
@@ -403,13 +397,13 @@ pub async fn start_runbook_runloop(
 }
 
 pub fn reset_runbook_execution(
-    payload: &ActionItemPayload,
+    payload: &ActionItemResponseType,
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     block_tx: &Sender<BlockEvent>,
     environments: &BTreeMap<String, BTreeMap<String, String>>,
 ) {
-    let ActionItemPayload::PickInputOption(environment_key) = payload else {
+    let ActionItemResponseType::PickInputOption(environment_key) = payload else {
         unreachable!(
             "Action item event wih environment uuid sent with invalid payload {:?}",
             payload
@@ -451,17 +445,17 @@ pub fn build_genesis_panel(
     let mut action_items = vec![];
 
     if environments.len() > 0 {
-        action_items.push(ActionItem {
+        action_items.push(ActionItemRequest {
             uuid: SET_ENV_UUID.clone(),
             index: 0,
             title: "select environment".into(),
             description: selected_env.clone().unwrap_or("".to_string()),
             action_status: ActionItemStatus::Todo,
-            action_type: ActionItemType::PickInputOption(input_options),
+            action_type: ActionItemRequestType::PickInputOption(input_options),
         })
     }
 
-    action_items.push(ActionItem {
+    action_items.push(ActionItemRequest {
         uuid: Uuid::new_v4(),
         index: 0,
         title: "start runbook".into(),
@@ -471,7 +465,7 @@ pub fn build_genesis_panel(
         } else {
             ActionItemStatus::Todo
         },
-        action_type: ActionItemType::ValidatePanel,
+        action_type: ActionItemRequestType::ValidatePanel,
     });
 
     ActionPanelData {

@@ -4,7 +4,7 @@ use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, CommandInstance, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItem;
+use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
@@ -101,7 +101,7 @@ impl CommandImplementation for SendHttpRequest {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         unimplemented!()
     }
 

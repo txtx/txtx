@@ -3,7 +3,7 @@ use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
     CommandImplementation, CommandInstance, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItem;
+use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
@@ -82,7 +82,7 @@ impl CommandImplementation for SetStacksGlobals {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         unimplemented!()
     }
 

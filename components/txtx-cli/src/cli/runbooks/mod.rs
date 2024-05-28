@@ -3,8 +3,13 @@ use std::{
     sync::{mpsc::channel, Arc, RwLock},
 };
 use txtx_core::{
-    kit::channel::{self, select},
-    kit::types::frontend::{ActionItem, ActionItemEvent, ActionItemPayload, BlockEvent},
+    kit::{
+        channel::{self, select},
+        types::frontend::{
+            ActionItemRequest, ActionItemRequestType, ActionItemResponse, ActionItemResponseType,
+            BlockEvent,
+        },
+    },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
 };
 use txtx_gql::Context as GqlContext;
@@ -64,8 +69,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, action_item_updates_rx) = channel::unbounded::<ActionItem>();
-    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemEvent>();
+    let (action_item_updates_tx, action_item_updates_rx) =
+        channel::unbounded::<ActionItemRequest>();
+    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
 
     // Frontend:
     // - block_rx
@@ -127,9 +133,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         );
 
         let _ = web_ui::http::start_server(gql_context, port, ctx).await;
-        let _ = action_item_events_tx.send(ActionItemEvent {
+        let _ = action_item_events_tx.send(ActionItemResponse {
             action_item_uuid: SET_ENV_UUID.clone(),
-            payload: ActionItemPayload::PickInputOption("staging".to_string()),
+            payload: ActionItemResponseType::PickInputOption("staging".to_string()),
         });
     }
 

@@ -3,7 +3,9 @@ pub mod actions;
 use std::collections::HashMap;
 use txtx_addon_kit::serde::Serialize;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
-use txtx_addon_kit::types::frontend::{ActionItemStatus, ActionItemType, ProvideInputContext};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
+};
 use txtx_addon_kit::types::types::PrimitiveType;
 use txtx_addon_kit::{
     define_command,
@@ -13,7 +15,7 @@ use txtx_addon_kit::{
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItem,
+        frontend::ActionItemRequest,
         types::{Type, Value},
         ConstructUuid,
     },
@@ -57,7 +59,7 @@ impl CommandImplementation for Module {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         unimplemented!()
     }
 
@@ -139,16 +141,16 @@ impl CommandImplementation for Input {
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         if let Some(value) = args.get("value") {
             if execution_context.review_input_values {
-                return Err(ActionItem::new(
+                return Err(ActionItemRequest::new(
                     &uuid.value(),
                     0,
                     &instance_name,
                     &value.to_string(),
                     ActionItemStatus::Todo,
-                    ActionItemType::ReviewInput,
+                    ActionItemRequestType::ReviewInput,
                 ));
             } else {
                 return Ok(());
@@ -166,13 +168,13 @@ impl CommandImplementation for Input {
             },
         };
 
-        return Err(ActionItem::new(
+        return Err(ActionItemRequest::new(
             &uuid.value(),
             0,
             &instance_name,
             &default_value.unwrap_or("".into()),
             ActionItemStatus::Todo,
-            ActionItemType::ProvideInput(ProvideInputContext {
+            ActionItemRequestType::ProvideInput(ProvideInputRequest {
                 input_name: instance_name.to_string(),
                 typing: typing,
             }),
@@ -244,7 +246,7 @@ impl CommandImplementation for Output {
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         Ok(())
     }
 

@@ -15,7 +15,7 @@ use txtx_addon_kit::{
             CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItem,
+        frontend::ActionItemRequest,
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
@@ -144,7 +144,7 @@ pub async fn run_constructs_evaluation(
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
-) -> Result<BTreeMap<String, Vec<ActionItem>>, Vec<Diagnostic>> {
+) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
     let mut action_items = BTreeMap::new();

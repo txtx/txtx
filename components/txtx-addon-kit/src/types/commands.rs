@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::ActionItem,
+    frontend::ActionItemRequest,
     types::{ObjectProperty, Type, TypeSpecification, Value},
     ConstructUuid, PackageUuid,
 };
@@ -316,7 +316,7 @@ type ExecutabilityChecker = fn(
     &HashMap<String, Value>,
     &AddonDefaults,
     &CommandExecutionContext,
-) -> Result<(), ActionItem>;
+) -> Result<(), ActionItemRequest>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -344,7 +344,7 @@ pub trait CommandImplementation {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         Ok(())
     }
     fn execute(
@@ -583,7 +583,7 @@ impl CommandInstance {
         input_evaluation_results: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItem> {
+    ) -> Result<(), ActionItemRequest> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
