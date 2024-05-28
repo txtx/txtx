@@ -33,7 +33,6 @@ pub enum RunbookExecutionState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
-    #[serde(skip_serializing)]
     pub uuid: Uuid,
     #[serde(flatten)]
     pub panel: Panel,
@@ -170,7 +169,6 @@ pub enum ChecklistActionResultProvider {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum ActionItemStatus {
     Todo,
     Success,
@@ -180,7 +178,6 @@ pub enum ActionItemStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub enum ActionItemType {
     ReviewInput,
     ProvideInput(ProvideInputContext),
@@ -225,7 +222,6 @@ pub struct ActionItemEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemPayload {
     ReviewInput,
