@@ -169,7 +169,7 @@ pub enum ChecklistActionResultProvider {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", tag = "status", content = "status_data")]
+#[serde(tag = "status", content = "status_data")]
 pub enum ActionItemStatus {
     Todo,
     Success,
@@ -179,7 +179,7 @@ pub enum ActionItemStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "type", content = "type_data")]
+#[serde(tag = "type", content = "type_data")]
 pub enum ActionItemRequestType {
     ReviewInput,
     ProvideInput(ProvideInputRequest),
@@ -224,7 +224,7 @@ pub struct ActionItemResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+#[serde(tag = "type", content = "data")]
 pub enum ActionItemResponseType {
     ReviewInput(bool),
     ProvideInput(ProvidedInputResponse),
