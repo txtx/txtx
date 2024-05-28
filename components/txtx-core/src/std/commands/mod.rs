@@ -5,7 +5,8 @@ use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutio
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
-use txtx_addon_kit::types::wallets::WalletSpecification;
+use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
+use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     define_command,
     types::{
@@ -57,7 +58,7 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         unimplemented!()
@@ -68,7 +69,7 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
@@ -141,7 +142,7 @@ impl CommandImplementation for Input {
         spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         if let Some(value) = args.get("value") {
@@ -152,7 +153,8 @@ impl CommandImplementation for Input {
             }
             if execution_context.review_input_values {
                 return Err(ActionItemRequest::new(
-                    &uuid.value(),
+                    &Uuid::new_v4(),
+                    &Some(uuid.value()),
                     0,
                     &instance_name,
                     &value.to_string(),
@@ -183,7 +185,8 @@ impl CommandImplementation for Input {
         };
 
         return Err(ActionItemRequest::new(
-            &uuid.value(),
+            &Uuid::new_v4(),
+            &Some(uuid.value()),
             0,
             &instance_name,
             &default_value.unwrap_or("".into()),
@@ -200,7 +203,7 @@ impl CommandImplementation for Input {
         _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
@@ -260,7 +263,7 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         Ok(())
@@ -271,7 +274,7 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.

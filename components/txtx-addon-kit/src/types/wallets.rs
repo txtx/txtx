@@ -14,29 +14,58 @@ use crate::{
 
 use super::{
     commands::{
-        CommandExecutionResult, CommandInput, CommandInputsEvaluationResult,
-        CommandInstanceStateMachine, CommandOutput,
+        CommandExecutionContext, CommandExecutionFutureResult, CommandExecutionResult,
+        CommandInput, CommandInputsEvaluationResult, CommandInstanceStateMachine, CommandOutput,
     },
     diagnostics::{Diagnostic, DiagnosticLevel},
+    frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid,
 };
 
-pub type WalletExecutionFutureResult =
-    Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
-
 pub type WalletRunner = Box<
     fn(
+        &ConstructUuid,
         &WalletSpecification,
         &HashMap<String, Value>,
         &AddonDefaults,
-    ) -> WalletExecutionFutureResult,
+        &channel::Sender<(ConstructUuid, Diagnostic)>,
+    ) -> CommandExecutionFutureResult,
 >;
 
-pub type WalletChecker = fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type WalletSigner = Box<
+    fn(
+        &ConstructUuid,
+        &str,
+        &Value,
+        &WalletSpecification,
+        &HashMap<String, Value>,
+        &AddonDefaults,
+        &channel::Sender<(ConstructUuid, Diagnostic)>,
+    ) -> CommandExecutionFutureResult,
+>;
 
-pub type PublicKeySetter =
-    fn(&WalletSpecification, &mut CommandInputsEvaluationResult, String, String);
+pub type WalletExecutabilityChecker = fn(
+    &ConstructUuid,
+    &str,
+    &WalletSpecification,
+    &HashMap<String, Value>,
+    &AddonDefaults,
+    &CommandExecutionContext,
+) -> Result<(), ActionItemRequest>;
+
+pub type WalletInstantiabilityChecker =
+    fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+
+pub type WalletSignExecutabilityChecker = fn(
+    &ConstructUuid,
+    &str,
+    &Value,
+    &WalletSpecification,
+    &HashMap<String, Value>,
+    &AddonDefaults,
+    &CommandExecutionContext,
+) -> ActionItemRequest;
 
 #[derive(Debug, Clone)]
 pub struct WalletSpecification {
@@ -50,9 +79,11 @@ pub struct WalletSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub signer: WalletRunner,
-    pub public_key_setter: PublicKeySetter,
-    pub checker: WalletChecker,
+    pub check_executability: WalletExecutabilityChecker,
+    pub check_instantiability: WalletInstantiabilityChecker,
+    pub execute: WalletRunner,
+    pub sign: WalletSigner,
+    pub check_sign_executability: WalletSignExecutabilityChecker,
 }
 
 #[derive(Debug, Clone)]
@@ -163,6 +194,13 @@ impl WalletInstance {
         }
     }
 
+    pub fn get_group(&self) -> String {
+        let Some(group) = self.block.body.get_attribute("group") else {
+            return format!("{}s review", self.specification.name.to_string());
+        };
+        group.value.to_string()
+    }
+
     pub fn get_expression_from_object_property(
         &self,
         input: &CommandInput,
@@ -194,12 +232,91 @@ impl WalletInstance {
         }
     }
 
+    pub fn check_executability(
+        &mut self,
+        construct_uuid: &ConstructUuid,
+        input_evaluation_results: &mut CommandInputsEvaluationResult,
+        addon_defaults: AddonDefaults,
+        action_item_response: &Option<&Vec<ActionItemResponseType>>,
+        execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItemRequest> {
+        match action_item_response {
+            Some(responses) => responses.into_iter().for_each(|response| match response {
+                ActionItemResponseType::ReviewInput(update) => {
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name == update.input_name {
+                            input.check_performed = true;
+                            break;
+                        }
+                    }
+                }
+                ActionItemResponseType::ProvideInput(update) => {
+                    input_evaluation_results
+                        .inputs
+                        .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name == update.input_name {
+                            input.check_performed = true;
+                            break;
+                        }
+                    }
+                }
+                ActionItemResponseType::ProvidePublicKey(update) => {
+                    input_evaluation_results.inputs.insert(
+                        "public_key".into(),
+                        Ok(Value::string(update.public_key.clone())),
+                    );
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name.eq("public_key") {
+                            input.check_performed = true;
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            }),
+            None => {}
+        }
+
+        let mut values = HashMap::new();
+        for input in self.specification.inputs.iter() {
+            let value = match input_evaluation_results.inputs.get(&input.name) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => Err(Diagnostic {
+                    span: None,
+                    location: None,
+                    message: format!("Cannot execute command due to erroring inputs"),
+                    level: DiagnosticLevel::Error,
+                    documentation: None,
+                    example: None,
+                    parent_diagnostic: Some(Box::new(e.clone())),
+                }),
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!(), // todo: return diagnostic
+                },
+            }
+            .unwrap();
+            values.insert(input.name.clone(), value);
+        }
+
+        let spec = &self.specification;
+        (spec.check_executability)(
+            &construct_uuid,
+            &self.name,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            &execution_context,
+        )
+    }
+
     pub async fn perform_execution(
         &self,
+        construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        _runbook_uuid: Uuid,
-        _construct_uuid: ConstructUuid,
         addon_defaults: AddonDefaults,
+        progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         // todo: I don't think this one needs to be a result
         let mut values = HashMap::new();
@@ -222,21 +339,59 @@ impl WalletInstance {
             }?;
             values.insert(input.name.clone(), value);
         }
-        (&self.specification.signer)(&self.specification, &values, &addon_defaults).await
+        (&self.specification.execute)(
+            &construct_uuid,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            progress_tx,
+        )
+        .await
     }
 }
 
-pub trait WalletImplementationAsync {
-    fn check(_ctx: &WalletSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
-    fn sign(
+pub trait WalletImplementation {
+    fn check_instantiability(
         _ctx: &WalletSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic>;
+
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &WalletSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
-    fn set_public_keys(
-        _ctx: &WalletSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    );
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItemRequest> {
+        Ok(())
+    }
+
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &WalletSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+    ) -> CommandExecutionFutureResult;
+
+    fn check_sign_executability(
+        _caller_uuid: &ConstructUuid,
+        _title: &str,
+        _payload: &Value,
+        _spec: &WalletSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        execution_context: &CommandExecutionContext,
+    ) -> ActionItemRequest;
+
+    fn sign(
+        _caller_uuid: &ConstructUuid,
+        _title: &str,
+        _payload: &Value,
+        _spec: &WalletSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+    ) -> CommandExecutionFutureResult;
 }

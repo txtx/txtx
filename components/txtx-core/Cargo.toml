@@ -15,6 +15,9 @@ serde_json = "1.0.113"
 indexmap = "2.2.6"
 petgraph = "0.6.5"
 
+[dev-dependencies]
+txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks", default-features = false}
+
 [features]
 default = ["txtx-addon-kit/default"]
 wasm = ["txtx-addon-kit/wasm"]

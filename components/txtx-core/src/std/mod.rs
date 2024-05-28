@@ -1,5 +1,8 @@
 use txtx_addon_kit::{
-    types::{commands::PreCommandSpecification, functions::FunctionSpecification},
+    types::{
+        commands::PreCommandSpecification, functions::FunctionSpecification,
+        wallets::WalletSpecification,
+    },
     Addon,
 };
 
@@ -41,6 +44,10 @@ impl Addon for StdAddon {
     }
 
     fn get_prompts(&self) -> Vec<PreCommandSpecification> {
+        vec![]
+    }
+
+    fn get_wallets(&self) -> Vec<WalletSpecification> {
         vec![]
     }
 }

@@ -25,6 +25,10 @@ indoc = "2.0.5"
 hiro-system-kit = "0.3.4"
 crossbeam-channel = "0.5.8"
 
+[dev-dependencies]
+serde_json = "1"
+test-case = "*"
+
 [features]
 default=["tokio/rt", "tokio/time", "tokio/net"]
 wasm = ["tokio/rt"]

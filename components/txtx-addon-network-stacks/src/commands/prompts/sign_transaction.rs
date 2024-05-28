@@ -9,19 +9,24 @@ use clarity_repl::{
     },
 };
 use std::collections::HashMap;
+use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
-    PreCommandSpecification,
+    return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
+    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
-use txtx_addon_kit::types::wallets::WalletSpecification;
+use txtx_addon_kit::types::types::TypeSpecification;
+use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
+
+use crate::typing::STACKS_SIGNED_TRANSACTION;
 
 lazy_static! {
     pub static ref SIGN_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
@@ -87,26 +92,141 @@ impl CommandImplementation for SignStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        uuid: &ConstructUuid,
         _instance_name: &str,
-        _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
-        _execution_context: &CommandExecutionContext,
+        spec: &CommandSpecification,
+        args: &HashMap<String, Value>,
+        defaults: &AddonDefaults,
+        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
-        unimplemented!()
+        if let Some(signed_transaction_bytes) = args.get("signed_transaction_btyes") {
+            return Ok(());
+        }
+
+        let transaction_payload_bytes = match args.get("transaction_payload_bytes") {
+            Some(Value::Primitive(PrimitiveValue::Buffer(bytes))) => bytes.clone(),
+            _ => unreachable!("responsibility of 'check_instantiability'"),
+        };
+        let transaction_payload =
+            TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes.bytes[..])
+                .unwrap();
+
+        let network_id = args
+            .get("network_id")
+            .and_then(|a| Some(a.expect_string()))
+            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': attribute 'network_id' is missing",
+                spec.matcher
+            )))
+            .unwrap()
+            .to_string();
+
+        let transaction_version = match network_id.as_str() {
+            "mainnet" => TransactionVersion::Mainnet,
+            "testnet" => TransactionVersion::Testnet,
+            _ => unimplemented!("invalid network_id, return diagnostic"),
+        };
+
+        let signer = args
+            .get("signer")
+            .and_then(|a| Some(a.expect_string()))
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': attribute 'signer' is missing",
+                spec.matcher
+            )))
+            .unwrap()
+            .to_string();
+
+        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
+
+        let wallet = wallet_instances
+            .get(&wallet_uuid)
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': wallet named '{}' not found",
+                spec.matcher, &signer
+            )))
+            .unwrap();
+
+        let public_keys = args
+            .get("public_keys")
+            .and_then(|a| Some(a.expect_array()))
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': attribute 'public_keys' is missing",
+                spec.matcher
+            )))
+            .unwrap()
+            .to_vec();
+
+        let stacks_public_keys: Vec<StacksPublicKey> = public_keys
+            .clone()
+            .into_iter()
+            .map(|v| {
+                StacksPublicKey::from_hex(v.expect_string())
+                    // .map_err(|e| Diagnostic::error_from_string(e.to_string()))
+                    .unwrap()
+            })
+            // .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?
+            .collect::<Vec<StacksPublicKey>>();
+
+        let address_hash = public_keys_to_address_hash(
+            &AddressHashMode::SerializeP2SH,
+            stacks_public_keys.len(),
+            &stacks_public_keys,
+        );
+
+        let auth = TransactionAuth::Standard(TransactionSpendingCondition::Multisig(
+            MultisigSpendingCondition {
+                hash_mode: MultisigHashMode::P2SH,
+                signer: address_hash,
+                nonce: 0,
+                tx_fee: 0,
+                fields: vec![],
+                signatures_required: stacks_public_keys.len() as u16,
+            },
+        ));
+
+        let mut unsigned_tx =
+            StacksTransaction::new(transaction_version, auth, transaction_payload);
+        if let TransactionVersion::Testnet = transaction_version {
+            unsigned_tx.chain_id = 0x80000000;
+        }
+
+        let moved_args = args.clone();
+        let moved_defaults = defaults.clone();
+        let moved_wallet = wallet.clone();
+
+        let mut bytes = vec![];
+        unsigned_tx.consensus_serialize(&mut bytes).unwrap(); // todo
+        let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+        Err((wallet.specification.check_sign_executability)(
+            uuid,
+            "Sign Transaction",
+            &payload,
+            &moved_wallet.specification,
+            &moved_args,
+            &moved_defaults,
+            execution_context,
+        ))
     }
 
     fn execute(
-        _uuid: &ConstructUuid,
-        ctx: &CommandSpecification,
+        uuid: &ConstructUuid,
+        spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-        wallets: &HashMap<String, WalletSpecification>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
-        let args = args.clone();
+        if let Some(signed_transaction_bytes) = args.get("signed_transaction_btyes") {
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert(
+                "signed_transaction_bytes".to_string(),
+                signed_transaction_bytes.clone(),
+            );
+            return return_synchronous_result(Ok(result));
+        }
 
         // Extract and decode transaction_payload_bytes
         let transaction_payload_bytes = match args.get("transaction_payload_bytes") {
@@ -129,10 +249,20 @@ impl CommandImplementation for SignStacksTransaction {
             .and_then(|a| Some(a.expect_string()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "command '{}': attribute 'signer' is missing",
-                ctx.matcher
+                spec.matcher
             )))
             .unwrap()
             .to_string();
+
+        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
+
+        let wallet = wallet_instances
+            .get(&wallet_uuid)
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': wallet named '{}' not found",
+                spec.matcher, &signer
+            )))
+            .unwrap();
 
         // Extract network_id
         let network_id = args
@@ -141,7 +271,7 @@ impl CommandImplementation for SignStacksTransaction {
             .or(defaults.keys.get("network_id").map(|x| x.as_str()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "command '{}': attribute 'network_id' is missing",
-                ctx.matcher
+                spec.matcher
             )))
             .unwrap()
             .to_string();
@@ -152,20 +282,12 @@ impl CommandImplementation for SignStacksTransaction {
             _ => unimplemented!("invalid network_id, return diagnostic"),
         };
 
-        let wallet = wallets
-            .get(&signer)
-            .ok_or(Diagnostic::error_from_string(format!(
-                "command '{}': wallet named '{}' not found",
-                ctx.matcher, &signer
-            )))
-            .unwrap();
-
         let public_keys = args
             .get("public_keys")
             .and_then(|a| Some(a.expect_array()))
             .ok_or(Diagnostic::error_from_string(format!(
                 "command '{}': attribute 'public_keys' is missing",
-                ctx.matcher
+                spec.matcher
             )))
             .unwrap()
             .to_vec();
@@ -207,6 +329,17 @@ impl CommandImplementation for SignStacksTransaction {
         let moved_defaults = defaults.clone();
         let moved_wallet = wallet.clone();
 
-        (wallet.signer)(&moved_wallet, &moved_args, &moved_defaults)
+        let mut bytes = vec![];
+        unsigned_tx.consensus_serialize(&mut bytes).unwrap(); // todo
+        let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+        (wallet.specification.sign)(
+            uuid,
+            "Sign Transaction",
+            &payload,
+            &moved_wallet.specification,
+            &moved_args,
+            &moved_defaults,
+            progress_tx,
+        )
     }
 }

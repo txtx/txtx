@@ -1,7 +1,5 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use serde_json::json;
-use txtx_core::types::ConstructUuid;
 
 #[derive(Clone)]
 pub struct ProtocolManifest {

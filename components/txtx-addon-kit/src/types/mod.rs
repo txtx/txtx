@@ -11,6 +11,9 @@ pub mod functions;
 pub mod types;
 pub mod wallets;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ConstructUuid {
     Local(Uuid),

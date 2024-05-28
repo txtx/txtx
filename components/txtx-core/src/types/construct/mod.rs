@@ -1,4 +1,7 @@
-use txtx_addon_kit::{hcl::structure::Block, types::commands::CommandInstance};
+use txtx_addon_kit::{
+    hcl::structure::Block,
+    types::{commands::CommandInstance, wallets::WalletInstance},
+};
 
 #[derive(Debug)]
 pub enum PreConstructData {
@@ -8,6 +11,7 @@ pub enum PreConstructData {
     Import(Block),
     Action(CommandInstance),
     Prompt(CommandInstance),
+    Wallet(WalletInstance),
     Root,
 }
 

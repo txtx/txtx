@@ -20,12 +20,16 @@ use ::std::time::Duration;
 
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
+use eval::run_wallets_evaluation;
 use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
+use kit::types::frontend::SetActionItemStatus;
+use kit::types::wallets::WalletInstance;
+use kit::types::ConstructUuid;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
@@ -57,7 +61,6 @@ pub fn pre_compute_runbook(
 ) -> Result<(), Vec<Diagnostic>> {
     let _ = run_constructs_indexing(runbook, runtime_context)?;
     let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
-    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
     Ok(())
 }
 
@@ -132,6 +135,21 @@ impl AddonsContext {
         let command_id = CommandId::Prompt(command_id.to_string());
         ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
     }
+
+    pub fn create_wallet_instance(
+        &mut self,
+        namespaced_action: &str,
+        wallet_name: &str,
+        package_uuid: &PackageUuid,
+        block: &CodeBlock,
+        _location: &FileLocation,
+    ) -> Result<WalletInstance, Diagnostic> {
+        let Some((namespace, wallet_id)) = namespaced_action.split_once("::") else {
+            todo!("return diagnostic")
+        };
+        let ctx = self.find_or_create_context(namespace, package_uuid)?;
+        ctx.create_wallet_instance(wallet_id, namespace, wallet_name, block, package_uuid)
+    }
 }
 
 lazy_static! {
@@ -160,7 +178,9 @@ pub async fn start_runbook_runloop(
     // A step is
     let (progress_tx, _progress_rx) = txtx_addon_kit::channel::unbounded();
 
-    let mut action_item_requests = HashMap::new();
+    // store of action_item_uuids and the associated action_item_request
+    let mut action_item_requests: HashMap<Uuid, ActionItemRequest> = HashMap::new();
+    // store of construct_uuids and its associated action_item_response_types
     let mut action_item_responses = HashMap::new();
 
     loop {
@@ -174,13 +194,21 @@ pub async fn start_runbook_runloop(
 
         if !runbook_initialized {
             runbook_initialized = true;
+            let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
             let genesis_panel = Block::new(
                 Uuid::new_v4(),
-                Panel::ActionPanel(build_genesis_panel(
-                    &environments,
-                    &runtime_context.selected_env,
-                    &runbook,
-                )),
+                Panel::ActionPanel(
+                    build_genesis_panel(
+                        &environments,
+                        &runtime_context.selected_env.clone(),
+                        runbook,
+                        runtime_context,
+                        &execution_context,
+                        &action_item_responses,
+                        &progress_tx,
+                    )
+                    .await?,
+                ),
             );
             let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
         }
@@ -196,11 +224,30 @@ pub async fn start_runbook_runloop(
         };
 
         if action_item_uuid == SET_ENV_UUID.clone() {
-            reset_runbook_execution(&payload, runbook, runtime_context, &block_tx, &environments);
+            reset_runbook_execution(
+                &payload,
+                runbook,
+                runtime_context,
+                &block_tx,
+                &environments,
+                &execution_context,
+                &action_item_responses,
+                &progress_tx,
+            )
+            .await?;
             continue;
         }
 
-        action_item_responses.insert(action_item_uuid.clone(), payload.clone());
+        if let Some(action_item) = action_item_requests.get(&action_item_uuid) {
+            let action_item = action_item.clone();
+            if let Some(construct_uuid) = action_item.construct_uuid {
+                if let Some(responses) = action_item_responses.get_mut(&construct_uuid) {
+                    responses.push(payload.clone());
+                } else {
+                    action_item_responses.insert(construct_uuid, vec![payload.clone()]);
+                }
+            }
+        }
 
         match &payload {
             ActionItemResponseType::ValidatePanel => {
@@ -215,9 +262,10 @@ pub async fn start_runbook_runloop(
                 )
                 .await?;
 
+                let block_uuid = Uuid::new_v4();
                 if groups.is_empty() {
                     runbook_completed = true;
-                    groups = collect_runbook_outputs(&runbook, &runtime_context);
+                    groups = collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
                 }
                 let mut sub_groups = vec![];
                 let Some((group, action_items)) = groups.pop_first() else {
@@ -225,7 +273,7 @@ pub async fn start_runbook_runloop(
                 };
 
                 for request in action_items.iter() {
-                    action_item_requests.insert(request.uuid.clone(), request.action_type.clone());
+                    action_item_requests.insert(request.uuid.clone(), request.clone());
                 }
 
                 let action_status = if action_items.is_empty() {
@@ -243,6 +291,7 @@ pub async fn start_runbook_runloop(
                     sub_groups.push(ActionSubGroup {
                         action_items: vec![ActionItemRequest {
                             uuid: Uuid::new_v4(),
+                            construct_uuid: None,
                             index: 0,
                             title: "Validate".into(),
                             description: "".into(),
@@ -254,7 +303,7 @@ pub async fn start_runbook_runloop(
                 }
 
                 let panel = Block::new(
-                    Uuid::new_v4(),
+                    block_uuid,
                     Panel::ActionPanel(ActionPanelData {
                         title: group,
                         description: "".to_string(),
@@ -272,19 +321,41 @@ pub async fn start_runbook_runloop(
             }
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(_) => {}
-            ActionItemResponseType::ProvidePublicKey(_) => todo!(),
+            ActionItemResponseType::ProvidePublicKey(_) => {
+                run_wallets_evaluation(
+                    runbook,
+                    runtime_context,
+                    &execution_context,
+                    &action_item_responses,
+                    &progress_tx,
+                )
+                .await?
+                .into_iter()
+                .for_each(|(_, action_items)| {
+                    action_items.into_iter().for_each(|a| {
+                        let _ =
+                            block_tx.send(BlockEvent::SetActionItemStatus(SetActionItemStatus {
+                                action_item_uuid,
+                                new_status: a.action_status,
+                            }));
+                    })
+                });
+            }
             ActionItemResponseType::ProvideSignedTransaction(_) => todo!(),
         };
     }
 }
 
-pub fn reset_runbook_execution(
+pub async fn reset_runbook_execution(
     payload: &ActionItemResponseType,
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     block_tx: &Sender<BlockEvent>,
     environments: &BTreeMap<String, BTreeMap<String, String>>,
-) {
+    execution_context: &CommandExecutionContext,
+    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
+) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
         unreachable!(
             "Action item event wih environment uuid sent with invalid payload {:?}",
@@ -300,22 +371,36 @@ pub fn reset_runbook_execution(
 
     runtime_context.set_active_environment(environment_key.into());
 
+    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
+
     let genesis_panel = Block::new(
         Uuid::new_v4(),
-        Panel::ActionPanel(build_genesis_panel(
-            &environments,
-            &runtime_context.selected_env,
-            &runbook,
-        )),
+        Panel::ActionPanel(
+            build_genesis_panel(
+                &environments,
+                &Some(environment_key.clone()),
+                runbook,
+                runtime_context,
+                &execution_context,
+                &action_item_responses,
+                &progress_tx,
+            )
+            .await?,
+        ),
     );
     let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
+    Ok(())
 }
 
-pub fn build_genesis_panel(
+pub async fn build_genesis_panel(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     selected_env: &Option<String>,
-    _runbook: &Runbook,
-) -> ActionPanelData {
+    runbook: &mut Runbook,
+    runtime_context: &mut RuntimeContext,
+    execution_context: &CommandExecutionContext,
+    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
+) -> Result<ActionPanelData, Vec<Diagnostic>> {
     let input_options: Vec<InputOption> = environments
         .keys()
         .map(|k| InputOption {
@@ -329,6 +414,7 @@ pub fn build_genesis_panel(
     if environments.len() > 0 {
         action_items.push(ActionItemRequest {
             uuid: SET_ENV_UUID.clone(),
+            construct_uuid: None,
             index: 0,
             title: "select environment".into(),
             description: selected_env.clone().unwrap_or("".to_string()),
@@ -337,32 +423,61 @@ pub fn build_genesis_panel(
         })
     }
 
-    ActionPanelData {
+    let mut groups = if action_items.is_empty() {
+        vec![]
+    } else {
+        vec![ActionGroup {
+            title: "".into(),
+            sub_groups: vec![ActionSubGroup {
+                action_items: action_items.clone(),
+                allow_batch_completion: true,
+            }],
+        }]
+    };
+
+    let wallet_groups = run_wallets_evaluation(
+        runbook,
+        runtime_context,
+        &execution_context,
+        &action_item_responses,
+        &progress_tx,
+    )
+    .await?
+    .iter()
+    .map(|(group_title, a)| ActionGroup {
+        title: group_title.clone(),
+        sub_groups: {
+            vec![ActionSubGroup {
+                allow_batch_completion: false,
+                action_items: a.clone(),
+            }]
+        },
+    })
+    .collect::<Vec<ActionGroup>>();
+    groups.extend(wallet_groups);
+
+    groups.push(ActionGroup {
+        title: "".into(),
+        sub_groups: vec![ActionSubGroup {
+            action_items: vec![ActionItemRequest {
+                uuid: Uuid::new_v4(),
+                construct_uuid: None,
+                index: 0,
+                title: "start runbook".into(),
+                description: "".into(),
+                action_status: if action_items.is_empty() {
+                    ActionItemStatus::Success
+                } else {
+                    ActionItemStatus::Todo
+                },
+                action_type: ActionItemRequestType::ValidatePanel,
+            }],
+            allow_batch_completion: false,
+        }],
+    });
+    Ok(ActionPanelData {
         title: "runbook checklist".into(),
         description: "".to_string(),
-        groups: vec![ActionGroup {
-            title: "lorem ipsum".into(),
-            sub_groups: vec![
-                ActionSubGroup {
-                    action_items: action_items.clone(),
-                    allow_batch_completion: true,
-                },
-                ActionSubGroup {
-                    action_items: vec![ActionItemRequest {
-                        uuid: Uuid::new_v4(),
-                        index: 0,
-                        title: "start runbook".into(),
-                        description: "".into(),
-                        action_status: if action_items.is_empty() {
-                            ActionItemStatus::Success
-                        } else {
-                            ActionItemStatus::Todo
-                        },
-                        action_type: ActionItemRequestType::ValidatePanel,
-                    }],
-                    allow_batch_completion: false,
-                },
-            ],
-        }],
-    }
+        groups,
+    })
 }

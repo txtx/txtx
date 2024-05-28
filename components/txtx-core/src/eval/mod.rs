@@ -20,6 +20,7 @@ use txtx_addon_kit::{
             DisplayOutputRequest,
         },
         types::{PrimitiveValue, Value},
+        wallets::WalletInstance,
         ConstructUuid, PackageUuid,
     },
     uuid::Uuid,
@@ -141,18 +142,190 @@ pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIn
     }
 }
 
+pub async fn run_wallets_evaluation(
+    runbook: &mut Runbook,
+    runtime_ctx: &mut RuntimeContext,
+    execution_context: &CommandExecutionContext,
+    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
+    let mut action_items = BTreeMap::new();
+
+    let environments_variables = runbook.environment_variables_values.clone();
+    for (env_variable_uuid, value) in environments_variables.into_iter() {
+        let mut res = CommandExecutionResult::new();
+        res.outputs.insert("value".into(), Value::string(value));
+        runbook
+            .constructs_execution_results
+            .insert(env_variable_uuid, Ok(res));
+    }
+
+    let constructs_locations = runbook.constructs_locations.clone();
+
+    for (construct_uuid, wallet_instance) in runbook.wallet_instances.clone() {
+        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+        let mut cached_dependency_execution_results: HashMap<
+            ConstructUuid,
+            Result<&CommandExecutionResult, &Diagnostic>,
+        > = HashMap::new();
+
+        let references_expressions: Vec<Expression> = wallet_instance
+            .get_expressions_referencing_commands_from_inputs()
+            .unwrap();
+
+        for expr in references_expressions.into_iter() {
+            let res = runbook
+                .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
+                .unwrap();
+
+            if let Some((dependency, _)) = res {
+                let evaluation_result_opt = runbook.constructs_execution_results.get(&dependency);
+
+                if let Some(evaluation_result) = evaluation_result_opt {
+                    match cached_dependency_execution_results.get(&dependency) {
+                        None => match evaluation_result {
+                            Ok(evaluation_result) => {
+                                cached_dependency_execution_results
+                                    .insert(dependency, Ok(evaluation_result));
+                            }
+                            Err(e) => {
+                                cached_dependency_execution_results.insert(dependency, Err(e));
+                            }
+                        },
+                        Some(Err(_)) => continue,
+                        Some(Ok(_)) => {}
+                    }
+                }
+            }
+        }
+
+        let input_evaluation_results = runbook
+            .command_inputs_evaluation_results
+            .get(&construct_uuid.clone());
+
+        let evaluated_inputs_res = perform_wallet_inputs_evaluation(
+            &wallet_instance,
+            &cached_dependency_execution_results,
+            &input_evaluation_results,
+            package_uuid,
+            &runbook,
+            runtime_ctx,
+        );
+
+        let Some(wallet_instance) = runbook.wallet_instances.get_mut(&construct_uuid) else {
+            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+            continue;
+        };
+
+        let mut evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction => {
+                    wallet_instance
+                        .state
+                        .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
+                        .unwrap();
+                    continue;
+                }
+                CommandInputEvaluationStatus::Aborted(result) => {
+                    let mut diags = vec![];
+                    for (_k, res) in result.inputs.into_iter() {
+                        if let Err(diag) = res {
+                            diags.push(diag);
+                        }
+                    }
+                    return Err(diags);
+                }
+            },
+            Err(e) => {
+                todo!("build input evaluation diagnostic: {}", e)
+            }
+        };
+
+        let addon_context_key = (package_uuid.clone(), wallet_instance.namespace.clone());
+        let addon_defaults = runtime_ctx
+            .addons_ctx
+            .contexts
+            .get(&addon_context_key)
+            .and_then(|addon| Some(addon.defaults.clone()))
+            .unwrap_or(AddonDefaults::new());
+
+        if let Err(action_item) = wallet_instance.check_executability(
+            &construct_uuid,
+            &mut evaluated_inputs,
+            addon_defaults.clone(),
+            &action_item_responses.get(&construct_uuid.value()),
+            execution_context,
+        ) {
+            action_items
+                .entry(wallet_instance.get_group())
+                .or_insert_with(Vec::new)
+                .push(action_item);
+            continue;
+        }
+
+        runbook
+            .command_inputs_evaluation_results
+            .insert(construct_uuid.clone(), evaluated_inputs.clone());
+
+        let execution_result = {
+            wallet_instance
+                .perform_execution(
+                    &construct_uuid,
+                    &evaluated_inputs,
+                    addon_defaults.clone(),
+                    progress_tx,
+                )
+                .await
+        };
+
+        let execution_result = match execution_result {
+            // todo(lgalabru): return Diagnostic instead
+            Ok(result) => {
+                if wallet_instance.specification.update_addon_defaults {
+                    let addon_context_key =
+                        (package_uuid.clone(), wallet_instance.namespace.clone());
+                    if let Some(ref mut addon_context) =
+                        runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                    {
+                        for (k, v) in result.outputs.iter() {
+                            addon_context.defaults.keys.insert(k.clone(), v.to_string());
+                        }
+                    }
+                }
+                wallet_instance
+                    .state
+                    .consume(&CommandInstanceStateMachineInput::Successful)
+                    .unwrap();
+                Ok(result)
+            }
+            Err(e) => {
+                wallet_instance
+                    .state
+                    .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                    .unwrap();
+                Err(e)
+            }
+        };
+        runbook
+            .constructs_execution_results
+            .insert(construct_uuid, execution_result);
+    }
+    Ok(action_items)
+}
+
 pub async fn run_constructs_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
-    action_item_responses: &HashMap<Uuid, ActionItemResponseType>,
+    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
-    let wallets = HashMap::new();
     let mut action_items = BTreeMap::new();
+    let wallet_instances = runbook.wallet_instances.clone();
 
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -306,7 +479,7 @@ pub async fn run_constructs_evaluation(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
-            &wallets,
+            &wallet_instances,
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
@@ -327,7 +500,7 @@ pub async fn run_constructs_evaluation(
                     &construct_uuid,
                     &evaluated_inputs,
                     addon_defaults.clone(),
-                    &wallets,
+                    &wallet_instances,
                     progress_tx,
                 )
                 .await
@@ -370,6 +543,7 @@ pub async fn run_constructs_evaluation(
 }
 
 pub fn collect_runbook_outputs(
+    block_uuid: &Uuid,
     runbook: &Runbook,
     _runtime_ctx: &RuntimeContext,
 ) -> BTreeMap<String, Vec<ActionItemRequest>> {
@@ -408,7 +582,8 @@ pub fn collect_runbook_outputs(
                 .entry(command_instance.get_group())
                 .or_insert_with(Vec::new)
                 .push(ActionItemRequest {
-                    uuid: construct_uuid.value(),
+                    uuid: Uuid::new_v4(),
+                    construct_uuid: Some(construct_uuid.value()),
                     index: 0,
                     title: command_instance.name.to_string(),
                     description: "".to_string(),
@@ -900,6 +1075,210 @@ pub fn perform_inputs_evaluation(
                 value.clone()
             } else {
                 let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    runbook,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if diag.is_error() {
+                    fatal_error = true;
+                }
+            }
+
+            results.insert(&input.name, value);
+        }
+    }
+
+    let status = match fatal_error {
+        false => CommandInputEvaluationStatus::Complete(results),
+        true => CommandInputEvaluationStatus::Aborted(results),
+    };
+    Ok(status)
+}
+
+pub fn perform_wallet_inputs_evaluation(
+    wallet_instance: &WalletInstance,
+    dependencies_execution_results: &HashMap<
+        ConstructUuid,
+        Result<&CommandExecutionResult, &Diagnostic>,
+    >,
+    input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
+    package_uuid: &PackageUuid,
+    runbook: &Runbook,
+    runtime_ctx: &RuntimeContext,
+) -> Result<CommandInputEvaluationStatus, Diagnostic> {
+    let mut results = CommandInputsEvaluationResult::new();
+    let inputs = wallet_instance.specification.inputs.clone();
+    let mut fatal_error = false;
+
+    for input in inputs.into_iter() {
+        // todo(micaiah): this value still needs to be for inputs that are objects
+        let previously_evaluated_input = match input_evaluation_results {
+            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input.name),
+            None => None,
+        };
+        if let Some(object_props) = input.as_object() {
+            // todo(micaiah) - figure out how user-input values work for this branch
+            let mut object_values = HashMap::new();
+            for prop in object_props.iter() {
+                if let Some(value) = previously_evaluated_input {
+                    match value.clone() {
+                        Ok(Value::Object(obj)) => {
+                            for (k, v) in obj.into_iter() {
+                                object_values.insert(k, v);
+                            }
+                        }
+                        Ok(v) => {
+                            object_values.insert(prop.name.to_string(), Ok(v));
+                        }
+                        Err(diag) => {
+                            object_values.insert(prop.name.to_string(), Err(diag));
+                        }
+                    };
+                }
+
+                let Some(expr) =
+                    wallet_instance.get_expression_from_object_property(&input, &prop)?
+                else {
+                    continue;
+                };
+                let value = match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    runbook,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                };
+
+                if let Err(ref diag) = value {
+                    if diag.is_error() {
+                        fatal_error = true;
+                    }
+                }
+
+                match value.clone() {
+                    Ok(Value::Object(obj)) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    Ok(v) => {
+                        object_values.insert(prop.name.to_string(), Ok(v));
+                    }
+                    Err(diag) => {
+                        object_values.insert(prop.name.to_string(), Err(diag));
+                    }
+                };
+            }
+            if !object_values.is_empty() {
+                results.insert(&input.name, Ok(Value::Object(object_values)));
+            }
+        } else if let Some(_) = input.as_array() {
+            let mut array_values = vec![];
+            if let Some(value) = previously_evaluated_input {
+                match value.clone() {
+                    Ok(Value::Array(entries)) => {
+                        array_values.extend::<Vec<Value>>(entries.into_iter().collect());
+                    }
+                    Err(diag) => {
+                        results.insert(&input.name, Err(diag));
+                        continue;
+                    }
+                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
+                        unreachable!()
+                    }
+                }
+            }
+
+            let Some(expr) = wallet_instance.get_expression_from_input(&input)? else {
+                continue;
+            };
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_uuid,
+                runbook,
+                runtime_ctx,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
+                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
+                    Value::Array(entries) => {
+                        for (i, entry) in entries.into_iter().enumerate() {
+                            array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
+                        }
+                        Ok(Value::array(array_values))
+                    }
+                },
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                Err(e) => Err(e),
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if diag.is_error() {
+                    fatal_error = true;
+                }
+            }
+
+            results.insert(&input.name, value);
+        } else if let Some(_) = input.as_action() {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = wallet_instance.get_expression_from_input(&input)? else {
+                    continue;
+                };
+                match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_uuid,
+                    runbook,
+                    runtime_ctx,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    }
+                }
+            };
+
+            if let Err(ref diag) = value {
+                if diag.is_error() {
+                    fatal_error = true;
+                }
+            }
+
+            results.insert(&input.name, value);
+        } else {
+            let value = if let Some(value) = previously_evaluated_input {
+                value.clone()
+            } else {
+                let Some(expr) = wallet_instance.get_expression_from_input(&input)? else {
                     continue;
                 };
                 match eval_expression(

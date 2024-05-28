@@ -164,7 +164,7 @@ macro_rules! define_wallet {
         example: $example:expr,
     }) => {
         {
-          use txtx_addon_kit::types::wallets::{WalletSpecification, WalletRunner, PublicKeySetter};
+          use txtx_addon_kit::types::wallets::{WalletSpecification, WalletRunner};
           use txtx_addon_kit::types::commands::{CommandInput, CommandOutput};
           WalletSpecification {
             name: String::from($fn_name),
@@ -179,6 +179,8 @@ macro_rules! define_wallet {
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
+                check_required: false,
+                check_performed: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -186,9 +188,11 @@ macro_rules! define_wallet {
                 documentation: String::from($output_doc),
                 typing: $output_ts,
             }),*],
-            signer: WalletRunner::Async(Box::new($func_key::sign)),
-            public_key_setter: $func_key::set_public_keys,
-            checker: $func_key::check,
+            check_instantiability: $func_key::check_instantiability,
+            check_executability: $func_key::check_executability,
+            execute: Box::new($func_key::execute),
+            sign: Box::new($func_key::sign),
+            check_sign_executability: $func_key::check_sign_executability,
             example: String::from($example),
         }
 

@@ -1,6 +1,6 @@
 use txtx_addon_kit::types::wallets::WalletSpecification;
 
-use crate::commands::wallets::connect::STACKS_CONNECT;
+use crate::wallets::connect::STACKS_CONNECT;
 mod connect;
 
 lazy_static! {

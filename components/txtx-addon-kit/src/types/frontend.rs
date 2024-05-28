@@ -9,7 +9,13 @@ use uuid::Uuid;
 pub enum BlockEvent {
     Append(Block),
     Clear,
-    SetActionItemStatus((Uuid, Uuid, ActionItemStatus)),
+    SetActionItemStatus(SetActionItemStatus),
+}
+
+#[derive(Debug, Clone)]
+pub struct SetActionItemStatus {
+    pub action_item_uuid: Uuid,
+    pub new_status: ActionItemStatus,
 }
 
 impl BlockEvent {
@@ -136,6 +142,7 @@ impl ActionSubGroup {
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemRequest {
     pub uuid: Uuid,
+    pub construct_uuid: Option<Uuid>,
     pub index: u16,
     pub title: String,
     pub description: String,
@@ -146,6 +153,7 @@ pub struct ActionItemRequest {
 impl ActionItemRequest {
     pub fn new(
         uuid: &Uuid,
+        construct_uuid: &Option<Uuid>,
         index: u16,
         title: &str,
         description: &str,
@@ -154,6 +162,7 @@ impl ActionItemRequest {
     ) -> Self {
         ActionItemRequest {
             uuid: uuid.clone(),
+            construct_uuid: construct_uuid.clone(),
             index,
             title: title.to_string(),
             description: description.to_string(),
@@ -223,6 +232,7 @@ pub struct ProvidePublicKeyRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
+    pub payload: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,7 +279,9 @@ pub struct ProvidedInputResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvidePublicKeyResponse {}
+pub struct ProvidePublicKeyResponse {
+    pub public_key: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

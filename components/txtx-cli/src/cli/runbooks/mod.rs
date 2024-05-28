@@ -7,10 +7,12 @@ use txtx_core::{
         channel::{self, select},
         types::frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
+            SetActionItemStatus,
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
 };
+
 use txtx_gql::Context as GqlContext;
 
 use crate::{
@@ -154,10 +156,18 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                       block_store.insert(new_block.uuid, new_block);
                     },
                     BlockEvent::Clear => {*block_store = BTreeMap::new();}
-                    BlockEvent::SetActionItemStatus((block_uuid, action_item_uuid, new_status)) => {
-                      let block = block_store.get(&block_uuid).unwrap();
-                      let mut action_item = block.find_action(action_item_uuid).unwrap();
-                      action_item.action_status = new_status;
+                    BlockEvent::SetActionItemStatus(SetActionItemStatus { action_item_uuid, new_status }) => {
+                      // let mut action_item = block.find_action(action_item_uuid).unwrap();
+                      // action_item.action_status = new_status;
+                      //  block_store.
+                      let keys = block_store.keys();
+                      for key in keys {
+                        let Some(block) = block_store.get(key) else {continue;};
+                        let Some(mut action_item) = block.find_action(action_item_uuid)
+                        else {continue};
+                        action_item.action_status = new_status;
+                        break;
+                      }
                     }
                   }
                 }

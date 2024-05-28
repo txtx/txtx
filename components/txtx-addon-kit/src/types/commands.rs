@@ -23,7 +23,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::WalletSpecification,
+    wallets::{WalletInstance, WalletSpecification},
     ConstructUuid, PackageUuid,
 };
 
@@ -317,19 +317,19 @@ pub type CommandRunner = Box<
         &CommandSpecification,
         &HashMap<String, Value>,
         &AddonDefaults,
-        &HashMap<String, WalletSpecification>,
+        &HashMap<ConstructUuid, WalletInstance>,
         &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult,
 >;
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
-type ExecutabilityChecker = fn(
+pub type ExecutabilityChecker = fn(
     &ConstructUuid,
     &str,
     &CommandSpecification,
     &HashMap<String, Value>,
     &AddonDefaults,
-    &HashMap<String, WalletSpecification>,
+    &HashMap<ConstructUuid, WalletInstance>,
     &CommandExecutionContext,
 ) -> Result<(), ActionItemRequest>;
 
@@ -358,7 +358,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         Ok(())
@@ -368,7 +368,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult;
 }
@@ -599,31 +599,34 @@ impl CommandInstance {
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        wallets: &HashMap<String, WalletSpecification>,
-        action_item_response: &Option<&ActionItemResponseType>,
+        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         match action_item_response {
-            Some(ActionItemResponseType::ReviewInput(update)) => {
-                for input in self.specification.inputs.iter_mut() {
-                    if input.name == update.input_name {
-                        input.check_performed = true;
-                        break;
+            Some(responses) => responses.into_iter().for_each(|response| match response {
+                ActionItemResponseType::ReviewInput(update) => {
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name == update.input_name {
+                            input.check_performed = true;
+                            break;
+                        }
                     }
                 }
-            }
-            Some(ActionItemResponseType::ProvideInput(update)) => {
-                input_evaluation_results
-                    .inputs
-                    .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
-                for input in self.specification.inputs.iter_mut() {
-                    if input.name == update.input_name {
-                        input.check_performed = true;
-                        break;
+                ActionItemResponseType::ProvideInput(update) => {
+                    input_evaluation_results
+                        .inputs
+                        .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name == update.input_name {
+                            input.check_performed = true;
+                            break;
+                        }
                     }
                 }
-            }
-            _ => {}
+                _ => {}
+            }),
+            None => {}
         }
 
         let mut values = HashMap::new();
@@ -655,7 +658,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
-            &wallets,
+            &wallet_instances,
             &execution_context,
         )
     }
@@ -665,7 +668,7 @@ impl CommandInstance {
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        wallets: &HashMap<String, WalletSpecification>,
+        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = HashMap::new();
@@ -694,7 +697,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
-            &wallets,
+            &wallet_instances,
             progress_tx,
         )
         .await

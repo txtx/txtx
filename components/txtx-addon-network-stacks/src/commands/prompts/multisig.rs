@@ -5,7 +5,7 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
-use txtx_addon_kit::types::wallets::WalletSpecification;
+use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -89,7 +89,7 @@ impl CommandImplementation for Multisig {
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItemRequest> {
         unimplemented!()
@@ -100,7 +100,7 @@ impl CommandImplementation for Multisig {
         _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         defaults: &AddonDefaults,
-        _wallets: &HashMap<String, WalletSpecification>,
+        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();

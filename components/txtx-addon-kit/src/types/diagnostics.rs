@@ -4,7 +4,7 @@ use hcl_edit::{expr::Expression, structure::Block};
 
 use crate::helpers::fs::FileLocation;
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DiagnosticSpan {
     pub line_start: u32,
     pub line_end: u32,
@@ -12,7 +12,7 @@ pub struct DiagnosticSpan {
     pub column_end: u32,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DiagnosticLevel {
     Note,
     Warning,
@@ -29,7 +29,7 @@ impl Display for DiagnosticLevel {
     }
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Diagnostic {
     pub span: Option<DiagnosticSpan>,
     pub location: Option<FileLocation>,
