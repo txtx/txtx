@@ -3,11 +3,13 @@ use std::{collections::BTreeMap, time::Duration};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     hiro_system_kit,
-    types::frontend::{ActionItem, ActionItemEvent, ActionItemPayload, ActionItemStatus, BlockEvent},
+    types::frontend::{
+        ActionItem, ActionItemEvent, ActionItemPayload, ActionItemStatus, BlockEvent,
+    },
 };
 
 use crate::{
-    start_runbook_runloop,
+    pre_compute_runbook, start_runbook_runloop,
     std::StdAddon,
     types::{Runbook, RuntimeContext, SourceTree},
     AddonsContext,
@@ -21,7 +23,7 @@ fn test_abc_runbook_no_env() {
     let mut source_tree = SourceTree::new();
     source_tree.add_source(
         "abc.tx".into(),
-        FileLocation::from_path_string("/").unwrap(),
+        FileLocation::from_path_string(".").unwrap(),
         abc_tx.into(),
     );
 
@@ -33,13 +35,16 @@ fn test_abc_runbook_no_env() {
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
 
-    let (block_tx, block_rx) = crate::channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, action_item_updates_rx) =
-        crate::channel::unbounded::<ActionItem>();
-    let (action_item_events_tx, action_item_events_rx) =
-        crate::channel::unbounded::<ActionItemEvent>();
+    let _ = pre_compute_runbook(&mut runbook, &mut runtime_context)
+        .expect("unable to pre-compute runbook");
 
-    let interactive_by_default = false;
+    let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
+    let (action_item_updates_tx, action_item_updates_rx) =
+        txtx_addon_kit::channel::unbounded::<ActionItem>();
+    let (action_item_events_tx, action_item_events_rx) =
+        txtx_addon_kit::channel::unbounded::<ActionItemEvent>();
+
+    let interactive_by_default = true;
 
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_runbook_runloop(
@@ -63,8 +68,6 @@ fn test_abc_runbook_no_env() {
         panic!()
     };
 
-    eprintln!("{:?}", event);
-
     let action_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 1);
@@ -81,15 +84,19 @@ fn test_abc_runbook_no_env() {
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemEvent {
         action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemPayload::ValidatePanel
+        payload: ActionItemPayload::ValidatePanel,
     });
 
-    // let Ok(event) = block_rx.recv_timeout(Duration::from_secs(1)) else {
-    //     assert!(false, "unable to receive genesis block");
-    //     panic!()
-    // };
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(10)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
 
-    // eprintln!("{:?}", event);
+    eprintln!("{:?}", event);
 
-
+    let inputs_panel_data = event.expect_block().panel.expect_action_panel();
+    assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");
+    assert_eq!(inputs_panel_data.groups.len(), 1);
 }
+
+// Retrieve all the nodes we can compute

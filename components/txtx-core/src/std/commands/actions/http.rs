@@ -96,6 +96,7 @@ impl CommandImplementation for SendHttpRequest {
 
     fn check_executability(
         _uuid: &ConstructUuid,
+        _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,

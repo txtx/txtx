@@ -28,7 +28,8 @@ use super::{
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionContext {
-    pub review_defaults: bool,
+    pub review_input_default_values: bool,
+    pub review_input_values: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -310,6 +311,7 @@ type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 type ExecutabilityChecker = fn(
     &ConstructUuid,
+    &str,
     &CommandSpecification,
     &HashMap<String, Value>,
     &AddonDefaults,
@@ -337,6 +339,7 @@ pub trait CommandImplementation {
     ) -> Result<Type, Diagnostic>;
     fn check_executability(
         _uuid: &ConstructUuid,
+        _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
@@ -536,6 +539,13 @@ impl CommandInstance {
         }
     }
 
+    pub fn get_group(&self) -> String {
+        let Some(group) = self.block.body.get_attribute("group") else {
+            return format!("{}s review", self.specification.name.to_string());
+        };
+        group.value.to_string()
+    }
+
     pub fn get_expression_from_object_property(
         &self,
         input: &CommandInput,
@@ -570,13 +580,13 @@ impl CommandInstance {
     pub fn check_executability(
         &self,
         construct_uuid: &ConstructUuid,
-        evaluated_inputs: &CommandInputsEvaluationResult,
+        input_evaluation_results: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), ActionItem> {
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
-            let value = match evaluated_inputs.inputs.get(&input.name) {
+            let value = match input_evaluation_results.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(Diagnostic {
                     span: None,
@@ -599,6 +609,7 @@ impl CommandInstance {
         let spec = &self.specification;
         (spec.check_executability)(
             &construct_uuid,
+            &self.name,
             &self.specification,
             &values,
             &addon_defaults,

@@ -151,8 +151,7 @@ impl GqlRunbook {
 
         let result = match self.data.commands_instances.get(&construct_uuid) {
             Some(command_instance) => {
-                let state_machine = command_instance.state.lock().map_err(|e| e.to_string())?; // todo: handle error
-                json!({"state": state_machine.state() })
+                json!({"state": command_instance.state_machine.state() })
             }
             None => json!({}),
         };

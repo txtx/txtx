@@ -193,7 +193,12 @@ impl Value {
             _ => None,
         }
     }
-
+    pub fn expect_primitive(&self) -> &PrimitiveValue {
+        match &self {
+            Value::Primitive(primitive) => primitive,
+            _ => unreachable!(),
+        }
+    }
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
         match (self, rhs) {
             (Value::Primitive(PrimitiveValue::Null), Value::Primitive(PrimitiveValue::Null)) => {

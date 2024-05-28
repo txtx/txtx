@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
@@ -11,10 +11,11 @@ use txtx_addon_kit::{
     },
     types::{
         commands::{
-            CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance,
-            CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+            CommandExecutionContext, CommandExecutionResult, CommandInputsEvaluationResult,
+            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
         },
         diagnostics::Diagnostic,
+        frontend::ActionItem,
         types::{PrimitiveValue, Value},
         ConstructUuid, PackageUuid,
     },
@@ -141,11 +142,13 @@ pub async fn run_constructs_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
+    execution_context: &CommandExecutionContext,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<BTreeMap<String, Vec<ActionItem>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
-    // No comprendo
+    let mut action_items = BTreeMap::new();
+
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
@@ -174,6 +177,16 @@ pub async fn run_constructs_evaluation(
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
+
+        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+
+        let addon_context_key = (package_uuid.clone(), command_instance.namespace.clone());
+        let addon_defaults = runtime_ctx
+            .addons_ctx
+            .contexts
+            .get(&addon_context_key)
+            .and_then(|addon| Some(addon.defaults.clone()))
+            .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
 
         match command_instance.state_machine.state() {
             CommandInstanceStateMachineState::Failed => {
@@ -209,7 +222,6 @@ pub async fn run_constructs_evaluation(
         let references_expressions: Vec<Expression> = command_instance
             .get_expressions_referencing_commands_from_inputs()
             .unwrap();
-        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
 
         for expr in references_expressions.into_iter() {
             let res = runbook
@@ -285,23 +297,29 @@ pub async fn run_constructs_evaluation(
             }
         };
 
+        if let Err(action_item) = command_instance.check_executability(
+            &construct_uuid,
+            &evaluated_inputs,
+            addon_defaults.clone(),
+            execution_context,
+        ) {
+            action_items
+                .entry(command_instance.get_group())
+                .or_insert_with(Vec::new)
+                .push(action_item);
+            continue;
+        }
+
         runbook
             .command_inputs_evaluation_results
             .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
         let execution_result = {
-            let addon_context_key = (package_uuid.clone(), command_instance.namespace.clone());
-            let addon_defaults = runtime_ctx
-                .addons_ctx
-                .contexts
-                .get(&addon_context_key)
-                .and_then(|addon| Some(addon.defaults.clone()))
-                .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
             command_instance
                 .perform_execution(
                     &construct_uuid,
                     &evaluated_inputs,
-                    addon_defaults,
+                    addon_defaults.clone(),
                     progress_tx,
                 )
                 .await
@@ -340,7 +358,7 @@ pub async fn run_constructs_evaluation(
             .insert(construct_uuid, execution_result);
     }
 
-    Ok(())
+    Ok(action_items)
 }
 
 pub enum ExpressionEvaluationStatus {

@@ -1,17 +1,20 @@
 pub mod actions;
 
 use std::collections::HashMap;
-use txtx_addon_kit::types::commands::return_synchronous_result;
+use txtx_addon_kit::serde::Serialize;
+use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
+use txtx_addon_kit::types::frontend::{ActionItemStatus, ActionItemType, ProvideInputContext};
+use txtx_addon_kit::types::types::PrimitiveType;
 use txtx_addon_kit::{
     define_command,
     types::{
         commands::{
             CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
-            CommandInstance, CommandSpecification, PreCommandSpecification,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::{ActionItem, ActionItemStatus, ActionItemType, ProvideInputContext},
-        types::{PrimitiveType, PrimitiveValue, Type, Value},
+        frontend::ActionItem,
+        types::{Type, Value},
         ConstructUuid,
     },
     AddonDefaults,
@@ -40,25 +43,30 @@ pub fn new_module_specification() -> CommandSpecification {
 
 pub struct Module;
 impl CommandImplementation for Module {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn get_action(
-        _ctx: &CommandSpecification,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        _uuid: &ConstructUuid,
-        _index: u16,
-        _instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        todo!()
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
         return_synchronous_result(Ok(result))
@@ -117,56 +125,66 @@ pub fn new_input_specification() -> CommandSpecification {
 pub struct Input;
 
 impl CommandImplementation for Input {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn get_action(
-        _ctx: &CommandSpecification,
+    fn check_executability(
+        uuid: &ConstructUuid,
+        instance_name: &str,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
-        uuid: &ConstructUuid,
-        index: u16,
-        instance: &CommandInstance,
-    ) -> Option<ActionItem> {
+        execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
         if let Some(value) = args.get("value") {
-            return Some(ActionItem::new(
-                &uuid.value(),
-                index,
-                &instance.name,
-                &value.to_string(),
-                ActionItemStatus::Todo,
-                ActionItemType::ReviewInput,
-            ));
-        } else if let Some(default) = args.get("default") {
-            let typing =
-                if let Some(Value::Primitive(PrimitiveValue::String(typing))) = args.get("type") {
-                    match serde_json::from_str(&typing) {
-                        Ok(typing) => typing,
-                        Err(_) => PrimitiveType::String, // todo, maybe return action item with error?
-                    }
-                } else {
-                    PrimitiveType::String
-                };
-            return Some(ActionItem::new(
-                &uuid.value(),
-                index,
-                &instance.name,
-                &default.to_string(),
-                ActionItemStatus::Todo,
-                ActionItemType::ProvideInput(ProvideInputContext {
-                    input_name: "default".to_string(),
-                    typing,
-                }),
-            ));
+            if execution_context.review_input_values {
+                return Err(ActionItem::new(
+                    &uuid.value(),
+                    0,
+                    &instance_name,
+                    &value.to_string(),
+                    ActionItemStatus::Todo,
+                    ActionItemType::ReviewInput,
+                ));
+            } else {
+                return Ok(());
+            }
         }
-        None
+
+        let (default_value, typing) = match args.get("default") {
+            Some(default_value) => (
+                Some(default_value.to_string()),
+                default_value.expect_primitive().get_type(),
+            ),
+            None => match args.get("type") {
+                Some(typing) => (None, serde_json::de::from_str(&typing.to_string()).unwrap()),
+                None => unreachable!("responsibility of 'check_instantiability'"),
+            },
+        };
+
+        return Err(ActionItem::new(
+            &uuid.value(),
+            0,
+            &instance_name,
+            &default_value.unwrap_or("".into()),
+            ActionItemStatus::Todo,
+            ActionItemType::ProvideInput(ProvideInputContext {
+                input_name: instance_name.to_string(),
+                typing: typing,
+            }),
+        ));
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         if let Some(value) = args.get("value") {
@@ -212,35 +230,30 @@ pub fn new_output_specification() -> CommandSpecification {
 pub struct Output;
 
 impl CommandImplementation for Output {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn get_action(
-        _ctx: &CommandSpecification,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-        uuid: &ConstructUuid,
-        index: u16,
-        instance: &CommandInstance,
-    ) -> Option<ActionItem> {
-        if let Some(value) = args.get("value") {
-            return Some(ActionItem {
-                uuid: uuid.value().clone(),
-                index,
-                title: instance.name.clone(),
-                description: value.expect_string().to_string(),
-                action_status: ActionItemStatus::Todo,
-                action_type: ActionItemType::ReviewInput,
-            });
-        }
-        None
+        defaults: &AddonDefaults,
+        execution_context: &CommandExecutionContext,
+    ) -> Result<(), ActionItem> {
+        Ok(())
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
+    fn execute(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
         let mut result = CommandExecutionResult::new();
