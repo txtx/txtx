@@ -337,28 +337,32 @@ pub fn build_genesis_panel(
         })
     }
 
-    action_items.push(ActionItemRequest {
-        uuid: Uuid::new_v4(),
-        index: 0,
-        title: "start runbook".into(),
-        description: "".into(),
-        action_status: if action_items.is_empty() {
-            ActionItemStatus::Success
-        } else {
-            ActionItemStatus::Todo
-        },
-        action_type: ActionItemRequestType::ValidatePanel,
-    });
-
     ActionPanelData {
         title: "runbook checklist".into(),
         description: "".to_string(),
         groups: vec![ActionGroup {
             title: "lorem ipsum".into(),
-            sub_groups: vec![ActionSubGroup {
-                action_items,
-                allow_batch_completion: true,
-            }],
+            sub_groups: vec![
+                ActionSubGroup {
+                    action_items: action_items.clone(),
+                    allow_batch_completion: true,
+                },
+                ActionSubGroup {
+                    action_items: vec![ActionItemRequest {
+                        uuid: Uuid::new_v4(),
+                        index: 0,
+                        title: "start runbook".into(),
+                        description: "".into(),
+                        action_status: if action_items.is_empty() {
+                            ActionItemStatus::Success
+                        } else {
+                            ActionItemStatus::Todo
+                        },
+                        action_type: ActionItemRequestType::ValidatePanel,
+                    }],
+                    allow_batch_completion: false,
+                },
+            ],
         }],
     }
 }
