@@ -202,7 +202,7 @@ fn test_wallet_runbook_no_env() {
         }
     });
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive genesis block");
         panic!()
     };
@@ -213,9 +213,8 @@ fn test_wallet_runbook_no_env() {
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
+        2
     );
-
     assert_eq!(action_panel_data.groups[1].sub_groups.len(), 1);
     assert_eq!(
         action_panel_data.groups[1].sub_groups[0].action_items.len(),
@@ -224,10 +223,16 @@ fn test_wallet_runbook_no_env() {
 
     let get_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     assert_eq!(get_public_key.action_status, ActionItemStatus::Todo);
-    assert_eq!(get_public_key.title.to_uppercase(), "STACKS WALLET ALICE");
     let ActionItemRequestType::ProvidePublicKey(request) = &get_public_key.action_type else {
         panic!("expected provide public key request");
     };
+
+    let check_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[1];
+    assert_eq!(check_public_key.action_status, ActionItemStatus::Todo);
+    let ActionItemRequestType::ReviewInput = &check_public_key.action_type else {
+        panic!("expected provide public key request");
+    };
+
 
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {

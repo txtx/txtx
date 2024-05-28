@@ -15,8 +15,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
-use txtx_addon_kit::types::types::TypeSpecification;
-use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -69,8 +68,6 @@ lazy_static! {
               transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
               nonce = 1
               fee = 1200
-              sender_mnemonic = "fetch outside black test wash cover just actual execute nice door want airport betray quantum stamp fish act pen trust portion fatigue scissors vague"
-              sender_derivation_path = "m/44'/5757'/0'/0/0"
               network_id = "testnet"
           }
           output "signed_bytes" {
@@ -99,7 +96,7 @@ impl CommandImplementation for SignStacksTransaction {
         defaults: &AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         if let Some(signed_transaction_bytes) = args.get("signed_transaction_btyes") {
             return Ok(());
         }
@@ -200,7 +197,7 @@ impl CommandImplementation for SignStacksTransaction {
         let mut bytes = vec![];
         unsigned_tx.consensus_serialize(&mut bytes).unwrap(); // todo
         let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
-        Err((wallet.specification.check_sign_executability)(
+        Err(vec![(wallet.specification.check_sign_executability)(
             uuid,
             "Sign Transaction",
             &payload,
@@ -208,7 +205,7 @@ impl CommandImplementation for SignStacksTransaction {
             &moved_args,
             &moved_defaults,
             execution_context,
-        ))
+        )])
     }
 
     fn execute(

@@ -60,7 +60,7 @@ impl CommandImplementation for Module {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         unimplemented!()
     }
 
@@ -144,7 +144,7 @@ impl CommandImplementation for Input {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         if let Some(value) = args.get("value") {
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
@@ -152,7 +152,7 @@ impl CommandImplementation for Input {
                 }
             }
             if execution_context.review_input_values {
-                return Err(ActionItemRequest::new(
+                return Err(vec![ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(uuid.value()),
                     0,
@@ -160,7 +160,7 @@ impl CommandImplementation for Input {
                     &value.to_string(),
                     ActionItemStatus::Todo,
                     ActionItemRequestType::ReviewInput,
-                ));
+                )]);
             } else {
                 return Ok(());
             }
@@ -184,7 +184,7 @@ impl CommandImplementation for Input {
             },
         };
 
-        return Err(ActionItemRequest::new(
+        return Err(vec![ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
             0,
@@ -195,7 +195,7 @@ impl CommandImplementation for Input {
                 input_name: instance_name.to_string(),
                 typing: typing,
             }),
-        ));
+        )]);
     }
 
     fn execute(
@@ -265,7 +265,7 @@ impl CommandImplementation for Output {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         Ok(())
     }
 

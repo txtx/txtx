@@ -9,7 +9,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
         types::{Type, Value},
-        wallets::{WalletInstance, WalletSpecification},
+        wallets::WalletInstance,
         ConstructUuid,
     },
     AddonDefaults,
@@ -59,7 +59,7 @@ impl CommandImplementation for StacksDeployContract {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         unimplemented!()
     }
 

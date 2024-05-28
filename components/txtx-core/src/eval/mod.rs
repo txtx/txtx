@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
 
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
@@ -250,17 +250,21 @@ pub async fn run_wallets_evaluation(
             .and_then(|addon| Some(addon.defaults.clone()))
             .unwrap_or(AddonDefaults::new());
 
-        if let Err(action_item) = wallet_instance.check_executability(
+        if let Err(ref mut new_items) = wallet_instance.check_executability(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
-            action_items
-                .entry(wallet_instance.get_group())
-                .or_insert_with(Vec::new)
-                .push(action_item);
+            match action_items.entry(wallet_instance.get_group()) {
+                Entry::Occupied(mut e) => {
+                    e.insert(new_items.clone());
+                }
+                Entry::Vacant(e) => {
+                    e.insert(new_items.clone());
+                }
+            };
             continue;
         }
 
@@ -475,7 +479,7 @@ pub async fn run_constructs_evaluation(
             }
         };
 
-        if let Err(action_item) = command_instance.check_executability(
+        if let Err(ref mut new_items) = command_instance.check_executability(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
@@ -485,8 +489,8 @@ pub async fn run_constructs_evaluation(
         ) {
             action_items
                 .entry(command_instance.get_group())
-                .or_insert_with(Vec::new)
-                .push(action_item);
+                .or_insert(new_items.clone())
+                .append(new_items);
             continue;
         }
 

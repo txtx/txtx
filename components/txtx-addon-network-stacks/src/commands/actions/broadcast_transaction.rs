@@ -7,7 +7,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
-use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -105,7 +105,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         unimplemented!()
     }
 

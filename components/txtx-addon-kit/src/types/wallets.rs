@@ -1,9 +1,7 @@
-use std::{collections::HashMap, future::Future, pin::Pin};
+use std::collections::HashMap;
 
 use hcl_edit::{expr::Expression, structure::Block};
 use rust_fsm::StateMachine;
-
-use uuid::Uuid;
 
 use crate::{
     helpers::hcl::{
@@ -52,7 +50,7 @@ pub type WalletExecutabilityChecker = fn(
     &HashMap<String, Value>,
     &AddonDefaults,
     &CommandExecutionContext,
-) -> Result<(), ActionItemRequest>;
+) -> Result<(), Vec<ActionItemRequest>>;
 
 pub type WalletInstantiabilityChecker =
     fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
@@ -239,7 +237,7 @@ impl WalletInstance {
         addon_defaults: AddonDefaults,
         action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(|response| match response {
                 ActionItemResponseType::ReviewInput(update) => {
@@ -363,7 +361,7 @@ pub trait WalletImplementation {
         _args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         Ok(())
     }
 

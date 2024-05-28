@@ -17,6 +17,8 @@ pub struct Package {
     pub imports_uuids_lookup: HashMap<String, ConstructUuid>,
     pub addons_uuids: HashSet<ConstructUuid>,
     pub addons_uuids_lookup: HashMap<String, ConstructUuid>,
+    pub wallets_uuids: HashSet<ConstructUuid>,
+    pub wallets_uuids_lookup: HashMap<String, ConstructUuid>,
 }
 
 impl Package {
@@ -36,6 +38,8 @@ impl Package {
             imports_uuids_lookup: HashMap::new(),
             addons_uuids: HashSet::new(),
             addons_uuids_lookup: HashMap::new(),
+            wallets_uuids: HashSet::new(),
+            wallets_uuids_lookup: HashMap::new(),
         }
     }
 }

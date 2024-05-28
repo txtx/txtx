@@ -215,9 +215,10 @@ impl Runbook {
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
             PreConstructData::Wallet(wallet_instance) => {
-                package.addons_uuids.insert(construct_uuid.clone());
+                println!("INDEXING WALLET: {:?}", wallet_instance);
+                package.wallets_uuids.insert(construct_uuid.clone());
                 package
-                    .addons_uuids_lookup
+                    .wallets_uuids_lookup
                     .insert(construct_name, construct_uuid.clone());
                 self.wallet_instances
                     .insert(construct_uuid.clone(), wallet_instance.clone());
@@ -344,7 +345,7 @@ impl Runbook {
                         continue;
                     };
                     if let Some(construct_uuid) =
-                        current_package.addons_uuids_lookup.get(&wallet_name)
+                        current_package.wallets_uuids_lookup.get(&wallet_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }

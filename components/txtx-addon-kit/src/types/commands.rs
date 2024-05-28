@@ -23,7 +23,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{WalletInstance, WalletSpecification},
+    wallets::WalletInstance,
     ConstructUuid, PackageUuid,
 };
 
@@ -331,7 +331,7 @@ pub type ExecutabilityChecker = fn(
     &AddonDefaults,
     &HashMap<ConstructUuid, WalletInstance>,
     &CommandExecutionContext,
-) -> Result<(), ActionItemRequest>;
+) -> Result<(), Vec<ActionItemRequest>>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -360,7 +360,7 @@ pub trait CommandImplementation {
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         Ok(())
     }
     fn execute(
@@ -602,7 +602,7 @@ impl CommandInstance {
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
+    ) -> Result<(), Vec<ActionItemRequest>> {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(|response| match response {
                 ActionItemResponseType::ReviewInput(update) => {

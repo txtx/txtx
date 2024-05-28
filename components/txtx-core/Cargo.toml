@@ -16,7 +16,7 @@ indexmap = "2.2.6"
 petgraph = "0.6.5"
 
 [dev-dependencies]
-txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks", default-features = false}
+txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks"}
 
 [features]
 default = ["txtx-addon-kit/default"]

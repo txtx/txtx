@@ -4,10 +4,9 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus,
     ProvidePublicKeyRequest, ProvideSignedTransactionRequest,
 };
-use txtx_addon_kit::types::types::{PrimitiveType, PrimitiveValue};
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
@@ -67,31 +66,19 @@ impl WalletImplementation for StacksConnect {
         args: &HashMap<String, Value>,
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), ActionItemRequest> {
-        let Some(Value::Primitive(PrimitiveValue::String(expected_address))) =
-            args.get("expected_address")
-        else {
-            unreachable!("responsibility of `check_instantiability`")
-        };
-
-        for input_spec in spec.inputs.iter() {
-            if input_spec.name == "expected_address" && input_spec.check_performed {
-                return Ok(());
+    ) -> Result<(), Vec<ActionItemRequest>> {
+        // Early return - public key was provided and expected address checked
+        let check_expected_address = args.get("expected_address").and_then(|a| a.as_string());
+        if check_expected_address.is_some() {
+            for input_spec in spec.inputs.iter() {
+                if input_spec.name == "expected_address" && input_spec.check_performed {
+                    return Ok(());
+                }
             }
         }
-        if execution_context.review_input_values {
-            return Err(ActionItemRequest::new(
-                &Uuid::new_v4(),
-                &Some(uuid.value()),
-                0,
-                &instance_name,
-                &expected_address.to_string(),
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput,
-            ));
-        }
 
-        if let Some(_) = args.get("public_key") {
+        // Early return - public key was provided and expected addresss not specified
+        if args.get("public_key").is_some() {
             for input_spec in spec.inputs.iter() {
                 // todo: verify public_key/expected address match?
                 if input_spec.name == "public_key" && input_spec.check_performed {
@@ -100,17 +87,32 @@ impl WalletImplementation for StacksConnect {
             }
         }
 
-        return Err(ActionItemRequest::new(
+        let mut action_item_requests = vec![];
+        action_item_requests.push(ActionItemRequest::new(
             &uuid.value(),
             &Some(uuid.value()),
             0,
-            &format!("Stacks Wallet {instance_name}"),
-            &format!("Connect wallet for address {}", expected_address),
+            &format!("Connect wallet {instance_name}"),
+            "".into(),
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
                 check_expectation_action_uuid: Some(uuid.value()),
             }),
         ));
+
+        if let Some(expected_address) = check_expected_address {
+            action_item_requests.push(ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(uuid.value()),
+                0,
+                "Check wallet signature provided",
+                &expected_address.to_string(),
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ReviewInput,
+            ))
+        }
+
+        return Err(action_item_requests);
     }
 
     fn execute(
