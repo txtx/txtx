@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+
 use super::{
     diagnostics::Diagnostic,
     types::{PrimitiveType, Value},
@@ -72,6 +74,21 @@ impl Block {
                     }
                 }
                 return None;
+            }
+        }
+    }
+    pub fn set_action_status(&mut self, action_item_uuid: Uuid, new_status: ActionItemStatus) {
+        match self.panel.borrow_mut() {
+            Panel::ActionPanel(panel) => {
+                for group in panel.groups.iter_mut() {
+                    for sub_group in group.sub_groups.iter_mut() {
+                        for action in sub_group.action_items.iter_mut() {
+                            if action.uuid == action_item_uuid {
+                                action.action_status = new_status.clone();
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -233,6 +250,9 @@ pub struct InputOption {
 #[serde(rename_all = "camelCase")]
 pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
+    pub message: String,
+    pub namespace: String,
+    pub network_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +260,8 @@ pub struct ProvidePublicKeyRequest {
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
     pub payload: Value,
+    pub namespace: String,
+    pub network_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

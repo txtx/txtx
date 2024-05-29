@@ -99,7 +99,11 @@ impl WalletImplementation for StacksConnect {
             "".into(),
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                check_expectation_action_uuid: Some(uuid.value()),
+                check_expectation_action_uuid: Some(uuid.value()), //todo: this is the wrong uuid
+                message: "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks."
+                    .to_string(),
+                namespace: "stacks".to_string(),
+                network_id: "testnet".to_string(),
             }),
         ));
 
@@ -153,8 +157,10 @@ impl WalletImplementation for StacksConnect {
             "", //payload,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(caller_uuid.value()),
+                check_expectation_action_uuid: Some(caller_uuid.value()), // todo: this is the wrong uuid
                 payload: payload.clone(),
+                namespace: "stacks".to_string(),
+                network_id: "".to_string(),
             }),
         )
     }
