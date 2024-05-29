@@ -6,7 +6,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::types::ObjectProperty;
-use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},

@@ -5,7 +5,7 @@ use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutio
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
-use txtx_addon_kit::types::wallets::{WalletInstance, WalletSpecification};
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     define_command,

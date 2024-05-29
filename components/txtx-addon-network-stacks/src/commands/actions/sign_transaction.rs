@@ -98,6 +98,7 @@ impl CommandImplementation for SignStacksTransaction {
         execution_context: &CommandExecutionContext,
     ) -> Result<(), Vec<ActionItemRequest>> {
         if let Some(signed_transaction_bytes) = args.get("signed_transaction_btyes") {
+            // check signature matching
             return Ok(());
         }
 
