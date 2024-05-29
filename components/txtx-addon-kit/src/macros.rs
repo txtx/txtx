@@ -190,12 +190,12 @@ macro_rules! define_wallet {
             }),*],
             check_instantiability: $func_key::check_instantiability,
             check_executability: $func_key::check_executability,
+            check_public_key_expectations: $func_key::check_public_key_expectations,
             execute: Box::new($func_key::execute),
             sign: Box::new($func_key::sign),
             check_sign_executability: $func_key::check_sign_executability,
             example: String::from($example),
         }
-
     }
     };
 }

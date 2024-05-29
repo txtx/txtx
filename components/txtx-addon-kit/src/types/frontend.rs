@@ -182,7 +182,7 @@ pub enum ChecklistActionResultProvider {
 #[serde(tag = "status", content = "data")]
 pub enum ActionItemStatus {
     Todo,
-    Success,
+    Success(Option<String>),
     InProgress(String),
     Error(Diagnostic),
     Warning(Diagnostic),

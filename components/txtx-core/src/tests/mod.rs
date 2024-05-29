@@ -85,7 +85,7 @@ fn test_ab_c_runbook_no_env() {
     );
 
     let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
-    assert_eq!(start_runbook.action_status, ActionItemStatus::Success);
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
     assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
 
     // Complete start_runbook action
@@ -234,14 +234,14 @@ fn test_wallet_runbook_no_env() {
     };
 
     let start_runbook = &action_panel_data.groups[1].sub_groups[0].action_items[0];
-    assert_eq!(start_runbook.action_status, ActionItemStatus::Success);
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
     assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
 
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: get_public_key.uuid.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
-            public_key: "test".into(),
+            public_key: "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7".into(),
         }),
     });
 
@@ -250,8 +250,6 @@ fn test_wallet_runbook_no_env() {
         assert!(false, "unable to receive input block");
         panic!()
     };
-
-    println!("===> {:?}", event);
 
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");

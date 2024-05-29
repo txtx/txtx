@@ -1,3 +1,6 @@
+use clarity::address::AddressHashMode;
+use clarity::types::chainstate::StacksAddress;
+use clarity::util::secp256k1::Secp256k1PublicKey;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
@@ -154,6 +157,59 @@ impl WalletImplementation for StacksConnect {
                 payload: payload.clone(),
             }),
         )
+    }
+
+    fn check_public_key_expectations(
+        _uuid: &ConstructUuid,
+        instance_name: &str,
+        public_key_bytes: &Vec<u8>,
+        spec: &WalletSpecification,
+        args: &HashMap<String, Value>,
+        defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Option<String>, Diagnostic> {
+        let public_key = Secp256k1PublicKey::from_slice(&public_key_bytes).unwrap();
+        let network_id = args
+            .get("network_id")
+            .and_then(|a| Some(a.expect_string()))
+            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
+            .ok_or(Diagnostic::error_from_string(format!(
+                "command '{}': attribute 'network_id' is missing",
+                spec.matcher
+            )))
+            .unwrap_or("testnet")
+            .to_string();
+
+        let version = if network_id.eq("mainnet") {
+            clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
+        } else {
+            clarity_repl::clarity::address::C32_ADDRESS_VERSION_TESTNET_SINGLESIG
+        };
+
+        let stx_address = StacksAddress::from_public_keys(
+            version,
+            &AddressHashMode::SerializeP2PKH,
+            1,
+            &vec![public_key],
+        )
+        .unwrap()
+        .to_string();
+
+        let Some(check_expected_address) = args.get("expected_address").and_then(|a| a.as_string())
+        else {
+            return Ok(Some(stx_address));
+        };
+
+        if check_expected_address.eq(&stx_address) {
+            return Ok(Some(stx_address));
+        }
+
+        return Err(diagnosed_error!(
+            "Wallet '{}': expected {} got {}",
+            instance_name,
+            check_expected_address,
+            stx_address
+        ));
     }
 
     fn sign(

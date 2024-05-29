@@ -179,9 +179,9 @@ pub async fn start_runbook_runloop(
     let (progress_tx, _progress_rx) = txtx_addon_kit::channel::unbounded();
 
     // store of action_item_uuids and the associated action_item_request
-    let mut action_item_requests: HashMap<Uuid, ActionItemRequest> = HashMap::new();
+    let mut action_item_requests: BTreeMap<Uuid, ActionItemRequest> = BTreeMap::new();
     // store of construct_uuids and its associated action_item_response_types
-    let mut action_item_responses = HashMap::new();
+    let mut action_item_responses = BTreeMap::new();
 
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
@@ -204,6 +204,7 @@ pub async fn start_runbook_runloop(
                         runbook,
                         runtime_context,
                         &execution_context,
+                        &mut action_item_requests,
                         &action_item_responses,
                         &progress_tx,
                     )
@@ -231,6 +232,7 @@ pub async fn start_runbook_runloop(
                 &block_tx,
                 &environments,
                 &execution_context,
+                &mut action_item_requests,
                 &action_item_responses,
                 &progress_tx,
             )
@@ -277,7 +279,7 @@ pub async fn start_runbook_runloop(
                 }
 
                 let action_status = if action_items.is_empty() {
-                    ActionItemStatus::Success
+                    ActionItemStatus::Success(None)
                 } else {
                     ActionItemStatus::Todo
                 };
@@ -321,26 +323,53 @@ pub async fn start_runbook_runloop(
             }
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(_) => {}
-            ActionItemResponseType::ProvidePublicKey(_) => {
-                run_wallets_evaluation(
+            ActionItemResponseType::ProvidePublicKey(response) => {
+                eprintln!(
+                    "{:?} {:?} {:?}",
+                    response, action_item_uuid, action_item_requests
+                );
+
+                let Some(wallet_construct_uuid) = action_item_requests
+                    .get(&action_item_uuid)
+                    .and_then(|a| a.construct_uuid)
+                else {
+                    eprintln!("unable to retrieve {}", action_item_uuid);
+                    // todo: log error
+                    continue;
+                };
+                // // Retrieve the previous requests sent
+                // // and update their statuses.
+                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                let mut scoped_requests = vec![];
+                for (_, request) in action_item_requests.iter_mut() {
+                    let Some(ref construct_uuid) = request.construct_uuid else {
+                        continue;
+                    };
+                    if construct_uuid.eq(&wallet_construct_uuid) {
+                        scoped_requests.push(request);
+                    }
+                }
+                map.insert(wallet_construct_uuid, scoped_requests);
+                let res = run_wallets_evaluation(
                     runbook,
                     runtime_context,
                     &execution_context,
+                    &mut map,
                     &action_item_responses,
                     &progress_tx,
                 )
-                .await?
-                .into_iter()
-                .for_each(|(_, action_items)| {
-                    action_items.into_iter().for_each(|a| {
-                        let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                            SetActionItemStatus {
-                                action_item_uuid,
-                                new_status: a.action_status,
-                            },
-                        ]));
-                    })
-                });
+                .await?;
+
+                let mut updated_actions = vec![];
+                for (_, actions) in map.iter() {
+                    for action in actions.iter() {
+                        updated_actions.push(SetActionItemStatus {
+                            action_item_uuid: action.uuid.clone(),
+                            new_status: action.action_status.clone(),
+                        });
+                    }
+                }
+                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_) => todo!(),
         };
@@ -354,7 +383,8 @@ pub async fn reset_runbook_execution(
     block_tx: &Sender<BlockEvent>,
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     execution_context: &CommandExecutionContext,
-    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
@@ -383,7 +413,8 @@ pub async fn reset_runbook_execution(
                 runbook,
                 runtime_context,
                 &execution_context,
-                &action_item_responses,
+                action_item_requests,
+                action_item_responses,
                 &progress_tx,
             )
             .await?,
@@ -399,7 +430,8 @@ pub async fn build_genesis_panel(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
-    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<ActionPanelData, Vec<Diagnostic>> {
     let input_options: Vec<InputOption> = environments
@@ -413,7 +445,7 @@ pub async fn build_genesis_panel(
     let mut action_items = vec![];
 
     if environments.len() > 0 {
-        action_items.push(ActionItemRequest {
+        let action_request = ActionItemRequest {
             uuid: SET_ENV_UUID.clone(),
             construct_uuid: None,
             index: 0,
@@ -421,7 +453,9 @@ pub async fn build_genesis_panel(
             description: selected_env.clone().unwrap_or("".to_string()),
             action_status: ActionItemStatus::Todo,
             action_type: ActionItemRequestType::PickInputOption(input_options),
-        })
+        };
+        action_items.push(action_request.clone());
+        action_item_requests.insert(SET_ENV_UUID.clone(), action_request);
     }
 
     let mut groups = if action_items.is_empty() {
@@ -436,43 +470,54 @@ pub async fn build_genesis_panel(
         }]
     };
 
+    let mut empty_map = BTreeMap::new();
+
     let wallet_groups = run_wallets_evaluation(
         runbook,
         runtime_context,
         &execution_context,
+        &mut empty_map,
         &action_item_responses,
         &progress_tx,
     )
-    .await?
-    .iter()
-    .map(|(group_title, a)| ActionGroup {
-        title: group_title.clone(),
-        sub_groups: {
-            vec![ActionSubGroup {
-                allow_batch_completion: false,
-                action_items: a.clone(),
-            }]
-        },
-    })
-    .collect::<Vec<ActionGroup>>();
-    groups.extend(wallet_groups);
+    .await?;
 
+    let mut actions_groups = vec![];
+    for (group_title, actions) in wallet_groups.into_iter() {
+        for action in actions.iter() {
+            action_item_requests.insert(action.uuid.clone(), action.clone());
+        }
+        actions_groups.push(ActionGroup {
+            title: group_title.clone(),
+            sub_groups: {
+                vec![ActionSubGroup {
+                    allow_batch_completion: false,
+                    action_items: actions,
+                }]
+            },
+        });
+    }
+    groups.extend(actions_groups);
+
+    let validate_action = ActionItemRequest {
+        uuid: Uuid::new_v4(),
+        construct_uuid: None,
+        index: 0,
+        title: "start runbook".into(),
+        description: "".into(),
+        action_status: if action_items.is_empty() {
+            ActionItemStatus::Success(None)
+        } else {
+            ActionItemStatus::Todo
+        },
+        action_type: ActionItemRequestType::ValidatePanel,
+    };
+
+    action_item_requests.insert(validate_action.uuid.clone(), validate_action.clone());
     groups.push(ActionGroup {
         title: "".into(),
         sub_groups: vec![ActionSubGroup {
-            action_items: vec![ActionItemRequest {
-                uuid: Uuid::new_v4(),
-                construct_uuid: None,
-                index: 0,
-                title: "start runbook".into(),
-                description: "".into(),
-                action_status: if action_items.is_empty() {
-                    ActionItemStatus::Success
-                } else {
-                    ActionItemStatus::Todo
-                },
-                action_type: ActionItemRequestType::ValidatePanel,
-            }],
+            action_items: vec![validate_action],
             allow_batch_completion: false,
         }],
     });

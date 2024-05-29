@@ -16,7 +16,9 @@ use super::{
         CommandInput, CommandInputsEvaluationResult, CommandInstanceStateMachine, CommandOutput,
     },
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::{ActionItemRequest, ActionItemResponseType},
+    frontend::{
+        ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
+    },
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid,
 };
@@ -65,6 +67,16 @@ pub type WalletSignExecutabilityChecker = fn(
     &CommandExecutionContext,
 ) -> ActionItemRequest;
 
+pub type WalletPublicKeyExpectations = fn(
+    &ConstructUuid,
+    &str,
+    &Vec<u8>,
+    &WalletSpecification,
+    &HashMap<String, Value>,
+    &AddonDefaults,
+    &CommandExecutionContext,
+) -> Result<Option<String>, Diagnostic>;
+
 #[derive(Debug, Clone)]
 pub struct WalletSpecification {
     pub name: String,
@@ -79,6 +91,7 @@ pub struct WalletSpecification {
     pub outputs: Vec<CommandOutput>,
     pub check_executability: WalletExecutabilityChecker,
     pub check_instantiability: WalletInstantiabilityChecker,
+    pub check_public_key_expectations: WalletPublicKeyExpectations,
     pub execute: WalletRunner,
     pub sign: WalletSigner,
     pub check_sign_executability: WalletSignExecutabilityChecker,
@@ -235,47 +248,10 @@ impl WalletInstance {
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        action_item_response: &Option<&Vec<ActionItemResponseType>>,
+        action_item_requests: &mut Vec<&mut ActionItemRequest>,
+        action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(), Vec<ActionItemRequest>> {
-        match action_item_response {
-            Some(responses) => responses.into_iter().for_each(|response| match response {
-                ActionItemResponseType::ReviewInput(update) => {
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = true;
-                            break;
-                        }
-                    }
-                }
-                ActionItemResponseType::ProvideInput(update) => {
-                    input_evaluation_results
-                        .inputs
-                        .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = true;
-                            break;
-                        }
-                    }
-                }
-                ActionItemResponseType::ProvidePublicKey(update) => {
-                    input_evaluation_results.inputs.insert(
-                        "public_key".into(),
-                        Ok(Value::string(update.public_key.clone())),
-                    );
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name.eq("public_key") {
-                            input.check_performed = true;
-                            break;
-                        }
-                    }
-                }
-                _ => {}
-            }),
-            None => {}
-        }
-
         let mut values = HashMap::new();
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
@@ -296,6 +272,57 @@ impl WalletInstance {
             }
             .unwrap();
             values.insert(input.name.clone(), value);
+        }
+
+        match action_item_responses {
+            Some(responses) => responses.iter().for_each(|response| match response {
+                ActionItemResponseType::ProvidePublicKey(update) => {
+                    let public_key_bytes =
+                        hex::decode(&update.public_key).expect("unable to decode bytes");
+
+                    input_evaluation_results.inputs.insert(
+                        "public_key".into(),
+                        Ok(Value::string(update.public_key.clone())),
+                    );
+                    for input in self.specification.inputs.iter_mut() {
+                        if input.name.eq("public_key") {
+                            input.check_performed = true;
+                            break;
+                        }
+                    }
+
+                    for request in action_item_requests.iter_mut() {
+                        let spec = &self.specification;
+                        let res = (spec.check_public_key_expectations)(
+                            &construct_uuid,
+                            &self.name,
+                            &public_key_bytes,
+                            &self.specification,
+                            &values,
+                            &addon_defaults,
+                            &execution_context,
+                        );
+                        let (status, success) = match res {
+                            Ok(message) => (ActionItemStatus::Success(message.clone()), true),
+                            Err(diag) => (ActionItemStatus::Error(diag), false),
+                        };
+
+                        match request.action_type {
+                            ActionItemRequestType::ReviewInput => {
+                                request.action_status = status.clone();
+                            }
+                            ActionItemRequestType::ProvidePublicKey(_) => {
+                                if success {
+                                    request.action_status = status.clone();
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                _ => {}
+            }),
+            None => {}
         }
 
         let spec = &self.specification;
@@ -364,6 +391,16 @@ pub trait WalletImplementation {
     ) -> Result<(), Vec<ActionItemRequest>> {
         Ok(())
     }
+
+    fn check_public_key_expectations(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _public_key: &Vec<u8>,
+        _spec: &WalletSpecification,
+        _args: &HashMap<String, Value>,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Option<String>, Diagnostic>;
 
     fn execute(
         _uuid: &ConstructUuid,

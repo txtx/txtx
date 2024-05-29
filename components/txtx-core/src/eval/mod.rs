@@ -146,7 +146,8 @@ pub async fn run_wallets_evaluation(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
-    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let mut action_items = BTreeMap::new();
@@ -250,10 +251,16 @@ pub async fn run_wallets_evaluation(
             .and_then(|addon| Some(addon.defaults.clone()))
             .unwrap_or(AddonDefaults::new());
 
+        let mut empty_vec = vec![];
+        let action_items_requests = action_item_requests
+            .get_mut(&construct_uuid.value())
+            .unwrap_or(&mut empty_vec);
+
         if let Err(ref mut new_items) = wallet_instance.check_executability(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
+            action_items_requests,
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
@@ -323,7 +330,7 @@ pub async fn run_constructs_evaluation(
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
-    action_item_responses: &HashMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
