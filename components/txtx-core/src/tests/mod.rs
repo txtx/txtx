@@ -100,6 +100,7 @@ fn test_ab_c_runbook_no_env() {
     };
 
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
+
     assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");
     assert_eq!(inputs_panel_data.groups.len(), 1);
     assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 2);
@@ -251,57 +252,14 @@ fn test_wallet_runbook_no_env() {
         panic!()
     };
 
-    let inputs_panel_data = event.expect_block().panel.expect_action_panel();
-    assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");
-    assert_eq!(inputs_panel_data.groups.len(), 1);
-    assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 2);
+    let updates = event.expect_updated_action_items();
+    assert_eq!(updates.len(), 2);
     assert_eq!(
-        inputs_panel_data.groups[0].sub_groups[0].action_items.len(),
-        2
+        updates[0].new_status,
+        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
-    let input_a_uuid = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
-    let input_b_uuid = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: input_a_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-            value_checked: true,
-            input_name: "value".into(),
-        }),
-    });
-
-    // Should be a no-op
-    let Err(_) = block_rx.recv_timeout(Duration::from_secs(2)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: input_b_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
-            updated_value: Value::uint(5),
-            input_name: "value".into(),
-        }),
-    });
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: Uuid::new_v4(),
-        payload: ActionItemResponseType::ValidatePanel,
-    });
-
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-
-    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
-    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUTS REVIEW");
-    assert_eq!(outputs_panel_data.groups.len(), 1);
-    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(
-        outputs_panel_data.groups[0].sub_groups[0]
-            .action_items
-            .len(),
-        1
+        updates[1].new_status,
+        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
 }

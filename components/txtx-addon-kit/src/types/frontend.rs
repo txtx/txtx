@@ -32,6 +32,13 @@ impl BlockEvent {
             _ => unreachable!("block expected"),
         }
     }
+
+    pub fn expect_updated_action_items(&self) -> &Vec<SetActionItemStatus> {
+        match &self {
+            BlockEvent::UpdateActionItems(ref updates) => updates,
+            _ => unreachable!("block expected"),
+        }
+    }
 }
 
 pub enum RunbookExecutionState {

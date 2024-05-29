@@ -150,7 +150,7 @@ pub async fn run_wallets_evaluation(
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
-    let mut action_items = BTreeMap::new();
+    let mut action_items: BTreeMap<String, Vec<ActionItemRequest>> = BTreeMap::new();
 
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -266,7 +266,7 @@ pub async fn run_wallets_evaluation(
         ) {
             match action_items.entry(wallet_instance.get_group()) {
                 Entry::Occupied(mut e) => {
-                    e.insert(new_items.clone());
+                    e.get_mut().append(new_items);
                 }
                 Entry::Vacant(e) => {
                     e.insert(new_items.clone());
@@ -335,7 +335,7 @@ pub async fn run_constructs_evaluation(
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 
-    let mut action_items = BTreeMap::new();
+    let mut action_items: BTreeMap<String, Vec<ActionItemRequest>> = BTreeMap::new();
     let wallet_instances = runbook.wallet_instances.clone();
 
     let environments_variables = runbook.environment_variables_values.clone();
@@ -494,10 +494,14 @@ pub async fn run_constructs_evaluation(
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
-            action_items
-                .entry(command_instance.get_group())
-                .or_insert(new_items.clone())
-                .append(new_items);
+            match action_items.entry(command_instance.get_group()) {
+                Entry::Occupied(mut e) => {
+                    e.get_mut().append(new_items);
+                }
+                Entry::Vacant(e) => {
+                    e.insert(new_items.clone());
+                }
+            };
             continue;
         }
 
@@ -732,10 +736,6 @@ pub fn eval_expression(
                         res.push_str(literal.value());
                     }
                     Element::Interpolation(interpolation) => {
-                        // println!(
-                        //     "running eval for string template with dep execs: {:?}",
-                        //     dependencies_execution_results
-                        // );
                         let value = match eval_expression(
                             &interpolation.expr,
                             dependencies_execution_results,

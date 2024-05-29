@@ -187,9 +187,7 @@ pub async fn start_runbook_runloop(
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
             Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                unimplemented!()
-            }
+            Err(TryRecvError::Disconnected) => return Ok(()),
         };
 
         if !runbook_initialized {
@@ -324,11 +322,6 @@ pub async fn start_runbook_runloop(
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(_) => {}
             ActionItemResponseType::ProvidePublicKey(response) => {
-                eprintln!(
-                    "{:?} {:?} {:?}",
-                    response, action_item_uuid, action_item_requests
-                );
-
                 let Some(wallet_construct_uuid) = action_item_requests
                     .get(&action_item_uuid)
                     .and_then(|a| a.construct_uuid)
