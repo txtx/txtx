@@ -233,6 +233,9 @@ fn test_wallet_runbook_no_env() {
         panic!("expected provide public key request");
     };
 
+    let start_runbook = &action_panel_data.groups[1].sub_groups[0].action_items[0];
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Success);
+    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
 
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {
@@ -242,20 +245,13 @@ fn test_wallet_runbook_no_env() {
         }),
     });
 
-    let start_runbook = &action_panel_data.groups[1].sub_groups[0].action_items[0];
-    assert_eq!(start_runbook.action_status, ActionItemStatus::Success);
-    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
-
     // Complete start_runbook action
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
-    });
-
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
+
+    println!("===> {:?}", event);
 
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");

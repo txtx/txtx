@@ -215,7 +215,6 @@ impl Runbook {
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
             PreConstructData::Wallet(wallet_instance) => {
-                println!("INDEXING WALLET: {:?}", wallet_instance);
                 package.wallets_uuids.insert(construct_uuid.clone());
                 package
                     .wallets_uuids_lookup

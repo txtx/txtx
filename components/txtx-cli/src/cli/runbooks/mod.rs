@@ -156,18 +156,17 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                       block_store.insert(new_block.uuid, new_block);
                     },
                     BlockEvent::Clear => {*block_store = BTreeMap::new();}
-                    BlockEvent::SetActionItemStatus(SetActionItemStatus { action_item_uuid, new_status }) => {
-                      // let mut action_item = block.find_action(action_item_uuid).unwrap();
-                      // action_item.action_status = new_status;
-                      //  block_store.
-                      let keys = block_store.keys();
-                      for key in keys {
-                        let Some(block) = block_store.get(key) else {continue;};
-                        let Some(mut action_item) = block.find_action(action_item_uuid)
-                        else {continue};
-                        action_item.action_status = new_status;
-                        break;
-                      }
+                    BlockEvent::UpdateActionItems(updates) => {
+                        for update in updates.iter() {
+                            let keys = block_store.keys();
+                            for key in keys {
+                              let Some(block) = block_store.get(key) else {continue;};
+                              let Some(mut action_item) = block.find_action(update.action_item_uuid)
+                              else {continue};
+                              action_item.action_status = update.new_status.clone();
+                              break;
+                            }
+                        }
                     }
                   }
                 }

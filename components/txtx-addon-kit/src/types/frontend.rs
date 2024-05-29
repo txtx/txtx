@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub enum BlockEvent {
     Append(Block),
     Clear,
-    SetActionItemStatus(SetActionItemStatus),
+    UpdateActionItems(Vec<SetActionItemStatus>),
 }
 
 #[derive(Debug, Clone)]

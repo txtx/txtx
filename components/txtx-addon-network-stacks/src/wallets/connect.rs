@@ -4,8 +4,8 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus,
-    ProvidePublicKeyRequest, ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
+    ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
 use txtx_addon_kit::types::ConstructUuid;

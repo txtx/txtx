@@ -333,11 +333,12 @@ pub async fn start_runbook_runloop(
                 .into_iter()
                 .for_each(|(_, action_items)| {
                     action_items.into_iter().for_each(|a| {
-                        let _ =
-                            block_tx.send(BlockEvent::SetActionItemStatus(SetActionItemStatus {
+                        let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
+                            SetActionItemStatus {
                                 action_item_uuid,
                                 new_status: a.action_status,
-                            }));
+                            },
+                        ]));
                     })
                 });
             }
