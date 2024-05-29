@@ -7,7 +7,6 @@ use txtx_core::{
         channel::{self, select},
         types::frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
-            SetActionItemStatus,
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
@@ -158,13 +157,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     BlockEvent::Clear => {*block_store = BTreeMap::new();}
                     BlockEvent::UpdateActionItems(updates) => {
                         for update in updates.iter() {
-                            let keys = block_store.keys();
-                            for key in keys {
-                              let Some(block) = block_store.get(key) else {continue;};
-                              let Some(mut action_item) = block.find_action(update.action_item_uuid)
-                              else {continue};
-                              action_item.action_status = update.new_status.clone();
-                              break;
+                            for (_, block) in block_store.iter_mut() {
+                              block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
+
                             }
                         }
                     }
