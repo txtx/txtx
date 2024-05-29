@@ -207,7 +207,7 @@ impl WalletInstance {
 
     pub fn get_group(&self) -> String {
         let Some(group) = self.block.body.get_attribute("group") else {
-            return format!("{}s review", self.specification.name.to_string());
+            return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
     }
