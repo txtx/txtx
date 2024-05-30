@@ -6,12 +6,12 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
@@ -87,46 +87,46 @@ impl CommandImplementation for Multisig {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
-        match args.get("signed_transaction_bytes") {
-            Some(val) => {
-                result
-                    .outputs
-                    .insert("signed_transaction_bytes".to_string(), val.clone());
-            }
-            None => {}
-        };
+        // match args.get("signed_transaction_bytes") {
+        //     Some(val) => {
+        //         result
+        //             .outputs
+        //             .insert("signed_transaction_bytes".to_string(), val.clone());
+        //     }
+        //     None => {}
+        // };
 
-        let network_id = args
-            .get("network_id")
-            .and_then(|a| Some(a.expect_string()))
-            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'network_id' is missing"
-            )))
-            .unwrap()
-            .to_string();
+        // let network_id = args
+        //     .get("network_id")
+        //     .and_then(|a| Some(a.expect_string()))
+        //     .or(defaults.keys.get("network_id").map(|x| x.as_str()))
+        //     .ok_or(Diagnostic::error_from_string(format!(
+        //         "Key 'network_id' is missing"
+        //     )))
+        //     .unwrap()
+        //     .to_string();
 
-        result
-            .outputs
-            .insert("network_id".to_string(), Value::string(network_id));
+        // result
+        //     .outputs
+        //     .insert("network_id".to_string(), Value::string(network_id));
 
         return_synchronous_ok(result)
     }

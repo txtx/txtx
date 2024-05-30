@@ -7,15 +7,16 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::stacks_helpers::clarity_value_to_value;
+use crate::typing::CLARITY_BUFFER;
 
 lazy_static! {
     pub static ref DECODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -78,18 +79,18 @@ impl CommandImplementation for EncodeStacksContractCall {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -97,11 +98,9 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_id
-        let bytes = match args.get("bytes") {
-            Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => &buffer_data.bytes,
-            _ => todo!("bytes missing, return diagnostic"),
-        };
-        match StacksTransaction::consensus_deserialize(&mut &bytes[..]) {
+        let buffer = args.get_expected_buffer("bytes", &CLARITY_BUFFER)?;
+
+        match StacksTransaction::consensus_deserialize(&mut &buffer.bytes[..]) {
             Ok(tx) => {
                 match tx.payload {
                     TransactionPayload::ContractCall(payload) => {

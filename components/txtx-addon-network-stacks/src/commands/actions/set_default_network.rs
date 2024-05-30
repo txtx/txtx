@@ -5,13 +5,15 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
+
+use crate::constants::{NETWORK_ID, RPC_API_URL};
 
 lazy_static! {
     pub static ref SET_DEFAULT_NETWORK: PreCommandSpecification = {
@@ -80,34 +82,33 @@ impl CommandImplementation for SetStacksGlobals {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
-        let stacks_network = args.get("network_id").unwrap().expect_string();
-        let stacks_api_url = args.get("stacks_api_url").unwrap().expect_string();
+        let stacks_network = args.get_expected_string(NETWORK_ID)?;
+        let stacks_api_url = args.get_expected_string(RPC_API_URL)?;
+
+        result
+            .outputs
+            .insert(NETWORK_ID.to_string(), Value::string(stacks_network.into()));
 
         result.outputs.insert(
-            "network_id".to_string(),
-            Value::string(stacks_network.into()),
-        );
-
-        result.outputs.insert(
-            "stacks_api_url".to_string(),
+            RPC_API_URL.to_string(),
             Value::string(stacks_api_url.into()),
         );
         return_synchronous_ok(result)

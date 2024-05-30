@@ -8,9 +8,12 @@ extern crate txtx_addon_kit;
 extern crate serde_derive;
 
 mod commands;
+mod constants;
 mod functions;
+mod rpc;
 mod stacks_helpers;
 mod typing;
+mod utils;
 mod wallets;
 
 use txtx_addon_kit::{

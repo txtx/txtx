@@ -12,12 +12,12 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
@@ -103,18 +103,18 @@ impl CommandImplementation for EncodeStacksContractCall {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -122,25 +122,10 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
-        let network_id = args
-            .get("network_id")
-            .and_then(|a| Some(a.expect_string()))
-            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "command '{}': attribute 'network_id' is missing",
-                spec.matcher
-            )))
-            .unwrap()
-            .to_string();
+        let network_id = args.retrieve_value_using_defaults("network_id", defaults)?;
 
         // Extract contract_address
-
-        let Some(contract_id_value) = args.get("contract_id") else {
-            return return_synchronous_err(diagnosed_error!(
-                "command '{}': attribute 'contract_id' is missing",
-                spec.matcher
-            ));
-        };
+        let contract_id_value = args.get_expected_value("contract_id")?;
 
         let contract_id = match contract_id_value {
             Value::Primitive(PrimitiveValue::Buffer(contract_id)) => {
@@ -187,34 +172,8 @@ impl CommandImplementation for EncodeStacksContractCall {
             );
         }
 
-        let Some(function_name_value) = args.get("function_name") else {
-            return return_synchronous_err(diagnosed_error!(
-                "command '{}': attribute 'function_name' is missing",
-                spec.matcher
-            ));
-        };
-
-        let Some(function_name) = function_name_value.as_string() else {
-            return return_synchronous_err(diagnosed_error!(
-                "command {}: attribute 'function_name' expecting type string",
-                spec.matcher
-            ));
-        };
-
-        let Some(function_args_value) = args.get("function_args") else {
-            return return_synchronous_err(diagnosed_error!(
-                "command '{}': attribute 'function_name' is missing",
-                spec.matcher
-            ));
-        };
-
-        let Some(function_args_values) = function_args_value.as_array() else {
-            return return_synchronous_err(diagnosed_error!(
-                "function '{}': expected array, got {:?}",
-                spec.matcher,
-                function_args_value
-            ));
-        };
+        let function_name = args.get_expected_string("function_name")?;
+        let function_args_values = args.get_expected_array("function_args")?;
 
         let mut function_args = vec![];
         for arg_value in function_args_values.iter() {

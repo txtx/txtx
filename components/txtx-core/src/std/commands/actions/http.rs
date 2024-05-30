@@ -1,3 +1,4 @@
+use kit::types::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
@@ -99,40 +100,35 @@ impl CommandImplementation for SendHttpRequest {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
+        let url = args.get_expected_string("url")?.to_string();
+        let request_body = args.get_string("request_body").map(|v| v.to_string());
+        let method = {
+            let value = args.get_string("method").unwrap_or("GET");
+            Method::try_from(value).unwrap()
+        };
+        let request_headers = args
+            .get_value("request_headers")
+            .and_then(|value| Some(value.expect_object().clone()));
 
         let future = async move {
-            let url = args.get("url").unwrap().expect_string();
-            let request_body = args
-                .get("request_body")
-                .and_then(|v| Some(v.expect_string().to_string()));
-            let method = {
-                let value = args
-                    .get("method")
-                    .and_then(|v| Some(v.expect_string()))
-                    .unwrap_or("GET");
-                Method::try_from(value).unwrap()
-            };
-            let request_headers = args
-                .get("request_headers")
-                .and_then(|value| Some(value.expect_object()));
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
 
@@ -174,6 +170,6 @@ impl CommandImplementation for SendHttpRequest {
 
             Ok(result)
         };
-        Box::pin(future)
+        Ok(Box::pin(future))
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{future::Future, pin::Pin};
 
 use hcl_edit::{expr::Expression, structure::Block};
 use rust_fsm::StateMachine;
@@ -20,14 +20,15 @@ use super::{
         ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
     },
     types::{ObjectProperty, Type, Value},
-    ConstructUuid, PackageUuid,
+    ConstructUuid, PackageUuid, ValueStore,
 };
 
 pub type WalletRunner = Box<
     fn(
         &ConstructUuid,
         &WalletSpecification,
-        &HashMap<String, Value>,
+        &ValueStore,
+        &mut ValueStore,
         &AddonDefaults,
         &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult,
@@ -39,7 +40,7 @@ pub type WalletSigner = Box<
         &str,
         &Value,
         &WalletSpecification,
-        &HashMap<String, Value>,
+        &ValueStore,
         &AddonDefaults,
         &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult,
@@ -49,10 +50,10 @@ pub type WalletExecutabilityChecker = fn(
     &ConstructUuid,
     &str,
     &WalletSpecification,
-    &HashMap<String, Value>,
+    &ValueStore,
     &AddonDefaults,
     &CommandExecutionContext,
-) -> Result<(), Vec<ActionItemRequest>>;
+) -> Result<Vec<ActionItemRequest>, Diagnostic>;
 
 pub type WalletInstantiabilityChecker =
     fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
@@ -62,7 +63,7 @@ pub type WalletSignExecutabilityChecker = fn(
     &str,
     &Value,
     &WalletSpecification,
-    &HashMap<String, Value>,
+    &ValueStore,
     &AddonDefaults,
     &CommandExecutionContext,
 ) -> ActionItemRequest;
@@ -72,7 +73,7 @@ pub type WalletPublicKeyExpectations = fn(
     &str,
     &Vec<u8>,
     &WalletSpecification,
-    &HashMap<String, Value>,
+    &ValueStore,
     &AddonDefaults,
     &CommandExecutionContext,
 ) -> Result<Option<String>, Diagnostic>;
@@ -101,6 +102,7 @@ pub struct WalletSpecification {
 pub struct WalletInstance {
     pub specification: WalletSpecification,
     pub state: StateMachine<CommandInstanceStateMachine>,
+    pub store: ValueStore,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
@@ -243,7 +245,7 @@ impl WalletInstance {
         }
     }
 
-    pub fn check_executability(
+    pub async fn check_usability(
         &mut self,
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
@@ -251,8 +253,8 @@ impl WalletInstance {
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
-        let mut values = HashMap::new();
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        let mut values = ValueStore::new(&self.name);
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -271,7 +273,7 @@ impl WalletInstance {
                 },
             }
             .unwrap();
-            values.insert(input.name.clone(), value);
+            values.insert(&input.name, value);
         }
 
         match action_item_responses {
@@ -291,20 +293,23 @@ impl WalletInstance {
                         }
                     }
 
+                    let res = ((&self.specification).check_public_key_expectations)(
+                        &construct_uuid,
+                        &self.name,
+                        &public_key_bytes,
+                        &self.specification,
+                        &values,
+                        &addon_defaults,
+                        &execution_context,
+                    );
+
+                    self.store
+                        .insert("public_key", Value::string(update.public_key.clone()));
+
                     for request in action_item_requests.iter_mut() {
-                        let spec = &self.specification;
-                        let res = (spec.check_public_key_expectations)(
-                            &construct_uuid,
-                            &self.name,
-                            &public_key_bytes,
-                            &self.specification,
-                            &values,
-                            &addon_defaults,
-                            &execution_context,
-                        );
-                        let (status, success) = match res {
+                        let (status, success) = match &res {
                             Ok(message) => (ActionItemStatus::Success(message.clone()), true),
-                            Err(diag) => (ActionItemStatus::Error(diag), false),
+                            Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
                         };
 
                         match request.action_type {
@@ -337,14 +342,14 @@ impl WalletInstance {
     }
 
     pub async fn perform_execution(
-        &self,
+        &mut self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         // todo: I don't think this one needs to be a result
-        let mut values = HashMap::new();
+        let mut values = ValueStore::new(&self.name);
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -362,15 +367,16 @@ impl WalletInstance {
                     false => unreachable!(), // todo(lgalabru): return diagnostic
                 },
             }?;
-            values.insert(input.name.clone(), value);
+            values.insert(&input.name, value);
         }
         (&self.specification.execute)(
             &construct_uuid,
             &self.specification,
             &values,
+            &mut self.store,
             &addon_defaults,
             progress_tx,
-        )
+        )?
         .await
     }
 }
@@ -381,15 +387,25 @@ pub trait WalletImplementation {
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic>;
 
+    fn check_usability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &WalletSpecification,
+        _args: &ValueStore,
+        _state: &mut ValueStore,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> WalletUsabilityFutureResult;
+
     fn check_executability(
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &WalletSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
-        Ok(())
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        Ok(vec![])
     }
 
     fn check_public_key_expectations(
@@ -397,7 +413,7 @@ pub trait WalletImplementation {
         _instance_name: &str,
         _public_key: &Vec<u8>,
         _spec: &WalletSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Option<String>, Diagnostic>;
@@ -405,7 +421,8 @@ pub trait WalletImplementation {
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
+        _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult;
@@ -415,7 +432,7 @@ pub trait WalletImplementation {
         _title: &str,
         _payload: &Value,
         _spec: &WalletSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
     ) -> ActionItemRequest;
@@ -425,8 +442,13 @@ pub trait WalletImplementation {
         _title: &str,
         _payload: &Value,
         _spec: &WalletSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult;
 }
+
+pub type WalletUsabilityFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<Vec<ActionItemRequest>, Diagnostic>> + Send>>,
+    Diagnostic,
+>;

@@ -262,4 +262,18 @@ fn test_wallet_runbook_no_env() {
         updates[1].new_status,
         ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
+
+    // Validate panel
+
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: start_runbook.uuid.clone(),
+        payload: ActionItemResponseType::ValidatePanel,
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let updates = event.expect_updated_action_items();
 }

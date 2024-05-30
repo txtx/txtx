@@ -13,12 +13,12 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
@@ -80,18 +80,18 @@ impl CommandImplementation for EncodeMultisigTransaction {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -99,37 +99,14 @@ impl CommandImplementation for EncodeMultisigTransaction {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
-        let network_id = args
-            .get("network_id")
-            .and_then(|a| Some(a.expect_string()))
-            .or(defaults.keys.get("network_id").map(|x| x.as_str()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'network_id' is missing"
-            )))
-            .unwrap()
-            .to_string();
+        let network_id = args.retrieve_value_using_defaults("network_id", defaults)?;
 
-        let bytes = &args
-            .get("bytes")
-            .and_then(|a| Some(a.expect_buffer_data()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'bytes' is missing"
-            )))
-            .unwrap()
-            .bytes;
+        let buffer = args.get_expected_buffer("bytes", &CLARITY_BUFFER)?;
 
-        let public_keys = args
-            .get("public_keys")
-            .and_then(|a| Some(a.expect_array()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'public_keys' is missing"
-            )))
-            .unwrap()
-            .clone();
+        let public_keys = args.get_expected_array("public_keys")?;
 
         let stacks_public_keys: Vec<StacksPublicKey> = public_keys
-            .clone()
-            .into_iter()
+            .iter()
             .map(|v| {
                 StacksPublicKey::from_hex(v.expect_string())
                     // .map_err(|e| Diagnostic::error_from_string(e.to_string()))
@@ -138,7 +115,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
             // .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?
             .collect::<Vec<StacksPublicKey>>();
 
-        let payload = TransactionPayload::consensus_deserialize(&mut &bytes[..])
+        let payload = TransactionPayload::consensus_deserialize(&mut &buffer.bytes[..])
             .map_err(|e| Diagnostic::error_from_string(e.to_string()))
             .unwrap();
         let address_hash = public_keys_to_address_hash(

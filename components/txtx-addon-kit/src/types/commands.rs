@@ -24,7 +24,7 @@ use super::{
     frontend::{ActionItemRequest, ActionItemResponseType},
     types::{ObjectProperty, Type, TypeSpecification, Value},
     wallets::WalletInstance,
-    ConstructUuid, PackageUuid,
+    ConstructUuid, PackageUuid, ValueStore,
 };
 
 #[derive(Clone, Debug)]
@@ -308,14 +308,16 @@ impl Serialize for CompositeCommandSpecification {
 }
 
 pub type InstantiabilityChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
-pub type CommandExecutionFutureResult =
-    Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
+pub type CommandExecutionFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>,
+    Diagnostic,
+>;
 
 pub type CommandRunner = Box<
     fn(
         &ConstructUuid,
         &CommandSpecification,
-        &HashMap<String, Value>,
+        &ValueStore,
         &AddonDefaults,
         &HashMap<ConstructUuid, WalletInstance>,
         &channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -327,16 +329,16 @@ pub type ExecutabilityChecker = fn(
     &ConstructUuid,
     &str,
     &CommandSpecification,
-    &HashMap<String, Value>,
+    &ValueStore,
     &AddonDefaults,
     &HashMap<ConstructUuid, WalletInstance>,
     &CommandExecutionContext,
-) -> Result<(), Vec<ActionItemRequest>>;
+) -> Result<Vec<ActionItemRequest>, Diagnostic>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
 ) -> CommandExecutionFutureResult {
-    Box::pin(future::ready(res))
+    Ok(Box::pin(future::ready(res)))
 }
 
 pub fn return_synchronous_ok(res: CommandExecutionResult) -> CommandExecutionFutureResult {
@@ -356,17 +358,17 @@ pub trait CommandImplementation {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
-        Ok(())
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        Ok(vec![])
     }
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -602,7 +604,7 @@ impl CommandInstance {
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(|response| match response {
                 ActionItemResponseType::ReviewInput(update) => {
@@ -629,7 +631,7 @@ impl CommandInstance {
             None => {}
         }
 
-        let mut values = HashMap::new();
+        let mut values = ValueStore::new(&format!("{}_inputs", self.specification.matcher));
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -644,11 +646,11 @@ impl CommandInstance {
                 }),
                 None => match input.optional {
                     true => continue,
-                    false => unreachable!(), // todo: return diagnostic
+                    false => unreachable!("{} missing?", input.name), // todo: return diagnostic
                 },
             }
             .unwrap();
-            values.insert(input.name.clone(), value);
+            values.insert(&input.name, value);
         }
 
         let spec = &self.specification;
@@ -664,14 +666,14 @@ impl CommandInstance {
     }
 
     pub async fn perform_execution(
-        &self,
+        &mut self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let mut values = HashMap::new();
+        let mut values = ValueStore::new(&self.name);
         for input in self.specification.inputs.iter() {
             let value = match evaluated_inputs.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -689,7 +691,7 @@ impl CommandInstance {
                     false => unreachable!(), // todo(lgalabru): return diagnostic
                 },
             }?;
-            values.insert(input.name.clone(), value);
+            values.insert(&input.name, value);
         }
 
         (&self.specification.execute)(
@@ -699,7 +701,7 @@ impl CommandInstance {
             &addon_defaults,
             &wallet_instances,
             progress_tx,
-        )
+        )?
         .await
     }
 

@@ -26,7 +26,7 @@ use types::{
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     wallets::{WalletInstance, WalletSpecification},
-    ConstructUuid, PackageUuid,
+    ConstructUuid, PackageUuid, ValueStore,
 };
 
 pub use reqwest;
@@ -178,9 +178,10 @@ impl AddonContext {
             todo!("return diagnostic: unknown wallet: {:?}", wallet_id)
         };
         Ok(WalletInstance {
-            specification: wallet_spec.clone(),
-            state: StateMachine::<CommandInstanceStateMachine>::new(),
             name: wallet_name.to_string(),
+            specification: wallet_spec.clone(),
+            store: ValueStore::new(wallet_name),
+            state: StateMachine::<CommandInstanceStateMachine>::new(),
             block: block.clone(),
             package_uuid: package_uuid.clone(),
             namespace: namespace.to_string(),

@@ -1,0 +1,14 @@
+input "a" {
+    value = 1
+    description = "a"
+}
+
+input "b" {
+    default = 1
+    description = "b"
+}
+
+output "c" {
+    value = input.a + input.b
+    description = "c"
+}

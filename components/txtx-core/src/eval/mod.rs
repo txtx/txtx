@@ -256,14 +256,17 @@ pub async fn run_wallets_evaluation(
             .get_mut(&construct_uuid.value())
             .unwrap_or(&mut empty_vec);
 
-        if let Err(ref mut new_items) = wallet_instance.check_executability(
-            &construct_uuid,
-            &mut evaluated_inputs,
-            addon_defaults.clone(),
-            action_items_requests,
-            &action_item_responses.get(&construct_uuid.value()),
-            execution_context,
-        ) {
+        if let Ok(ref mut new_items) = wallet_instance
+            .check_usability(
+                &construct_uuid,
+                &mut evaluated_inputs,
+                addon_defaults.clone(),
+                action_items_requests,
+                &action_item_responses.get(&construct_uuid.value()),
+                execution_context,
+            )
+            .await
+        {
             match action_items.entry(wallet_instance.get_group()) {
                 Entry::Occupied(mut e) => {
                     e.get_mut().append(new_items);
@@ -356,6 +359,27 @@ pub async fn run_constructs_evaluation(
         None => get_sorted_nodes(runbook.constructs_graph.clone()),
     };
 
+    let mut wallets = HashMap::new();
+    let mut empty_result = CommandExecutionResult::new();
+    empty_result
+        .outputs
+        .insert("value".into(), Value::bool(true));
+
+    let mut wallets_results = HashMap::new();
+    for (wallet_construct_uuid, _) in runbook.wallet_instances.iter() {
+        let mut result = CommandExecutionResult::new();
+        result.outputs.insert(
+            "value".into(),
+            Value::string(wallet_construct_uuid.value().to_string()),
+        );
+        wallets_results.insert(wallet_construct_uuid.clone(), result);
+    }
+
+    for (wallet_construct_uuid, _) in runbook.wallet_instances.iter() {
+        let results = wallets_results.get(wallet_construct_uuid).unwrap();
+        wallets.insert(wallet_construct_uuid.clone(), Ok(results));
+    }
+
     let constructs_locations = runbook.constructs_locations.clone();
 
     for node in ordered_nodes_to_process.into_iter() {
@@ -404,7 +428,7 @@ pub async fn run_constructs_evaluation(
         let mut cached_dependency_execution_results: HashMap<
             ConstructUuid,
             Result<&CommandExecutionResult, &Diagnostic>,
-        > = HashMap::new();
+        > = wallets.clone();
 
         // Retrieve the construct_uuid of the inputs
         // Collect the outputs
@@ -456,20 +480,28 @@ pub async fn run_constructs_evaluation(
             runtime_ctx,
         );
 
+        println!(
+            "{} -> {:?}",
+            command_instance.name,
+            command_instance.state_machine.state()
+        );
+        println!("{:?}", evaluated_inputs_res);
+
         let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
 
-        let mut evaluated_inputs = match evaluated_inputs_res {
+        let mut evaluated_inputs = CommandInputsEvaluationResult::new();
+
+        match evaluated_inputs_res {
             Ok(result) => match result {
-                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
                 CommandInputEvaluationStatus::NeedsUserInteraction => {
                     command_instance
                         .state_machine
                         .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
                         .unwrap();
-                    continue;
                 }
                 CommandInputEvaluationStatus::Aborted(result) => {
                     let mut diags = vec![];
@@ -486,7 +518,7 @@ pub async fn run_constructs_evaluation(
             }
         };
 
-        if let Err(ref mut new_items) = command_instance.check_executability(
+        if let Ok(ref mut new_items) = command_instance.check_executability(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
@@ -911,6 +943,7 @@ pub fn eval_expression(
 //     value: Value,
 // }
 
+#[derive(Debug)]
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
     NeedsUserInteraction,
@@ -974,6 +1007,8 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("1 ==> {}", expr);
+
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
@@ -1040,6 +1075,7 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                 Err(e) => Err(e),
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    println!("2 ==> {}", expr);
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                 }
             };
@@ -1069,6 +1105,7 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("3 ==> {}", expr);
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
@@ -1099,6 +1136,7 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("4 ==> {}", expr);
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }

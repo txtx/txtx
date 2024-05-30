@@ -8,15 +8,16 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::typing::CLARITY_VALUE;
+use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
+use crate::typing::{CLARITY_BUFFER, CLARITY_VALUE};
 
 lazy_static! {
     pub static ref BROADCAST_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
@@ -101,45 +102,32 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
-        let transaction_bytes = args
-            .get("signed_transaction_bytes")
-            .unwrap()
-            .expect_buffer_data()
-            .clone();
+        let transaction_bytes =
+            args.get_expected_buffer("signed_transaction_bytes", &CLARITY_BUFFER)?;
 
         let confirmations_required = args
-            .get("confirmations")
-            .unwrap_or(&Value::uint(3))
-            .expect_uint()
-            .clone() as usize;
+            .get_expected_uint("confirmations")
+            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
-        let api_url = args
-            .get("stacks_api_url")
-            .and_then(|a| Some(a.expect_string()))
-            .or(defaults.keys.get("stacks_api_url").map(|x| x.as_str()))
-            .ok_or(Diagnostic::error_from_string(format!(
-                "Key 'stacks_api_url' is missing"
-            )))
-            .unwrap()
-            .to_string();
+        let rpc_api_url = args.retrieve_value_using_defaults(RPC_API_URL, defaults)?;
 
         let future = async move {
             let mut s = String::from("0x");
@@ -157,7 +145,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let client = reqwest::Client::new();
             let res = client
-                .post(format!("{}/v2/transactions", api_url))
+                .post(format!("{}/v2/transactions", rpc_api_url))
                 .header("Content-Type", "application/octet-stream")
                 .body(transaction_bytes.bytes)
                 .send()
@@ -206,7 +194,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
 
                 let node_info_response = client
-                    .get(format!("{}/v2/info", api_url))
+                    .get(format!("{}/v2/info", rpc_api_url))
                     .send()
                     .await
                     .map_err(|e| {
@@ -251,7 +239,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
 
                 let tx_encoded_response_res = client
-                    .get(format!("{}/extended/v1/tx/{}", api_url, txid))
+                    .get(format!("{}/extended/v1/tx/{}", rpc_api_url, txid))
                     .send()
                     .await
                     .map_err(|e| {
@@ -291,7 +279,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
-        Box::pin(future)
+        Ok(Box::pin(future))
     }
 }
 

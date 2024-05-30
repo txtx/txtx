@@ -251,6 +251,7 @@ pub async fn start_runbook_runloop(
 
         match &payload {
             ActionItemResponseType::ValidatePanel => {
+                println!("Here");
                 let mut runbook_completed = false;
                 let mut groups = run_constructs_evaluation(
                     runbook,
@@ -261,6 +262,8 @@ pub async fn start_runbook_runloop(
                     &progress_tx,
                 )
                 .await?;
+
+                println!("=> {:?}", groups);
 
                 let block_uuid = Uuid::new_v4();
                 if groups.is_empty() {
@@ -322,28 +325,18 @@ pub async fn start_runbook_runloop(
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(_) => {}
             ActionItemResponseType::ProvidePublicKey(response) => {
-                let Some(wallet_construct_uuid) = action_item_requests
-                    .get(&action_item_uuid)
-                    .and_then(|a| a.construct_uuid)
+                // Retrieve the previous requests sent and update their statuses.
+                let Some((wallet_construct_uuid, scoped_requests)) =
+                    retrieve_related_action_items_requests(
+                        &action_item_uuid,
+                        &mut action_item_requests,
+                    )
                 else {
-                    eprintln!("unable to retrieve {}", action_item_uuid);
-                    // todo: log error
                     continue;
                 };
-                // // Retrieve the previous requests sent
-                // // and update their statuses.
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
-                let mut scoped_requests = vec![];
-                for (_, request) in action_item_requests.iter_mut() {
-                    let Some(ref construct_uuid) = request.construct_uuid else {
-                        continue;
-                    };
-                    if construct_uuid.eq(&wallet_construct_uuid) {
-                        scoped_requests.push(request);
-                    }
-                }
                 map.insert(wallet_construct_uuid, scoped_requests);
-                let res = run_wallets_evaluation(
+                let _ = run_wallets_evaluation(
                     runbook,
                     runtime_context,
                     &execution_context,
@@ -352,21 +345,77 @@ pub async fn start_runbook_runloop(
                     &progress_tx,
                 )
                 .await?;
-
-                let mut updated_actions = vec![];
-                for (_, actions) in map.iter() {
-                    for action in actions.iter() {
-                        updated_actions.push(SetActionItemStatus {
-                            action_item_uuid: action.uuid.clone(),
-                            new_status: action.action_status.clone(),
-                        });
-                    }
-                }
+                let scoped_updated_requests = map.get(&wallet_construct_uuid).unwrap();
+                let updated_actions = scoped_updated_requests
+                    .iter()
+                    .map(|action| SetActionItemStatus {
+                        action_item_uuid: action.uuid.clone(),
+                        new_status: action.action_status.clone(),
+                    })
+                    .collect::<Vec<_>>();
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
-            ActionItemResponseType::ProvideSignedTransaction(_) => todo!(),
+            ActionItemResponseType::ProvideSignedTransaction(response) => {
+                // Retrieve the previous requests sent and update their statuses.
+                let Some((signing_action_construct_uuid, scoped_requests)) =
+                    retrieve_related_action_items_requests(
+                        &action_item_uuid,
+                        &mut action_item_requests,
+                    )
+                else {
+                    continue;
+                };
+                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                map.insert(signing_action_construct_uuid, scoped_requests);
+
+                // let _ = run_wallets_evaluation(
+                //     runbook,
+                //     runtime_context,
+                //     &execution_context,
+                //     &mut map,
+                //     &action_item_responses,
+                //     &progress_tx,
+                // )
+                // .await?;
+
+                let scoped_updated_requests = map.get(&signing_action_construct_uuid).unwrap();
+                let updated_actions = scoped_updated_requests
+                    .iter()
+                    .map(|action| SetActionItemStatus {
+                        action_item_uuid: action.uuid.clone(),
+                        new_status: action.action_status.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+            }
         };
     }
+}
+
+pub fn retrieve_related_action_items_requests<'a>(
+    action_item_uuid: &Uuid,
+    action_item_requests: &'a mut BTreeMap<Uuid, ActionItemRequest>,
+) -> Option<(Uuid, Vec<&'a mut ActionItemRequest>)> {
+    let Some(wallet_construct_uuid) = action_item_requests
+        .get(&action_item_uuid)
+        .and_then(|a| a.construct_uuid)
+    else {
+        eprintln!("unable to retrieve {}", action_item_uuid);
+        // todo: log error
+        return None;
+    };
+    // // Retrieve the previous requests sent
+    // // and update their statuses.
+    let mut scoped_requests = vec![];
+    for (_, request) in action_item_requests.iter_mut() {
+        let Some(ref construct_uuid) = request.construct_uuid else {
+            continue;
+        };
+        if construct_uuid.eq(&wallet_construct_uuid) {
+            scoped_requests.push(request);
+        }
+    }
+    Some((wallet_construct_uuid, scoped_requests))
 }
 
 pub async fn reset_runbook_execution(

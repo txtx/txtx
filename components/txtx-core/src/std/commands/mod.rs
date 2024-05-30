@@ -1,5 +1,6 @@
 pub mod actions;
 
+use kit::types::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
 use txtx_addon_kit::types::frontend::{
@@ -56,18 +57,18 @@ impl CommandImplementation for Module {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
@@ -140,19 +141,19 @@ impl CommandImplementation for Input {
         uuid: &ConstructUuid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
-        if let Some(value) = args.get("value") {
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        if let Some(value) = args.get_value("value") {
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
-                    return Ok(());
+                    return Ok(vec![]);
                 }
             }
             if execution_context.review_input_values {
-                return Err(vec![ActionItemRequest::new(
+                return Ok(vec![ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(uuid.value()),
                     0,
@@ -162,15 +163,15 @@ impl CommandImplementation for Input {
                     ActionItemRequestType::ReviewInput,
                 )]);
             } else {
-                return Ok(());
+                return Ok(vec![]);
             }
         }
 
-        let (default_value, typing) = match args.get("default") {
+        let (default_value, typing) = match args.get_value("default") {
             Some(default_value) => {
                 for input_spec in spec.inputs.iter() {
                     if input_spec.name == "value" && input_spec.check_performed {
-                        return Ok(());
+                        return Ok(vec![]);
                     }
                 }
                 (
@@ -178,13 +179,13 @@ impl CommandImplementation for Input {
                     default_value.expect_primitive().get_type(),
                 )
             }
-            None => match args.get("type") {
-                Some(typing) => (None, serde_json::de::from_str(&typing.to_string()).unwrap()),
-                None => unreachable!("responsibility of 'check_instantiability'"),
-            },
+            None => {
+                let typing = args.get_expected_value("type")?;
+                (None, serde_json::de::from_str(&typing.to_string()).unwrap())
+            }
         };
 
-        return Err(vec![ActionItemRequest::new(
+        return Ok(vec![ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
             0,
@@ -201,15 +202,15 @@ impl CommandImplementation for Input {
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
-        if let Some(value) = args.get("value") {
+        if let Some(value) = args.get_value("value") {
             result.outputs.insert("value".to_string(), value.clone());
-        } else if let Some(default) = args.get("default") {
+        } else if let Some(default) = args.get_value("default") {
             result.outputs.insert("value".to_string(), default.clone());
         }
         return_synchronous_result(Ok(result))
@@ -261,25 +262,25 @@ impl CommandImplementation for Output {
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(), Vec<ActionItemRequest>> {
-        Ok(())
+    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        Ok(vec![])
     }
 
     fn execute(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &HashMap<String, Value>,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
-        let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
+        let value = args.get_expected_value("value")?;
         let mut result = CommandExecutionResult::new();
-        result.outputs.insert("value".to_string(), value);
+        result.outputs.insert("value".to_string(), value.clone());
         return_synchronous_result(Ok(result))
     }
 }
