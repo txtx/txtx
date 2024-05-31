@@ -1,7 +1,5 @@
-use std::{
-    collections::BTreeMap,
-    sync::{mpsc::channel, Arc, RwLock},
-};
+use std::{collections::BTreeMap, sync::Arc};
+use tokio::sync::Mutex;
 use txtx_core::{
     kit::{
         channel::{self, select},
@@ -70,7 +68,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, action_item_updates_rx) =
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
 
@@ -116,7 +115,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     });
 
     // Start runloop
-    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let block_store = Arc::new(Mutex::new(BTreeMap::new()));
 
     if cmd.web_console {
         // start web ui server
@@ -125,6 +124,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             runbook_name: runbook_name,
             runbook_description: runbook_description,
             block_store: block_store.clone(),
+            block_broadcaster: block_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         };
 
@@ -142,40 +142,34 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         });
     }
 
-    let _ = hiro_system_kit::thread_named("Blocks Store Update Runloop").spawn(move || loop {
-        select! {
-            recv(block_rx) -> msg => {
-                if let Ok(block_event) = msg {
-                  let Ok(mut block_store) = block_store.write() else {
-                    continue;
-                  };
+    let _ = tokio::spawn(async move {
+        loop {
+            select! {
+                recv(block_rx) -> msg => {
+                    if let Ok(block_event) = msg {
+                      let mut block_store = block_store.lock().await;
 
-                  match block_event {
-                    BlockEvent::Append(new_block) => {
-                      block_store.insert(new_block.uuid, new_block);
-                    },
-                    BlockEvent::Clear => {*block_store = BTreeMap::new();}
-                    BlockEvent::UpdateActionItems(updates) => {
-                        for update in updates.iter() {
-                            for (_, block) in block_store.iter_mut() {
-                              block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
-
+                      match block_event.clone() {
+                        BlockEvent::Append(new_block) => {
+                          block_store.insert(new_block.uuid.clone(), new_block.clone());
+                        },
+                        BlockEvent::Clear => {*block_store = BTreeMap::new();}
+                        BlockEvent::UpdateActionItems(updates) => {
+                            for update in updates.iter() {
+                              for (_, block) in block_store.iter_mut() {
+                                block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
+                              }
                             }
                         }
+                      }
+                      let _ = block_broadcaster.send(block_event.clone());
                     }
-                  }
-                }
-                let s = block_store.read().unwrap();
-                println!("block store: {}", serde_json::to_string(&*s).unwrap());
-            }
-            recv(action_item_updates_rx) -> msg => {
-                if let Ok(_new_action_update) = msg {
-                    // Retrieve item to update from store
                 }
             }
         }
     });
-    let (web_ui_tx, web_ui_rx) = channel();
+
+    let (web_ui_tx, web_ui_rx) = std::sync::mpsc::channel();
     match web_ui_rx.recv() {
         Ok(_) => {}
         Err(_) => {}

@@ -14,8 +14,8 @@ impl Query {
         "1.0"
     }
 
-    fn blocks(context: &Context) -> Vec<GqlBlock> {
-        let block_store = context.block_store.read().unwrap();
+    async fn blocks(context: &Context) -> Vec<GqlBlock> {
+        let block_store = context.block_store.lock().await;
         block_store.values().cloned().map(GqlBlock::new).collect()
     }
 
