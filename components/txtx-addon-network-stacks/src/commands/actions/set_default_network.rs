@@ -87,7 +87,7 @@ impl CommandImplementation for SetStacksGlobals {
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        unimplemented!()
+        Ok(vec![])
     }
 
     fn execute(

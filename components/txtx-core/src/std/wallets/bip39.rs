@@ -1,7 +1,7 @@
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionFutureResult};
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::{
-    WalletImplementation, WalletSpecification, WalletUsabilityFutureResult,
+    WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -61,7 +61,7 @@ impl WalletImplementation for StacksConnect {
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> WalletUsabilityFutureResult {
+    ) -> WalletActivabilityFutureResult {
         unimplemented!()
     }
 

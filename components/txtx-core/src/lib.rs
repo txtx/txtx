@@ -282,7 +282,7 @@ pub async fn start_runbook_runloop(
                             action_status,
                             action_type: ActionItemRequestType::ValidatePanel,
                         }],
-                        allow_batch_completion: true,
+                        allow_batch_completion: false,
                     });
                 }
 
@@ -506,18 +506,15 @@ pub async fn build_genesis_panel(
     .await?;
 
     let mut actions_groups = vec![];
-    for (group_title, actions) in wallet_groups.into_iter() {
-        for action in actions.iter() {
-            action_item_requests.insert(action.uuid.clone(), action.clone());
+    for (group_title, sub_groups) in wallet_groups.into_iter() {
+        for sub_group in sub_groups.iter() {
+            for action in sub_group.action_items.iter() {
+                action_item_requests.insert(action.uuid.clone(), action.clone());
+            }
         }
         actions_groups.push(ActionGroup {
             title: group_title.clone(),
-            sub_groups: {
-                vec![ActionSubGroup {
-                    allow_batch_completion: false,
-                    action_items: actions,
-                }]
-            },
+            sub_groups,
         });
     }
     groups.extend(actions_groups);

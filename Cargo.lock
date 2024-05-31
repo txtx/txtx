@@ -4446,6 +4446,7 @@ name = "txtx-addon-kit"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
+ "futures",
  "getrandom 0.2.13",
  "hcl-edit",
  "hex",

@@ -1,5 +1,3 @@
-use std::os::macos::raw::stat;
-
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
@@ -8,11 +6,11 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
-    ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ActionSubGroup,
+    ProvidePublicKeyRequest, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    WalletImplementation, WalletSpecification, WalletUsabilityFutureResult,
+    WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -87,7 +85,7 @@ impl WalletImplementation for StacksConnect {
         state: &mut ValueStore,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> WalletUsabilityFutureResult {
+    ) -> WalletActivabilityFutureResult {
         let _checked_public_key = state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _checked_address = state.get_expected_string(CHECKED_ADDRESS);
         let _checked_cost_provision = state.get_expected_uint(CHECKED_COST_PROVISION);
@@ -106,9 +104,9 @@ impl WalletImplementation for StacksConnect {
 
         let future = async move {
             let stacks_rpc = StacksRpc::new(&rpc_api_url);
-            let mut action_item_requests = vec![];
+            let mut action_items = vec![];
 
-            action_item_requests.push(ActionItemRequest::new(
+            action_items.push(ActionItemRequest::new(
                 &uuid.value(),
                 &Some(uuid.value()),
                 0,
@@ -124,7 +122,7 @@ impl WalletImplementation for StacksConnect {
             ));
 
             if let Some(ref expected_address) = expected_address {
-                action_item_requests.push(ActionItemRequest::new(
+                action_items.push(ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(uuid.value()),
                     0,
@@ -159,10 +157,13 @@ impl WalletImplementation for StacksConnect {
 
                     check_balance.description = balance.balance.clone();
                 }
-                action_item_requests.push(check_balance);
+                action_items.push(check_balance);
             }
 
-            Ok(action_item_requests)
+            Ok(vec![ActionSubGroup {
+                allow_batch_completion: false,
+                action_items,
+            }])
         };
         Ok(Box::pin(future))
     }

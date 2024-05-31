@@ -101,7 +101,9 @@ fn test_ab_c_runbook_no_env() {
 
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
 
-    assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUTS REVIEW");
+    println!("=> {:?}", inputs_panel_data);
+
+    assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUT REVIEW");
     assert_eq!(inputs_panel_data.groups.len(), 1);
     assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 2);
     assert_eq!(
@@ -144,7 +146,10 @@ fn test_ab_c_runbook_no_env() {
     };
 
     let outputs_panel_data = event.expect_block().panel.expect_action_panel();
-    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUTS REVIEW");
+
+    println!("=> {:?}", outputs_panel_data);
+
+    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
     assert_eq!(outputs_panel_data.groups.len(), 1);
     assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(

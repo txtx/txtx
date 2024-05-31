@@ -135,7 +135,6 @@ impl AddonContext {
             PreCommandSpecification::Atomic(command_spec) => {
                 let command_instance = CommandInstance {
                     specification: command_spec.clone(),
-                    state_machine: StateMachine::<CommandInstanceStateMachine>::new(),
                     name: command_name.to_string(),
                     block: block.clone(),
                     package_uuid: package_uuid.clone(),

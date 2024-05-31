@@ -3,6 +3,7 @@ use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
+use kit::types::frontend::ActionSubGroup;
 use petgraph::algo::toposort;
 use txtx_addon_kit::{
     hcl::{
@@ -129,16 +130,6 @@ pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIn
         if node == start_node {
             continue;
         }
-
-        match command_instance.state_machine.state() {
-            CommandInstanceStateMachineState::New | CommandInstanceStateMachineState::Failed => {}
-            _ => {
-                command_instance
-                    .state_machine
-                    .consume(&CommandInstanceStateMachineInput::ReEvaluate)
-                    .unwrap();
-            }
-        };
     }
 }
 
@@ -149,8 +140,8 @@ pub async fn run_wallets_evaluation(
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
-) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
-    let mut action_items: BTreeMap<String, Vec<ActionItemRequest>> = BTreeMap::new();
+) -> Result<BTreeMap<String, Vec<ActionSubGroup>>, Vec<Diagnostic>> {
+    let mut action_items: BTreeMap<String, Vec<ActionSubGroup>> = BTreeMap::new();
 
     let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
 
@@ -385,15 +376,6 @@ pub async fn run_commands_updating_defaults(
                 }
             }
 
-            match command_instance.state_machine.state() {
-                CommandInstanceStateMachineState::Evaluated
-                | CommandInstanceStateMachineState::Failed
-                | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
-                    continue;
-                }
-                _ => {}
-            }
-
             let evaluated_inputs_res = perform_inputs_evaluation(
                 command_instance,
                 &cached_dependency_execution_results,
@@ -402,14 +384,6 @@ pub async fn run_commands_updating_defaults(
                 &runbook,
                 runtime_ctx,
             );
-
-            println!(
-                "{} -> {:?}",
-                command_instance.name,
-                command_instance.state_machine.state()
-            );
-            println!("{:?}", evaluated_inputs_res);
-
             evaluated_inputs_res
         };
 
@@ -436,12 +410,7 @@ pub async fn run_commands_updating_defaults(
             match evaluated_inputs_res {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction => {
-                        command_instance
-                            .state_machine
-                            .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
-                            .unwrap();
-                    }
+                    CommandInputEvaluationStatus::NeedsUserInteraction => {}
                     CommandInputEvaluationStatus::Aborted(result) => {
                         let mut diags = vec![];
                         for (_k, res) in result.inputs.into_iter() {
@@ -491,19 +460,9 @@ pub async fn run_commands_updating_defaults(
                             }
                         }
                     }
-                    command_instance
-                        .state_machine
-                        .consume(&CommandInstanceStateMachineInput::Successful)
-                        .unwrap();
                     Ok(result)
                 }
-                Err(e) => {
-                    command_instance
-                        .state_machine
-                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
-                        .unwrap();
-                    Err(e)
-                }
+                Err(e) => Err(e),
             };
             execution_result
         };
@@ -584,13 +543,6 @@ pub async fn run_constructs_evaluation(
             .and_then(|addon| Some(addon.defaults.clone()))
             .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
 
-        match command_instance.state_machine.state() {
-            CommandInstanceStateMachineState::Failed => {
-                println!("continuing past failed state command");
-                continue;
-            }
-            _ => {}
-        }
         // in general we want to ignore previous input evaluation results when evaluating for outputs.
         // we want to recompute the whole graph in case anything has changed since our last traversal.
         // however, if there was a start_node provided, this evaluation was initiated from a user interaction
@@ -645,15 +597,6 @@ pub async fn run_constructs_evaluation(
             }
         }
 
-        match command_instance.state_machine.state() {
-            CommandInstanceStateMachineState::Evaluated
-            | CommandInstanceStateMachineState::Failed
-            | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
-                continue;
-            }
-            _ => {}
-        }
-
         let evaluated_inputs_res = perform_inputs_evaluation(
             command_instance,
             &cached_dependency_execution_results,
@@ -662,13 +605,6 @@ pub async fn run_constructs_evaluation(
             &runbook,
             runtime_ctx,
         );
-
-        println!(
-            "{} -> {:?}",
-            command_instance.name,
-            command_instance.state_machine.state()
-        );
-        println!("{:?}", evaluated_inputs_res);
 
         let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
@@ -680,12 +616,7 @@ pub async fn run_constructs_evaluation(
         match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
-                CommandInputEvaluationStatus::NeedsUserInteraction => {
-                    command_instance
-                        .state_machine
-                        .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
-                        .unwrap();
-                }
+                CommandInputEvaluationStatus::NeedsUserInteraction => {}
                 CommandInputEvaluationStatus::Aborted(result) => {
                     let mut diags = vec![];
                     for (_k, res) in result.inputs.into_iter() {
@@ -709,15 +640,17 @@ pub async fn run_constructs_evaluation(
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
-            match action_items.entry(command_instance.get_group()) {
-                Entry::Occupied(mut e) => {
-                    e.get_mut().append(new_items);
-                }
-                Entry::Vacant(e) => {
-                    e.insert(new_items.clone());
-                }
-            };
-            continue;
+            if !new_items.is_empty() {
+                match action_items.entry(command_instance.get_group()) {
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().append(new_items);
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert(new_items.clone());
+                    }
+                };
+                continue;
+            }
         }
 
         runbook
@@ -750,17 +683,17 @@ pub async fn run_constructs_evaluation(
                         }
                     }
                 }
-                command_instance
-                    .state_machine
-                    .consume(&CommandInstanceStateMachineInput::Successful)
-                    .unwrap();
+                // command_instance
+                //     .state_machine
+                //     .consume(&CommandInstanceStateMachineInput::Successful)
+                //     .unwrap();
                 Ok(result)
             }
             Err(e) => {
-                command_instance
-                    .state_machine
-                    .consume(&CommandInstanceStateMachineInput::Unsuccessful)
-                    .unwrap();
+                // command_instance
+                //     .state_machine
+                //     .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                //     .unwrap();
                 Err(e)
             }
         };

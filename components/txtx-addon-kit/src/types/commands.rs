@@ -429,7 +429,6 @@ pub enum CommandInstanceType {
 #[derive(Debug, Clone)]
 pub struct CommandInstance {
     pub specification: CommandSpecification,
-    pub state_machine: StateMachine<CommandInstanceStateMachine>,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
@@ -449,8 +448,6 @@ impl Serialize for CommandInstance {
         let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
-        let state = self.state_machine.state();
-        ser.serialize_field("state", &state)?;
         ser.serialize_field("packageUuid", &self.package_uuid)?;
         ser.serialize_field("namespace", &self.namespace)?;
         ser.serialize_field("typing", &self.typing)?;

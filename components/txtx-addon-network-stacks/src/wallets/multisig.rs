@@ -3,7 +3,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::{
-    WalletImplementation, WalletSpecification, WalletUsabilityFutureResult,
+    WalletImplementation, WalletSpecification, WalletActivabilityFutureResult,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -69,7 +69,9 @@ impl WalletImplementation for StacksConnect {
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> WalletUsabilityFutureResult {
+    ) -> WalletActivabilityFutureResult {
+        // Loop over the signers
+        // Ensuring that they are all correctly activable
         unimplemented!()
     }
 

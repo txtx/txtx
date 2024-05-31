@@ -18,6 +18,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
+        ActionSubGroup,
     },
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid, ValueStore,
@@ -54,10 +55,10 @@ pub type WalletActivabilityChecker = fn(
     &mut ValueStore,
     &AddonDefaults,
     &CommandExecutionContext,
-) -> WalletUsabilityFutureResult;
+) -> WalletActivabilityFutureResult;
 
-pub type WalletUsabilityFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<Vec<ActionItemRequest>, Diagnostic>> + Send>>,
+pub type WalletActivabilityFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<Vec<ActionSubGroup>, Diagnostic>> + Send>>,
     Diagnostic,
 >;
 
@@ -250,7 +251,7 @@ impl WalletInstance {
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+    ) -> Result<Vec<ActionSubGroup>, Diagnostic> {
         let mut values = ValueStore::new(&self.name);
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
@@ -405,7 +406,7 @@ pub trait WalletImplementation {
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> WalletUsabilityFutureResult;
+    ) -> WalletActivabilityFutureResult;
 
     fn activate(
         _uuid: &ConstructUuid,
