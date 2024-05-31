@@ -122,7 +122,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
-        let network_id = args.retrieve_value_using_defaults("network_id", defaults)?;
+        let network_id = args.get_defaulting_string("network_id", defaults)?;
 
         // Extract contract_address
         let contract_id_value = args.get_expected_value("contract_id")?;

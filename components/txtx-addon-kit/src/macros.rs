@@ -170,9 +170,6 @@ macro_rules! define_wallet {
             name: String::from($fn_name),
             matcher: String::from($matcher),
             documentation: String::from($doc),
-            accepts_arbitrary_inputs: false,
-            create_output_for_each_input: false,
-            update_addon_defaults: false,
             inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
@@ -189,11 +186,11 @@ macro_rules! define_wallet {
                 typing: $output_ts,
             }),*],
             check_instantiability: $func_key::check_instantiability,
-            check_executability: $func_key::check_executability,
             check_public_key_expectations: $func_key::check_public_key_expectations,
-            execute: Box::new($func_key::execute),
+            check_activability: $func_key::check_activability,
+            activate: Box::new($func_key::activate),
+            check_signability: $func_key::check_signability,
             sign: Box::new($func_key::sign),
-            check_sign_executability: $func_key::check_sign_executability,
             example: String::from($example),
         }
     }

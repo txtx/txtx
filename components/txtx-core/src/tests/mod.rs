@@ -209,12 +209,13 @@ fn test_wallet_runbook_no_env() {
     };
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
+    println!("{:?}", action_panel_data);
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 2);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        2
+        3
     );
     assert_eq!(action_panel_data.groups[1].sub_groups.len(), 1);
     assert_eq!(
@@ -253,7 +254,7 @@ fn test_wallet_runbook_no_env() {
     };
 
     let updates = event.expect_updated_action_items();
-    assert_eq!(updates.len(), 2);
+    assert_eq!(updates.len(), 3);
     assert_eq!(
         updates[0].new_status,
         ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
@@ -264,7 +265,6 @@ fn test_wallet_runbook_no_env() {
     );
 
     // Validate panel
-
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: start_runbook.uuid.clone(),
         payload: ActionItemResponseType::ValidatePanel,

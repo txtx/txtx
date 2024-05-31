@@ -17,7 +17,7 @@ lazy_static! {
             parts: [ENCODE_STACKS_CONTRACT_CALL.clone(), SIGN_STACKS_TRANSACTION.clone(), BROADCAST_STACKS_TRANSACTION.clone()],
             example: txtx_addon_kit::indoc! {r#"
               action "my_ref" "stacks::send_contract_call" {
-                  description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+                  description = "Encodes the contract call, sign, and broadcasts the set-token function."
                   contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                   function_name = "verify-and-update-price-feeds"
                   function_args = [

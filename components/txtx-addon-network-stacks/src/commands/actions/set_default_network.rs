@@ -36,7 +36,7 @@ lazy_static! {
                         optional: false,
                         interpolable: true
                     },
-                    stacks_api_url: {
+                    rpc_api_url: {
                         documentation: "A default Stacks API RPC URL to use.",
                         typing: Type::string(),
                         optional: false,
@@ -48,7 +48,7 @@ lazy_static! {
                 action "my_ref" "stacks::set_default_network" {
                     description = "Sets the default network id and Stacks API url."
                     network_id = "mainnet"
-                    stacks_api_url = "https://api.mainnet.hiro.so"
+                    rpc_api_url = "https://api.mainnet.hiro.so"
                 }
                 prompt "signed_bytes" "stacks::sign_transaction" {
                   transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
@@ -101,16 +101,15 @@ impl CommandImplementation for SetStacksGlobals {
         let mut result = CommandExecutionResult::new();
 
         let stacks_network = args.get_expected_string(NETWORK_ID)?;
-        let stacks_api_url = args.get_expected_string(RPC_API_URL)?;
+        let rpc_api_url = args.get_expected_string(RPC_API_URL)?;
 
         result
             .outputs
             .insert(NETWORK_ID.to_string(), Value::string(stacks_network.into()));
 
-        result.outputs.insert(
-            RPC_API_URL.to_string(),
-            Value::string(stacks_api_url.into()),
-        );
+        result
+            .outputs
+            .insert(RPC_API_URL.to_string(), Value::string(rpc_api_url.into()));
         return_synchronous_ok(result)
     }
 }

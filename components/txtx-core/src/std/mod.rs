@@ -10,6 +10,7 @@ use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
 
 pub mod commands;
 pub mod functions;
+pub mod wallets;
 
 #[derive(Debug)]
 pub struct StdAddon;
@@ -41,10 +42,6 @@ impl Addon for StdAddon {
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
         ACTIONS.clone()
-    }
-
-    fn get_prompts(&self) -> Vec<PreCommandSpecification> {
-        vec![]
     }
 
     fn get_wallets(&self) -> Vec<WalletSpecification> {

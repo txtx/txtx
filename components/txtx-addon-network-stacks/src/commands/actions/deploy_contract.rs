@@ -8,7 +8,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
-        types::{Type, Value},
+        types::Type,
         wallets::WalletInstance,
         ConstructUuid, ValueStore,
     },

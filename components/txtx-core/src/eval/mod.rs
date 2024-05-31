@@ -152,14 +152,7 @@ pub async fn run_wallets_evaluation(
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let mut action_items: BTreeMap<String, Vec<ActionItemRequest>> = BTreeMap::new();
 
-    let environments_variables = runbook.environment_variables_values.clone();
-    for (env_variable_uuid, value) in environments_variables.into_iter() {
-        let mut res = CommandExecutionResult::new();
-        res.outputs.insert("value".into(), Value::string(value));
-        runbook
-            .constructs_execution_results
-            .insert(env_variable_uuid, Ok(res));
-    }
+    let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
 
     let constructs_locations = runbook.constructs_locations.clone();
 
@@ -256,8 +249,8 @@ pub async fn run_wallets_evaluation(
             .get_mut(&construct_uuid.value())
             .unwrap_or(&mut empty_vec);
 
-        if let Ok(ref mut new_items) = wallet_instance
-            .check_usability(
+        let mut new_items = wallet_instance
+            .check_activability(
                 &construct_uuid,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
@@ -266,10 +259,12 @@ pub async fn run_wallets_evaluation(
                 execution_context,
             )
             .await
-        {
+            .map_err(|e| vec![e])?;
+
+        if !new_items.is_empty() {
             match action_items.entry(wallet_instance.get_group()) {
                 Entry::Occupied(mut e) => {
-                    e.get_mut().append(new_items);
+                    e.get_mut().append(&mut new_items);
                 }
                 Entry::Vacant(e) => {
                     e.insert(new_items.clone());
@@ -284,7 +279,7 @@ pub async fn run_wallets_evaluation(
 
         let execution_result = {
             wallet_instance
-                .perform_execution(
+                .perform_activation(
                     &construct_uuid,
                     &evaluated_inputs,
                     addon_defaults.clone(),
@@ -296,17 +291,6 @@ pub async fn run_wallets_evaluation(
         let execution_result = match execution_result {
             // todo(lgalabru): return Diagnostic instead
             Ok(result) => {
-                if wallet_instance.specification.update_addon_defaults {
-                    let addon_context_key =
-                        (package_uuid.clone(), wallet_instance.namespace.clone());
-                    if let Some(ref mut addon_context) =
-                        runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
-                    {
-                        for (k, v) in result.outputs.iter() {
-                            addon_context.defaults.keys.insert(k.clone(), v.to_string());
-                        }
-                    }
-                }
                 wallet_instance
                     .state
                     .consume(&CommandInstanceStateMachineInput::Successful)
@@ -325,7 +309,206 @@ pub async fn run_wallets_evaluation(
             .constructs_execution_results
             .insert(construct_uuid, execution_result);
     }
+
     Ok(action_items)
+}
+
+pub async fn run_commands_updating_defaults(
+    runbook: &mut Runbook,
+    runtime_ctx: &mut RuntimeContext,
+    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+) -> Result<(), Vec<Diagnostic>> {
+    // Update environment variables
+    let environments_variables = runbook.environment_variables_values.clone();
+    for (env_variable_uuid, value) in environments_variables.into_iter() {
+        let mut res = CommandExecutionResult::new();
+        res.outputs.insert("value".into(), Value::string(value));
+        runbook
+            .constructs_execution_results
+            .insert(env_variable_uuid, Ok(res));
+    }
+
+    let mut cached_dependency_execution_results = HashMap::new();
+
+    let input_evaluation_results = None;
+
+    // Run commands updating defaults
+    let construct_uuids = runbook
+        .commands_instances
+        .iter()
+        .map(|(c, _)| c.clone())
+        .collect::<Vec<_>>();
+
+    for construct_uuid in construct_uuids.iter() {
+        let evaluated_inputs_res = {
+            let command_instance = runbook.commands_instances.get(construct_uuid).unwrap();
+            if !command_instance.specification.update_addon_defaults {
+                continue;
+            }
+
+            let package_uuid = &command_instance.package_uuid;
+
+            // Retrieve the construct_uuid of the inputs
+            // Collect the outputs
+            let references_expressions: Vec<Expression> = command_instance
+                .get_expressions_referencing_commands_from_inputs()
+                .unwrap();
+
+            for expr in references_expressions.into_iter() {
+                let res = runbook
+                    .try_resolve_construct_reference_in_expression(
+                        &command_instance.package_uuid,
+                        &expr,
+                        &runtime_ctx,
+                    )
+                    .unwrap();
+
+                if let Some((dependency, _)) = res {
+                    let evaluation_result_opt =
+                        runbook.constructs_execution_results.get(&dependency);
+
+                    if let Some(evaluation_result) = evaluation_result_opt {
+                        match cached_dependency_execution_results.get(&dependency) {
+                            None => match evaluation_result {
+                                Ok(evaluation_result) => {
+                                    cached_dependency_execution_results
+                                        .insert(dependency, Ok(evaluation_result));
+                                }
+                                Err(e) => {
+                                    cached_dependency_execution_results.insert(dependency, Err(e));
+                                }
+                            },
+                            Some(Err(_)) => continue,
+                            Some(Ok(_)) => {}
+                        }
+                    }
+                }
+            }
+
+            match command_instance.state_machine.state() {
+                CommandInstanceStateMachineState::Evaluated
+                | CommandInstanceStateMachineState::Failed
+                | CommandInstanceStateMachineState::AwaitingAsyncRequest => {
+                    continue;
+                }
+                _ => {}
+            }
+
+            let evaluated_inputs_res = perform_inputs_evaluation(
+                command_instance,
+                &cached_dependency_execution_results,
+                &input_evaluation_results,
+                package_uuid,
+                &runbook,
+                runtime_ctx,
+            );
+
+            println!(
+                "{} -> {:?}",
+                command_instance.name,
+                command_instance.state_machine.state()
+            );
+            println!("{:?}", evaluated_inputs_res);
+
+            evaluated_inputs_res
+        };
+
+        let execution_result = {
+            let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
+                // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+                continue;
+            };
+
+            let addon_context_key = (
+                command_instance.package_uuid.clone(),
+                command_instance.namespace.clone(),
+            );
+
+            let addon_defaults = runtime_ctx
+                .addons_ctx
+                .contexts
+                .get(&addon_context_key)
+                .and_then(|addon| Some(addon.defaults.clone()))
+                .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+
+            let mut evaluated_inputs = CommandInputsEvaluationResult::new();
+
+            match evaluated_inputs_res {
+                Ok(result) => match result {
+                    CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
+                    CommandInputEvaluationStatus::NeedsUserInteraction => {
+                        command_instance
+                            .state_machine
+                            .consume(&CommandInstanceStateMachineInput::NeedsUserInput)
+                            .unwrap();
+                    }
+                    CommandInputEvaluationStatus::Aborted(result) => {
+                        let mut diags = vec![];
+                        for (_k, res) in result.inputs.into_iter() {
+                            if let Err(diag) = res {
+                                diags.push(diag);
+                            }
+                        }
+                        return Err(diags);
+                    }
+                },
+                Err(e) => {
+                    todo!("build input evaluation diagnostic: {}", e)
+                }
+            };
+
+            {
+                runbook
+                    .command_inputs_evaluation_results
+                    .insert(construct_uuid.clone(), evaluated_inputs.clone());
+            }
+            let execution_result = {
+                command_instance
+                    .perform_execution(
+                        &construct_uuid,
+                        &evaluated_inputs,
+                        addon_defaults.clone(),
+                        &HashMap::new(),
+                        progress_tx,
+                    )
+                    .await
+            };
+
+            let execution_result = match execution_result {
+                // todo(lgalabru): return Diagnostic instead
+                Ok(result) => {
+                    if command_instance.specification.update_addon_defaults {
+                        let addon_context_key = (
+                            command_instance.package_uuid.clone(),
+                            command_instance.namespace.clone(),
+                        );
+                        if let Some(ref mut addon_context) =
+                            runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                        {
+                            for (k, v) in result.outputs.iter() {
+                                println!("UPDATING {} {}", k, v.to_string());
+                                addon_context.defaults.keys.insert(k.clone(), v.to_string());
+                            }
+                        }
+                    }
+                    command_instance
+                        .state_machine
+                        .consume(&CommandInstanceStateMachineInput::Successful)
+                        .unwrap();
+                    Ok(result)
+                }
+                Err(e) => {
+                    command_instance
+                        .state_machine
+                        .consume(&CommandInstanceStateMachineInput::Unsuccessful)
+                        .unwrap();
+                    Err(e)
+                }
+            };
+            execution_result
+        };
+    }
+    Ok(())
 }
 
 pub async fn run_constructs_evaluation(
@@ -590,7 +773,7 @@ pub async fn run_constructs_evaluation(
 }
 
 pub fn collect_runbook_outputs(
-    block_uuid: &Uuid,
+    _block_uuid: &Uuid,
     runbook: &Runbook,
     _runtime_ctx: &RuntimeContext,
 ) -> BTreeMap<String, Vec<ActionItemRequest>> {

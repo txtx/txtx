@@ -99,7 +99,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
-        let network_id = args.retrieve_value_using_defaults("network_id", defaults)?;
+        let network_id = args.get_defaulting_string("network_id", defaults)?;
 
         let buffer = args.get_expected_buffer("bytes", &CLARITY_BUFFER)?;
 

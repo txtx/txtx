@@ -10,7 +10,7 @@ extern crate serde_derive;
 mod commands;
 mod constants;
 mod functions;
-mod rpc;
+pub mod rpc;
 mod stacks_helpers;
 mod typing;
 mod utils;
@@ -42,7 +42,7 @@ impl Addon for StacksNetworkAddon {
         txtx_addon_kit::indoc! {r#"
             The Stacks `txtx` plugin enables building Runbooks that interact with the Stacks blockchain. 
             The plugin provides utility functions that allow you to encode data in the proper Clarity format that is required by contracts on the Stacks blockchain.
-            The actions and prompts can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser wallet. 
+            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser wallet. 
             "#}
     }
 
@@ -56,10 +56,6 @@ impl Addon for StacksNetworkAddon {
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
         commands::actions::ACTIONS.clone()
-    }
-
-    fn get_prompts(&self) -> Vec<PreCommandSpecification> {
-        commands::prompts::PROMPTS.clone()
     }
 
     fn get_wallets(&self) -> Vec<WalletSpecification> {

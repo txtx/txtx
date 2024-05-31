@@ -10,7 +10,7 @@ use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
-    types::{PrimitiveValue, Type, Value},
+    types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;

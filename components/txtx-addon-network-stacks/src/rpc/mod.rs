@@ -187,7 +187,7 @@ impl StacksRpc {
     pub async fn get_balance(&self, address: &str) -> Result<Balance, RpcError> {
         let request_url = format!("{}/v2/accounts/{addr}", self.url, addr = address,);
 
-        let res: Balance = self
+        let mut res: Balance = self
             .client
             .get(request_url)
             .send()
@@ -196,6 +196,14 @@ impl StacksRpc {
             .json()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?;
+        let balance_bytes = txtx_addon_kit::hex::decode(&res.balance[2..]).unwrap();
+
+        let mut bytes = [0u8; 16];
+        let offset = 16 - balance_bytes.len();
+        for (i, &byte) in balance_bytes.iter().enumerate() {
+            bytes[offset + i] = byte;
+        }
+        res.balance = format!("{}", u128::from_be_bytes(bytes));
         Ok(res)
     }
 

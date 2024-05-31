@@ -111,7 +111,7 @@ impl ValueStore {
         }
     }
 
-    pub fn retrieve_value_using_defaults(
+    pub fn get_defaulting_string(
         &self,
         key: &str,
         defaults: &AddonDefaults,

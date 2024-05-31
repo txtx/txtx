@@ -5,6 +5,7 @@ pub const EXPECTED_ADDRESS: &str = "expected_address";
 pub const CHECKED_COST_PROVISION: &str = "checked_costs";
 pub const FETCHED_BALANCE: &str = "fetched_balance";
 pub const FETCHED_NONCE: &str = "fetched_nonce";
+pub const PUBLIC_KEYS: &str = "public_keys";
 
 // Defaults keys
 pub const NETWORK_ID: &str = "network_id";

@@ -36,7 +36,7 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
-                stacks_api_url: {
+                rpc_api_url: {
                     documentation: "The URL of the Stacks API to broadcast to.",
                     typing: Type::string(),
                     optional: false,
@@ -81,11 +81,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
             };
             let api_url = args
-                .get("stacks_api_url")
+                .get("rpc_api_url")
                 .and_then(|a| Some(a.expect_string()))
-                .or(defaults.keys.get("stacks_api_url").map(|x| x.as_str()))
+                .or(defaults.keys.get("rpc_api_url").map(|x| x.as_str()))
                 .ok_or(Diagnostic::error_from_string(format!(
-                    "Key 'stacks_api_url' is missing"
+                    "Key 'rpc_api_url' is missing"
                 )))?
                 .to_string();
 

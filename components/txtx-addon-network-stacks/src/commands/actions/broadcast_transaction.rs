@@ -32,7 +32,7 @@ lazy_static! {
                   optional: false,
                   interpolable: true
                 },
-                stacks_api_url: {
+                rpc_api_url: {
                   documentation: "The URL of the Stacks API to broadcast to.",
                   typing: Type::string(),
                   optional: true,
@@ -127,7 +127,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
-        let rpc_api_url = args.retrieve_value_using_defaults(RPC_API_URL, defaults)?;
+        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let future = async move {
             let mut s = String::from("0x");
