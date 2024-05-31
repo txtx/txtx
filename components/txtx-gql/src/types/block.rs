@@ -1,9 +1,70 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionSubGroup, Block, Panel,
+    ActionGroup, ActionItemRequest, ActionSubGroup, Block, BlockEvent, Panel, SetActionItemStatus,
 };
 
+#[derive(Clone)]
+pub enum GqlBlockEvent {
+    Append(GqlBlock),
+    Clear,
+    UpdateActionItems(Vec<GqlSetActionItemStatus>),
+}
+impl GqlBlockEvent {
+    pub fn new(block_event: BlockEvent) -> Self {
+        match block_event {
+            BlockEvent::Append(block) => GqlBlockEvent::Append(GqlBlock::new(block)),
+            BlockEvent::Clear => GqlBlockEvent::Clear,
+            BlockEvent::UpdateActionItems(updates) => GqlBlockEvent::UpdateActionItems(
+                updates
+                    .into_iter()
+                    .map(GqlSetActionItemStatus::new)
+                    .collect(),
+            ),
+        }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlBlockEvent {
+    pub fn append(&self) -> Option<GqlBlock> {
+        match self {
+            GqlBlockEvent::Append(block) => Some(block.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn update_action_items(&self) -> Option<Vec<GqlSetActionItemStatus>> {
+        match self {
+            GqlBlockEvent::UpdateActionItems(updates) => Some(updates.to_vec()),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GqlSetActionItemStatus {
+    set_action_item_status: SetActionItemStatus,
+}
+impl GqlSetActionItemStatus {
+    pub fn new(update: SetActionItemStatus) -> Self {
+        GqlSetActionItemStatus {
+            set_action_item_status: update,
+        }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlSetActionItemStatus {
+    pub fn action_item_uuid(&self) -> String {
+        self.set_action_item_status.action_item_uuid.to_string()
+    }
+    pub fn new_status(&self) -> Result<String, String> {
+        serde_json::to_string(&self.set_action_item_status.new_status).map_err(|e| e.to_string())
+    }
+}
+
+#[derive(Clone)]
 pub struct GqlBlock {
     block: Block,
 }
