@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
+use kit::types::frontend::ProvideSignedTransactionResponse;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     hiro_system_kit,
@@ -280,5 +281,29 @@ fn test_wallet_runbook_no_env() {
         panic!()
     };
 
-    let updates = event.expect_updated_action_items();
+    let action_panel_data = event.expect_block().panel.expect_action_panel();
+    assert_eq!(action_panel_data.title, "Sign Stacks Transaction Review");
+    assert_eq!(action_panel_data.groups.len(), 1);
+    println!("=>> {:?}", action_panel_data.groups[0].sub_groups);
+    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[0].action_items.len(),
+        1
+    );
+
+
+    // Validate panel
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: start_runbook.uuid.clone(),
+        payload: ActionItemResponseType::ProvideSignedTransaction(ProvideSignedTransactionResponse {
+            signed_transaction_bytes: "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374".into(),
+        }),
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    println!("-> {:?}", event);
 }

@@ -349,6 +349,16 @@ pub async fn start_runbook_runloop(
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 
+                let mut groups = run_constructs_evaluation(
+                    runbook,
+                    runtime_context,
+                    None,
+                    &execution_context,
+                    &action_item_responses,
+                    &progress_tx,
+                )
+                .await?;
+
                 // let _ = run_wallets_evaluation(
                 //     runbook,
                 //     runtime_context,

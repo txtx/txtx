@@ -314,4 +314,6 @@ pub struct ProvidePublicKeyResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvideSignedTransactionResponse {}
+pub struct ProvideSignedTransactionResponse {
+    pub signed_transaction_bytes: String,
+}

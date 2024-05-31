@@ -7,6 +7,7 @@ use crate::{
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
+    types::commands::return_synchronous_ok,
     AddonDefaults,
 };
 
@@ -275,56 +276,62 @@ impl WalletInstance {
         }
 
         match action_item_responses {
-            Some(responses) => responses.iter().for_each(|response| match response {
-                ActionItemResponseType::ProvidePublicKey(update) => {
-                    let public_key_bytes =
-                        hex::decode(&update.public_key).expect("unable to decode bytes");
+            Some(responses) => {
+                for response in responses.iter() {
+                    match response {
+                        ActionItemResponseType::ProvidePublicKey(update) => {
+                            let public_key_bytes: Vec<u8> =
+                                hex::decode(&update.public_key).expect("unable to decode bytes");
 
-                    input_evaluation_results.inputs.insert(
-                        "public_key".into(),
-                        Ok(Value::string(update.public_key.clone())),
-                    );
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name.eq("public_key") {
-                            input.check_performed = true;
-                            break;
-                        }
-                    }
-
-                    let res = ((&self.specification).check_public_key_expectations)(
-                        &construct_uuid,
-                        &self.name,
-                        &public_key_bytes,
-                        &self.specification,
-                        &values,
-                        &addon_defaults,
-                        &execution_context,
-                    );
-
-                    self.store
-                        .insert("public_key", Value::string(update.public_key.clone()));
-
-                    for request in action_item_requests.iter_mut() {
-                        let (status, success) = match &res {
-                            Ok(message) => (ActionItemStatus::Success(message.clone()), true),
-                            Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
-                        };
-
-                        match request.action_type {
-                            ActionItemRequestType::ReviewInput => {
-                                request.action_status = status.clone();
-                            }
-                            ActionItemRequestType::ProvidePublicKey(_) => {
-                                if success {
-                                    request.action_status = status.clone();
+                            input_evaluation_results.inputs.insert(
+                                "public_key".into(),
+                                Ok(Value::string(update.public_key.clone())),
+                            );
+                            for input in self.specification.inputs.iter_mut() {
+                                if input.name.eq("public_key") {
+                                    input.check_performed = true;
+                                    break;
                                 }
                             }
-                            _ => unreachable!(),
+
+                            let res = ((&self.specification).check_public_key_expectations)(
+                                &construct_uuid,
+                                &self.name,
+                                &public_key_bytes,
+                                &self.specification,
+                                &values,
+                                &addon_defaults,
+                                &execution_context,
+                            );
+
+                            values.insert("public_key", Value::string(update.public_key.clone()));
+
+                            for request in action_item_requests.iter_mut() {
+                                let (status, success) = match &res {
+                                    Ok(message) => {
+                                        (ActionItemStatus::Success(message.clone()), true)
+                                    }
+                                    Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
+                                };
+
+                                match request.action_type {
+                                    ActionItemRequestType::ReviewInput => {
+                                        request.action_status = status.clone();
+                                    }
+                                    ActionItemRequestType::ProvidePublicKey(_) => {
+                                        if success {
+                                            request.action_status = status.clone();
+                                        }
+                                    }
+                                    _ => unreachable!(),
+                                }
+                            }
+                            return Ok(vec![]);
                         }
+                        _ => {}
                     }
                 }
-                _ => {}
-            }),
+            }
             None => {}
         }
 
@@ -350,24 +357,13 @@ impl WalletInstance {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         // todo: I don't think this one needs to be a result
         let mut values = ValueStore::new(&self.name);
-        for input in self.specification.inputs.iter() {
-            let value = match evaluated_inputs.inputs.get(&input.name) {
-                Some(Ok(value)) => Ok(value.clone()),
-                Some(Err(e)) => Err(Diagnostic {
-                    span: None,
-                    location: None,
-                    message: format!("Cannot execute command due to erroring inputs"),
-                    level: DiagnosticLevel::Error,
-                    documentation: None,
-                    example: None,
-                    parent_diagnostic: Some(Box::new(e.clone())),
-                }),
-                None => match input.optional {
-                    true => continue,
-                    false => unreachable!(), // todo(lgalabru): return diagnostic
-                },
-            }?;
-            values.insert(&input.name, value);
+        for (key, value_res) in evaluated_inputs.inputs.iter() {
+            match value_res {
+                Ok(value) => {
+                    values.insert(&key, value.clone());
+                }
+                Err(diag) => return Err(diag.clone()),
+            };
         }
         (&self.specification.activate)(
             &construct_uuid,
