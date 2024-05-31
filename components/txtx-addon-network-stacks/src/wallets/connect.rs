@@ -23,10 +23,9 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     CHECKED_ADDRESS, CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, DEFAULT_MESSAGE, EXPECTED_ADDRESS,
-    FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL,
+    FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
-use crate::typing::CLARITY_BUFFER;
 
 lazy_static! {
     pub static ref STACKS_CONNECT: WalletSpecification = define_wallet! {
@@ -197,34 +196,35 @@ impl WalletImplementation for StacksConnect {
         title: &str,
         payload: &Value,
         _spec: &WalletSpecification,
-        _args: &ValueStore,
-        state: &ValueStore,
-        _defaults: &AddonDefaults,
+        args: &ValueStore,
+        state: &mut ValueStore,
+        defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        let key = caller_uuid.value().to_string();
-        let ations_items = match state.get_expected_buffer(&key, &CLARITY_BUFFER) {
-            Ok(r) => vec![],
-            Err(_) => {
-                vec![ActionItemRequest::new(
-                    &Uuid::new_v4(),
-                    &Some(caller_uuid.value()),
-                    0,
-                    title,
-                    "", //payload,
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::ProvideSignedTransaction(
-                        ProvideSignedTransactionRequest {
-                            check_expectation_action_uuid: Some(caller_uuid.value()), // todo: this is the wrong uuid
-                            payload: payload.clone(),
-                            namespace: "stacks".to_string(),
-                            network_id: "".to_string(),
-                        },
-                    ),
-                )]
-            }
+        let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) else {
+            let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+            return Ok(vec![ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(caller_uuid.value()),
+                0,
+                title,
+                "", //payload,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
+                    check_expectation_action_uuid: Some(caller_uuid.value()), // todo: this is the wrong uuid
+                    payload: payload.clone(),
+                    namespace: "stacks".to_string(),
+                    network_id,
+                }),
+            )]);
         };
-        Ok(ations_items)
+        // signed_transaction_bytes
+        state.insert(
+            &caller_uuid.value().to_string(),
+            signed_transaction_bytes.clone(),
+        );
+
+        Ok(vec![])
     }
 
     fn sign(
@@ -239,10 +239,9 @@ impl WalletImplementation for StacksConnect {
         let mut result = CommandExecutionResult::new();
         let key = caller_uuid.value().to_string();
         let signed_transaction = state.get_expected_value(&key)?;
-        result.outputs.insert(
-            "signed_transaction_bytes".into(),
-            signed_transaction.clone(),
-        );
+        result
+            .outputs
+            .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
         return_synchronous_result(Ok(result))
     }
 

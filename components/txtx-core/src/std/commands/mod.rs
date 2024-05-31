@@ -17,7 +17,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
-        types::{Type, Value},
+        types::Type,
         ConstructUuid,
     },
     AddonDefaults,
@@ -59,7 +59,7 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
@@ -143,7 +143,7 @@ impl CommandImplementation for Input {
         spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         if let Some(value) = args.get_value("value") {
@@ -264,7 +264,7 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         Ok(vec![])

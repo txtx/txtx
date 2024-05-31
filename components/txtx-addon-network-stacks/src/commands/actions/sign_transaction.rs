@@ -29,7 +29,7 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{NETWORK_ID, PUBLIC_KEYS};
+use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
 
 lazy_static! {
@@ -99,16 +99,10 @@ impl CommandImplementation for SignStacksTransaction {
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        if let Ok(signed_transaction_bytes) =
-            args.get_expected_buffer("signed_transaction_btyes", &CLARITY_BUFFER)
-        {
-            // check signature matching
-            return Ok(vec![]);
-        }
-        let wallet = get_wallet(spec, args, wallet_instances)?;
+        let wallet = get_wallet_mut(spec, args, wallet_instances)?;
         let transaction = build_unsigned_transaction(wallet, spec, args, defaults)?;
 
         let mut bytes = vec![];
@@ -121,7 +115,7 @@ impl CommandImplementation for SignStacksTransaction {
             &payload,
             &wallet.specification,
             &args,
-            &wallet.store,
+            &mut wallet.store,
             &defaults,
             execution_context,
         )
@@ -133,12 +127,12 @@ impl CommandImplementation for SignStacksTransaction {
         args: &ValueStore,
         defaults: &AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> CommandExecutionFutureResult {
-        if let Ok(signed_transaction_bytes) = args.get_expected_value("signed_transaction_btyes") {
+        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(
-                "signed_transaction_bytes".to_string(),
+                SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
             return return_synchronous_result(Ok(result));
@@ -163,6 +157,23 @@ impl CommandImplementation for SignStacksTransaction {
     }
 }
 
+fn get_wallet_mut<'a>(
+    spec: &CommandSpecification,
+    args: &ValueStore,
+    wallet_instances: &'a mut HashMap<ConstructUuid, WalletInstance>,
+) -> Result<&'a mut WalletInstance, Diagnostic> {
+    let signer = args.get_expected_string("signer")?;
+    let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
+    let wallet = wallet_instances
+        .get_mut(&wallet_uuid)
+        .ok_or(Diagnostic::error_from_string(format!(
+            "command '{}': wallet named '{}' not found",
+            spec.matcher, &signer
+        )))
+        .unwrap();
+    Ok(wallet)
+}
+
 fn get_wallet<'a>(
     spec: &CommandSpecification,
     args: &ValueStore,
@@ -182,7 +193,7 @@ fn get_wallet<'a>(
 
 fn build_unsigned_transaction(
     wallet: &WalletInstance,
-    spec: &CommandSpecification,
+    _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {

@@ -1,4 +1,4 @@
-use rust_fsm::{state_machine, StateMachine};
+use rust_fsm::state_machine;
 use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
@@ -329,7 +329,7 @@ pub type ExecutabilityChecker = fn(
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &HashMap<ConstructUuid, WalletInstance>,
+    &mut HashMap<ConstructUuid, WalletInstance>,
     &CommandExecutionContext,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic>;
 
@@ -358,7 +358,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         Ok(vec![])
@@ -596,10 +596,12 @@ impl CommandInstance {
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+        let mut values = ValueStore::new(&format!("{}_inputs", self.specification.matcher));
+
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(|response| match response {
                 ActionItemResponseType::ReviewInput(update) => {
@@ -621,12 +623,17 @@ impl CommandInstance {
                         }
                     }
                 }
+                ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                    values.insert(
+                        "signed_transaction_bytes",
+                        Value::string(bytes.signed_transaction_bytes.clone()),
+                    );
+                }
                 _ => {}
             }),
             None => {}
         }
 
-        let mut values = ValueStore::new(&format!("{}_inputs", self.specification.matcher));
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -655,7 +662,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
-            &wallet_instances,
+            wallet_instances,
             &execution_context,
         )
     }
@@ -689,7 +696,7 @@ impl CommandInstance {
             values.insert(&input.name, value);
         }
 
-        (&self.specification.execute)(
+        let res = (&self.specification.execute)(
             &construct_uuid,
             &self.specification,
             &values,
@@ -697,7 +704,9 @@ impl CommandInstance {
             &wallet_instances,
             progress_tx,
         )?
-        .await
+        .await;
+
+        res
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {

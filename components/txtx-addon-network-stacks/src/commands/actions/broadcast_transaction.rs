@@ -16,7 +16,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
+use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
 use crate::typing::{CLARITY_BUFFER, CLARITY_VALUE};
 
 lazy_static! {
@@ -104,7 +104,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()
@@ -121,7 +121,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();
         let transaction_bytes =
-            args.get_expected_buffer("signed_transaction_bytes", &CLARITY_BUFFER)?;
+            args.get_expected_buffer(SIGNED_TRANSACTION_BYTES, &CLARITY_BUFFER)?;
 
         let confirmations_required = args
             .get_expected_uint("confirmations")

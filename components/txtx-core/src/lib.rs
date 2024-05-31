@@ -305,7 +305,7 @@ pub async fn start_runbook_runloop(
             }
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(_) => {}
-            ActionItemResponseType::ProvidePublicKey(response) => {
+            ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((wallet_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
@@ -336,7 +336,7 @@ pub async fn start_runbook_runloop(
                     .collect::<Vec<_>>();
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
-            ActionItemResponseType::ProvideSignedTransaction(response) => {
+            ActionItemResponseType::ProvideSignedTransaction(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((signing_action_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
@@ -349,7 +349,7 @@ pub async fn start_runbook_runloop(
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 
-                let mut groups = run_constructs_evaluation(
+                let _ = run_constructs_evaluation(
                     runbook,
                     runtime_context,
                     None,
@@ -358,17 +358,6 @@ pub async fn start_runbook_runloop(
                     &progress_tx,
                 )
                 .await?;
-
-                // let _ = run_wallets_evaluation(
-                //     runbook,
-                //     runtime_context,
-                //     &execution_context,
-                //     &mut map,
-                //     &action_item_responses,
-                //     &progress_tx,
-                // )
-                // .await?;
-
                 let scoped_updated_requests = map.get(&signing_action_construct_uuid).unwrap();
                 let updated_actions = scoped_updated_requests
                     .iter()

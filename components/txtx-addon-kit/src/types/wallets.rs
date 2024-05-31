@@ -7,7 +7,6 @@ use crate::{
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
-    types::commands::return_synchronous_ok,
     AddonDefaults,
 };
 
@@ -72,7 +71,7 @@ pub type WalletSignabilityChecker = fn(
     &Value,
     &WalletSpecification,
     &ValueStore,
-    &ValueStore,
+    &mut ValueStore,
     &AddonDefaults,
     &CommandExecutionContext,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic>;
@@ -419,7 +418,7 @@ pub trait WalletImplementation {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &ValueStore,
+        _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {

@@ -13,7 +13,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionContext, CommandExecutionResult, CommandInputsEvaluationResult,
-            CommandInstance, CommandInstanceStateMachineInput, CommandInstanceStateMachineState,
+            CommandInstance, CommandInstanceStateMachineInput,
         },
         diagnostics::Diagnostic,
         frontend::{
@@ -481,7 +481,6 @@ pub async fn run_constructs_evaluation(
     let g = runbook.constructs_graph.clone();
 
     let mut action_items: BTreeMap<String, Vec<ActionItemRequest>> = BTreeMap::new();
-    let wallet_instances = runbook.wallet_instances.clone();
 
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -636,7 +635,7 @@ pub async fn run_constructs_evaluation(
             &construct_uuid,
             &mut evaluated_inputs,
             addon_defaults.clone(),
-            &wallet_instances,
+            &mut runbook.wallet_instances,
             &action_item_responses.get(&construct_uuid.value()),
             execution_context,
         ) {
@@ -663,7 +662,7 @@ pub async fn run_constructs_evaluation(
                     &construct_uuid,
                     &evaluated_inputs,
                     addon_defaults.clone(),
-                    &wallet_instances,
+                    &runbook.wallet_instances,
                     progress_tx,
                 )
                 .await

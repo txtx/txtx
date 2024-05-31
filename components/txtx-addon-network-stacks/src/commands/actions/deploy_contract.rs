@@ -57,7 +57,7 @@ impl CommandImplementation for StacksDeployContract {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         unimplemented!()

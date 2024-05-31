@@ -231,7 +231,7 @@ fn test_wallet_runbook_no_env() {
 
     let get_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     assert_eq!(get_public_key.action_status, ActionItemStatus::Todo);
-    let ActionItemRequestType::ProvidePublicKey(request) = &get_public_key.action_type else {
+    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key.action_type else {
         panic!("expected provide public key request");
     };
 
@@ -290,11 +290,12 @@ fn test_wallet_runbook_no_env() {
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
         1
     );
+    let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[0];
 
 
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
+        action_item_uuid: action_item_uuid.uuid.clone(),
         payload: ActionItemResponseType::ProvideSignedTransaction(ProvideSignedTransactionResponse {
             signed_transaction_bytes: "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374".into(),
         }),

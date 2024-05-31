@@ -82,7 +82,7 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &ValueStore,
+        _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
