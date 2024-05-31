@@ -3,8 +3,9 @@ use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel::{self, select},
-        types::frontend::{
-            ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
+        types::{
+            diagnostics::Diagnostic,
+            frontend::{ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent},
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
@@ -95,12 +96,13 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     let interactive_by_default = cmd.web_console;
     let environments = manifest.environments.clone();
 
+    let moved_block_tx = block_tx.clone();
     // Start runloop
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
-            block_tx,
+            moved_block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
@@ -116,8 +118,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
 
-    if cmd.web_console {
+    let web_ui_handle = if cmd.web_console {
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: manifest.name,
@@ -135,12 +138,17 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             green!(format!("http://127.0.0.1:{}", port))
         );
 
-        let _ = web_ui::http::start_server(gql_context, port, ctx).await;
+        let handle = web_ui::http::start_server(gql_context, port, ctx)
+            .await
+            .map_err(|e| format!("Failed to start web ui: {e}"))?;
         let _ = action_item_events_tx.send(ActionItemResponse {
             action_item_uuid: SET_ENV_UUID.clone(),
             payload: ActionItemResponseType::PickInputOption("staging".to_string()),
         });
-    }
+        Some(handle)
+    } else {
+        None
+    };
 
     let _ = tokio::spawn(async move {
         loop {
@@ -160,7 +168,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                                 block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
                               }
                             }
-                        }
+                        },
+                        BlockEvent::Exit => break
                       }
                       let _ = block_broadcaster.send(block_event.clone());
                     }
@@ -169,12 +178,23 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         }
     });
 
-    let (web_ui_tx, web_ui_rx) = std::sync::mpsc::channel();
-    match web_ui_rx.recv() {
-        Ok(_) => {}
-        Err(_) => {}
-    };
-    let _ = web_ui_tx.send(true);
+    let _ = tokio::spawn(async move {
+        match kill_loops_rx.recv() {
+            Ok(_) => {
+                if let Some(handle) = web_ui_handle {
+                    let _ = handle.stop(true).await;
+                }
+                let _ = block_tx.send(BlockEvent::Exit);
+            }
+            Err(_) => {}
+        };
+    });
+    ctrlc::set_handler(move || {
+        kill_loops_tx
+            .send(true)
+            .expect("Could not send signal on channel to kill web ui.")
+    })
+    .expect("Error setting Ctrl-C handler");
 
     Ok(())
 }

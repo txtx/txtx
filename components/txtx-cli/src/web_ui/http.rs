@@ -1,5 +1,6 @@
 use crate::cli::Context;
 use actix_cors::Cors;
+use actix_web::dev::ServerHandle;
 use actix_web::http::header::{self};
 use actix_web::web::{self, Data};
 use actix_web::Error;
@@ -19,7 +20,7 @@ pub async fn start_server(
     gql_context: GraphContext,
     port: u16,
     _ctx: &Context,
-) -> Result<(), Box<dyn StdError>> {
+) -> Result<ServerHandle, Box<dyn StdError>> {
     let gql_context = Data::new(gql_context);
 
     let server = HttpServer::new(move || {
@@ -47,10 +48,10 @@ pub async fn start_server(
     .workers(5)
     .bind(&format!("127.0.0.1:{port}"))?
     .run();
-    let _handle = server.handle();
+    let handle = server.handle();
     tokio::spawn(server);
 
-    Ok(())
+    Ok(handle)
 }
 
 async fn playground() -> Result<HttpResponse, Error> {

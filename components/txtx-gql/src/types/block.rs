@@ -21,6 +21,7 @@ impl GqlBlockEvent {
                     .map(GqlSetActionItemStatus::new)
                     .collect(),
             ),
+            BlockEvent::Exit => unreachable!(),
         }
     }
 }

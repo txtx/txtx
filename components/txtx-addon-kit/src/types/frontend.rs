@@ -12,6 +12,7 @@ pub enum BlockEvent {
     Append(Block),
     Clear,
     UpdateActionItems(Vec<SetActionItemStatus>),
+    Exit,
 }
 
 #[derive(Debug, Clone, Serialize)]
