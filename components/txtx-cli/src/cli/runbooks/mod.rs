@@ -1,12 +1,11 @@
-use std::{
-    collections::BTreeMap,
-    sync::{mpsc::channel, Arc, RwLock},
-};
+use std::{collections::BTreeMap, sync::Arc};
+use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel::{self, select},
-        types::frontend::{
-            ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
+        types::{
+            diagnostics::Diagnostic,
+            frontend::{ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent},
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
@@ -70,7 +69,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, action_item_updates_rx) =
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
 
@@ -96,12 +96,13 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     let interactive_by_default = cmd.web_console;
     let environments = manifest.environments.clone();
 
+    let moved_block_tx = block_tx.clone();
     // Start runloop
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
-            block_tx,
+            moved_block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
@@ -117,14 +118,16 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
 
-    if cmd.web_console {
+    let web_ui_handle = if cmd.web_console {
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: manifest.name,
             runbook_name: runbook_name,
             runbook_description: runbook_description,
             block_store: block_store.clone(),
+            block_broadcaster: block_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         };
 
@@ -135,52 +138,63 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             green!(format!("http://127.0.0.1:{}", port))
         );
 
-        let _ = web_ui::http::start_server(gql_context, port, ctx).await;
+        let handle = web_ui::http::start_server(gql_context, port, ctx)
+            .await
+            .map_err(|e| format!("Failed to start web ui: {e}"))?;
         let _ = action_item_events_tx.send(ActionItemResponse {
             action_item_uuid: SET_ENV_UUID.clone(),
             payload: ActionItemResponseType::PickInputOption("staging".to_string()),
         });
-    }
+        Some(handle)
+    } else {
+        None
+    };
 
-    let _ = hiro_system_kit::thread_named("Blocks Store Update Runloop").spawn(move || loop {
-        select! {
-            recv(block_rx) -> msg => {
-                if let Ok(block_event) = msg {
-                  let Ok(mut block_store) = block_store.write() else {
-                    continue;
-                  };
+    let _ = tokio::spawn(async move {
+        loop {
+            select! {
+                recv(block_rx) -> msg => {
+                    if let Ok(block_event) = msg {
+                      let mut block_store = block_store.write().await;
 
-                  match block_event {
-                    BlockEvent::Append(new_block) => {
-                      block_store.insert(new_block.uuid, new_block);
-                    },
-                    BlockEvent::Clear => {*block_store = BTreeMap::new();}
-                    BlockEvent::UpdateActionItems(updates) => {
-                        for update in updates.iter() {
-                            for (_, block) in block_store.iter_mut() {
-                              block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
-
+                      match block_event.clone() {
+                        BlockEvent::Append(new_block) => {
+                          block_store.insert(new_block.uuid.clone(), new_block.clone());
+                        },
+                        BlockEvent::Clear => {*block_store = BTreeMap::new();}
+                        BlockEvent::UpdateActionItems(updates) => {
+                            for update in updates.iter() {
+                              for (_, block) in block_store.iter_mut() {
+                                block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
+                              }
                             }
-                        }
+                        },
+                        BlockEvent::Exit => break
+                      }
+                      let _ = block_broadcaster.send(block_event.clone());
                     }
-                  }
-                }
-                let s = block_store.read().unwrap();
-                println!("block store: {}", serde_json::to_string(&*s).unwrap());
-            }
-            recv(action_item_updates_rx) -> msg => {
-                if let Ok(_new_action_update) = msg {
-                    // Retrieve item to update from store
                 }
             }
         }
     });
-    let (web_ui_tx, web_ui_rx) = channel();
-    match web_ui_rx.recv() {
-        Ok(_) => {}
-        Err(_) => {}
-    };
-    let _ = web_ui_tx.send(true);
+
+    let _ = tokio::spawn(async move {
+        match kill_loops_rx.recv() {
+            Ok(_) => {
+                if let Some(handle) = web_ui_handle {
+                    let _ = handle.stop(true).await;
+                }
+                let _ = block_tx.send(BlockEvent::Exit);
+            }
+            Err(_) => {}
+        };
+    });
+    ctrlc::set_handler(move || {
+        kill_loops_tx
+            .send(true)
+            .expect("Could not send signal on channel to kill web ui.")
+    })
+    .expect("Error setting Ctrl-C handler");
 
     Ok(())
 }

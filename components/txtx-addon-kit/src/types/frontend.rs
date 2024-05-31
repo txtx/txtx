@@ -7,14 +7,16 @@ use super::{
 use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum BlockEvent {
     Append(Block),
     Clear,
     UpdateActionItems(Vec<SetActionItemStatus>),
+    Exit,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetActionItemStatus {
     pub action_item_uuid: Uuid,
     pub new_status: ActionItemStatus,
