@@ -1,5 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel::{self, select},
@@ -115,7 +115,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     });
 
     // Start runloop
-    let block_store = Arc::new(Mutex::new(BTreeMap::new()));
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
 
     if cmd.web_console {
         // start web ui server
@@ -147,7 +147,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             select! {
                 recv(block_rx) -> msg => {
                     if let Ok(block_event) = msg {
-                      let mut block_store = block_store.lock().await;
+                      let mut block_store = block_store.write().await;
 
                       match block_event.clone() {
                         BlockEvent::Append(new_block) => {

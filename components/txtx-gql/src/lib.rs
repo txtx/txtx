@@ -3,7 +3,7 @@ use mutation::Mutation;
 use query::Query;
 use std::{collections::BTreeMap, sync::Arc};
 use subscription::Subscription;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use txtx_core::kit::{
     channel::Sender,
     types::frontend::{ActionItemResponse, Block, BlockEvent},
@@ -19,7 +19,7 @@ pub struct Context {
     pub protocol_name: String,
     pub runbook_name: String,
     pub runbook_description: Option<String>,
-    pub block_store: Arc<Mutex<BTreeMap<Uuid, Block>>>,
+    pub block_store: Arc<RwLock<BTreeMap<Uuid, Block>>>,
     pub block_broadcaster: tokio::sync::broadcast::Sender<BlockEvent>,
     pub action_item_events_tx: Sender<ActionItemResponse>,
 }
