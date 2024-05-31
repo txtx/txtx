@@ -1,140 +1,119 @@
 use crate::cli::Context;
-use rocket::config::{self, Config as RocketConfig, LogLevel};
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::{ContentType, Header};
-use rocket::response::content::RawHtml;
-use rocket::{routes, State};
-use rocket::{Request, Response};
-use std::borrow::Cow;
-use std::error::Error;
-use std::ffi::OsStr;
-use std::net::{IpAddr, Ipv4Addr};
-use std::path::PathBuf;
-use txtx_gql::new_graphql_schema;
-use txtx_gql::{Context as GraphContext, NestorGraphqlSchema};
+use actix_cors::Cors;
+use actix_web::http::header::{self};
+use actix_web::web::{self, Data};
+use actix_web::Error;
+use actix_web::Responder;
+use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
+use juniper_actix::{graphiql_handler, graphql_handler, playground_handler, subscriptions};
+use juniper_graphql_ws::ConnectionConfig;
+use mime_guess::from_path;
+use std::error::Error as StdError;
+use std::time::Duration;
+use txtx_gql::Context as GraphContext;
+use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
 use super::Asset;
 
 pub async fn start_server(
     gql_context: GraphContext,
     port: u16,
-    ctx: &Context,
-) -> Result<(), Box<dyn Error>> {
-    let log_level = LogLevel::Off;
+    _ctx: &Context,
+) -> Result<(), Box<dyn StdError>> {
+    let gql_context = Data::new(gql_context);
 
-    let mut shutdown_config = config::Shutdown::default();
-    shutdown_config.ctrlc = false;
-    shutdown_config.grace = 1;
-    shutdown_config.mercy = 1;
+    let server = HttpServer::new(move || {
+        App::new()
+            .app_data(Data::new(new_graphql_schema()))
+            .app_data(gql_context.clone())
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allowed_methods(vec!["POST", "GET"])
+                    .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+                    .allowed_header(header::CONTENT_TYPE)
+                    .supports_credentials()
+                    .max_age(3600),
+            )
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
+            .service(web::resource("/subscriptions").route(web::get().to(subscriptions)))
+            .service(post_graphql)
+            .service(get_graphql)
+            .service(web::resource("/playground").route(web::get().to(playground)))
+            .service(web::resource("/graphiql").route(web::get().to(graphiql)))
+            .service(dist)
+    })
+    .workers(5)
+    .bind(&format!("127.0.0.1:{port}"))?
+    .run();
+    let _handle = server.handle();
+    tokio::spawn(server);
 
-    let control_config = RocketConfig {
-        port,
-        workers: 1,
-        address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        keep_alive: 5,
-        temp_dir: std::env::temp_dir().into(),
-        log_level,
-        cli_colors: false,
-        shutdown: shutdown_config,
-        ..RocketConfig::default()
-    };
-
-    let routes = routes![
-        serve_index,
-        serve_dist,
-        get_graphql,
-        post_graphql,
-        all_options,
-        graphiql
-    ];
-
-    let ctx_cloned = ctx.clone();
-    let ignite = rocket::custom(control_config)
-        .manage(ctx_cloned)
-        .manage(new_graphql_schema())
-        .manage(gql_context)
-        .attach(Cors)
-        .mount("/", routes)
-        .ignite()
-        .await?;
-
-    let _ = std::thread::spawn(move || {
-        let _ = hiro_system_kit::nestable_block_on(ignite.launch());
-    });
     Ok(())
 }
 
-#[get("/")]
-fn serve_index() -> Option<RawHtml<Cow<'static, [u8]>>> {
-    let asset = Asset::get("index.html")?;
-    Some(RawHtml(asset.data))
+async fn playground() -> Result<HttpResponse, Error> {
+    playground_handler("/graphql", Some("/subscriptions")).await
 }
 
-#[get("/<file..>")]
-fn serve_dist(file: PathBuf) -> Option<(ContentType, Cow<'static, [u8]>)> {
-    let filename = file.display().to_string();
-    let asset = Asset::get(&filename)?;
-    let content_type = file
-        .extension()
-        .and_then(OsStr::to_str)
-        .and_then(ContentType::from_extension)
-        .unwrap_or(ContentType::Bytes);
-
-    Some((content_type, asset.data))
+async fn graphiql() -> Result<HttpResponse, Error> {
+    graphiql_handler("/graphql", Some("/subscriptions")).await
 }
 
-// GET request accepts query parameters like these:
-// ?query=<urlencoded-graphql-query-string>
-// &operationName=<optional-name>
-// &variables=<optional-json-encoded-variables>
-// See details here: https://graphql.org/learn/serving-over-http#get-request
-#[rocket::get("/graphql?<request..>")]
-async fn get_graphql(
-    ctx: &State<GraphContext>,
-    request: juniper_rocket::GraphQLRequest,
-    schema: &State<NestorGraphqlSchema>,
-) -> juniper_rocket::GraphQLResponse {
-    request.execute(schema, ctx).await
+fn handle_embedded_file(path: &str) -> HttpResponse {
+    match Asset::get(path) {
+        Some(content) => HttpResponse::Ok()
+            .content_type(from_path(path).first_or_octet_stream().as_ref())
+            .body(content.data.into_owned()),
+        None => HttpResponse::NotFound().body("404 Not Found"),
+    }
 }
 
-#[rocket::post("/graphql", data = "<request>")]
+#[actix_web::get("/{_:.*}")]
+async fn dist(path: web::Path<String>) -> impl Responder {
+    let path_str = match path.as_str() {
+        "" => "index.html",
+        other => other,
+    };
+    handle_embedded_file(path_str)
+}
+
+#[actix_web::post("/graphql")]
 async fn post_graphql(
-    ctx: &State<GraphContext>,
-    request: juniper_rocket::GraphQLRequest,
-    schema: &State<NestorGraphqlSchema>,
-) -> juniper_rocket::GraphQLResponse {
-    request.execute(schema, ctx).await
+    req: HttpRequest,
+    payload: web::Payload,
+    schema: Data<GraphqlSchema>,
+    context: Data<GraphContext>,
+) -> Result<HttpResponse, Error> {
+    graphql_handler(&schema, &context, req, payload).await
 }
 
-/// Catches all OPTION requests in order to get the CORS related Fairing triggered.
-#[options("/<_..>")]
-fn all_options() {
-    /* Intentionally left empty */
+#[actix_web::get("/graphql?<request..>")]
+async fn get_graphql(
+    req: HttpRequest,
+    payload: web::Payload,
+    schema: Data<GraphqlSchema>,
+    context: Data<GraphContext>,
+) -> Result<HttpResponse, Error> {
+    graphql_handler(&schema, &context, req, payload).await
 }
 
-#[rocket::get("/explorer")]
-fn graphiql() -> RawHtml<String> {
-    juniper_rocket::graphiql_source("http://localhost:3210/graphql", None)
-}
-
-pub struct Cors;
-
-#[rocket::async_trait]
-impl Fairing for Cors {
-    fn info(&self) -> Info {
-        Info {
-            name: "Cross-Origin-Resource-Sharing Fairing",
-            kind: Kind::Response,
-        }
-    }
-
-    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
-        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-        response.set_header(Header::new(
-            "Access-Control-Allow-Methods",
-            "POST, PATCH, PUT, DELETE, HEAD, OPTIONS, GET",
-        ));
-        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
-        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
-    }
+async fn subscriptions(
+    req: HttpRequest,
+    stream: web::Payload,
+    schema: Data<GraphqlSchema>,
+    context: Data<GraphContext>,
+) -> Result<HttpResponse, Error> {
+    let ctx = GraphContext {
+        protocol_name: context.protocol_name.clone(),
+        runbook_name: context.runbook_name.clone(),
+        runbook_description: context.runbook_description.clone(),
+        block_store: context.block_store.clone(),
+        block_broadcaster: context.block_broadcaster.clone(),
+        action_item_events_tx: context.action_item_events_tx.clone(),
+    };
+    let config = ConnectionConfig::new(ctx);
+    let config = config.with_keep_alive_interval(Duration::from_secs(15));
+    subscriptions::ws_handler(req, stream, schema.into_inner(), config).await
 }
