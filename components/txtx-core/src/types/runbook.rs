@@ -205,15 +205,6 @@ impl Runbook {
                 self.commands_instances
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
-            PreConstructData::Prompt(command_instance) => {
-                package.addons_uuids.insert(construct_uuid.clone());
-                package.addons_uuids_lookup.insert(
-                    CommandId::Prompt(construct_name).to_string(),
-                    construct_uuid.clone(),
-                );
-                self.commands_instances
-                    .insert(construct_uuid.clone(), command_instance.clone());
-            }
             PreConstructData::Wallet(wallet_instance) => {
                 package.wallets_uuids.insert(construct_uuid.clone());
                 package
@@ -318,20 +309,6 @@ impl Runbook {
                     if let Some(construct_uuid) = current_package
                         .addons_uuids_lookup
                         .get(&CommandId::Action(action_name).to_string())
-                    {
-                        return Ok(Some((construct_uuid.clone(), components)));
-                    }
-                }
-
-                // Look for prompts
-                if component.eq_ignore_ascii_case("prompt") {
-                    is_root = false;
-                    let Some(prompt_name) = components.pop_front() else {
-                        continue;
-                    };
-                    if let Some(construct_uuid) = current_package
-                        .addons_uuids_lookup
-                        .get(&CommandId::Prompt(prompt_name).to_string())
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }

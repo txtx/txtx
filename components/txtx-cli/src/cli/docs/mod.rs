@@ -144,67 +144,6 @@ pub fn display_documentation(addons: &Vec<&Box<dyn Addon>>) {
             }
             println!("\n");
         }
-
-        println!("{}", blue!(format!("{}", "Prompts\n")),);
-        for action in addon.get_prompts() {
-            match action {
-                PreCommandSpecification::Atomic(spec) => {
-                    println!("{}", yellow!(format!("{}", spec.name)));
-                    println!("{}", spec.documentation);
-                    println!("\nInputs (* required):");
-                    for input in spec.inputs.iter() {
-                        let required = if input.optional { "" } else { "*" };
-                        println!(
-                            "- {}{} ({:?}): {}",
-                            input.name, required, input.typing, input.documentation
-                        );
-                    }
-
-                    println!("\nOutputs:");
-                    for output in spec.outputs.iter() {
-                        println!(
-                            "- {} ({:?}): {}",
-                            output.name, output.typing, output.documentation
-                        );
-                    }
-                }
-                PreCommandSpecification::Composite(spec) => {
-                    println!("{}", yellow!(format!("{}", spec.name)));
-                    println!("{}", spec.documentation);
-                    println!("\nInputs (* required):");
-                    for input in spec
-                        .parts
-                        .first()
-                        .unwrap()
-                        .expect_atomic_specification()
-                        .inputs
-                        .iter()
-                    {
-                        let required = if input.optional { "" } else { "*" };
-                        println!(
-                            "- {}{} ({:?}): {}",
-                            input.name, required, input.typing, input.documentation
-                        );
-                    }
-
-                    println!("\nOutputs:");
-                    for output in spec
-                        .parts
-                        .last()
-                        .unwrap()
-                        .expect_atomic_specification()
-                        .outputs
-                        .iter()
-                    {
-                        println!(
-                            "- {} ({:?}): {}",
-                            output.name, output.typing, output.documentation
-                        );
-                    }
-                }
-            }
-            println!("\n");
-        }
     }
 }
 
@@ -339,12 +278,6 @@ fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                 actions = actions.push_map(|action| insert_data_from_spec(&action_spec, action));
             }
             actions
-        })
-        .insert_vec("prompts", |mut prompts| {
-            for prompt_spec in addon.get_prompts() {
-                prompts = prompts.push_map(|prompt| insert_data_from_spec(&prompt_spec, prompt));
-            }
-            prompts
         });
     let data = doc_builder.build();
     data

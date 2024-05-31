@@ -10,7 +10,6 @@ pub enum PreConstructData {
     Output(Block),
     Import(Block),
     Action(CommandInstance),
-    Prompt(CommandInstance),
     Wallet(WalletInstance),
     Root,
 }

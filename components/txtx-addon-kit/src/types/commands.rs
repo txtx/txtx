@@ -167,14 +167,12 @@ impl Serialize for CommandOutput {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
     Action(String),
-    Prompt(String),
 }
 
 impl CommandId {
     pub fn to_string(&self) -> String {
         match &self {
             &CommandId::Action(id) => format!("action::{id}"),
-            &CommandId::Prompt(id) => format!("prompt::{id}"),
         }
     }
 }

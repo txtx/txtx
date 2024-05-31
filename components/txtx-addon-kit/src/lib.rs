@@ -53,8 +53,6 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_actions(&self) -> Vec<PreCommandSpecification>;
     ///
-    fn get_prompts(&self) -> Vec<PreCommandSpecification>;
-    ///    
     fn get_wallets(&self) -> Vec<WalletSpecification>;
     ///
     fn build_function_lookup(self: &Self) -> HashMap<String, FunctionSpecification> {
@@ -74,14 +72,6 @@ pub trait Addon: Debug + Sync + Send {
                 PreCommandSpecification::Composite(command) => command.matcher.clone(),
             };
             commands.insert(CommandId::Action(matcher), command);
-        }
-
-        for command in self.get_prompts().into_iter() {
-            let matcher = match &command {
-                PreCommandSpecification::Atomic(command) => command.matcher.clone(),
-                PreCommandSpecification::Composite(command) => command.matcher.clone(),
-            };
-            commands.insert(CommandId::Prompt(matcher), command);
         }
         commands
     }
@@ -140,7 +130,6 @@ impl AddonContext {
         };
         let typing = match command_id {
             CommandId::Action(_) => CommandInstanceType::Action,
-            CommandId::Prompt(_) => CommandInstanceType::Prompt,
         };
         match pre_command_spec {
             PreCommandSpecification::Atomic(command_spec) => {

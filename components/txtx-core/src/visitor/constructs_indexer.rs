@@ -253,57 +253,6 @@ pub fn run_constructs_indexing(
                         }
                     };
                 }
-                "prompt" => {
-                    let (Some(command_name), Some(namespaced_prompt)) =
-                        (block.labels.get(0), block.labels.get(1))
-                    else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::OutputConstruct(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "action syntax invalid".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            }),
-                        ));
-                        has_errored = true;
-                        continue;
-                    };
-                    match runtime_context.addons_ctx.create_prompt_instance(
-                        &namespaced_prompt.as_str(),
-                        command_name.as_str(),
-                        &package_uuid,
-                        &block,
-                        &location,
-                    ) {
-                        Ok(command_instance_or_parts) => match command_instance_or_parts {
-                            CommandInstanceOrParts::Instance(command_instance) => {
-                                let _ = runbook.index_construct(
-                                    command_name.to_string(),
-                                    location.clone(),
-                                    PreConstructData::Prompt(command_instance),
-                                    &package_uuid,
-                                );
-                            }
-                            CommandInstanceOrParts::Parts(parts_blocks) => {
-                                for block in parts_blocks {
-                                    let parsed_block = hcl::parser::parse_body(&block).unwrap();
-                                    for block in parsed_block.blocks() {
-                                        blocks.push_back(block.clone());
-                                    }
-                                }
-                            }
-                        },
-                        Err(diagnostic) => {
-                            runbook.errors.push(ConstructErrors::Discovery(
-                                DiscoveryError::AddonConstruct(diagnostic),
-                            ));
-                            continue;
-                        }
-                    };
-                }
                 "wallet" => {
                     let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
                         (block.labels.get(0), block.labels.get(1))

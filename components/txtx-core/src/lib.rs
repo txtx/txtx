@@ -120,22 +120,6 @@ impl AddonsContext {
         ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
     }
 
-    pub fn create_prompt_instance(
-        &mut self,
-        namespaced_action: &str,
-        command_name: &str,
-        package_uuid: &PackageUuid,
-        block: &CodeBlock,
-        _location: &FileLocation,
-    ) -> Result<CommandInstanceOrParts, Diagnostic> {
-        let Some((namespace, command_id)) = namespaced_action.split_once("::") else {
-            todo!("return diagnostic")
-        };
-        let ctx = self.find_or_create_context(namespace, package_uuid)?;
-        let command_id = CommandId::Prompt(command_id.to_string());
-        ctx.create_command_instance(&command_id, namespace, command_name, block, package_uuid)
-    }
-
     pub fn create_wallet_instance(
         &mut self,
         namespaced_action: &str,
@@ -251,7 +235,6 @@ pub async fn start_runbook_runloop(
 
         match &payload {
             ActionItemResponseType::ValidatePanel => {
-                println!("Here");
                 let mut runbook_completed = false;
                 let mut groups = run_constructs_evaluation(
                     runbook,
@@ -262,8 +245,6 @@ pub async fn start_runbook_runloop(
                     &progress_tx,
                 )
                 .await?;
-
-                println!("=> {:?}", groups);
 
                 let block_uuid = Uuid::new_v4();
                 if groups.is_empty() {
