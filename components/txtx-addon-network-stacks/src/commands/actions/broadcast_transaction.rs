@@ -1,10 +1,11 @@
 use clarity::util::sleep_ms;
+use txtx_addon_kit::uuid::Uuid;
 use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write};
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
+use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent, ProgressBarStatus};
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -115,7 +116,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
         let transaction_bytes =
@@ -127,7 +128,18 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
+        let progress_tx = progress_tx.clone();
+
         let future = async move {
+            let mut progress_bar = ProgressBarStatus {
+                uuid: Uuid::new_v4(),
+                visible: true,
+                status: "status".to_string(),
+                message: "message".to_string(),
+                diagnostic: None,
+            };
+            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
+
             let mut result = CommandExecutionResult::new();
 
             let mut s = String::from("0x");
@@ -230,6 +242,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 );
                 confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
+
+            progress_bar.visible = false;
+            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar));
 
             Ok(result)
         };

@@ -29,7 +29,6 @@ use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
 use kit::types::frontend::SetActionItemStatus;
 use kit::types::wallets::WalletInstance;
-use kit::types::ConstructUuid;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
@@ -160,7 +159,6 @@ pub async fn start_runbook_runloop(
 
     // Compute number of steps
     // A step is
-    let (progress_tx, _progress_rx) = txtx_addon_kit::channel::unbounded();
 
     // store of action_item_uuids and the associated action_item_request
     let mut action_item_requests: BTreeMap<Uuid, ActionItemRequest> = BTreeMap::new();
@@ -188,7 +186,7 @@ pub async fn start_runbook_runloop(
                         &execution_context,
                         &mut action_item_requests,
                         &action_item_responses,
-                        &progress_tx,
+                        &block_tx.clone(),
                     )
                     .await?,
                 ),
@@ -216,7 +214,7 @@ pub async fn start_runbook_runloop(
                 &execution_context,
                 &mut action_item_requests,
                 &action_item_responses,
-                &progress_tx,
+                &block_tx.clone(),
             )
             .await?;
             continue;
@@ -246,7 +244,7 @@ pub async fn start_runbook_runloop(
                     &execution_context,
                     &mut map,
                     &action_item_responses,
-                    &progress_tx,
+                    &block_tx.clone(),
                 )
                 .await?;
 
@@ -327,7 +325,7 @@ pub async fn start_runbook_runloop(
                     &execution_context,
                     &mut map,
                     &action_item_responses,
-                    &progress_tx,
+                    &block_tx.clone(),
                 )
                 .await?;
                 let scoped_updated_requests = map.get(&wallet_construct_uuid).unwrap();
@@ -360,7 +358,7 @@ pub async fn start_runbook_runloop(
                     &execution_context,
                     &mut map,
                     &action_item_responses,
-                    &progress_tx,
+                    &block_tx.clone(),
                 )
                 .await?;
                 let scoped_updated_requests = map.get(&signing_action_construct_uuid).unwrap();
