@@ -23,6 +23,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
+        BlockEvent,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
     wallets::WalletInstance,
@@ -320,7 +321,7 @@ pub type CommandRunner = Box<
         &ValueStore,
         &AddonDefaults,
         &HashMap<ConstructUuid, WalletInstance>,
-        &channel::Sender<(ConstructUuid, Diagnostic)>,
+        &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult,
 >;
 type CommandRouter =
@@ -371,7 +372,7 @@ pub trait CommandImplementation {
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult;
 }
 
@@ -679,7 +680,7 @@ impl CommandInstance {
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponseType>>,
-        progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = ValueStore::new(&self.name);
         for input in self.specification.inputs.iter() {

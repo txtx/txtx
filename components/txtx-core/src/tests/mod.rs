@@ -290,9 +290,11 @@ fn test_wallet_runbook_no_env() {
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: action_item_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ProvideSignedTransaction(ProvideSignedTransactionResponse {
-            signed_transaction_bytes: signed_transaction_bytes.to_string(),
-        }),
+        payload: ActionItemResponseType::ProvideSignedTransaction(
+            ProvideSignedTransactionResponse {
+                signed_transaction_bytes: signed_transaction_bytes.to_string(),
+            },
+        ),
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -327,9 +329,197 @@ fn test_wallet_runbook_no_env() {
             .len(),
         1
     );
-    assert_eq!(outputs_panel_data.groups[0].sub_groups[0]
-        .action_items[0].action_type.as_display_output().map(|v| &v.value), Some(&Value::string(signed_transaction_bytes.to_string())));
+    assert_eq!(
+        outputs_panel_data.groups[0].sub_groups[0].action_items[0]
+            .action_type
+            .as_display_output()
+            .map(|v| &v.value),
+        Some(&Value::string(signed_transaction_bytes.to_string()))
+    );
+}
 
+#[test]
+fn test_multisig_runbook_no_env() {
+    // Load Runbook abc.tx
+    let wallet_tx = include_str!("./fixtures/multisig.tx");
+
+    let mut source_tree = SourceTree::new();
+    source_tree.add_source(
+        "wallet.tx".into(),
+        FileLocation::from_path_string(".").unwrap(),
+        wallet_tx.into(),
+    );
+
+    let environments = BTreeMap::new();
+    let mut addons_ctx = AddonsContext::new();
+    addons_ctx.register(Box::new(StdAddon::new()));
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+
+    let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
+    let mut runbook = Runbook::new(Some(source_tree), None);
+
+    let _ = pre_compute_runbook(&mut runbook, &mut runtime_context)
+        .expect("unable to pre-compute runbook");
+
+    let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
+    let (action_item_updates_tx, _action_item_updates_rx) =
+        txtx_addon_kit::channel::unbounded::<ActionItemRequest>();
+    let (action_item_events_tx, action_item_events_rx) =
+        txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
+
+    let interactive_by_default = true;
+
+    let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
+        let runloop_future = start_runbook_runloop(
+            &mut runbook,
+            &mut runtime_context,
+            block_tx,
+            action_item_updates_tx,
+            action_item_events_rx,
+            environments,
+            interactive_by_default,
+        );
+        if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
+            for diag in diags.iter() {
+                println!("{}", diag);
+            }
+        }
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive genesis block");
+        panic!()
+    };
+
+    let action_panel_data = event.expect_block().panel.expect_action_panel();
+
+    println!("{:?}", action_panel_data);
+
+    assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
+    assert_eq!(action_panel_data.groups.len(), 2);
+    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[0].action_items.len(),
+        3
+    );
+    assert_eq!(action_panel_data.groups[1].sub_groups.len(), 1);
+    assert_eq!(
+        action_panel_data.groups[1].sub_groups[0].action_items.len(),
+        1
+    );
+
+    let get_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[0];
+    assert_eq!(get_public_key.action_status, ActionItemStatus::Todo);
+    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key.action_type else {
+        panic!("expected provide public key request");
+    };
+
+    let check_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[1];
+    assert_eq!(check_public_key.action_status, ActionItemStatus::Todo);
+    let ActionItemRequestType::ReviewInput = &check_public_key.action_type else {
+        panic!("expected provide public key request");
+    };
+
+    let start_runbook = &action_panel_data.groups[1].sub_groups[0].action_items[0];
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
+    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+
+    // Complete start_runbook action
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: get_public_key.uuid.clone(),
+        payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
+            public_key: "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7".into(),
+        }),
+    });
+
+    // Complete start_runbook action
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let updates = event.expect_updated_action_items();
+    assert_eq!(updates.len(), 3);
+    assert_eq!(
+        updates[0].new_status,
+        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+    );
+    assert_eq!(
+        updates[1].new_status,
+        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+    );
+
+    // Validate panel
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: start_runbook.uuid.clone(),
+        payload: ActionItemResponseType::ValidatePanel,
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let action_panel_data = event.expect_block().panel.expect_action_panel();
+    assert_eq!(action_panel_data.title, "Sign Stacks Transaction Review");
+    assert_eq!(action_panel_data.groups.len(), 1);
+    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[0].action_items.len(),
+        1
+    );
+    let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[0];
+
+    // Validate panel
+    let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: action_item_uuid.uuid.clone(),
+        payload: ActionItemResponseType::ProvideSignedTransaction(
+            ProvideSignedTransactionResponse {
+                signed_transaction_bytes: signed_transaction_bytes.to_string(),
+            },
+        ),
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let updates = event.expect_updated_action_items();
+    assert_eq!(updates.len(), 1);
+    assert_eq!(updates[0].new_status, ActionItemStatus::Success(None));
+
+    let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
+
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: validate_signature.uuid.clone(),
+        payload: ActionItemResponseType::ValidatePanel,
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
+
+    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
+    assert_eq!(outputs_panel_data.groups.len(), 1);
+    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(
+        outputs_panel_data.groups[0].sub_groups[0]
+            .action_items
+            .len(),
+        1
+    );
+    assert_eq!(
+        outputs_panel_data.groups[0].sub_groups[0].action_items[0]
+            .action_type
+            .as_display_output()
+            .map(|v| &v.value),
+        Some(&Value::string(signed_transaction_bytes.to_string()))
+    );
 }
 
 // sequenceDiagram

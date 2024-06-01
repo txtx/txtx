@@ -3,9 +3,8 @@ use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel::{self, select},
-        types::{
-            diagnostics::Diagnostic,
-            frontend::{ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent},
+        types::frontend::{
+            ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
         },
     },
     pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
@@ -169,6 +168,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                               }
                             }
                         },
+                        BlockEvent::Modal(_) => unimplemented!(),
+                        BlockEvent::ProgressBar(_) => unimplemented!(),
                         BlockEvent::Exit => break
                       }
                       let _ = block_broadcaster.send(block_event.clone());

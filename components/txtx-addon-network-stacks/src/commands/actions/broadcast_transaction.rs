@@ -1,12 +1,10 @@
 use clarity::util::sleep_ms;
-use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write};
-use txtx_addon_kit::reqwest;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -17,6 +15,7 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
+use crate::rpc::StacksRpc;
 use crate::typing::{CLARITY_BUFFER, CLARITY_VALUE};
 
 lazy_static! {
@@ -116,9 +115,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
         args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        let mut result = CommandExecutionResult::new();
         let args = args.clone();
         let transaction_bytes =
             args.get_expected_buffer(SIGNED_TRANSACTION_BYTES, &CLARITY_BUFFER)?;
@@ -130,6 +128,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let future = async move {
+            let mut result = CommandExecutionResult::new();
+
             let mut s = String::from("0x");
             s.write_str(
                 &transaction_bytes
@@ -143,49 +143,38 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
             })?;
 
-            let client = reqwest::Client::new();
-            let res = client
-                .post(format!("{}/v2/transactions", rpc_api_url))
-                .header("Content-Type", "application/octet-stream")
-                .body(transaction_bytes.bytes)
-                .send()
-                .await
-                .map_err(|e| {
-                    Diagnostic::error_from_string(format!(
-                        "Failed to broadcast stacks transaction: {e}"
-                    ))
-                })?;
+            let backoff_ms = 5000;
 
-            let status = res.status();
-            if !status.is_success() {
-                let transaction: PostTransactionResponseError = res.json().await.map_err(|e| {
-                    println!("{:?}", e.to_string());
-                    Diagnostic::error_from_string(format!(
-                        "Failed to parse broadcasted Stacks transaction result: {e}"
-                    ))
-                })?;
-                return Err(Diagnostic::error_from_string(format!(
-                    "{:?}",
-                    transaction.reason
-                )));
-            }
-            let mut txid = res.text().await.map_err(|e| {
-                println!("{:?}", e.to_string());
-                Diagnostic::error_from_string(format!(
-                    "Failed to parse broadcasted Stacks transaction result: {e}"
-                ))
-            })?;
+            let client = StacksRpc::new(&rpc_api_url);
+            let mut retry_count = 4;
+            let tx_result = loop {
+                match client.post_transaction(&transaction_bytes.bytes).await {
+                    Ok(res) => break res,
+                    Err(e) => {
+                        retry_count -= 1;
+                        sleep_ms(backoff_ms);
+                        if retry_count > 0 {
+                            continue;
+                        }
 
-            // Strip extra double quotes
-            txid = txid[1..65].to_string();
+                        return Err(Diagnostic::error_from_string(format!(
+                            "Failed to broadcast stacks transaction: {e}"
+                        )));
+                    }
+                }
+            };
+
+            // // Strip extra double quotes
+            // txid = txid[1..65].to_string();
 
             result
                 .outputs
-                .insert(format!("tx_id"), Value::string(txid.clone()));
+                .insert(format!("tx_id"), Value::string(tx_result.txid.clone()));
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
             let backoff_ms = 5000;
+
             loop {
                 println!("{:?}", confirmed_blocks_ids);
 
@@ -193,35 +182,18 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     break;
                 }
 
-                let node_info_response = client
-                    .get(format!("{}/v2/info", rpc_api_url))
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        Diagnostic::error_from_string(format!(
+                let node_info = match client.get_info().await {
+                    Ok(res) => res,
+                    Err(e) => {
+                        retry_count -= 1;
+                        sleep_ms(backoff_ms);
+                        if retry_count > 0 {
+                            continue;
+                        }
+                        return Err(Diagnostic::error_from_string(format!(
                             "Failed to broadcast stacks transaction: {e}"
-                        ))
-                    });
-
-                let Ok(encoded_node_info) = node_info_response else {
-                    // unable to fetch /v2/info
-                    sleep_ms(backoff_ms);
-                    continue;
-                };
-
-                if !encoded_node_info.status().is_success() {
-                    // unable to fetch /extended/v1/tx
-                    sleep_ms(backoff_ms);
-                    continue;
-                }
-
-                let decoded_node_info: Result<GetNodeInfoResponse, _> =
-                    encoded_node_info.json().await;
-
-                let Ok(node_info) = decoded_node_info else {
-                    // unable to fetch /v2/info
-                    sleep_ms(backoff_ms);
-                    continue;
+                        )));
+                    }
                 };
 
                 if node_info.stacks_tip_height == block_height {
@@ -238,38 +210,20 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     continue;
                 }
 
-                let tx_encoded_response_res = client
-                    .get(format!("{}/extended/v1/tx/{}", rpc_api_url, txid))
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        Diagnostic::error_from_string(format!(
-                            "Failed to broadcast stacks transaction: {e}"
-                        ))
-                    });
+                let tx_details_result = client.get_tx(&tx_result.txid).await.map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "Failed to broadcast stacks transaction: {e}"
+                    ))
+                });
 
-                let Ok(tx_encoded_response) = tx_encoded_response_res else {
+                let Ok(tx_details) = tx_details_result else {
                     // unable to fetch /v2/info
                     sleep_ms(backoff_ms);
                     continue;
                 };
 
-                if !tx_encoded_response.status().is_success() {
-                    // unable to fetch /extended/v1/tx
-                    sleep_ms(backoff_ms);
-                    continue;
-                }
-
-                let tx_decoded_res: Result<GetTransactionResponse, _> =
-                    tx_encoded_response.json().await;
-                let Ok(tx_decoded) = tx_decoded_res else {
-                    // unable to decode
-                    sleep_ms(backoff_ms);
-                    continue;
-                };
-
                 let tx_result_bytes =
-                    txtx_addon_kit::hex::decode(&tx_decoded.tx_result.hex[2..]).unwrap();
+                    txtx_addon_kit::hex::decode(&tx_details.tx_result.hex[2..]).unwrap();
                 result.outputs.insert(
                     "result".into(),
                     Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
@@ -281,36 +235,4 @@ impl CommandImplementation for BroadcastStacksTransaction {
         };
         Ok(Box::pin(future))
     }
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct GetNodeInfoResponse {
-    pub burn_block_height: u64,
-    pub stable_burn_block_height: u64,
-    pub server_version: String,
-    pub network_id: u32,
-    pub parent_network_id: u32,
-    pub stacks_tip_height: u64,
-    pub stacks_tip: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct PostTransactionResponseError {
-    pub txid: String,
-    pub error: Option<String>,
-    pub reason: Option<String>,
-    pub reason_data: Option<JsonValue>,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct GetTransactionResponse {
-    pub tx_id: String,
-    pub tx_status: String,
-    pub tx_result: GetTransactionResult,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-pub struct GetTransactionResult {
-    pub hex: String,
-    pub repr: String,
 }

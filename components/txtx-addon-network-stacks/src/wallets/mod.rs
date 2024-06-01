@@ -1,8 +1,12 @@
 use txtx_addon_kit::types::wallets::WalletSpecification;
 
-use crate::wallets::connect::STACKS_CONNECT;
 mod connect;
+mod multisig;
+
+use connect::STACKS_CONNECT;
+use multisig::STACKS_MULTISIG;
 
 lazy_static! {
-    pub static ref WALLETS: Vec<WalletSpecification> = vec![STACKS_CONNECT.clone()];
+    pub static ref WALLETS: Vec<WalletSpecification> =
+        vec![STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
 }

@@ -6,7 +6,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ActionSubGroup,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ActionSubGroup, BlockEvent,
     ProvidePublicKeyRequest, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
@@ -173,7 +173,7 @@ impl WalletImplementation for StacksConnect {
         args: &ValueStore,
         state: &mut ValueStore,
         defaults: &AddonDefaults,
-        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
         let public_key = args.get_expected_value("public_key")?;

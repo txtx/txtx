@@ -7,7 +7,7 @@ use txtx_addon_kit::{
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItemRequest,
+        frontend::{ActionItemRequest, BlockEvent},
         types::Type,
         wallets::WalletInstance,
         ConstructUuid, ValueStore,
@@ -69,7 +69,7 @@ impl CommandImplementation for StacksDeployContract {
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

@@ -1,9 +1,9 @@
-use std::io::Cursor;
-
 use clarity_repl::clarity::codec::StacksMessageCodec;
 use clarity_repl::clarity::util::hash::{bytes_to_hex, hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
-use clarity_repl::codec::{StacksTransaction, TransactionPayload};
+use clarity_repl::codec::TransactionPayload;
+use serde_json::Value as JsonValue;
+use std::io::Cursor;
 
 use serde_json::json;
 use txtx_addon_kit::reqwest::Client;
@@ -105,6 +105,38 @@ pub struct FeeEstimationReport {
     pub estimations: Vec<FeeEstimation>,
 }
 
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct GetNodeInfoResponse {
+    pub burn_block_height: u64,
+    pub stable_burn_block_height: u64,
+    pub server_version: String,
+    pub network_id: u32,
+    pub parent_network_id: u32,
+    pub stacks_tip_height: u64,
+    pub stacks_tip: String,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct PostTransactionResponseError {
+    pub txid: String,
+    pub error: Option<String>,
+    pub reason: Option<String>,
+    pub reason_data: Option<JsonValue>,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct GetTransactionResponse {
+    pub tx_id: String,
+    pub tx_status: String,
+    pub tx_result: GetTransactionResult,
+}
+
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct GetTransactionResult {
+    pub hex: String,
+    pub repr: String,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct FeeEstimation {
     pub fee: u64,
@@ -142,15 +174,14 @@ impl StacksRpc {
 
     pub async fn post_transaction(
         &self,
-        transaction: &StacksTransaction,
+        transaction: &Vec<u8>,
     ) -> Result<PostTransactionResult, RpcError> {
-        let tx = transaction.serialize_to_vec();
         let path = format!("{}/v2/transactions", self.url);
         let res = self
             .client
             .post(path)
             .header("Content-Type", "application/octet-stream")
-            .body(tx)
+            .body(transaction.clone())
             .send()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?;
@@ -163,7 +194,10 @@ impl StacksRpc {
             return Err(err);
         }
 
-        let txid: String = res.json().await.unwrap();
+        let txid: String = res
+            .json()
+            .await
+            .map_err(|e| RpcError::Message(e.to_string()))?;
         let res = PostTransactionResult { txid };
         Ok(res)
     }
@@ -229,6 +263,19 @@ impl StacksRpc {
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?
             .json::<NodeInfo>()
+            .await
+            .map_err(|e| RpcError::Message(e.to_string()))
+    }
+
+    pub async fn get_tx(&self, txid: &str) -> Result<GetTransactionResponse, RpcError> {
+        let request_url = format!("{}/extended/v1/tx/{}", self.url, txid);
+
+        self.client
+            .get(request_url)
+            .send()
+            .await
+            .map_err(|e| RpcError::Message(e.to_string()))?
+            .json::<GetTransactionResponse>()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))
     }

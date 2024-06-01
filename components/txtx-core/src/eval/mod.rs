@@ -3,7 +3,7 @@ use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
-use kit::types::frontend::ActionSubGroup;
+use kit::types::frontend::{ActionSubGroup, BlockEvent};
 use petgraph::algo::toposort;
 use txtx_addon_kit::{
     hcl::{
@@ -139,7 +139,7 @@ pub async fn run_wallets_evaluation(
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
-    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<BTreeMap<String, Vec<ActionSubGroup>>, Vec<Diagnostic>> {
     let mut action_items: BTreeMap<String, Vec<ActionSubGroup>> = BTreeMap::new();
 
@@ -307,7 +307,7 @@ pub async fn run_wallets_evaluation(
 pub async fn run_commands_updating_defaults(
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
-    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Update environment variables
     let environments_variables = runbook.environment_variables_values.clone();
@@ -479,7 +479,7 @@ pub async fn run_constructs_evaluation(
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
-    progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
 

@@ -1,3 +1,4 @@
+use kit::types::frontend::BlockEvent;
 use kit::types::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
@@ -114,7 +115,7 @@ impl CommandImplementation for SendHttpRequest {
         args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let args = args.clone();

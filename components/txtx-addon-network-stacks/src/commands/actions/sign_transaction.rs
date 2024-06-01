@@ -18,7 +18,7 @@ use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -127,7 +127,7 @@ impl CommandImplementation for SignStacksTransaction {
         args: &ValueStore,
         defaults: &AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();

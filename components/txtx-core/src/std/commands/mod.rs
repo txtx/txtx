@@ -1,5 +1,6 @@
 pub mod actions;
 
+use kit::types::frontend::BlockEvent;
 use kit::types::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
@@ -71,7 +72,7 @@ impl CommandImplementation for Module {
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
         return_synchronous_result(Ok(result))
@@ -205,7 +206,7 @@ impl CommandImplementation for Input {
         args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         if let Some(value) = args.get_value("value") {
@@ -276,7 +277,7 @@ impl CommandImplementation for Output {
         args: &ValueStore,
         _defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let value = args.get_expected_value("value")?;
         let mut result = CommandExecutionResult::new();

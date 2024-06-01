@@ -11,7 +11,7 @@ use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
     PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
@@ -94,7 +94,7 @@ impl CommandImplementation for EncodeMultisigTransaction {
         args: &ValueStore,
         defaults: &AddonDefaults,
         _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 

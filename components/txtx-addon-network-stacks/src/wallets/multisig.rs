@@ -1,12 +1,11 @@
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult,
+    CommandExecutionContext, CommandExecutionFutureResult, CommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    WalletImplementation, WalletSpecification, WalletActivabilityFutureResult,
+    WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
 };
 use txtx_addon_kit::types::{
-    commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
@@ -31,7 +30,7 @@ lazy_static! {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
-            }
+            },
             exepcted_public_key: {
                 documentation: "Coming soon",
                   typing: Type::string(),
@@ -81,7 +80,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
-        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }
@@ -92,7 +91,7 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &ValueStore,
+        _state: &mut ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {

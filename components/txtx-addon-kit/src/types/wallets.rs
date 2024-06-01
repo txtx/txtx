@@ -18,7 +18,7 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
-        ActionSubGroup,
+        ActionSubGroup, BlockEvent,
     },
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid, ValueStore,
@@ -31,7 +31,7 @@ pub type WalletRunner = Box<
         &ValueStore,
         &mut ValueStore,
         &AddonDefaults,
-        &channel::Sender<(ConstructUuid, Diagnostic)>,
+        &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult,
 >;
 
@@ -352,7 +352,7 @@ impl WalletInstance {
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         // todo: I don't think this one needs to be a result
         let mut values = ValueStore::new(&self.name);
@@ -409,7 +409,7 @@ pub trait WalletImplementation {
         _args: &ValueStore,
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
-        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult;
 
     fn check_signability(

@@ -412,7 +412,7 @@ pub async fn reset_runbook_execution(
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
-    progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
+    progress_tx: &Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
         unreachable!(
@@ -459,7 +459,7 @@ pub async fn build_genesis_panel(
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
-    progress_tx: &Sender<(ConstructUuid, Diagnostic)>,
+    progress_tx: &Sender<BlockEvent>,
 ) -> Result<ActionPanelData, Vec<Diagnostic>> {
     let input_options: Vec<InputOption> = environments
         .keys()

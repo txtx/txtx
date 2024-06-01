@@ -1,3 +1,4 @@
+use kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionFutureResult};
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::wallets::{
@@ -71,7 +72,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _state: &mut ValueStore,
         _defaults: &AddonDefaults,
-        _progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
+        _progress_tx: &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

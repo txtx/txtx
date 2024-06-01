@@ -13,6 +13,18 @@ pub enum BlockEvent {
     Clear,
     UpdateActionItems(Vec<SetActionItemStatus>),
     Exit,
+    ProgressBar(ProgressBarStatus),
+    Modal(Block),
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatus {
+    pub uuid: Uuid,
+    pub visible: bool,
+    pub status: String,
+    pub message: String,
+    pub diagnostic: Option<Diagnostic>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,11 +68,16 @@ pub struct Block {
     pub uuid: Uuid,
     #[serde(flatten)]
     pub panel: Panel,
+    pub visible: bool,
 }
 
 impl Block {
     pub fn new(uuid: Uuid, panel: Panel) -> Self {
-        Block { uuid, panel }
+        Block {
+            uuid,
+            panel,
+            visible: true,
+        }
     }
 
     pub fn find_action(&self, uuid: Uuid) -> Option<ActionItemRequest> {
@@ -227,11 +244,10 @@ pub enum ActionItemRequestType {
 }
 
 impl ActionItemRequestType {
-
     pub fn as_display_output(&self) -> Option<&DisplayOutputRequest> {
         match &self {
             ActionItemRequestType::DisplayOutput(value) => Some(value),
-            _ => None
+            _ => None,
         }
     }
 }
