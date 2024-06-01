@@ -235,12 +235,16 @@ pub async fn start_runbook_runloop(
 
         match &payload {
             ActionItemResponseType::ValidatePanel => {
+                // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
+                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+
                 let mut groups = run_constructs_evaluation(
                     runbook,
                     runtime_context,
                     None,
                     &execution_context,
+                    &mut map,
                     &action_item_responses,
                     &progress_tx,
                 )
@@ -354,6 +358,7 @@ pub async fn start_runbook_runloop(
                     runtime_context,
                     None,
                     &execution_context,
+                    &mut map,
                     &action_item_responses,
                     &progress_tx,
                 )

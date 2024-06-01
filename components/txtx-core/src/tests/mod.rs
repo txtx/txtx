@@ -102,8 +102,6 @@ fn test_ab_c_runbook_no_env() {
 
     let inputs_panel_data = event.expect_block().panel.expect_action_panel();
 
-    println!("=> {:?}", inputs_panel_data);
-
     assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUT REVIEW");
     assert_eq!(inputs_panel_data.groups.len(), 1);
     assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 2);
@@ -147,8 +145,6 @@ fn test_ab_c_runbook_no_env() {
     };
 
     let outputs_panel_data = event.expect_block().panel.expect_action_panel();
-
-    println!("=> {:?}", outputs_panel_data);
 
     assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
     assert_eq!(outputs_panel_data.groups.len(), 1);
@@ -215,7 +211,6 @@ fn test_wallet_runbook_no_env() {
     };
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
-    println!("{:?}", action_panel_data);
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 2);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
@@ -284,7 +279,6 @@ fn test_wallet_runbook_no_env() {
     let action_panel_data = event.expect_block().panel.expect_action_panel();
     assert_eq!(action_panel_data.title, "Sign Stacks Transaction Review");
     assert_eq!(action_panel_data.groups.len(), 1);
-    println!("=>> {:?}", action_panel_data.groups[0].sub_groups);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
     assert_eq!(
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
@@ -292,12 +286,12 @@ fn test_wallet_runbook_no_env() {
     );
     let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[0];
 
-
     // Validate panel
+    let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: action_item_uuid.uuid.clone(),
         payload: ActionItemResponseType::ProvideSignedTransaction(ProvideSignedTransactionResponse {
-            signed_transaction_bytes: "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374".into(),
+            signed_transaction_bytes: signed_transaction_bytes.to_string(),
         }),
     });
 
@@ -306,5 +300,50 @@ fn test_wallet_runbook_no_env() {
         panic!()
     };
 
-    println!("-> {:?}", event);
+    let updates = event.expect_updated_action_items();
+    assert_eq!(updates.len(), 1);
+    assert_eq!(updates[0].new_status, ActionItemStatus::Success(None));
+
+    let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
+
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: validate_signature.uuid.clone(),
+        payload: ActionItemResponseType::ValidatePanel,
+    });
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
+
+    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
+    assert_eq!(outputs_panel_data.groups.len(), 1);
+    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(
+        outputs_panel_data.groups[0].sub_groups[0]
+            .action_items
+            .len(),
+        1
+    );
+    assert_eq!(outputs_panel_data.groups[0].sub_groups[0]
+        .action_items[0].action_type.as_display_output().map(|v| &v.value), Some(&Value::string(signed_transaction_bytes.to_string())));
+
 }
+
+// sequenceDiagram
+//     frontend->>+runloop:
+//     runloop->>+wallet_evaluation: Process wallet
+//     wallet_evaluation->>+alice_wallet: Compute ActionItemRequests
+//     alice_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
+//     wallet_evaluation->>+bob_wallet: Compute ActionItemRequests
+//     bob_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs
+//     wallet_evaluation->>+multisig_wallet: Compute ActionItemRequests
+//     multisig_wallet-->>-alice_wallet: Is public key known?
+//     alice_wallet->>+multisig_wallet: Hi Alice, I can hear you!
+//     multisig_wallet-->>-bob_wallet: Is public key known?
+//     bob_wallet->>+multisig_wallet: Hi Alice, I can hear you!
+//     multisig_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
+//     wallet_evaluation->>+runloop: Push collected ActionItemRequests
+//     runloop->>+frontend:

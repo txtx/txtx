@@ -21,7 +21,9 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::{ActionItemRequest, ActionItemResponseType},
+    frontend::{
+        ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
+    },
     types::{ObjectProperty, Type, TypeSpecification, Value},
     wallets::WalletInstance,
     ConstructUuid, PackageUuid, ValueStore,
@@ -602,6 +604,7 @@ impl CommandInstance {
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
         let mut values = ValueStore::new(&format!("{}_inputs", self.specification.matcher));
 
+        // TODO
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(|response| match response {
                 ActionItemResponseType::ReviewInput(update) => {
@@ -624,6 +627,7 @@ impl CommandInstance {
                     }
                 }
                 ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                    // TODO
                     values.insert(
                         "signed_transaction_bytes",
                         Value::string(bytes.signed_transaction_bytes.clone()),
@@ -673,6 +677,8 @@ impl CommandInstance {
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        action_item_requests: &mut Vec<&mut ActionItemRequest>,
+        _action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         progress_tx: &channel::Sender<(ConstructUuid, Diagnostic)>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = ValueStore::new(&self.name);
@@ -706,6 +712,28 @@ impl CommandInstance {
         )?
         .await;
 
+        for request in action_item_requests.iter_mut() {
+            let (status, success) = match &res {
+                Ok(_) => (ActionItemStatus::Success(None), true),
+                Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
+            };
+            match request.action_type {
+                ActionItemRequestType::ReviewInput => {
+                    request.action_status = status.clone();
+                }
+                ActionItemRequestType::ProvidePublicKey(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
         res
     }
 

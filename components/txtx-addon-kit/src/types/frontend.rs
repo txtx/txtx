@@ -226,6 +226,16 @@ pub enum ActionItemRequestType {
     ValidatePanel,
 }
 
+impl ActionItemRequestType {
+
+    pub fn as_display_output(&self) -> Option<&DisplayOutputRequest> {
+        match &self {
+            ActionItemRequestType::DisplayOutput(value) => Some(value),
+            _ => None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideInputRequest {

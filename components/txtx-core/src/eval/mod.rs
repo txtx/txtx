@@ -124,7 +124,7 @@ pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIn
         let uuid = g.node_weight(node).expect("unable to retrieve construct");
         let construct_uuid = ConstructUuid::Local(uuid.clone());
 
-        let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
+        let Some(_command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             continue;
         };
         if node == start_node {
@@ -387,7 +387,7 @@ pub async fn run_commands_updating_defaults(
             evaluated_inputs_res
         };
 
-        let execution_result = {
+        let _execution_result = {
             let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
                 // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                 continue;
@@ -431,6 +431,7 @@ pub async fn run_commands_updating_defaults(
                     .command_inputs_evaluation_results
                     .insert(construct_uuid.clone(), evaluated_inputs.clone());
             }
+
             let execution_result = {
                 command_instance
                     .perform_execution(
@@ -438,6 +439,8 @@ pub async fn run_commands_updating_defaults(
                         &evaluated_inputs,
                         addon_defaults.clone(),
                         &HashMap::new(),
+                        &mut vec![],
+                        &None,
                         progress_tx,
                     )
                     .await
@@ -455,7 +458,6 @@ pub async fn run_commands_updating_defaults(
                             runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
                         {
                             for (k, v) in result.outputs.iter() {
-                                println!("UPDATING {} {}", k, v.to_string());
                                 addon_context.defaults.keys.insert(k.clone(), v.to_string());
                             }
                         }
@@ -475,6 +477,7 @@ pub async fn run_constructs_evaluation(
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
+    action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &txtx_addon_kit::channel::Sender<(ConstructUuid, Diagnostic)>,
 ) -> Result<BTreeMap<String, Vec<ActionItemRequest>>, Vec<Diagnostic>> {
@@ -656,6 +659,12 @@ pub async fn run_constructs_evaluation(
             .command_inputs_evaluation_results
             .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
+        let mut empty_vec = vec![];
+        let action_items_requests = action_item_requests
+            .get_mut(&construct_uuid.value())
+            .unwrap_or(&mut empty_vec);
+        let action_items_response = action_item_responses.get(&construct_uuid.value());
+
         let execution_result = {
             command_instance
                 .perform_execution(
@@ -663,6 +672,8 @@ pub async fn run_constructs_evaluation(
                     &evaluated_inputs,
                     addon_defaults.clone(),
                     &runbook.wallet_instances,
+                    action_items_requests,
+                    &action_items_response,
                     progress_tx,
                 )
                 .await
@@ -1251,7 +1262,6 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("4 ==> {}", expr);
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
