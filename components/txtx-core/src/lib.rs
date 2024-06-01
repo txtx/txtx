@@ -27,6 +27,7 @@ use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
+use kit::types::frontend::ReviewedInputResponse;
 use kit::types::frontend::SetActionItemStatus;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
@@ -306,7 +307,17 @@ pub async fn start_runbook_runloop(
                 // collected_responses.insert(k, v)
             }
             ActionItemResponseType::ProvideInput(_) => {}
-            ActionItemResponseType::ReviewInput(_) => {}
+            ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                value_checked, ..
+            }) => {
+                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![SetActionItemStatus {
+                    action_item_uuid,
+                    new_status: match value_checked {
+                        true => ActionItemStatus::Success(None),
+                        false => ActionItemStatus::Todo,
+                    },
+                }]));
+            }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((wallet_construct_uuid, scoped_requests)) =
