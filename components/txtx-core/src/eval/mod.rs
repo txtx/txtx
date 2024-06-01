@@ -651,7 +651,7 @@ pub async fn run_constructs_evaluation(
                         e.insert(new_items.clone());
                     }
                 };
-                continue;
+                break; // todo: this is a patch, but we should be `continue`ing
             }
         }
 
