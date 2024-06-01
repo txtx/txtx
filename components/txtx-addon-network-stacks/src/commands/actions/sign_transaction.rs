@@ -107,7 +107,8 @@ impl CommandImplementation for SignStacksTransaction {
 
         let mut bytes = vec![];
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-        let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+        let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
+        let payload = Value::string(hex_str);
 
         (wallet.specification.check_signability)(
             uuid,
