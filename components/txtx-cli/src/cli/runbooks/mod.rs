@@ -158,7 +158,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
                       match block_event.clone() {
                         BlockEvent::Append(new_block) => {
-                          block_store.insert(new_block.uuid.clone(), new_block.clone());
+                          let len = block_store.len();
+                          block_store.insert(len, new_block.clone());
                         },
                         BlockEvent::Clear => {*block_store = BTreeMap::new();}
                         BlockEvent::UpdateActionItems(updates) => {

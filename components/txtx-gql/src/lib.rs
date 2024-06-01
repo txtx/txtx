@@ -8,7 +8,6 @@ use txtx_core::kit::{
     channel::Sender,
     types::frontend::{ActionItemResponse, Block, BlockEvent},
 };
-use uuid::Uuid;
 
 pub mod mutation;
 pub mod query;
@@ -19,7 +18,7 @@ pub struct Context {
     pub protocol_name: String,
     pub runbook_name: String,
     pub runbook_description: Option<String>,
-    pub block_store: Arc<RwLock<BTreeMap<Uuid, Block>>>,
+    pub block_store: Arc<RwLock<BTreeMap<usize, Block>>>,
     pub block_broadcaster: tokio::sync::broadcast::Sender<BlockEvent>,
     pub action_item_events_tx: Sender<ActionItemResponse>,
 }
