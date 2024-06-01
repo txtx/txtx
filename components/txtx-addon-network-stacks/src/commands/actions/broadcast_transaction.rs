@@ -1,5 +1,4 @@
 use clarity::util::sleep_ms;
-use txtx_addon_kit::uuid::Uuid;
 use std::collections::VecDeque;
 use std::{collections::HashMap, fmt::Write};
 use txtx_addon_kit::types::commands::{
@@ -13,6 +12,7 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
@@ -107,7 +107,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        unimplemented!()
+        Ok(vec![]) // todo
     }
 
     fn execute(
