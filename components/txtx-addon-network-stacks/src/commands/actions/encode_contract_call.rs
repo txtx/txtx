@@ -5,13 +5,11 @@ use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
 use clarity_repl::clarity::ClarityName;
 use clarity_repl::codec::TransactionContractCall;
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
-use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     return_synchronous_err, return_synchronous_ok, CommandExecutionContext,
     CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -26,6 +24,7 @@ lazy_static! {
           name: "Stacks Contract Call",
           matcher: "call_contract",
           documentation: "The `call_contract` action encodes a valid contract call payload and serializes it as a hex string.",
+          requires_signing_capability: false,
           inputs: [
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
@@ -105,18 +104,16 @@ impl CommandImplementation for EncodeStacksContractCall {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        unimplemented!()
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none()) // todo
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();

@@ -1,11 +1,10 @@
 use clarity::util::sleep_ms;
 use std::collections::VecDeque;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent, ProgressBarStatus};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, ProgressBarStatus};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -25,6 +24,7 @@ lazy_static! {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
             documentation: "The `broadcast_transaction` action sends a signed transaction payload to the specified network.",
+            requires_signing_capability: false,
             inputs: [
                 signed_transaction_bytes: {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",
@@ -104,18 +104,16 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        Ok(vec![]) // todo
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none()) // todo
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();

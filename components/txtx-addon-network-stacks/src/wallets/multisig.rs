@@ -1,9 +1,8 @@
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, CommandSpecification,
-};
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
+use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandSpecification};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
+    WalletActivabilityFutureResult, WalletActivateFutureResult, WalletImplementation,
+    WalletSignFutureResult, WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
@@ -65,12 +64,15 @@ impl WalletImplementation for StacksConnect {
         _instance_name: &str,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        wallet_state: ValueStore,
+        wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult {
         // Loop over the signers
-        // Ensuring that they are all correctly activable
+        // Ensuring that they are all correctly activable.
+        // When they are, collect the public keys
+        // and build the stacks address + Check the balance
         unimplemented!()
     }
 
@@ -78,10 +80,11 @@ impl WalletImplementation for StacksConnect {
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        wallet_state: ValueStore,
+        wallets: WalletsState,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> CommandExecutionFutureResult {
+    ) -> WalletActivateFutureResult {
         unimplemented!()
     }
 
@@ -91,10 +94,11 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        wallet_state: ValueStore,
+        wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         unimplemented!()
     }
 
@@ -104,21 +108,10 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &ValueStore,
+        wallet_state: ValueStore,
+        wallets: WalletsState,
         _defaults: &AddonDefaults,
-    ) -> CommandExecutionFutureResult {
-        unimplemented!()
-    }
-
-    fn check_public_key_expectations(
-        _uuid: &ConstructUuid,
-        _instance_name: &str,
-        _public_key_bytes: &Vec<u8>,
-        _spec: &WalletSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
-    ) -> Result<Option<String>, Diagnostic> {
+    ) -> WalletSignFutureResult {
         unimplemented!()
     }
 }

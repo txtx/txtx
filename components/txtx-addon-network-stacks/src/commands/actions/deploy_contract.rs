@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -7,9 +5,8 @@ use txtx_addon_kit::{
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::{ActionItemRequest, BlockEvent},
+        frontend::{Actions, BlockEvent},
         types::Type,
-        wallets::WalletInstance,
         ConstructUuid, ValueStore,
     },
     AddonDefaults,
@@ -21,6 +18,7 @@ lazy_static! {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
           documentation: "Coming soon",
+          requires_signing_capability: false,
           inputs: [
               clarity_value: {
                   documentation: "",
@@ -57,18 +55,16 @@ impl CommandImplementation for StacksDeployContract {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        unimplemented!()
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none()) // todo
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()

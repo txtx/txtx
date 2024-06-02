@@ -1,12 +1,10 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
-use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
     CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
@@ -24,6 +22,7 @@ lazy_static! {
           name: "Decode Stacks Contract Call",
           matcher: "decode_call_contract",
           documentation: "Coming soon",
+          requires_signing_capability: false,
           inputs: [
             bytes: {
                   documentation: "The contract call transaction bytes to decode.",
@@ -81,18 +80,16 @@ impl CommandImplementation for EncodeStacksContractCall {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        unimplemented!()
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
