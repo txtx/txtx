@@ -78,6 +78,27 @@ pub fn run_constructs_dependencies_indexing(
                     runtime_ctx,
                 );
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
+                    if let Some(_) = runbook.wallets_instances.get(&resolved_construct_uuid) {
+                        runbook
+                            .instantiated_wallet_instances
+                            .insert(resolved_construct_uuid.clone());
+                    }
+                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                } else {
+                    println!("  -> {} (unable to resolve)", dep,);
+                }
+            }
+        }
+        // todo: should we constrain to wallets depending on wallets?
+        for construct_uuid in package.wallets_uuids.iter() {
+            let wallet_instance = runbook.wallets_instances.get(construct_uuid).unwrap();
+            for dep in wallet_instance.collect_dependencies().iter() {
+                let result = runbook.try_resolve_construct_reference_in_expression(
+                    package_uuid,
+                    dep,
+                    runtime_ctx,
+                );
+                if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);

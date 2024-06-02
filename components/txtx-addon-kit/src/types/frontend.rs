@@ -231,6 +231,156 @@ pub enum ActionItemStatus {
     Warning(Diagnostic),
 }
 
+#[derive(Clone, Debug)]
+pub enum ActionType {
+    UpdateRequest(ActionItemRequest),
+    AppendSubGroup(ActionSubGroup),
+    AppendGroup(ActionGroup),
+    NewBlock(ActionPanelData),
+}
+
+#[derive(Clone, Debug)]
+pub struct Actions {
+    pub store: Vec<ActionType>,
+}
+
+impl Actions {
+    pub fn none() -> Actions {
+        Actions { store: vec![] }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.store.is_empty()
+    }
+
+    pub fn append(&mut self, actions: &mut Actions) {
+        self.store.append(&mut actions.store);
+    }
+
+    pub fn push_group(&mut self, title: &str, action_items: Vec<ActionItemRequest>) {
+        self.store.push(ActionType::AppendGroup(ActionGroup {
+            sub_groups: vec![ActionSubGroup {
+                action_items,
+                allow_batch_completion: false,
+            }],
+            title: title.to_string(),
+        }));
+    }
+
+    pub fn push_sub_group(&mut self, action_items: Vec<ActionItemRequest>) {
+        self.store.push(ActionType::AppendSubGroup(ActionSubGroup {
+            action_items,
+            allow_batch_completion: false,
+        }));
+    }
+
+    pub fn new_panel(title: &str, description: &str) -> Actions {
+        let store = vec![ActionType::NewBlock(ActionPanelData {
+            title: title.to_string(),
+            description: description.to_string(),
+            groups: vec![],
+        })];
+        Actions { store }
+    }
+
+    pub fn new_group_of_items(title: &str, action_items: Vec<ActionItemRequest>) -> Actions {
+        let store = vec![ActionType::AppendGroup(ActionGroup {
+            sub_groups: vec![ActionSubGroup {
+                action_items,
+                allow_batch_completion: false,
+            }],
+            title: title.to_string(),
+        })];
+        Actions { store }
+    }
+
+    pub fn new_sub_group_of_items(action_items: Vec<ActionItemRequest>) -> Actions {
+        let store = vec![ActionType::AppendSubGroup(ActionSubGroup {
+            action_items,
+            allow_batch_completion: false,
+        })];
+        Actions { store }
+    }
+
+    pub fn get_new_action_item_requests(&self) -> Vec<&ActionItemRequest> {
+        let mut new_action_item_requests = vec![];
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(data) => {
+                    for item in data.action_items.iter() {
+                        new_action_item_requests.push(item);
+                    }
+                }
+                ActionType::AppendGroup(data) => {
+                    for subgroup in data.sub_groups.iter() {
+                        for item in subgroup.action_items.iter() {
+                            new_action_item_requests.push(item);
+                        }
+                    }
+                }
+                ActionType::NewBlock(data) => {
+                    for group in data.groups.iter() {
+                        for subgroup in group.sub_groups.iter() {
+                            for item in subgroup.action_items.iter() {
+                                new_action_item_requests.push(item);
+                            }
+                        }
+                    }
+                }
+                ActionType::UpdateRequest(_) => continue,
+            }
+        }
+        new_action_item_requests
+    }
+
+    pub fn compile_actions_to_block_events(&self) -> Vec<BlockEvent> {
+        let mut blocks = vec![];
+        let mut current_panel_data = ActionPanelData {
+            title: "".to_string(),
+            description: "".to_string(),
+            groups: vec![],
+        };
+
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(data) => {
+                    if current_panel_data.groups.len() > 0 {
+                        let Some(group) = current_panel_data.groups.last_mut() else {
+                            continue;
+                        };
+                        group.sub_groups.push(data.clone());
+                    } else {
+                        current_panel_data.groups.push(ActionGroup {
+                            title: "".to_string(),
+                            sub_groups: vec![data.clone()],
+                        });
+                    }
+                }
+                ActionType::AppendGroup(data) => {
+                    current_panel_data.groups.push(data.clone());
+                }
+                ActionType::NewBlock(data) => {
+                    if current_panel_data.groups.len() > 1 {
+                        blocks.push(BlockEvent::Append(Block {
+                            uuid: Uuid::new_v4(),
+                            panel: Panel::ActionPanel(current_panel_data.clone()),
+                            visible: true,
+                        }));
+                    }
+                    current_panel_data = data.clone();
+                }
+                ActionType::UpdateRequest(_) => continue,
+            }
+        }
+        blocks.push(BlockEvent::Append(Block {
+            uuid: Uuid::new_v4(),
+            panel: Panel::ActionPanel(current_panel_data.clone()),
+            visible: true,
+        }));
+        blocks
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {

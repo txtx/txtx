@@ -3,8 +3,10 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
-use std::collections::HashMap;
+use kit::types::wallets::WalletsState;
+use kit::types::ValueStore;
 use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{
@@ -46,7 +48,9 @@ pub struct Runbook {
     pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
-    pub wallet_instances: HashMap<ConstructUuid, WalletInstance>,
+    pub wallets_instances: HashMap<ConstructUuid, WalletInstance>,
+    pub wallets_state: Option<WalletsState>,
+    pub instantiated_wallet_instances: HashSet<ConstructUuid>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
     pub constructs_execution_results:
@@ -79,7 +83,9 @@ impl Runbook {
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
-            wallet_instances: HashMap::new(),
+            wallets_instances: HashMap::new(),
+            wallets_state: Some(WalletsState::new()),
+            instantiated_wallet_instances: HashSet::new(),
             constructs_execution_results: HashMap::new(),
             command_inputs_evaluation_results: HashMap::new(),
             environment_variables_uuid_lookup: HashMap::new(),
@@ -206,7 +212,7 @@ impl Runbook {
                 package
                     .wallets_uuids_lookup
                     .insert(construct_name, construct_uuid.clone());
-                self.wallet_instances
+                self.wallets_instances
                     .insert(construct_uuid.clone(), wallet_instance.clone());
             }
             PreConstructData::Root => unreachable!(),

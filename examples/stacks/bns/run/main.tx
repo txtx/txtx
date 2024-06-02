@@ -1,0 +1,100 @@
+action "defaults" "stacks::set_default_network" {
+  network_id = env.stacks_network_id
+  rpc_api_url = env.stacks_api_url
+}
+
+wallet "alice" "stacks::connect" {
+  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+  // cycle puppy glare enroll cost improve round trend wrist mushroom scorpion tower claim oppose clever elephant dinosaur eight problem before frozen dune wagon high
+  // d655b2523bcd65e34889725c73064feb17ceb796831c0e111ba1a552b0f31b3901
+}
+
+// wallet "bob" "stacks::connect" {
+//   expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+//   // board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin
+//   // f9d7206a47f14d2870c163ebab4bf3e70d18f5d14ce1031f3902fbbc894fe4c701
+// }
+
+// wallet "alice_and_bob" "stacks::multisig" {
+//   signers = [wallet.alice, wallet.bob]
+// }
+
+input "namespace" {
+  description = "Namespace"
+  default = "btc"
+}
+
+input "name" {
+  description = "Name"
+  default = "ludovic"
+}
+
+input "salt" {
+  description = "Name"
+  default = "0000000000"
+}
+
+input "zonefile" {
+  description = "Name"
+  default = "0000000000"
+}
+
+// todo: attachment handlign
+
+action "get_name_price" "stacks::call_readonly_fn" {
+  description = "Preorder name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "get-name-price"
+  function_args = [
+      encode_buffer(input.namespace),
+      encode_buffer(input.name)
+  ]
+}
+
+// action "bns_commit" "stacks::call_readonly_fn" {
+//   description = "Preorder name"
+//   contract_id = "ST000000000000000000002AMW42H.bns"
+//   function_name = "name-preorder"
+//   function_args = [
+//       encode_buffer(input.namespace),
+//       encode_buffer(input.name)
+//   ]
+// }
+
+// action "register_bns_name" "stacks::sign_transaction" {
+//   transaction_payload_bytes = "0x021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374"
+//   nonce = 0
+//   fee = 195
+//   signer = wallet.alice_and_bob
+//   network_id = "testnet"
+// }
+
+action "bns_commit" "stacks::send_contract_call" {
+  description = "Preorder name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-preorder"
+  function_args = [
+      encode_buffer(ripemd160("${input.namespace}.${input.name}.${input.salt}")),
+      encode_uint(action.get_name_price.value), // <- extract actual price from this
+  ]
+  signer = wallet.alice
+  confirmation = 1 
+}
+
+action "name_preorder" "stacks::send_contract_call" {
+  description = "Register name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-register"
+  function_args = [
+      encode_buffer(input.namespace),
+      encode_buffer(input.name),
+      encode_buffer(input.salt),
+      encode_buffer(input.zonefile),
+  ]
+  signer = wallet.alice
+  confirmation = 1 
+}
+
+ouput "preorder_success" {
+  value = action.name_preorder.result
+}

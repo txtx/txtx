@@ -1,13 +1,11 @@
 pub mod actions;
 
-use kit::types::frontend::BlockEvent;
+use kit::types::frontend::{Actions, BlockEvent};
 use kit::types::ValueStore;
-use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
-use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     define_command,
@@ -30,6 +28,7 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
+            requires_signing_capability: false,
             inputs: [],
             outputs: [],
             example: "",
@@ -60,18 +59,16 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+    ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
@@ -85,6 +82,7 @@ pub fn new_input_specification() -> CommandSpecification {
             name: "Input",
             matcher: "input",
             documentation: "Construct designed to store an input",
+            requires_signing_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the input",
@@ -144,27 +142,28 @@ impl CommandImplementation for Input {
         spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+    ) -> Result<Actions, Diagnostic> {
         if let Some(value) = args.get_value("value") {
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
-                    return Ok(vec![]);
+                    return Ok(Actions::none());
                 }
             }
             if execution_context.review_input_values {
-                return Ok(vec![ActionItemRequest::new(
-                    &Uuid::new_v4(),
-                    &Some(uuid.value()),
-                    0,
-                    &instance_name,
-                    &value.to_string(),
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput,
-                )]);
+                return Ok(Actions::new_sub_group_of_items(vec![
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        0,
+                        &instance_name,
+                        &value.to_string(),
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput,
+                    ),
+                ]));
             } else {
-                return Ok(vec![]);
+                return Ok(Actions::none());
             }
         }
 
@@ -172,7 +171,7 @@ impl CommandImplementation for Input {
             Some(default_value) => {
                 for input_spec in spec.inputs.iter() {
                     if input_spec.name == "value" && input_spec.check_performed {
-                        return Ok(vec![]);
+                        return Ok(Actions::none());
                     }
                 }
                 (
@@ -186,7 +185,7 @@ impl CommandImplementation for Input {
             }
         };
 
-        return Ok(vec![ActionItemRequest::new(
+        let action = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
             0,
@@ -197,15 +196,16 @@ impl CommandImplementation for Input {
                 input_name: instance_name.to_string(),
                 typing: typing,
             }),
-        )]);
+        );
+
+        return Ok(Actions::new_sub_group_of_items(vec![action]));
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
@@ -224,6 +224,7 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
+            requires_signing_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the output",
@@ -265,18 +266,16 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        Ok(vec![])
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let value = args.get_expected_value("value")?;
