@@ -1,5 +1,6 @@
 pub mod base64;
 pub mod hash;
+pub mod hex;
 pub mod json;
 pub mod list;
 pub mod operators;
@@ -13,6 +14,7 @@ lazy_static! {
         functions.extend(operators::OPERATORS_FUNCTIONS.clone());
         functions.extend(base64::FUNCTIONS.clone());
         functions.extend(hash::FUNCTIONS.clone());
+        functions.extend(hex::FUNCTIONS.clone());
         functions
     };
 }
