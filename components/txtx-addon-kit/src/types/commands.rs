@@ -669,7 +669,7 @@ impl CommandInstance {
                 ActionItemResponseType::ReviewInput(update) => {
                     for input in self.specification.inputs.iter_mut() {
                         if input.name == update.input_name {
-                            input.check_performed = true;
+                            input.check_performed = update.value_checked;
                             break;
                         }
                     }

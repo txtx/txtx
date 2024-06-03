@@ -384,7 +384,7 @@ impl Actions {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {
-    ReviewInput,
+    ReviewInput(ReviewInputRequest),
     ProvideInput(ProvideInputRequest),
     PickInputOption(Vec<InputOption>),
     ProvidePublicKey(ProvidePublicKeyRequest),
@@ -400,6 +400,12 @@ impl ActionItemRequestType {
             _ => None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewInputRequest {
+    pub input_name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

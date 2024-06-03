@@ -1,6 +1,6 @@
 pub mod actions;
 
-use kit::types::frontend::{Actions, BlockEvent};
+use kit::types::frontend::{Actions, BlockEvent, ReviewInputRequest};
 use kit::types::ValueStore;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
 use txtx_addon_kit::types::frontend::{
@@ -159,7 +159,9 @@ impl CommandImplementation for Input {
                         &instance_name,
                         &value.to_string(),
                         ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "value".to_string(),
+                        }),
                     ),
                 ]));
             } else {
@@ -170,7 +172,7 @@ impl CommandImplementation for Input {
         let (default_value, typing) = match args.get_value("default") {
             Some(default_value) => {
                 for input_spec in spec.inputs.iter() {
-                    if input_spec.name == "value" && input_spec.check_performed {
+                    if input_spec.name == "default" && input_spec.check_performed {
                         return Ok(Actions::none());
                     }
                 }
@@ -193,7 +195,7 @@ impl CommandImplementation for Input {
             &default_value.unwrap_or("".into()),
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                input_name: instance_name.to_string(),
+                input_name: "default".into(),
                 typing: typing,
             }),
         );
