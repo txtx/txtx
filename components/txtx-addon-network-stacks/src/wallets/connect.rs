@@ -151,7 +151,7 @@ impl WalletImplementation for StacksConnect {
                 Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
             );
             let mut actions = Actions::none();
-            actions.push_status_udpate_construct_uuid(
+            actions.push_status_update_construct_uuid(
                 &uuid,
                 ActionItemStatus::Success(Some(stx_address.into())),
             );

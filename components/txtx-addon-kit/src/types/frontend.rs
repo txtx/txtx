@@ -16,17 +16,10 @@ use uuid::Uuid;
 pub enum BlockEvent {
     Action(Block),
     Clear,
-    UpdateActionItems(Vec<SetActionItemStatus>),
+    UpdateActionItems(Vec<ActionItemRequestUpdate>),
     Exit,
     ProgressBar(Block),
     Modal(Block),
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetActionItemStatus {
-    pub action_item_uuid: Uuid,
-    pub new_status: ActionItemStatus,
 }
 
 impl BlockEvent {
@@ -44,7 +37,7 @@ impl BlockEvent {
         }
     }
 
-    pub fn expect_updated_action_items(&self) -> &Vec<SetActionItemStatus> {
+    pub fn expect_updated_action_items(&self) -> &Vec<ActionItemRequestUpdate> {
         match &self {
             BlockEvent::UpdateActionItems(ref updates) => updates,
             _ => unreachable!("block expected"),
@@ -104,31 +97,83 @@ impl Block {
             Panel::ProgressBar(_) => None,
         }
     }
-    pub fn set_action_status(&mut self, action_item_uuid: Uuid, new_status: ActionItemStatus) {
+
+    pub fn update_action_item(&mut self, update: ActionItemRequestUpdate) {
         match self.panel.borrow_mut() {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter_mut() {
                     for sub_group in group.sub_groups.iter_mut() {
                         for action in sub_group.action_items.iter_mut() {
-                            if action.uuid == action_item_uuid {
-                                action.action_status = new_status.clone();
+                            if action.uuid == update.uuid {
+                                if let Some(title) = update.title.clone() {
+                                    action.title = title;
+                                }
+                                if let Some(description) = update.description.clone() {
+                                    action.description = description;
+                                }
+                                if let Some(action_status) = update.action_status.clone() {
+                                    action.action_status = action_status;
+                                }
+                                if let Some(action_type) = update.action_type.clone() {
+                                    action.action_type = action_type;
+                                }
                             }
                         }
                     }
                 }
             }
-            Panel::ModalPanel(panel) => {
-                for group in panel.groups.iter_mut() {
-                    for sub_group in group.sub_groups.iter_mut() {
-                        for action in sub_group.action_items.iter_mut() {
-                            if action.uuid == action_item_uuid {
-                                action.action_status = new_status.clone();
-                            }
-                        }
-                    }
-                }
-            }
-            Panel::ProgressBar(_) => {}
+            _ => {}
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct ActionItemRequestUpdate {
+    pub uuid: Uuid,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub action_status: Option<ActionItemStatus>,
+    pub action_type: Option<ActionItemRequestType>,
+}
+
+impl ActionItemRequestUpdate {
+    pub fn new(uuid: Uuid) -> Self {
+        ActionItemRequestUpdate {
+            uuid,
+            title: None,
+            description: None,
+            action_status: None,
+            action_type: None,
+        }
+    }
+    pub fn status(&mut self, new_status: ActionItemStatus) -> Self {
+        self.action_status = Some(new_status);
+        self.clone()
+    }
+
+    pub fn from_update(new: ActionItemRequest) -> Self {
+        ActionItemRequestUpdate {
+            uuid: new.uuid,
+            title: Some(new.title),
+            description: Some(new.description),
+            action_status: Some(new.action_status),
+            action_type: Some(new.action_type),
+        }
+    }
+
+    pub fn from_parts(
+        uuid: Uuid,
+        title: String,
+        description: String,
+        action_status: ActionItemStatus,
+        action_type: ActionItemRequestType,
+    ) -> Self {
+        ActionItemRequestUpdate {
+            uuid: uuid,
+            title: Some(title),
+            description: Some(description),
+            action_status: Some(action_status),
+            action_type: Some(action_type),
         }
     }
 }
@@ -365,7 +410,7 @@ impl Actions {
         ))
     }
 
-    pub fn push_status_udpate_construct_uuid(
+    pub fn push_status_update_construct_uuid(
         &mut self,
         construct_uuid: &ConstructUuid,
         status_update: ActionItemStatus,
@@ -488,7 +533,7 @@ impl Actions {
     pub fn compile_actions_to_item_updates(
         &self,
         action_items_requests: &BTreeMap<Uuid, ActionItemRequest>,
-    ) -> Vec<SetActionItemStatus> {
+    ) -> Vec<ActionItemRequestUpdate> {
         let mut updates = vec![];
         let mut status_updates = HashMap::new();
 
@@ -500,20 +545,25 @@ impl Actions {
                 ActionType::UpdateConstruct(data) => {
                     status_updates.insert(data.construct_uuid.value(), data.action_status.clone());
                 }
-                ActionType::UpdateActionItemRequest(data) => updates.push(SetActionItemStatus {
-                    action_item_uuid: data.construct_uuid.unwrap().clone(),
-                    new_status: data.action_status.clone(),
-                }),
+                ActionType::UpdateActionItemRequest(update) => {
+                    updates.push(ActionItemRequestUpdate::from_parts(
+                        update.uuid.clone(),
+                        update.title.clone(),
+                        update.description.clone(),
+                        update.action_status.clone(),
+                        update.action_type.clone(),
+                    ))
+                }
             }
         }
 
         for (_, request) in action_items_requests.iter() {
             if let Some(construct_uuid) = request.construct_uuid {
                 if let Some(status_update) = status_updates.get(&construct_uuid) {
-                    updates.push(SetActionItemStatus {
-                        action_item_uuid: construct_uuid.clone(),
-                        new_status: status_update.clone(),
-                    })
+                    updates.push(
+                        ActionItemRequestUpdate::new(construct_uuid.clone())
+                            .status(status_update.clone()),
+                    )
                 }
             }
         }

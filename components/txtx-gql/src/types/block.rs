@@ -1,29 +1,52 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block, ModalPanelData, Panel,
-    ProgressBarStatus, SetActionItemStatus,
+    ActionGroup, ActionItemRequest, ActionItemRequestUpdate, ActionPanelData, ActionSubGroup,
+    Block, ModalPanelData, Panel, ProgressBarStatus,
 };
 
 #[derive(Clone)]
-pub struct GqlSetActionItemStatus {
-    set_action_item_status: SetActionItemStatus,
+pub struct GqlActionItemRequestUpdate {
+    update: ActionItemRequestUpdate,
 }
-impl GqlSetActionItemStatus {
-    pub fn new(update: SetActionItemStatus) -> Self {
-        GqlSetActionItemStatus {
-            set_action_item_status: update,
-        }
+impl GqlActionItemRequestUpdate {
+    pub fn new(update: ActionItemRequestUpdate) -> Self {
+        GqlActionItemRequestUpdate { update }
     }
 }
 
 #[graphql_object(context = Context)]
-impl GqlSetActionItemStatus {
-    pub fn action_item_uuid(&self) -> String {
-        self.set_action_item_status.action_item_uuid.to_string()
+impl GqlActionItemRequestUpdate {
+    pub fn uuid(&self) -> String {
+        self.update.uuid.to_string()
     }
-    pub fn new_status(&self) -> Result<String, String> {
-        serde_json::to_string(&self.set_action_item_status.new_status).map_err(|e| e.to_string())
+    pub fn title(&self) -> Option<String> {
+        self.update.title.clone()
+    }
+    pub fn description(&self) -> Option<String> {
+        self.update.description.clone()
+    }
+    pub fn action_status(&self) -> Result<Option<String>, String> {
+        match &self.update.action_status {
+            Some(action_status) => {
+                match serde_json::to_string(action_status).map_err(|e| e.to_string()) {
+                    Ok(str) => Ok(Some(str)),
+                    Err(e) => Err(e),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+    pub fn action_type(&self) -> Result<Option<String>, String> {
+        match &self.update.action_type {
+            Some(action_type) => {
+                match serde_json::to_string(action_type).map_err(|e| e.to_string()) {
+                    Ok(str) => Ok(Some(str)),
+                    Err(e) => Err(e),
+                }
+            }
+            None => Ok(None),
+        }
     }
 }
 
@@ -131,37 +154,6 @@ impl GqlProgressBlock {
         match &self.block.panel {
             Panel::ProgressBar(panel_data) => GqlProgressBarStatus::new(panel_data.clone()),
             _ => unreachable!(),
-        }
-    }
-}
-pub struct GqlPanel {
-    panel: Panel,
-}
-impl GqlPanel {
-    pub fn new(panel: Panel) -> Self {
-        GqlPanel { panel }
-    }
-}
-#[graphql_object(context = Context)]
-impl GqlPanel {
-    pub fn action_panel_data(&self) -> Option<GqlActionPanelData> {
-        match &self.panel {
-            Panel::ActionPanel(panel_data) => Some(GqlActionPanelData::new(panel_data.clone())),
-            _ => None,
-        }
-    }
-
-    pub fn modal_panel_data(&self) -> Option<GqlModalPanelData> {
-        match &self.panel {
-            Panel::ModalPanel(panel_data) => Some(GqlModalPanelData::new(panel_data.clone())),
-            _ => None,
-        }
-    }
-
-    pub fn progress_bar_data(&self) -> Option<GqlProgressBarStatus> {
-        match &self.panel {
-            Panel::ProgressBar(panel_data) => Some(GqlProgressBarStatus::new(panel_data.clone())),
-            _ => None,
         }
     }
 }

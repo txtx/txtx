@@ -23,12 +23,12 @@ use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
 use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
+use kit::types::frontend::ActionItemRequestUpdate;
 use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::ReviewedInputResponse;
-use kit::types::frontend::SetActionItemStatus;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -278,17 +278,48 @@ pub async fn start_runbook_runloop(
             ActionItemResponseType::PickInputOption(_response) => {
                 // collected_responses.insert(k, v)
             }
-            ActionItemResponseType::ProvideInput(_) => {}
+            ActionItemResponseType::ProvideInput(_) => {
+                let Some((provide_input_action_construct_uuid, scoped_requests)) =
+                    retrieve_related_action_items_requests(
+                        &action_item_uuid,
+                        &mut action_item_requests,
+                    )
+                else {
+                    continue;
+                };
+                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                map.insert(provide_input_action_construct_uuid, scoped_requests);
+
+                // todo: as of now, there won't actually be actions returned here from a pick input option response.
+                // we need to return actions in this loop when the user provides inputs
+                let actions = run_constructs_evaluation(
+                    runbook,
+                    runtime_context,
+                    None,
+                    &execution_context,
+                    &mut map,
+                    &action_item_responses,
+                    &block_tx.clone(),
+                )
+                .await?;
+
+                let updated_actions = actions
+                    .iter()
+                    .map(|actions| actions.compile_actions_to_item_updates(&action_item_requests))
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+            }
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 value_checked, ..
             }) => {
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![SetActionItemStatus {
-                    action_item_uuid,
-                    new_status: match value_checked {
-                        true => ActionItemStatus::Success(None),
-                        false => ActionItemStatus::Todo,
-                    },
-                }]));
+                let new_status = match value_checked {
+                    true => ActionItemStatus::Success(None),
+                    false => ActionItemStatus::Todo,
+                };
+                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
+                    ActionItemRequestUpdate::new(action_item_uuid).status(new_status),
+                ]));
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
@@ -331,7 +362,7 @@ pub async fn start_runbook_runloop(
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 
-                let _ = run_constructs_evaluation(
+                let actions = run_constructs_evaluation(
                     runbook,
                     runtime_context,
                     None,
@@ -341,14 +372,11 @@ pub async fn start_runbook_runloop(
                     &block_tx.clone(),
                 )
                 .await?;
-                let scoped_updated_requests = map.get(&signing_action_construct_uuid).unwrap();
 
-                let updated_actions = scoped_updated_requests
+                let updated_actions = actions
                     .iter()
-                    .map(|action| SetActionItemStatus {
-                        action_item_uuid: action.uuid.clone(),
-                        new_status: action.action_status.clone(),
-                    })
+                    .map(|actions| actions.compile_actions_to_item_updates(&action_item_requests))
+                    .flatten()
                     .collect::<Vec<_>>();
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }

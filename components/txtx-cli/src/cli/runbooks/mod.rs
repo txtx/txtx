@@ -165,7 +165,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                         BlockEvent::UpdateActionItems(updates) => {
                             for update in updates.iter() {
                               for (_, block) in block_store.iter_mut() {
-                                block.set_action_status(update.action_item_uuid.clone(), update.new_status.clone());
+                                block.update_action_item(update.clone());
                               }
                             }
                         },

@@ -624,12 +624,8 @@ impl CommandInstance {
                     input_evaluation_results
                         .inputs
                         .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = true;
-                            break;
-                        }
-                    }
+                    // todo: when there is a provide input update, we need to actually send an updated action item.
+                    // the tricky part is we need to know the uuid of the original action we're updating
                 }
                 ActionItemResponseType::ProvideSignedTransaction(bytes) => {
                     // TODO

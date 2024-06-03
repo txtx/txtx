@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::{
-    types::block::{GqlActionBlock, GqlModalBlock, GqlProgressBlock, GqlSetActionItemStatus},
+    types::block::{GqlActionBlock, GqlActionItemRequestUpdate, GqlModalBlock, GqlProgressBlock},
     Context,
 };
 use futures::Stream;
@@ -16,7 +16,7 @@ type GqlProgressBlockStream =
     Pin<Box<dyn Stream<Item = Result<GqlProgressBlock, FieldError>> + Send>>;
 
 type GqlSetActionItemStatusStream =
-    Pin<Box<dyn Stream<Item = Result<Vec<GqlSetActionItemStatus>, FieldError>> + Send>>;
+    Pin<Box<dyn Stream<Item = Result<Vec<GqlActionItemRequestUpdate>, FieldError>> + Send>>;
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
 
@@ -82,7 +82,7 @@ impl Subscription {
             loop {
               if let Ok(block_event) = block_rx.recv().await {
                 match block_event {
-                    BlockEvent::UpdateActionItems(updates) => yield Ok(updates.into_iter().map(GqlSetActionItemStatus::new).collect()),
+                    BlockEvent::UpdateActionItems(updates) => yield Ok(updates.into_iter().map(GqlActionItemRequestUpdate::new).collect()),
                     _ => {}
                 }
               }
