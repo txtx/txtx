@@ -791,6 +791,7 @@ pub enum ActionItemResponseType {
     ProvidePublicKey(ProvidePublicKeyResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
     ValidateBlock,
+    ValidateModal,
 }
 
 impl ActionItemResponseType {
