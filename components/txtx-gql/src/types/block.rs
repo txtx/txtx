@@ -1,49 +1,9 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionSubGroup, Block, BlockEvent, Panel, SetActionItemStatus,
+    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block, ModalPanelData, Panel,
+    ProgressBarStatus, SetActionItemStatus,
 };
-
-#[derive(Clone)]
-pub enum GqlBlockEvent {
-    Append(GqlBlock),
-    Clear,
-    UpdateActionItems(Vec<GqlSetActionItemStatus>),
-}
-impl GqlBlockEvent {
-    pub fn new(block_event: BlockEvent) -> Self {
-        match block_event {
-            BlockEvent::Append(block) => GqlBlockEvent::Append(GqlBlock::new(block)),
-            BlockEvent::Clear => GqlBlockEvent::Clear,
-            BlockEvent::UpdateActionItems(updates) => GqlBlockEvent::UpdateActionItems(
-                updates
-                    .into_iter()
-                    .map(GqlSetActionItemStatus::new)
-                    .collect(),
-            ),
-            BlockEvent::Modal(_) => unimplemented!(),
-            BlockEvent::ProgressBar(_) => unimplemented!(),
-            BlockEvent::Exit => unreachable!(),
-        }
-    }
-}
-
-#[graphql_object(context = Context)]
-impl GqlBlockEvent {
-    pub fn append(&self) -> Option<GqlBlock> {
-        match self {
-            GqlBlockEvent::Append(block) => Some(block.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn update_action_items(&self) -> Option<Vec<GqlSetActionItemStatus>> {
-        match self {
-            GqlBlockEvent::UpdateActionItems(updates) => Some(updates.to_vec()),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct GqlSetActionItemStatus {
@@ -68,21 +28,22 @@ impl GqlSetActionItemStatus {
 }
 
 #[derive(Clone)]
-pub struct GqlBlock {
+pub struct GqlActionBlock {
     block: Block,
 }
-impl GqlBlock {
+impl GqlActionBlock {
     pub fn new(block: Block) -> Self {
-        GqlBlock { block }
+        GqlActionBlock { block }
     }
 }
 
 #[graphql_object(context = Context)]
-impl GqlBlock {
+impl GqlActionBlock {
     #[graphql(name = "type")]
     pub fn typing(&self) -> String {
         match &self.block.panel {
             Panel::ActionPanel(_) => "ActionPanel".into(),
+            _ => unreachable!(),
         }
     }
 
@@ -90,28 +51,200 @@ impl GqlBlock {
         self.block.uuid.to_string()
     }
 
-    pub fn title(&self) -> String {
+    pub fn visible(&self) -> bool {
+        self.block.visible
+    }
+
+    pub fn panel(&self) -> GqlActionPanelData {
         match &self.block.panel {
-            Panel::ActionPanel(panel) => panel.title.clone(),
+            Panel::ActionPanel(panel_data) => GqlActionPanelData::new(panel_data.clone()),
+            _ => unreachable!(),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct GqlModalBlock {
+    block: Block,
+}
+impl GqlModalBlock {
+    pub fn new(block: Block) -> Self {
+        GqlModalBlock { block }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlModalBlock {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        match &self.block.panel {
+            Panel::ModalPanel(_) => "ModalPanel".into(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn uuid(&self) -> String {
+        self.block.uuid.to_string()
+    }
+
+    pub fn visible(&self) -> bool {
+        self.block.visible
+    }
+
+    pub fn panel(&self) -> GqlModalPanelData {
+        match &self.block.panel {
+            Panel::ModalPanel(panel_data) => GqlModalPanelData::new(panel_data.clone()),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GqlProgressBlock {
+    block: Block,
+}
+impl GqlProgressBlock {
+    pub fn new(block: Block) -> Self {
+        GqlProgressBlock { block }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlProgressBlock {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        match &self.block.panel {
+            Panel::ProgressBar(_) => "ProgressBar".into(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn uuid(&self) -> String {
+        self.block.uuid.to_string()
+    }
+
+    pub fn visible(&self) -> bool {
+        self.block.visible
+    }
+
+    pub fn panel(&self) -> GqlProgressBarStatus {
+        match &self.block.panel {
+            Panel::ProgressBar(panel_data) => GqlProgressBarStatus::new(panel_data.clone()),
+            _ => unreachable!(),
+        }
+    }
+}
+pub struct GqlPanel {
+    panel: Panel,
+}
+impl GqlPanel {
+    pub fn new(panel: Panel) -> Self {
+        GqlPanel { panel }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlPanel {
+    pub fn action_panel_data(&self) -> Option<GqlActionPanelData> {
+        match &self.panel {
+            Panel::ActionPanel(panel_data) => Some(GqlActionPanelData::new(panel_data.clone())),
+            _ => None,
+        }
+    }
+
+    pub fn modal_panel_data(&self) -> Option<GqlModalPanelData> {
+        match &self.panel {
+            Panel::ModalPanel(panel_data) => Some(GqlModalPanelData::new(panel_data.clone())),
+            _ => None,
+        }
+    }
+
+    pub fn progress_bar_data(&self) -> Option<GqlProgressBarStatus> {
+        match &self.panel {
+            Panel::ProgressBar(panel_data) => Some(GqlProgressBarStatus::new(panel_data.clone())),
+            _ => None,
+        }
+    }
+}
+
+pub struct GqlActionPanelData {
+    data: ActionPanelData,
+}
+impl GqlActionPanelData {
+    pub fn new(data: ActionPanelData) -> Self {
+        GqlActionPanelData { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlActionPanelData {
+    pub fn title(&self) -> String {
+        self.data.title.clone()
     }
 
     pub fn description(&self) -> String {
-        match &self.block.panel {
-            Panel::ActionPanel(panel) => panel.description.clone(),
-        }
+        self.data.description.clone()
     }
 
-    pub fn groups(&self) -> Option<Vec<GqlActionGroup>> {
-        let groups = match &self.block.panel {
-            Panel::ActionPanel(panel) => panel
-                .groups
-                .clone()
-                .into_iter()
-                .map(GqlActionGroup::new)
-                .collect(),
-        };
-        Some(groups)
+    pub fn groups(&self) -> Vec<GqlActionGroup> {
+        self.data
+            .groups
+            .clone()
+            .into_iter()
+            .map(GqlActionGroup::new)
+            .collect()
+    }
+}
+
+pub struct GqlModalPanelData {
+    data: ModalPanelData,
+}
+impl GqlModalPanelData {
+    pub fn new(data: ModalPanelData) -> Self {
+        GqlModalPanelData { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlModalPanelData {
+    pub fn title(&self) -> String {
+        self.data.title.clone()
+    }
+
+    pub fn description(&self) -> String {
+        self.data.description.clone()
+    }
+
+    pub fn groups(&self) -> Vec<GqlActionGroup> {
+        self.data
+            .groups
+            .clone()
+            .into_iter()
+            .map(GqlActionGroup::new)
+            .collect()
+    }
+}
+
+pub struct GqlProgressBarStatus {
+    data: ProgressBarStatus,
+}
+impl GqlProgressBarStatus {
+    pub fn new(data: ProgressBarStatus) -> Self {
+        GqlProgressBarStatus { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlProgressBarStatus {
+    pub fn status(&self) -> String {
+        self.data.status.clone()
+    }
+
+    pub fn message(&self) -> String {
+        self.data.message.clone()
+    }
+
+    pub fn diagnostic(&self) -> Option<String> {
+        match &self.data.diagnostic {
+            Some(diag) => Some(serde_json::to_string(&diag).unwrap()),
+            None => None,
+        }
     }
 }
 

@@ -4,7 +4,7 @@ use std::fmt::Write;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, ProgressBarStatus};
+use txtx_addon_kit::types::frontend::{Actions, Block, BlockEvent, Panel, ProgressBarStatus};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -129,12 +129,14 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let progress_tx = progress_tx.clone();
 
         let future = async move {
-            let mut progress_bar = ProgressBarStatus {
+            let mut progress_bar = Block {
                 uuid: Uuid::new_v4(),
                 visible: true,
-                status: "status".to_string(),
-                message: "message".to_string(),
-                diagnostic: None,
+                panel: Panel::ProgressBar(ProgressBarStatus {
+                    status: "status".to_string(),
+                    message: "message".to_string(),
+                    diagnostic: None,
+                }),
             };
             let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
 

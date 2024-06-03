@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::{
-    types::block::{GqlBlock, GqlSetActionItemStatus},
+    types::block::{GqlActionBlock, GqlModalBlock, GqlProgressBlock, GqlSetActionItemStatus},
     Context,
 };
 use futures::Stream;
@@ -10,7 +10,10 @@ use txtx_core::kit::types::frontend::BlockEvent;
 
 pub struct Subscription;
 
-type GqlBlockStream = Pin<Box<dyn Stream<Item = Result<GqlBlock, FieldError>> + Send>>;
+type GqlActionBlockStream = Pin<Box<dyn Stream<Item = Result<GqlActionBlock, FieldError>> + Send>>;
+type GqlModalBlockStream = Pin<Box<dyn Stream<Item = Result<GqlModalBlock, FieldError>> + Send>>;
+type GqlProgressBlockStream =
+    Pin<Box<dyn Stream<Item = Result<GqlProgressBlock, FieldError>> + Send>>;
 
 type GqlSetActionItemStatusStream =
     Pin<Box<dyn Stream<Item = Result<Vec<GqlSetActionItemStatus>, FieldError>> + Send>>;
@@ -21,19 +24,52 @@ type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>>
   context = Context,
 )]
 impl Subscription {
-    async fn append_block_event(context: &Context) -> GqlBlockStream {
+    async fn action_block_event(context: &Context) -> GqlActionBlockStream {
         let block_tx = context.block_broadcaster.clone();
         let mut block_rx = block_tx.subscribe();
         let stream = async_stream::stream! {
             loop {
               if let Ok(block_event) = block_rx.recv().await {
                 match block_event {
-                    BlockEvent::Append(block) => yield Ok(GqlBlock::new(block)),
+                    BlockEvent::Action(block) => yield Ok(GqlActionBlock::new(block)),
                     _ => {}
                 }
+              }
+            }
 
+        };
+        Box::pin(stream)
+    }
+
+    async fn modal_block_event(context: &Context) -> GqlModalBlockStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                    BlockEvent::Modal(block) => yield Ok(GqlModalBlock::new(block)),
+                    _ => {}
                 }
               }
+            }
+
+        };
+        Box::pin(stream)
+    }
+
+    async fn progress_block_event(context: &Context) -> GqlProgressBlockStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                    BlockEvent::ProgressBar(block) => yield Ok(GqlProgressBlock::new(block)),
+                    _ => {}
+                }
+              }
+            }
 
         };
         Box::pin(stream)

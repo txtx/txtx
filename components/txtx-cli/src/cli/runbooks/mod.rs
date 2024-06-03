@@ -157,7 +157,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                       let mut block_store = block_store.write().await;
 
                       match block_event.clone() {
-                        BlockEvent::Append(new_block) => {
+                        BlockEvent::Action(new_block) => {
                           let len = block_store.len();
                           block_store.insert(len, new_block.clone());
                         },
@@ -169,8 +169,14 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                               }
                             }
                         },
-                        BlockEvent::Modal(_) => unimplemented!(),
-                        BlockEvent::ProgressBar(_) => unimplemented!(),
+                        BlockEvent::Modal(new_block) => {
+                          let len = block_store.len();
+                          block_store.insert(len, new_block.clone());
+                        },
+                        BlockEvent::ProgressBar(new_block) => {
+                          let len = block_store.len();
+                          block_store.insert(len, new_block.clone());
+                        },
                         BlockEvent::Exit => break
                       }
                       let _ = block_broadcaster.send(block_event.clone());
