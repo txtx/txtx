@@ -59,8 +59,8 @@ impl WalletImplementation for StacksConnect {
         _instance_name: &str,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult {
@@ -71,8 +71,8 @@ impl WalletImplementation for StacksConnect {
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
@@ -85,8 +85,8 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
@@ -99,8 +99,8 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         unimplemented!()

@@ -1,113 +1,224 @@
-use std::{future::Future, pin::Pin};
-
-use hcl_edit::{expr::Expression, structure::Block};
-use rust_fsm::StateMachine;
-
 use crate::{
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
     AddonDefaults,
 };
+use futures::future;
+use hcl_edit::{expr::Expression, structure::Block};
+use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::{
     commands::{
-        CommandExecutionContext, CommandExecutionFutureResult, CommandExecutionResult,
-        CommandInput, CommandInputsEvaluationResult, CommandInstanceStateMachine, CommandOutput,
+        CommandExecutionContext, CommandExecutionResult, CommandInput,
+        CommandInputsEvaluationResult, CommandOutput,
     },
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::{
-        ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
-        ActionSubGroup, BlockEvent,
-    },
+    frontend::{ActionItemRequest, ActionItemResponseType, Actions, BlockEvent},
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid, ValueStore,
 };
 
-pub type WalletRunner = Box<
+#[derive(Debug, Clone)]
+pub struct WalletsState {
+    pub store: HashMap<ConstructUuid, ValueStore>,
+}
+
+impl WalletsState {
+    pub fn new() -> WalletsState {
+        WalletsState {
+            store: HashMap::new(),
+        }
+    }
+
+    pub fn get_wallet_state_mut(&mut self, wallet_uuid: &ConstructUuid) -> Option<&mut ValueStore> {
+        self.store.get_mut(wallet_uuid)
+    }
+
+    pub fn get_wallet_state(&self, wallet_uuid: &ConstructUuid) -> Option<&ValueStore> {
+        self.store.get(wallet_uuid)
+    }
+
+    pub fn pop_wallet_state(&mut self, wallet_uuid: &ConstructUuid) -> Option<ValueStore> {
+        self.store.remove(wallet_uuid)
+    }
+
+    pub fn push_wallet_state(&mut self, wallet_state: ValueStore) {
+        self.store.insert(
+            ConstructUuid::from_uuid(&wallet_state.uuid.clone()),
+            wallet_state,
+        );
+    }
+
+    // pub fn get_mining_spend_amount<F, G>(
+    //     config: &Config,
+    //     keychain: &Keychain,
+    //     burnchain: &Burnchain,
+    //     sortdb: &SortitionDB,
+    //     recipients: &[PoxAddress],
+    //     start_mine_height: u64,
+    //     at_burn_block: Option<u64>,
+    //     mut get_prior_winning_prob: F,
+    //     mut set_prior_winning_prob: G,
+    // ) -> u64
+    // where
+    //     F: FnMut(u64) -> f64,
+    //     G: FnMut(u64, f64),
+    // {
+
+    pub fn create_new_wallet(&mut self, wallet_uuid: &ConstructUuid, wallet_name: &str) {
+        if !self.store.contains_key(&wallet_uuid) {
+            self.store.insert(
+                wallet_uuid.clone(),
+                ValueStore::new(wallet_name, &wallet_uuid.value()),
+            );
+        }
+    }
+}
+
+pub type WalletActivateFutureResult = Result<
+    Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        (WalletsState, CommandExecutionResult),
+                        (WalletsState, Diagnostic),
+                    >,
+                > + Send,
+        >,
+    >,
+    (WalletsState, Diagnostic),
+>;
+
+pub type WalletActivateClosure = Box<
     fn(
         &ConstructUuid,
         &WalletSpecification,
         &ValueStore,
-        &mut ValueStore,
+        ValueStore,
+        WalletsState,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
-    ) -> CommandExecutionFutureResult,
+    ) -> WalletActivateFutureResult,
 >;
 
-pub type WalletSigner = Box<
+pub type WalletSignFutureResult = Result<
+    Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        (WalletsState, CommandExecutionResult),
+                        (WalletsState, Diagnostic),
+                    >,
+                > + Send,
+        >,
+    >,
+    (WalletsState, Diagnostic),
+>;
+
+pub type WalletSignClosure = Box<
     fn(
         &ConstructUuid,
         &str,
         &Value,
         &WalletSpecification,
         &ValueStore,
-        &ValueStore,
+        ValueStore,
+        WalletsState,
         &AddonDefaults,
-    ) -> CommandExecutionFutureResult,
+    ) -> WalletSignFutureResult,
 >;
 
-pub type WalletActivabilityChecker = fn(
+pub type WalletCheckActivabilityClosure = fn(
     &ConstructUuid,
     &str,
     &WalletSpecification,
     &ValueStore,
-    &mut ValueStore,
+    ValueStore,
+    WalletsState,
     &AddonDefaults,
     &CommandExecutionContext,
 ) -> WalletActivabilityFutureResult;
 
 pub type WalletActivabilityFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<Vec<ActionSubGroup>, Diagnostic>> + Send>>,
-    Diagnostic,
+    Pin<
+        Box<
+            dyn Future<Output = Result<(WalletsState, Actions), (WalletsState, Diagnostic)>> + Send,
+        >,
+    >,
+    (WalletsState, Diagnostic),
 >;
 
-pub type WalletInstantiabilityChecker =
+pub type WalletCheckInstantiabilityClosure =
     fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 
-pub type WalletSignabilityChecker = fn(
-    &ConstructUuid,
-    &str,
-    &Value,
-    &WalletSpecification,
-    &ValueStore,
-    &mut ValueStore,
-    &AddonDefaults,
-    &CommandExecutionContext,
-) -> Result<Vec<ActionItemRequest>, Diagnostic>;
+pub type WalletCheckSignabilityClosure =
+    fn(
+        &ConstructUuid,
+        &str,
+        &Value,
+        &WalletSpecification,
+        &ValueStore,
+        ValueStore,
+        WalletsState,
+        &AddonDefaults,
+        &CommandExecutionContext,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
 
-pub type WalletPublicKeyExpectations = fn(
-    &ConstructUuid,
-    &str,
-    &Vec<u8>,
-    &WalletSpecification,
-    &ValueStore,
-    &AddonDefaults,
-    &CommandExecutionContext,
-) -> Result<Option<String>, Diagnostic>;
+pub type WalletOperationFutureResult = Result<
+    Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        (WalletsState, CommandExecutionResult),
+                        (WalletsState, Diagnostic),
+                    >,
+                > + Send,
+        >,
+    >,
+    (WalletsState, Diagnostic),
+>;
+
+pub fn return_synchronous_result(
+    res: Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)>,
+) -> WalletOperationFutureResult {
+    Ok(Box::pin(future::ready(res)))
+}
+
+pub fn return_synchronous_ok(
+    wallets_state: WalletsState,
+    res: CommandExecutionResult,
+) -> WalletOperationFutureResult {
+    return_synchronous_result(Ok((wallets_state, res)))
+}
+
+pub fn return_synchronous_err(
+    wallets_state: WalletsState,
+    diag: Diagnostic,
+) -> WalletOperationFutureResult {
+    return_synchronous_result(Err((wallets_state, diag)))
+}
 
 #[derive(Debug, Clone)]
 pub struct WalletSpecification {
     pub name: String,
     pub matcher: String,
     pub documentation: String,
+    pub requires_interaction: bool,
     pub example: String,
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub check_instantiability: WalletInstantiabilityChecker,
-    pub check_activability: WalletActivabilityChecker,
-    pub activate: WalletRunner,
-    pub check_signability: WalletSignabilityChecker,
-    pub sign: WalletSigner,
-    pub check_public_key_expectations: WalletPublicKeyExpectations,
+    pub check_instantiability: WalletCheckInstantiabilityClosure,
+    pub check_activability: WalletCheckActivabilityClosure,
+    pub activate: WalletActivateClosure,
+    pub check_signability: WalletCheckSignabilityClosure,
+    pub sign: WalletSignClosure,
 }
 
 #[derive(Debug, Clone)]
 pub struct WalletInstance {
     pub specification: WalletSpecification,
-    pub state: StateMachine<CommandInstanceStateMachine>,
-    pub store: ValueStore,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
@@ -244,15 +355,16 @@ impl WalletInstance {
     }
 
     pub async fn check_activability(
-        &mut self,
+        &self,
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
-        addon_defaults: AddonDefaults,
-        action_item_requests: &mut Vec<&mut ActionItemRequest>,
+        mut wallets: WalletsState,
+        addon_defaults: &AddonDefaults,
+        action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionSubGroup>, Diagnostic> {
-        let mut values = ValueStore::new(&self.name);
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
@@ -279,53 +391,45 @@ impl WalletInstance {
                 for response in responses.iter() {
                     match response {
                         ActionItemResponseType::ProvidePublicKey(update) => {
-                            let public_key_bytes: Vec<u8> =
-                                hex::decode(&update.public_key).expect("unable to decode bytes");
-
-                            input_evaluation_results.inputs.insert(
-                                "public_key".into(),
-                                Ok(Value::string(update.public_key.clone())),
-                            );
-                            for input in self.specification.inputs.iter_mut() {
-                                if input.name.eq("public_key") {
-                                    input.check_performed = true;
-                                    break;
-                                }
-                            }
-
-                            let res = ((&self.specification).check_public_key_expectations)(
-                                &construct_uuid,
-                                &self.name,
-                                &public_key_bytes,
-                                &self.specification,
-                                &values,
-                                &addon_defaults,
-                                &execution_context,
-                            );
-
                             values.insert("public_key", Value::string(update.public_key.clone()));
 
-                            for request in action_item_requests.iter_mut() {
-                                let (status, success) = match &res {
-                                    Ok(message) => {
-                                        (ActionItemStatus::Success(message.clone()), true)
-                                    }
-                                    Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
-                                };
+                            let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
 
-                                match request.action_type {
-                                    ActionItemRequestType::ReviewInput => {
-                                        request.action_status = status.clone();
-                                    }
-                                    ActionItemRequestType::ProvidePublicKey(_) => {
-                                        if success {
-                                            request.action_status = status.clone();
-                                        }
-                                    }
-                                    _ => unreachable!(),
-                                }
-                            }
-                            return Ok(vec![]);
+                            let res = ((&self.specification).check_activability)(
+                                &construct_uuid,
+                                &self.name,
+                                &self.specification,
+                                &values,
+                                wallet_state,
+                                wallets,
+                                &addon_defaults,
+                                &execution_context,
+                            )?
+                            .await;
+
+                            // WIP
+                            // let (status, success) = match &res {
+                            //     Ok((_, actions)) => {
+
+                            //         (ActionItemStatus::Success(message.clone()), true)
+                            //     }
+                            //     Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
+                            // };
+
+                            // match request.action_type {
+                            //     ActionItemRequestType::ReviewInput => {
+                            //         request.action_status = status.clone();
+                            //     }
+                            //     ActionItemRequestType::ProvidePublicKey(_) => {
+                            //         if success {
+                            //             request.action_status = status.clone();
+                            //         }
+                            //     }
+                            //     _ => unreachable!(),
+                            // }
+
+                            for request in action_item_requests.iter() {}
+                            return res;
                         }
                         _ => {}
                     }
@@ -334,45 +438,88 @@ impl WalletInstance {
             None => {}
         }
 
+        let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
+
         let spec = &self.specification;
-        (spec.check_activability)(
+        let res = (spec.check_activability)(
             &construct_uuid,
             &self.name,
             &self.specification,
             &values,
-            &mut self.store,
+            wallet_state,
+            wallets,
             &addon_defaults,
             &execution_context,
         )?
-        .await
+        .await;
+    
+        res
     }
 
     pub async fn perform_activation(
-        &mut self,
+        &self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        addon_defaults: AddonDefaults,
+        mut wallets: WalletsState,
+        addon_defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+    ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
         // todo: I don't think this one needs to be a result
-        let mut values = ValueStore::new(&self.name);
+        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for (key, value_res) in evaluated_inputs.inputs.iter() {
             match value_res {
                 Ok(value) => {
                     values.insert(&key, value.clone());
                 }
-                Err(diag) => return Err(diag.clone()),
+                Err(diag) => return Err((wallets, diag.clone())),
             };
         }
-        (&self.specification.activate)(
+
+        println!("==> VALUES {:?}", values);
+
+        let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
+
+        let res = (&self.specification.activate)(
             &construct_uuid,
             &self.specification,
             &values,
-            &mut self.store,
+            wallet_state,
+            wallets,
             &addon_defaults,
             progress_tx,
         )?
-        .await
+        .await;
+
+        res
+    }
+
+    pub fn collect_dependencies(&self) -> Vec<Expression> {
+        let mut dependencies = vec![];
+        for input in self.specification.inputs.iter() {
+            match input.typing {
+                Type::Object(ref props) => {
+                    for prop in props.iter() {
+                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
+                        while let Some(block) = blocks_iter.next() {
+                            let Some(attr) = block.body.get_attribute(&prop.name) else {
+                                continue;
+                            };
+                            collect_constructs_references_from_expression(
+                                &attr.value,
+                                &mut dependencies,
+                            );
+                        }
+                    }
+                }
+                _ => {
+                    let Some(attr) = self.block.body.get_attribute(&input.name) else {
+                        continue;
+                    };
+                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+                }
+            }
+        }
+        dependencies
     }
 }
 
@@ -382,23 +529,13 @@ pub trait WalletImplementation {
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic>;
 
-    // todo: should potentially merge in check_instantiability
-    fn check_public_key_expectations(
-        _uuid: &ConstructUuid,
-        instance_name: &str,
-        public_key_bytes: &Vec<u8>,
-        spec: &WalletSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
-    ) -> Result<Option<String>, Diagnostic>;
-
     fn check_activability(
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult;
@@ -407,10 +544,11 @@ pub trait WalletImplementation {
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> CommandExecutionFutureResult;
+    ) -> WalletActivateFutureResult;
 
     fn check_signability(
         _caller_uuid: &ConstructUuid,
@@ -418,11 +556,12 @@ pub trait WalletImplementation {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &mut ValueStore,
+        _wallet_state: ValueStore,
+        wallets: WalletsState,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        Ok(vec![])
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+        Ok((wallets, Actions::none()))
     }
 
     fn sign(
@@ -431,7 +570,8 @@ pub trait WalletImplementation {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        _state: &ValueStore,
+        _wallet_state: ValueStore,
+        _wallets: WalletsState,
         _defaults: &AddonDefaults,
-    ) -> CommandExecutionFutureResult;
+    ) -> WalletSignFutureResult;
 }

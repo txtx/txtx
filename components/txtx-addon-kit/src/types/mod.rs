@@ -99,14 +99,16 @@ impl PackageUuid {
 
 #[derive(Debug, Clone)]
 pub struct ValueStore {
+    pub uuid: Uuid,
     name: String,
     storage: HashMap<String, Value>,
 }
 
 impl ValueStore {
-    pub fn new(name: &str) -> ValueStore {
+    pub fn new(name: &str, uuid: &Uuid) -> ValueStore {
         ValueStore {
             name: name.to_string(),
+            uuid: uuid.clone(),
             storage: HashMap::new(),
         }
     }

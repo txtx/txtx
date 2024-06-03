@@ -285,8 +285,23 @@ impl Actions {
         Actions { store: vec![] }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.store.is_empty()
+    pub fn has_pending_actions(&self) -> bool {
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(_)
+                | ActionType::AppendGroup(_)
+                | ActionType::NewBlock(_) => return true,
+                ActionType::UpdateConstruct(data) => match data.action_status {
+                    ActionItemStatus::Success(_) => continue,
+                    _ => return true,
+                },
+                ActionType::UpdateActionItemRequest(data) => match data.action_status {
+                    ActionItemStatus::Success(_) => continue,
+                    _ => return true,
+                },
+            }
+        }
+        false
     }
 
     pub fn append(&mut self, actions: &mut Actions) {

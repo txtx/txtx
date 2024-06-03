@@ -4,7 +4,6 @@ use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
 use kit::types::wallets::WalletsState;
-use kit::types::ValueStore;
 use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};

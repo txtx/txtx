@@ -107,7 +107,11 @@ impl CommandImplementation for SignStacksTransaction {
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
-        let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+
+        println!("1====> {:?}", wallets);
+        println!("2====> {:?}", wallet_uuid);
+
+        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
         let transaction = build_unsigned_transaction(&wallet_state, spec, args, defaults).unwrap();
 
@@ -177,23 +181,6 @@ fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
     let signer = args.get_expected_string("signer")?;
     let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
     Ok(wallet_uuid)
-}
-
-fn get_wallet<'a>(
-    spec: &CommandSpecification,
-    args: &ValueStore,
-    wallet_instances: &'a HashMap<ConstructUuid, WalletInstance>,
-) -> Result<&'a WalletInstance, Diagnostic> {
-    let signer = args.get_expected_string("signer")?;
-    let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
-    let wallet = wallet_instances
-        .get(&wallet_uuid)
-        .ok_or(Diagnostic::error_from_string(format!(
-            "command '{}': wallet named '{}' not found",
-            spec.matcher, &signer
-        )))
-        .unwrap();
-    Ok(wallet)
 }
 
 fn build_unsigned_transaction(

@@ -1,14 +1,11 @@
 use kit::types::frontend::{Actions, BlockEvent};
 use kit::types::ValueStore;
-use std::collections::HashMap;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::types::ObjectProperty;
-use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::ConstructUuid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
