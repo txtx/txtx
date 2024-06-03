@@ -114,7 +114,7 @@ impl Block {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
 pub enum Panel {
     ActionPanel(ActionPanelData),
 }

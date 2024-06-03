@@ -79,6 +79,13 @@ impl GqlBlock {
 
 #[graphql_object(context = Context)]
 impl GqlBlock {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        match &self.block.panel {
+            Panel::ActionPanel(_) => "ActionPanel".into(),
+        }
+    }
+
     pub fn uuid(&self) -> String {
         self.block.uuid.to_string()
     }
