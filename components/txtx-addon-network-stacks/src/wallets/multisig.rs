@@ -1,12 +1,17 @@
-use std::collections::{HashMap, VecDeque};
-use std::future;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::future::{self, Future};
+use std::pin::Pin;
 use std::str::FromStr;
 
 use libsecp256k1::sign;
-use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandInputsEvaluationResult, CommandSpecification};
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::commands::{
+    CommandExecutionContext, CommandInputsEvaluationResult, CommandSpecification,
+};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, OpenModalData,
+};
 use txtx_addon_kit::types::wallets::{
-    WalletActivabilityFutureResult, WalletActivateFutureResult, WalletImplementation,
+    self, WalletActivabilityFutureResult, WalletActivateFutureResult, WalletImplementation,
     WalletInstance, WalletSignFutureResult, WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
@@ -66,7 +71,7 @@ impl WalletImplementation for StacksConnect {
     }
 
     fn check_activability(
-        _uuid: &ConstructUuid,
+        uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
@@ -74,13 +79,83 @@ impl WalletImplementation for StacksConnect {
         mut wallets: WalletsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult {
         // Loop over the signers
         // Ensuring that they are all correctly activable.
         // When they are, collect the public keys
         // and build the stacks address + Check the balance
-        unimplemented!()
+
+        println!("1=> {:?}", _spec.inputs);
+        println!("2=> {:?}", args);
+        println!("3=> {:?}", wallets);
+
+        let root_uuid = uuid.clone();
+        let signers_uuid = args.get_expected_array("signers").unwrap();
+        let mut signers = VecDeque::new();
+        for signer_uuid in signers_uuid.iter() {
+            let uuid = signer_uuid.as_string().unwrap();
+            let uuid = ConstructUuid::from_uuid(&Uuid::from_str(uuid).unwrap());
+            let wallet_spec = wallets_instances.get(&uuid).unwrap().clone();
+            signers.push_back((uuid, wallet_spec));
+        }
+
+        let args = args.clone();
+        let wallets_instances = wallets_instances.clone();
+        let defaults = defaults.clone();
+        let execution_context = execution_context.clone();
+
+        let future = async move {
+            let mut consolidated_actions = Actions::none();
+            while let Some((wallet_uuid, wallet_instance)) = signers.pop_front() {
+                let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+                let future = (wallet_instance.specification.check_activability)(
+                    &wallet_uuid,
+                    &wallet_instance.name,
+                    &wallet_instance.specification,
+                    &args,
+                    signer_wallet_state,
+                    wallets,
+                    &wallets_instances,
+                    &defaults,
+                    &execution_context,
+                )?;
+                let (updated_wallets, mut actions) = future.await?;
+                wallets = updated_wallets;
+                consolidated_actions.append(&mut actions);
+            }
+
+            let modal =
+                BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
+            let open_modal_action = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(root_uuid.value()),
+                0,
+                "Compute multisig address",
+                "",
+                ActionItemStatus::Todo,
+                ActionItemRequestType::OpenModal(OpenModalData {
+                    modal_uuid: modal.uuid.clone(),
+                    title: "START ASSISTANT".into(),
+                }),
+            );
+            consolidated_actions.push_sub_group(vec![open_modal_action]);
+            consolidated_actions.push_modal(modal);
+
+            let validate_modal_action = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(root_uuid.value()),
+                0,
+                "CONFIRM",
+                "",
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ValidateModal,
+            );
+            consolidated_actions.push_sub_group(vec![validate_modal_action]);
+
+            Ok((wallets, consolidated_actions))
+        };
+        Ok(Box::pin(future))
     }
 
     fn activate(

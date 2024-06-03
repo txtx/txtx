@@ -224,7 +224,7 @@ pub async fn start_runbook_runloop(
         }
 
         match &payload {
-            ActionItemResponseType::ValidatePanel => {
+            ActionItemResponseType::ValidateBlock => {
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
@@ -258,7 +258,7 @@ pub async fn start_runbook_runloop(
                         title: "Validate".into(),
                         description: "".into(),
                         action_status: ActionItemStatus::Todo,
-                        action_type: ActionItemRequestType::ValidatePanel,
+                        action_type: ActionItemRequestType::ValidateBlock,
                     }]));
                 }
 
@@ -514,14 +514,27 @@ pub async fn build_genesis_panel(
         title: "start runbook".into(),
         description: "".into(),
         action_status: ActionItemStatus::Todo,
-        action_type: ActionItemRequestType::ValidatePanel,
+        action_type: ActionItemRequestType::ValidateBlock,
     };
     actions.push_sub_group(vec![validate_action]);
 
     register_action_items_from_actions(&actions, action_item_requests);
 
     let mut panels = actions.compile_actions_to_block_events();
-    assert_eq!(panels.len(), 1);
+    for panel in panels.iter() {
+        match panel {
+            BlockEvent::Modal(data) => {
+                println!("{}", data);
+            }
+            BlockEvent::Action(data) => {
+                println!("{}", data);
+            }
+            _ => {
+                println!("-----");
+            }
+        }
+    }
+    // assert_eq!(panels.len(), 1);
 
     Ok(panels.remove(0))
 }

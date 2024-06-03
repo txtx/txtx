@@ -99,9 +99,10 @@ pub fn run_constructs_dependencies_indexing(
                     runtime_ctx,
                 );
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
-                    runbook
-                        .instantiated_wallet_instances
-                        .insert(resolved_construct_uuid.clone());
+                    runbook.wallets_state.as_mut().unwrap().create_new_wallet(
+                        &resolved_construct_uuid,
+                        &resolved_construct_uuid.value().to_string(),
+                    );
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     println!("  -> {} (unable to resolve)", dep,);

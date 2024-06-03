@@ -93,7 +93,7 @@ fn test_ab_c_runbook_no_env() {
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -150,7 +150,7 @@ fn test_ab_c_runbook_no_env() {
 
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: Uuid::new_v4(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
@@ -285,7 +285,7 @@ fn test_wallet_runbook_no_env() {
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -327,7 +327,7 @@ fn test_wallet_runbook_no_env() {
 
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: validate_signature.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -408,9 +408,14 @@ fn test_multisig_runbook_no_env() {
         panic!()
     };
 
-    let action_panel_data = event.expect_block().panel.expect_action_panel();
+    let _action_panel_data = event.expect_modal();
 
-    println!("{:?}", action_panel_data);
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive genesis block");
+        panic!()
+    };
+
+    let action_panel_data = event.expect_block().panel.expect_action_panel();
 
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 2);
@@ -469,7 +474,7 @@ fn test_multisig_runbook_no_env() {
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -511,7 +516,7 @@ fn test_multisig_runbook_no_env() {
 
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: validate_signature.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -653,7 +658,7 @@ fn test_bns_runbook_no_env() {
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -678,7 +683,7 @@ fn test_bns_runbook_no_env() {
     let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let _ = action_item_events_tx.send(ActionItemResponse {
         action_item_uuid: action_item_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ValidatePanel,
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {

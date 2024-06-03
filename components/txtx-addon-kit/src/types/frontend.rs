@@ -37,10 +37,25 @@ impl BlockEvent {
         }
     }
 
+    pub fn expect_modal(&self) -> &Block {
+        match &self {
+            BlockEvent::Modal(ref block) => block,
+            _ => unreachable!("block expected"),
+        }
+    }
+
     pub fn expect_updated_action_items(&self) -> &Vec<ActionItemRequestUpdate> {
         match &self {
             BlockEvent::UpdateActionItems(ref updates) => updates,
             _ => unreachable!("block expected"),
+        }
+    }
+
+    pub fn new_modal(title: &str, description: &str, groups: Vec<ActionGroup>) -> Block {
+        Block {
+            uuid: Uuid::new_v4(),
+            panel: Panel::new_modal_panel(title, description, groups),
+            visible: false,
         }
     }
 }
@@ -181,23 +196,48 @@ impl ActionItemRequestUpdate {
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Block {} {{", self.uuid)?;
-        let panel = self.panel.expect_action_panel();
-        writeln!(f, "  title: {}", panel.title)?;
-        for group in self.panel.as_action_panel().unwrap().groups.iter() {
-            writeln!(f, "  group: {} {{", group.title)?;
-            for sub_group in group.sub_groups.iter() {
-                writeln!(f, "    sub_group: {{")?;
-                for item in sub_group.action_items.iter() {
-                    writeln!(f, "      items: {} {{", item.uuid)?;
-                    writeln!(f, "          status: {:?}", item.action_status)?;
-                    writeln!(f, "          status: {:?}", item.action_type)?;
-                    writeln!(f, "      }}")?;
+        match &self.panel {
+            Panel::ActionPanel(panel) => {
+                writeln!(f, "  title: {}", panel.title)?;
+                for group in panel.groups.iter() {
+                    writeln!(f, "  group: {} {{", group.title)?;
+                    for sub_group in group.sub_groups.iter() {
+                        writeln!(f, "    sub_group: {{")?;
+                        for item in sub_group.action_items.iter() {
+                            writeln!(f, "      items: {} {{", item.uuid)?;
+                            writeln!(f, "          status: {:?}", item.action_status)?;
+                            writeln!(f, "          status: {:?}", item.action_type)?;
+                            writeln!(f, "      }}")?;
+                        }
+                        writeln!(f, "    }}")?;
+                    }
+                    writeln!(f, "  }}")?;
                 }
-                writeln!(f, "    }}")?;
+                writeln!(f, "}}")
             }
-            writeln!(f, "  }}")?;
+            Panel::ModalPanel(panel) => {
+                writeln!(f, "  title: {}", panel.title)?;
+                for group in panel.groups.iter() {
+                    writeln!(f, "  group: {} {{", group.title)?;
+                    for sub_group in group.sub_groups.iter() {
+                        writeln!(f, "    sub_group: {{")?;
+                        for item in sub_group.action_items.iter() {
+                            writeln!(f, "      items: {} {{", item.uuid)?;
+                            writeln!(f, "          status: {:?}", item.action_status)?;
+                            writeln!(f, "          status: {:?}", item.action_type)?;
+                            writeln!(f, "      }}")?;
+                        }
+                        writeln!(f, "    }}")?;
+                    }
+                    writeln!(f, "  }}")?;
+                }
+                writeln!(f, "}}")
+            }
+
+            _ => {
+                writeln!(f, "?????")
+            }
         }
-        writeln!(f, "}}")
     }
 }
 
@@ -218,6 +258,14 @@ impl Panel {
         })
     }
 
+    pub fn new_modal_panel(title: &str, description: &str, groups: Vec<ActionGroup>) -> Self {
+        Panel::ModalPanel(ModalPanelData {
+            title: title.to_string(),
+            description: description.to_string(),
+            groups,
+        })
+    }
+
     pub fn as_action_panel(&self) -> Option<&ActionPanelData> {
         match &self {
             Panel::ActionPanel(ref data) => Some(data),
@@ -225,9 +273,30 @@ impl Panel {
         }
     }
 
+    pub fn as_modal_panel(&self) -> Option<&ModalPanelData> {
+        match &self {
+            Panel::ModalPanel(ref data) => Some(data),
+            _ => None,
+        }
+    }
+
     pub fn expect_action_panel(&self) -> &ActionPanelData {
         match &self {
             Panel::ActionPanel(ref data) => data,
+            _ => panic!("expected action panel, got {:?}", self),
+        }
+    }
+
+    pub fn expect_modal_panel(&self) -> &ModalPanelData {
+        match &self {
+            Panel::ModalPanel(ref data) => data,
+            _ => panic!("expected action panel, got {:?}", self),
+        }
+    }
+
+    pub fn expect_modal_panel_mut(&mut self) -> &mut ModalPanelData {
+        match self {
+            Panel::ModalPanel(ref mut data) => data,
             _ => panic!("expected action panel, got {:?}", self),
         }
     }
@@ -285,6 +354,15 @@ impl ActionSubGroup {
             action_items,
             allow_batch_completion,
         }
+    }
+
+    pub fn contains_validate_modal_item(&self) -> bool {
+        for item in self.action_items.iter() {
+            if let ActionItemRequestType::ValidateModal = item.action_type {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -345,6 +423,13 @@ pub struct UpdateConstructData {
     pub action_status: ActionItemStatus,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenModalData {
+    pub modal_uuid: Uuid,
+    pub title: String,
+}
+
 #[derive(Clone, Debug)]
 pub enum ActionType {
     UpdateActionItemRequest(ActionItemRequest),
@@ -352,6 +437,7 @@ pub enum ActionType {
     AppendSubGroup(ActionSubGroup),
     AppendGroup(ActionGroup),
     NewBlock(ActionPanelData),
+    NewModal(Block),
 }
 
 #[derive(Clone, Debug)]
@@ -370,6 +456,7 @@ impl Actions {
                 ActionType::AppendSubGroup(_)
                 | ActionType::AppendGroup(_)
                 | ActionType::NewBlock(_) => return true,
+                ActionType::NewModal(_) => return true,
                 ActionType::UpdateConstruct(data) => match data.action_status {
                     ActionItemStatus::Success(_) => continue,
                     _ => return true,
@@ -385,6 +472,10 @@ impl Actions {
 
     pub fn append(&mut self, actions: &mut Actions) {
         self.store.append(&mut actions.store);
+    }
+
+    pub fn push_modal(&mut self, block: Block) {
+        self.store.push(ActionType::NewModal(block));
     }
 
     pub fn push_group(&mut self, title: &str, action_items: Vec<ActionItemRequest>) {
@@ -475,6 +566,15 @@ impl Actions {
                         }
                     }
                 }
+                ActionType::NewModal(data) => {
+                    for group in data.panel.expect_modal_panel().groups.iter() {
+                        for subgroup in group.sub_groups.iter() {
+                            for item in subgroup.action_items.iter() {
+                                new_action_item_requests.push(item);
+                            }
+                        }
+                    }
+                }
                 ActionType::UpdateActionItemRequest(_) => continue,
                 ActionType::UpdateConstruct(_) => continue,
             }
@@ -489,25 +589,55 @@ impl Actions {
             description: "".to_string(),
             groups: vec![],
         };
-
+        let mut current_modal: Option<Block> = None;
         for item in self.store.iter() {
             match item {
-                ActionType::AppendSubGroup(data) => {
-                    if current_panel_data.groups.len() > 0 {
-                        let Some(group) = current_panel_data.groups.last_mut() else {
-                            continue;
-                        };
-                        group.sub_groups.push(data.clone());
-                    } else {
-                        current_panel_data.groups.push(ActionGroup {
-                            title: "".to_string(),
-                            sub_groups: vec![data.clone()],
-                        });
+                ActionType::AppendSubGroup(data) => match current_modal {
+                    None => {
+                        if current_panel_data.groups.len() > 0 {
+                            let Some(group) = current_panel_data.groups.last_mut() else {
+                                continue;
+                            };
+                            group.sub_groups.push(data.clone());
+                        } else {
+                            current_panel_data.groups.push(ActionGroup {
+                                title: "".to_string(),
+                                sub_groups: vec![data.clone()],
+                            });
+                        }
                     }
-                }
-                ActionType::AppendGroup(data) => {
-                    current_panel_data.groups.push(data.clone());
-                }
+                    Some(ref mut modal) => {
+                        if modal.panel.expect_modal_panel().groups.len() > 0 {
+                            let Some(group) =
+                                modal.panel.expect_modal_panel_mut().groups.last_mut()
+                            else {
+                                continue;
+                            };
+                            group.sub_groups.push(data.clone());
+                        } else {
+                            modal
+                                .panel
+                                .expect_modal_panel_mut()
+                                .groups
+                                .push(ActionGroup {
+                                    title: "".to_string(),
+                                    sub_groups: vec![data.clone()],
+                                });
+                        }
+                        if data.contains_validate_modal_item() {
+                            blocks.push(BlockEvent::Modal(modal.clone()));
+                            current_modal = None;
+                        }
+                    }
+                },
+                ActionType::AppendGroup(data) => match &current_modal {
+                    None => {
+                        current_panel_data.groups.push(data.clone());
+                    }
+                    Some(_modal) => {
+                        unimplemented!()
+                    }
+                },
                 ActionType::NewBlock(data) => {
                     if current_panel_data.groups.len() > 1 {
                         blocks.push(BlockEvent::Action(Block {
@@ -518,7 +648,10 @@ impl Actions {
                     }
                     current_panel_data = data.clone();
                 }
-                ActionType::UpdateActionItemRequest(_) => continue,
+                ActionType::NewModal(data) => {
+                    current_modal = Some(data.clone());
+                }
+                ActionType::UpdateActionItemRequest(_) => {}
                 ActionType::UpdateConstruct(_) => continue,
             }
         }
@@ -541,7 +674,7 @@ impl Actions {
             match item {
                 ActionType::AppendSubGroup(_) => {}
                 ActionType::AppendGroup(_) => {}
-                ActionType::NewBlock(_) => {}
+                ActionType::NewBlock(_) | ActionType::NewModal(_) => {}
                 ActionType::UpdateConstruct(data) => {
                     status_updates.insert(data.construct_uuid.value(), data.action_status.clone());
                 }
@@ -581,7 +714,9 @@ pub enum ActionItemRequestType {
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
-    ValidatePanel,
+    OpenModal(OpenModalData),
+    ValidateBlock,
+    ValidateModal,
 }
 
 impl ActionItemRequestType {
@@ -655,13 +790,13 @@ pub enum ActionItemResponseType {
     PickInputOption(String),
     ProvidePublicKey(ProvidePublicKeyResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
-    ValidatePanel,
+    ValidateBlock,
 }
 
 impl ActionItemResponseType {
     pub fn is_validate_panel(&self) -> bool {
         match &self {
-            ActionItemResponseType::ValidatePanel => true,
+            ActionItemResponseType::ValidateBlock => true,
             _ => false,
         }
     }
