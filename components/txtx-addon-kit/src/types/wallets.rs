@@ -68,10 +68,8 @@ impl WalletsState {
 
     pub fn create_new_wallet(&mut self, wallet_uuid: &ConstructUuid, wallet_name: &str) {
         if !self.store.contains_key(&wallet_uuid) {
-            self.store.insert(
-                wallet_uuid.clone(),
-                ValueStore::new(wallet_name, &wallet_uuid.value()),
-            );
+            self.store
+                .insert(wallet_uuid.clone(), ValueStore::new(wallet_name));
         }
     }
 }
