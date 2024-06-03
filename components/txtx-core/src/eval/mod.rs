@@ -668,7 +668,7 @@ pub async fn run_constructs_evaluation(
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {
                             unexecutable_nodes.insert(descendant);
-                        }        
+                        }
                         continue;
                     }
                     consolidated_actions.push(new_actions);
@@ -738,7 +738,7 @@ pub async fn run_constructs_evaluation(
                     unexecutable_nodes.insert(node);
                     for descendant in get_descendants_of_node(node, g.clone()) {
                         unexecutable_nodes.insert(descendant);
-                    }        
+                    }
                     continue;
                 }
                 consolidated_actions.push(new_actions);
@@ -783,9 +783,7 @@ pub async fn run_constructs_evaluation(
                     }
                     Ok(result)
                 }
-                Err(e) => {
-                    Err(e)
-                }
+                Err(e) => Err(e),
             };
             execution_result
         };

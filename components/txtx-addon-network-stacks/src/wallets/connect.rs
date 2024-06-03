@@ -9,9 +9,8 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActivabilityFutureResult,
-    WalletActivateFutureResult, WalletImplementation, WalletSignFutureResult,
-    WalletSpecification, WalletsState,
+    return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
+    WalletImplementation, WalletSignFutureResult, WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -240,7 +239,6 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
-
         // WIP
         let result = CommandExecutionResult::new();
         let public_key = wallet_state.get_expected_value(CHECKED_PUBLIC_KEY).unwrap();

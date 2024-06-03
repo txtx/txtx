@@ -878,7 +878,7 @@ impl CommandInstance {
                 Err((_, diag)) => (ActionItemStatus::Error(diag.clone()), false),
             };
             match request.action_type {
-                ActionItemRequestType::ReviewInput => {
+                ActionItemRequestType::ReviewInput(_) => {
                     request.action_status = status.clone();
                 }
                 ActionItemRequestType::ProvidePublicKey(_) => {
