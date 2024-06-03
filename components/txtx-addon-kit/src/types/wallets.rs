@@ -12,8 +12,8 @@ use crate::{
 
 use super::{
     commands::{
-        CommandExecutionContext, CommandExecutionResult,
-        CommandInput, CommandInputsEvaluationResult, CommandOutput,
+        CommandExecutionContext, CommandExecutionResult, CommandInput,
+        CommandInputsEvaluationResult, CommandOutput,
     },
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{ActionItemRequest, ActionItemResponseType, Actions, BlockEvent},
@@ -68,10 +68,10 @@ impl WalletsState {
 
     pub fn create_new_wallet(&mut self, wallet_uuid: &ConstructUuid, wallet_name: &str) {
         if !self.store.contains_key(&wallet_uuid) {
-            self.store.insert(wallet_uuid.clone(), ValueStore::new(wallet_name));
+            self.store
+                .insert(wallet_uuid.clone(), ValueStore::new(wallet_name));
         }
     }
-
 }
 
 pub type WalletActivateFutureResult = Result<
@@ -134,7 +134,7 @@ pub type WalletCheckActivabilityClosure = fn(
     &ValueStore,
     ValueStore,
     WalletsState,
-&AddonDefaults,
+    &AddonDefaults,
     &CommandExecutionContext,
 ) -> WalletActivabilityFutureResult;
 
@@ -459,7 +459,7 @@ impl WalletInstance {
             &execution_context,
         )?
         .await;
-        
+
         res
     }
 

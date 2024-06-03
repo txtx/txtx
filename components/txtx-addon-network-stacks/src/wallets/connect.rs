@@ -6,7 +6,7 @@ use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ActionSubGroup, Actions,
-    BlockEvent, ProvidePublicKeyRequest, ProvideSignedTransactionRequest,
+    BlockEvent, ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
@@ -37,13 +37,13 @@ lazy_static! {
                 documentation: "Coming soon",
                 inputs: [
                     expected_address: {
-                    documentation: "Coming soon",
+                        documentation: "Coming soon",
                         typing: Type::string(),
                         optional: false,
                         interpolable: true
                     },
                     expected_public_key: {
-                    documentation: "Coming soon",
+                        documentation: "Coming soon",
                         typing: Type::string(),
                         optional: true,
                         interpolable: true
@@ -172,7 +172,9 @@ impl WalletImplementation for StacksConnect {
                     "Check consistency with expected_address",
                     &expected_address.to_string(),
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "".into(), // todo
+                    }),
                 ))
             }
 
@@ -184,7 +186,9 @@ impl WalletImplementation for StacksConnect {
                     "Check wallet balance (STX)",
                     "",
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "".into(), // todo
+                    }),
                 );
                 if let Some(ref expected_address) = expected_address {
                     let balance = stacks_rpc
