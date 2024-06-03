@@ -544,14 +544,7 @@ pub async fn run_constructs_evaluation(
             continue;
         };
 
-        let mut has_tainted_parent = false;
-        for unexecutable_node in unexecutable_nodes.iter() {
-            if is_child_of_node(unexecutable_node.clone(), node, &runbook.constructs_graph) {
-                has_tainted_parent = true;
-                break;
-            }
-        }
-        if has_tainted_parent {
+        if let Some(_) = unexecutable_nodes.get(&node) {
             continue;
         }
 
@@ -673,6 +666,9 @@ pub async fn run_constructs_evaluation(
                         consolidated_actions.push(new_actions);
                         unexecutable_nodes.insert(node);
                         runbook.wallets_state = Some(updated_wallets);
+                        for descendant in get_descendants_of_node(node, g.clone()) {
+                            unexecutable_nodes.insert(descendant);
+                        }        
                         continue;
                     }
                     consolidated_actions.push(new_actions);
@@ -740,6 +736,9 @@ pub async fn run_constructs_evaluation(
                 if new_actions.has_pending_actions() {
                     consolidated_actions.push(new_actions);
                     unexecutable_nodes.insert(node);
+                    for descendant in get_descendants_of_node(node, g.clone()) {
+                        unexecutable_nodes.insert(descendant);
+                    }        
                     continue;
                 }
                 consolidated_actions.push(new_actions);
