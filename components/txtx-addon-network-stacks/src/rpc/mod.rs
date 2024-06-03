@@ -301,7 +301,7 @@ impl StacksRpc {
         }
     }
 
-    pub async fn call_read_only_fn(
+    pub async fn call_readonly_fn_fn(
         &self,
         contract_addr: &str,
         contract_name: &str,

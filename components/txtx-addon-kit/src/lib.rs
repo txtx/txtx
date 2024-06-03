@@ -11,7 +11,6 @@ pub use hex;
 pub use hiro_system_kit;
 pub use indoc::indoc;
 pub use rust_fsm as fsm;
-use rust_fsm::StateMachine;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 
@@ -20,13 +19,13 @@ pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};
 use types::{
     commands::{
-        CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceStateMachine,
-        CommandInstanceType, PreCommandSpecification,
+        CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceType,
+        PreCommandSpecification,
     },
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     wallets::{WalletInstance, WalletSpecification},
-    ConstructUuid, PackageUuid, ValueStore,
+    ConstructUuid, PackageUuid,
 };
 
 pub use reqwest;
@@ -168,8 +167,6 @@ impl AddonContext {
         Ok(WalletInstance {
             name: wallet_name.to_string(),
             specification: wallet_spec.clone(),
-            store: ValueStore::new(wallet_name),
-            state: StateMachine::<CommandInstanceStateMachine>::new(),
             block: block.clone(),
             package_uuid: package_uuid.clone(),
             namespace: namespace.to_string(),

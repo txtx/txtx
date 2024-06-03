@@ -1,10 +1,8 @@
-use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
     CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, BlockEvent};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
@@ -29,6 +27,7 @@ lazy_static! {
                   For example, the `network_id` input is used in many Stacks txtx commands. 
                   By setting this input once with `set_default_network`, the `network_id` can be omitted from subsequent Stacks txtx commands.
                 "#},
+                requires_signing_capability: false,
                 inputs: [
                     network_id: {
                         documentation: indoc!{r#"A default Stacks network id to use. Valid values are `"mainnet"` and `"testnet"`."#},
@@ -84,18 +83,16 @@ impl CommandImplementation for SetStacksGlobals {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        Ok(vec![])
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
     }
 
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();

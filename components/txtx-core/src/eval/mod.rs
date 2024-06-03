@@ -1,9 +1,8 @@
-use std::collections::{btree_map::Entry, BTreeMap, HashMap, VecDeque};
-
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
-use kit::types::frontend::{ActionSubGroup, BlockEvent};
+use kit::types::frontend::{Actions, BlockEvent};
 use petgraph::algo::toposort;
 use txtx_addon_kit::{
     hcl::{
@@ -13,7 +12,7 @@ use txtx_addon_kit::{
     types::{
         commands::{
             CommandExecutionContext, CommandExecutionResult, CommandInputsEvaluationResult,
-            CommandInstance, CommandInstanceStateMachineInput,
+            CommandInstance,
         },
         diagnostics::Diagnostic,
         frontend::{

@@ -25,6 +25,7 @@ use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
+use kit::types::frontend::Actions;
 use kit::types::frontend::BlockEvent;
 use kit::types::frontend::Panel;
 use kit::types::frontend::ReviewedInputResponse;
@@ -176,23 +177,18 @@ pub async fn start_runbook_runloop(
         if !runbook_initialized {
             runbook_initialized = true;
             let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-            let genesis_panel = Block::new(
-                Uuid::new_v4(),
-                Panel::ActionPanel(
-                    build_genesis_panel(
-                        &environments,
-                        &runtime_context.selected_env.clone(),
-                        runbook,
-                        runtime_context,
-                        &execution_context,
-                        &mut action_item_requests,
-                        &action_item_responses,
-                        &block_tx.clone(),
-                    )
-                    .await?,
-                ),
-            );
-            let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
+            let genesis_event = build_genesis_panel(
+                &environments,
+                &runtime_context.selected_env.clone(),
+                runbook,
+                runtime_context,
+                &execution_context,
+                &mut action_item_requests,
+                &action_item_responses,
+                &block_tx.clone(),
+            )
+            .await?;
+            let _ = block_tx.send(genesis_event);
         }
 
         // Cooldown
@@ -238,7 +234,7 @@ pub async fn start_runbook_runloop(
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
 
-                let mut groups = run_constructs_evaluation(
+                let mut actions_groups = run_constructs_evaluation(
                     runbook,
                     runtime_context,
                     None,
@@ -250,58 +246,39 @@ pub async fn start_runbook_runloop(
                 .await?;
 
                 let block_uuid = Uuid::new_v4();
-                if groups.is_empty() {
+
+                if actions_groups.is_empty() {
                     runbook_completed = true;
-                    groups = collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
-                }
-                let mut sub_groups = vec![];
-                let Some((group, action_items)) = groups.pop_first() else {
-                    continue;
-                };
-
-                for request in action_items.iter() {
-                    action_item_requests.insert(request.uuid.clone(), request.clone());
-                }
-
-                let action_status = if action_items.is_empty() {
-                    ActionItemStatus::Success(None)
+                    let grouped_actions_items =
+                        collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
+                    for (key, action_items) in grouped_actions_items.into_iter() {
+                        actions_groups
+                            .push(Actions::new_group_of_items(key.as_str(), action_items));
+                    }
                 } else {
-                    ActionItemStatus::Todo
-                };
-
-                sub_groups.push(ActionSubGroup {
-                    action_items,
-                    allow_batch_completion: true,
-                });
-
-                if !runbook_completed {
-                    sub_groups.push(ActionSubGroup {
-                        action_items: vec![ActionItemRequest {
-                            uuid: Uuid::new_v4(),
-                            construct_uuid: None,
-                            index: 0,
-                            title: "Validate".into(),
-                            description: "".into(),
-                            action_status,
-                            action_type: ActionItemRequestType::ValidatePanel,
-                        }],
-                        allow_batch_completion: false,
-                    });
+                    actions_groups.push(Actions::new_sub_group_of_items(vec![ActionItemRequest {
+                        uuid: Uuid::new_v4(),
+                        construct_uuid: None,
+                        index: 0,
+                        title: "Validate".into(),
+                        description: "".into(),
+                        action_status: ActionItemStatus::Success(None),
+                        action_type: ActionItemRequestType::ValidatePanel,
+                    }]));
                 }
 
-                let panel = Block::new(
-                    block_uuid,
-                    Panel::ActionPanel(ActionPanelData {
-                        title: group,
-                        description: "".to_string(),
-                        groups: vec![ActionGroup {
-                            title: "".into(),
-                            sub_groups,
-                        }],
-                    }),
-                );
+                let mut consolidated_actions = Actions::none();
+                for actions in actions_groups.iter_mut() {
+                    for new_request in actions.get_new_action_item_requests().into_iter() {
+                        action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
+                    }
+                    consolidated_actions.append(actions);
+                }
 
-                let _ = block_tx.send(BlockEvent::Append(panel));
+                let block_events = consolidated_actions.compile_actions_to_block_events();
+                for event in block_events.into_iter() {
+                    let _ = block_tx.send(event);
+                }
             }
             ActionItemResponseType::PickInputOption(_response) => {
                 // collected_responses.insert(k, v)
@@ -328,9 +305,11 @@ pub async fn start_runbook_runloop(
                 else {
                     continue;
                 };
+
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(wallet_construct_uuid, scoped_requests);
-                let _ = run_wallets_evaluation(
+
+                let actions = run_wallets_evaluation(
                     runbook,
                     runtime_context,
                     &execution_context,
@@ -339,14 +318,9 @@ pub async fn start_runbook_runloop(
                     &block_tx.clone(),
                 )
                 .await?;
-                let scoped_updated_requests = map.get(&wallet_construct_uuid).unwrap();
-                let updated_actions = scoped_updated_requests
-                    .iter()
-                    .map(|action| SetActionItemStatus {
-                        action_item_uuid: action.uuid.clone(),
-                        new_status: action.action_status.clone(),
-                    })
-                    .collect::<Vec<_>>();
+
+                let updated_actions =
+                    actions.compile_actions_to_item_updates(&action_item_requests);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_response) => {
@@ -373,6 +347,7 @@ pub async fn start_runbook_runloop(
                 )
                 .await?;
                 let scoped_updated_requests = map.get(&signing_action_construct_uuid).unwrap();
+
                 let updated_actions = scoped_updated_requests
                     .iter()
                     .map(|action| SetActionItemStatus {
@@ -383,6 +358,15 @@ pub async fn start_runbook_runloop(
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
         };
+    }
+}
+
+pub fn register_action_items_from_actions(
+    actions: &Actions,
+    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+) {
+    for action in actions.get_new_action_item_requests().into_iter() {
+        action_item_requests.insert(action.uuid.clone(), action.clone());
     }
 }
 
@@ -440,23 +424,18 @@ pub async fn reset_runbook_execution(
 
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
 
-    let genesis_panel = Block::new(
-        Uuid::new_v4(),
-        Panel::ActionPanel(
-            build_genesis_panel(
-                &environments,
-                &Some(environment_key.clone()),
-                runbook,
-                runtime_context,
-                &execution_context,
-                action_item_requests,
-                action_item_responses,
-                &progress_tx,
-            )
-            .await?,
-        ),
-    );
-    let _ = block_tx.send(BlockEvent::Append(genesis_panel.clone()));
+    let genesis_event = build_genesis_panel(
+        &environments,
+        &Some(environment_key.clone()),
+        runbook,
+        runtime_context,
+        &execution_context,
+        action_item_requests,
+        action_item_responses,
+        &progress_tx,
+    )
+    .await?;
+    let _ = block_tx.send(genesis_event);
     Ok(())
 }
 
@@ -469,7 +448,7 @@ pub async fn build_genesis_panel(
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &Sender<BlockEvent>,
-) -> Result<ActionPanelData, Vec<Diagnostic>> {
+) -> Result<BlockEvent, Vec<Diagnostic>> {
     let input_options: Vec<InputOption> = environments
         .keys()
         .map(|k| InputOption {
@@ -478,59 +457,32 @@ pub async fn build_genesis_panel(
         })
         .collect();
 
-    let mut action_items = vec![];
+    let mut actions = Actions::new_panel("runbook checklist", "");
 
     if environments.len() > 0 {
         let action_request = ActionItemRequest {
             uuid: SET_ENV_UUID.clone(),
             construct_uuid: None,
             index: 0,
-            title: "select environment".into(),
+            title: "Select Environment".into(),
             description: selected_env.clone().unwrap_or("".to_string()),
             action_status: ActionItemStatus::Todo,
             action_type: ActionItemRequestType::PickInputOption(input_options),
         };
-        action_items.push(action_request.clone());
-        action_item_requests.insert(SET_ENV_UUID.clone(), action_request);
+        actions.push_group("Select Environment", vec![action_request]);
     }
 
-    let mut groups = if action_items.is_empty() {
-        vec![]
-    } else {
-        vec![ActionGroup {
-            title: "".into(),
-            sub_groups: vec![ActionSubGroup {
-                action_items: action_items.clone(),
-                allow_batch_completion: true,
-            }],
-        }]
-    };
-
-    let mut empty_map = BTreeMap::new();
-
-    let wallet_groups = run_wallets_evaluation(
+    let mut wallet_actions = run_wallets_evaluation(
         runbook,
         runtime_context,
         &execution_context,
-        &mut empty_map,
+        &mut BTreeMap::new(),
         &action_item_responses,
         &progress_tx,
     )
     .await?;
 
-    let mut actions_groups = vec![];
-    for (group_title, sub_groups) in wallet_groups.into_iter() {
-        for sub_group in sub_groups.iter() {
-            for action in sub_group.action_items.iter() {
-                action_item_requests.insert(action.uuid.clone(), action.clone());
-            }
-        }
-        actions_groups.push(ActionGroup {
-            title: group_title.clone(),
-            sub_groups,
-        });
-    }
-    groups.extend(actions_groups);
+    actions.append(&mut wallet_actions);
 
     let validate_action = ActionItemRequest {
         uuid: Uuid::new_v4(),
@@ -538,25 +490,15 @@ pub async fn build_genesis_panel(
         index: 0,
         title: "start runbook".into(),
         description: "".into(),
-        action_status: if action_items.is_empty() {
-            ActionItemStatus::Success(None)
-        } else {
-            ActionItemStatus::Todo
-        },
+        action_status: ActionItemStatus::Todo,
         action_type: ActionItemRequestType::ValidatePanel,
     };
+    actions.push_sub_group(vec![validate_action]);
 
-    action_item_requests.insert(validate_action.uuid.clone(), validate_action.clone());
-    groups.push(ActionGroup {
-        title: "".into(),
-        sub_groups: vec![ActionSubGroup {
-            action_items: vec![validate_action],
-            allow_batch_completion: false,
-        }],
-    });
-    Ok(ActionPanelData {
-        title: "runbook checklist".into(),
-        description: "".to_string(),
-        groups,
-    })
+    register_action_items_from_actions(&actions, action_item_requests);
+
+    let mut panels = actions.compile_actions_to_block_events();
+    assert_eq!(panels.len(), 1);
+
+    Ok(panels.remove(0))
 }

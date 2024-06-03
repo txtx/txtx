@@ -242,7 +242,11 @@ impl ValueStore {
         let bytes = match value {
             Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes.clone(),
             Value::Primitive(PrimitiveValue::String(bytes)) => {
-                let bytes = crate::hex::decode(&bytes[2..]).unwrap();
+                let bytes = if bytes.starts_with("0x") {
+                    crate::hex::decode(&bytes[2..]).unwrap()
+                } else {
+                    crate::hex::decode(&bytes).unwrap()
+                };
                 BufferData {
                     bytes,
                     typing: typing.clone(),

@@ -23,10 +23,13 @@ use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
-        BlockEvent,
+        Actions, BlockEvent,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::WalletInstance,
+    wallets::{
+        WalletCheckSignabilityClosure, WalletInstance, WalletSignClosure, WalletSignFutureResult,
+        WalletsState,
+    },
     ConstructUuid, PackageUuid, ValueStore,
 };
 
@@ -209,13 +212,16 @@ pub struct CommandSpecification {
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
     pub update_addon_defaults: bool,
+    pub requires_signing_capability: bool,
     pub example: String,
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub check_executability: ExecutabilityChecker,
     pub check_instantiability: InstantiabilityChecker,
-    pub execute: CommandRunner,
+    pub check_executability: CommandCheckExecutabilityClosure,
+    pub run_execution: CommandExecutionClosure,
+    pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub run_signed_execution: CommandSignedExecutionClosure,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -314,27 +320,51 @@ pub type CommandExecutionFutureResult = Result<
     Diagnostic,
 >;
 
-pub type CommandRunner = Box<
+pub type CommandExecutionClosure = Box<
     fn(
         &ConstructUuid,
         &CommandSpecification,
         &ValueStore,
         &AddonDefaults,
-        &HashMap<ConstructUuid, WalletInstance>,
         &channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult,
 >;
+
+pub type CommandSignedExecutionClosure = Box<
+    fn(
+        &ConstructUuid,
+        &CommandSpecification,
+        &ValueStore,
+        &AddonDefaults,
+        &channel::Sender<BlockEvent>,
+        &HashMap<ConstructUuid, WalletInstance>,
+        WalletsState,
+    ) -> WalletSignFutureResult,
+>;
+
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
-pub type ExecutabilityChecker = fn(
+
+pub type CommandCheckExecutabilityClosure = fn(
     &ConstructUuid,
     &str,
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &mut HashMap<ConstructUuid, WalletInstance>,
     &CommandExecutionContext,
-) -> Result<Vec<ActionItemRequest>, Diagnostic>;
+) -> Result<Actions, Diagnostic>;
+
+pub type CommandCheckSignedExecutabilityClosure =
+    fn(
+        &ConstructUuid,
+        &str,
+        &CommandSpecification,
+        &ValueStore,
+        &AddonDefaults,
+        &CommandExecutionContext,
+        &HashMap<ConstructUuid, WalletInstance>,
+        WalletsState,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -355,25 +385,53 @@ pub trait CommandImplementation {
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic>;
+
     fn check_executability(
         _uuid: &ConstructUuid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
-        Ok(vec![])
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
     }
-    fn execute(
+    fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> CommandExecutionFutureResult;
+    ) -> CommandExecutionFutureResult {
+        let result: CommandExecutionResult = CommandExecutionResult::new();
+        return_synchronous_ok(result)
+    }
+
+    fn check_signed_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        wallets_state: WalletsState,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+        Ok((wallets_state, Actions::none()))
+    }
+
+    fn run_signed_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<BlockEvent>,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        wallets_state: WalletsState,
+    ) -> WalletSignFutureResult {
+        let result = CommandExecutionResult::new();
+        super::wallets::return_synchronous_ok(wallets_state, result)
+    }
 }
 
 pub trait CompositeCommandImplementation {
@@ -602,7 +660,7 @@ impl CommandInstance {
         wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+    ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(&format!("{}_inputs", self.specification.matcher));
 
         // TODO
@@ -667,13 +725,12 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
-            wallet_instances,
             &execution_context,
         )
     }
 
     pub async fn perform_execution(
-        &mut self,
+        &self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
@@ -703,12 +760,12 @@ impl CommandInstance {
             values.insert(&input.name, value);
         }
 
-        let res = (&self.specification.execute)(
+        let spec = &self.specification;
+        let res = (spec.run_execution)(
             &construct_uuid,
             &self.specification,
             &values,
             &addon_defaults,
-            &wallet_instances,
             progress_tx,
         )?
         .await;

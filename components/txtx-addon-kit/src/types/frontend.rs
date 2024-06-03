@@ -1,8 +1,13 @@
-use std::borrow::BorrowMut;
+use std::{
+    borrow::BorrowMut,
+    collections::{BTreeMap, HashMap},
+    fmt::Display,
+};
 
 use super::{
     diagnostics::Diagnostic,
     types::{PrimitiveType, Value},
+    ConstructUuid,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -110,6 +115,29 @@ impl Block {
                 }
             }
         }
+    }
+}
+
+impl Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Block {} {{", self.uuid)?;
+        let panel = self.panel.expect_action_panel();
+        writeln!(f, "  title: {}", panel.title)?;
+        for group in self.panel.as_action_panel().unwrap().groups.iter() {
+            writeln!(f, "  group: {} {{", group.title)?;
+            for sub_group in group.sub_groups.iter() {
+                writeln!(f, "    sub_group: {{")?;
+                for item in sub_group.action_items.iter() {
+                    writeln!(f, "      items: {} {{", item.uuid)?;
+                    writeln!(f, "          status: {:?}", item.action_status)?;
+                    writeln!(f, "          status: {:?}", item.action_type)?;
+                    writeln!(f, "      }}")?;
+                }
+                writeln!(f, "    }}")?;
+            }
+            writeln!(f, "  }}")?;
+        }
+        writeln!(f, "}}")
     }
 }
 
@@ -229,6 +257,220 @@ pub enum ActionItemStatus {
     InProgress(String),
     Error(Diagnostic),
     Warning(Diagnostic),
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateConstructData {
+    pub construct_uuid: ConstructUuid,
+    pub action_status: ActionItemStatus,
+}
+
+#[derive(Clone, Debug)]
+pub enum ActionType {
+    UpdateActionItemRequest(ActionItemRequest),
+    UpdateConstruct(UpdateConstructData),
+    AppendSubGroup(ActionSubGroup),
+    AppendGroup(ActionGroup),
+    NewBlock(ActionPanelData),
+}
+
+#[derive(Clone, Debug)]
+pub struct Actions {
+    pub store: Vec<ActionType>,
+}
+
+impl Actions {
+    pub fn none() -> Actions {
+        Actions { store: vec![] }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.store.is_empty()
+    }
+
+    pub fn append(&mut self, actions: &mut Actions) {
+        self.store.append(&mut actions.store);
+    }
+
+    pub fn push_group(&mut self, title: &str, action_items: Vec<ActionItemRequest>) {
+        self.store.push(ActionType::AppendGroup(ActionGroup {
+            sub_groups: vec![ActionSubGroup {
+                action_items,
+                allow_batch_completion: false,
+            }],
+            title: title.to_string(),
+        }));
+    }
+
+    pub fn push_sub_group(&mut self, action_items: Vec<ActionItemRequest>) {
+        self.store.push(ActionType::AppendSubGroup(ActionSubGroup {
+            action_items,
+            allow_batch_completion: false,
+        }));
+    }
+
+    pub fn push_status_update(&mut self, action_item_request: &ActionItemRequest) {
+        self.store.push(ActionType::UpdateActionItemRequest(
+            action_item_request.clone(),
+        ))
+    }
+
+    pub fn push_status_udpate_construct_uuid(
+        &mut self,
+        construct_uuid: &ConstructUuid,
+        status_update: ActionItemStatus,
+    ) {
+        self.store
+            .push(ActionType::UpdateConstruct(UpdateConstructData {
+                construct_uuid: construct_uuid.clone(),
+                action_status: status_update.clone(),
+            }))
+    }
+
+    pub fn new_panel(title: &str, description: &str) -> Actions {
+        let store = vec![ActionType::NewBlock(ActionPanelData {
+            title: title.to_string(),
+            description: description.to_string(),
+            groups: vec![],
+        })];
+        Actions { store }
+    }
+
+    pub fn new_group_of_items(title: &str, action_items: Vec<ActionItemRequest>) -> Actions {
+        let store = vec![ActionType::AppendGroup(ActionGroup {
+            sub_groups: vec![ActionSubGroup {
+                action_items,
+                allow_batch_completion: false,
+            }],
+            title: title.to_string(),
+        })];
+        Actions { store }
+    }
+
+    pub fn new_sub_group_of_items(action_items: Vec<ActionItemRequest>) -> Actions {
+        let store = vec![ActionType::AppendSubGroup(ActionSubGroup {
+            action_items,
+            allow_batch_completion: false,
+        })];
+        Actions { store }
+    }
+
+    pub fn get_new_action_item_requests(&self) -> Vec<&ActionItemRequest> {
+        let mut new_action_item_requests = vec![];
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(data) => {
+                    for item in data.action_items.iter() {
+                        new_action_item_requests.push(item);
+                    }
+                }
+                ActionType::AppendGroup(data) => {
+                    for subgroup in data.sub_groups.iter() {
+                        for item in subgroup.action_items.iter() {
+                            new_action_item_requests.push(item);
+                        }
+                    }
+                }
+                ActionType::NewBlock(data) => {
+                    for group in data.groups.iter() {
+                        for subgroup in group.sub_groups.iter() {
+                            for item in subgroup.action_items.iter() {
+                                new_action_item_requests.push(item);
+                            }
+                        }
+                    }
+                }
+                ActionType::UpdateActionItemRequest(_) => continue,
+                ActionType::UpdateConstruct(_) => continue,
+            }
+        }
+        new_action_item_requests
+    }
+
+    pub fn compile_actions_to_block_events(&self) -> Vec<BlockEvent> {
+        let mut blocks = vec![];
+        let mut current_panel_data = ActionPanelData {
+            title: "".to_string(),
+            description: "".to_string(),
+            groups: vec![],
+        };
+
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(data) => {
+                    if current_panel_data.groups.len() > 0 {
+                        let Some(group) = current_panel_data.groups.last_mut() else {
+                            continue;
+                        };
+                        group.sub_groups.push(data.clone());
+                    } else {
+                        current_panel_data.groups.push(ActionGroup {
+                            title: "".to_string(),
+                            sub_groups: vec![data.clone()],
+                        });
+                    }
+                }
+                ActionType::AppendGroup(data) => {
+                    current_panel_data.groups.push(data.clone());
+                }
+                ActionType::NewBlock(data) => {
+                    if current_panel_data.groups.len() > 1 {
+                        blocks.push(BlockEvent::Append(Block {
+                            uuid: Uuid::new_v4(),
+                            panel: Panel::ActionPanel(current_panel_data.clone()),
+                            visible: true,
+                        }));
+                    }
+                    current_panel_data = data.clone();
+                }
+                ActionType::UpdateActionItemRequest(_) => continue,
+                ActionType::UpdateConstruct(_) => continue,
+            }
+        }
+        blocks.push(BlockEvent::Append(Block {
+            uuid: Uuid::new_v4(),
+            panel: Panel::ActionPanel(current_panel_data.clone()),
+            visible: true,
+        }));
+        blocks
+    }
+
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_items_requests: &BTreeMap<Uuid, ActionItemRequest>,
+    ) -> Vec<SetActionItemStatus> {
+        let mut updates = vec![];
+        let mut status_updates = HashMap::new();
+
+        for item in self.store.iter() {
+            match item {
+                ActionType::AppendSubGroup(_) => {}
+                ActionType::AppendGroup(_) => {}
+                ActionType::NewBlock(_) => {}
+                ActionType::UpdateConstruct(data) => {
+                    status_updates.insert(data.construct_uuid.value(), data.action_status.clone());
+                }
+                ActionType::UpdateActionItemRequest(data) => updates.push(SetActionItemStatus {
+                    action_item_uuid: data.construct_uuid.unwrap().clone(),
+                    new_status: data.action_status.clone(),
+                }),
+            }
+        }
+
+        for (_, request) in action_items_requests.iter() {
+            if let Some(construct_uuid) = request.construct_uuid {
+                if let Some(status_update) = status_updates.get(&construct_uuid) {
+                    updates.push(SetActionItemStatus {
+                        action_item_uuid: construct_uuid.clone(),
+                        new_status: status_update.clone(),
+                    })
+                }
+            }
+        }
+
+        updates
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
