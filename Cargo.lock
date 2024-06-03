@@ -4462,6 +4462,7 @@ dependencies = [
  "jaq-parse",
  "lazy_static",
  "petgraph",
+ "ripemd",
  "serde_json",
  "txtx-addon-kit",
  "txtx-addon-network-stacks",
