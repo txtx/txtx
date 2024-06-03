@@ -3,7 +3,7 @@ use clarity::types::chainstate::StacksPublicKey;
 use clarity::util::secp256k1::MessageSignature;
 use clarity_repl::codec::{
     MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionPublicKeyEncoding,
+    TransactionPostConditionMode, TransactionPublicKeyEncoding,
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -257,6 +257,7 @@ fn build_unsigned_transaction(
     if let TransactionVersion::Testnet = transaction_version {
         unsigned_tx.chain_id = 0x80000000;
     }
+    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
 
     Ok(unsigned_tx)
 }
