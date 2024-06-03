@@ -25,7 +25,10 @@ pub fn parse_clarity_value(
         | "clarity_ascii" | "clarity_utf8" | "clarity_buffer" | "clarity_ok" | "clarity_value" => {
             match ClarityValue::consensus_deserialize(&mut &bytes[..]) {
                 Ok(v) => Ok(v),
-                Err(e) => Err(Diagnostic::error_from_string(e.to_string())),
+                Err(e) => Err(Diagnostic::error_from_string(format!(
+                    "failed to parse clarity value: {}",
+                    e.to_string()
+                ))),
             }
         }
         _ => {
