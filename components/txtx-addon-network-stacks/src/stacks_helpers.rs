@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use clarity::vm::{
     types::{
-        ASCIIData, BuffData, BufferLength, CharType, ListData, SequenceData, SequenceSubtype,
-        StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
+        ASCIIData, BuffData, BufferLength, CharType, ListData, ResponseData, SequenceData,
+        SequenceSubtype, StringSubtype, StringUTF8Length, TupleData, TupleTypeSignature,
         TypeSignature as ClarityType,
     },
     ClarityName,
@@ -198,7 +198,7 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
             Ok(Value::Object(map))
         }
         ClarityValue::Optional(_) => todo!(),
-        ClarityValue::Response(_) => todo!(),
+        ClarityValue::Response(ResponseData { data, .. }) => clarity_value_to_value(*data),
         ClarityValue::CallableContract(val) => {
             Ok(Value::Primitive(PrimitiveValue::String(val.to_string())))
         }
