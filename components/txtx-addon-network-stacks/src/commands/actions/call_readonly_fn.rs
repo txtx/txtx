@@ -3,8 +3,7 @@ use clarity::vm::types::QualifiedContractIdentifier;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, ProgressBarStatus};
-use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::frontend::{Actions, Block, BlockEvent, Panel, ProgressBarStatus};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -16,6 +15,7 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
 use crate::rpc::StacksRpc;
+use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
 use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
 
 lazy_static! {
@@ -47,7 +47,7 @@ lazy_static! {
                 rpc_api_url: {
                     documentation: "The URL of the Stacks API to broadcast to.",
                     typing: Type::string(),
-                    optional: false,
+                    optional: true,
                     interpolable: true
                 }
             ],
@@ -85,7 +85,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     fn run_execution(
         _uuid: &ConstructUuid,
-        _spec: &CommandSpecification,
+        spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
@@ -94,19 +94,36 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let contract_id_arg = args.get_expected_string("contract_id")?;
         let contract_id = QualifiedContractIdentifier::parse(contract_id_arg)
             .map_err(|e| diagnosed_error!("unable to parse contract_id: {}", e.to_string()))?;
+
         let function_name = args.get_expected_string("function_name")?.to_string();
-        let function_args = args.get_expected_array("function_args")?.clone();
+
+        let function_args_values = args.get_expected_array("function_args")?.clone();
+        let mut function_args = vec![];
+        for arg_value in function_args_values.iter() {
+            let Some(buffer) = arg_value.as_buffer_data() else {
+                return Err(diagnosed_error!(
+                    "function '{}': expected array, got {:?}",
+                    spec.matcher,
+                    arg_value
+                ));
+            };
+            let arg = parse_clarity_value(&buffer.bytes, &buffer.typing)?;
+            function_args.push(arg);
+        }
+
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let progress_tx = progress_tx.clone();
 
         let future = async move {
-            let mut progress_bar = ProgressBarStatus {
+            let mut progress_bar = Block {
                 uuid: Uuid::new_v4(),
                 visible: true,
-                status: "status".to_string(),
-                message: "message".to_string(),
-                diagnostic: None,
+                panel: Panel::ProgressBar(ProgressBarStatus {
+                    status: "status".to_string(),
+                    message: "message".to_string(),
+                    diagnostic: None,
+                }),
             };
             let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
 
@@ -122,7 +139,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         &contract_id.issuer.to_address(),
                         &contract_id.name.to_string(),
                         &function_name,
-                        vec![],
+                        function_args.clone(),
                         &contract_id.issuer.to_address(),
                     )
                     .await
@@ -142,11 +159,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
             };
 
-            println!("{:?}", call_result);
-
-            result
-                .outputs
-                .insert("value".into(), Value::string("todo".into()));
+            let value = clarity_value_to_value(call_result)?;
+            result.outputs.insert("value".into(), value);
 
             progress_bar.visible = false;
             let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar));
