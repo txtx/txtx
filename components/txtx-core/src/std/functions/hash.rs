@@ -1,5 +1,5 @@
-use kit::types::types::{TypeImplementation, TypeSpecification};
-use ripemd::{Digest, Ripemd160};
+use kit::types::types::{PrimitiveValue, TypeImplementation, TypeSpecification};
+use ripemd::{Digest, Ripemd160 as LibRipemd160};
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -11,7 +11,7 @@ use txtx_addon_kit::{
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
-        Base64Decode => {
+        Ripemd160 => {
             name: "ripemd160",
             documentation: "Coming soon",
             example: indoc!{r#"
@@ -19,7 +19,7 @@ lazy_static! {
             inputs: [
                 value: {
                     documentation: "Coming soon",
-                    typing: vec![Type::string()]
+                    typing: vec![Type::buffer(), Type::array(Type::buffer())]
                 }
             ],
             output: {
@@ -36,8 +36,8 @@ lazy_static! {
     };
 }
 
-pub struct Base64Decode;
-impl FunctionImplementation for Base64Decode {
+pub struct Ripemd160;
+impl FunctionImplementation for Ripemd160 {
     fn check_instantiability(
         _ctx: &FunctionSpecification,
         _args: &Vec<Type>,
@@ -46,12 +46,28 @@ impl FunctionImplementation for Base64Decode {
     }
 
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        let input = args.get(0).unwrap().expect_string();
-        let mut hasher = Ripemd160::new();
-        hasher.update(input.as_bytes());
-        let result = hasher.finalize();
-        let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
-        Ok(value)
+        if let Some(Value::Primitive(PrimitiveValue::Buffer(buf))) = args.get(0) {
+            let mut hasher = LibRipemd160::new();
+            hasher.update(&buf.bytes[..]);
+            let result = hasher.finalize();
+            let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
+            return Ok(value);
+        }
+        if let Some(Value::Array(buffers)) = args.get(0) {
+            let mut joined = vec![];
+            for maybe_buffer in buffers.iter() {
+                let Value::Primitive(PrimitiveValue::Buffer(buf)) = maybe_buffer else {
+                    return Err(Diagnostic::error_from_string("wrong inputs".to_string()));
+                };
+                joined.extend(buf.bytes.clone());
+            }
+            let mut hasher = LibRipemd160::new();
+            hasher.update(&joined[..]);
+            let result = hasher.finalize();
+            let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
+            return Ok(value);
+        }
+        Err(Diagnostic::error_from_string("wrong inputs".to_string()))
     }
 }
 
