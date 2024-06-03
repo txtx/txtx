@@ -3,7 +3,10 @@ use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use kit::types::frontend::{Actions, BlockEvent};
 use petgraph::algo::toposort;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    result,
+};
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
@@ -722,7 +725,6 @@ pub async fn run_constructs_evaluation(
                     Err(diag)
                 }
             };
-
             execution_result
         } else {
             if let Ok(new_actions) = command_instance.check_executability(

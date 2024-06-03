@@ -475,8 +475,6 @@ impl WalletInstance {
             };
         }
 
-        println!("==> VALUES {:?}", values);
-
         let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
 
         let res = (&self.specification.activate)(

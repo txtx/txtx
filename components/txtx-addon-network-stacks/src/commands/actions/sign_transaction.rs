@@ -108,9 +108,6 @@ impl CommandImplementation for SignStacksTransaction {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
 
-        println!("1====> {:?}", wallets);
-        println!("2====> {:?}", wallet_uuid);
-
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
         let transaction = build_unsigned_transaction(&wallet_state, spec, args, defaults).unwrap();
@@ -172,7 +169,6 @@ impl CommandImplementation for SignStacksTransaction {
             wallets,
             &defaults,
         );
-
         res
     }
 }

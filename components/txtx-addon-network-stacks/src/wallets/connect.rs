@@ -147,7 +147,6 @@ impl WalletImplementation for StacksConnect {
                 CHECKED_PUBLIC_KEY,
                 Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
             );
-            println!("GOGOGO => {:?}", wallet_state);
             let mut actions = Actions::none();
             actions.push_status_udpate_construct_uuid(
                 &uuid,
@@ -222,8 +221,6 @@ impl WalletImplementation for StacksConnect {
                 }
                 action_items.push(check_balance);
             }
-
-            println!("LET's GO ==> {:?}", action_items);
             wallets.push_wallet_state(wallet_state);
             Ok((wallets, Actions::new_sub_group_of_items(action_items)))
         };

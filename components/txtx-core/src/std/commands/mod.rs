@@ -1,6 +1,6 @@
 pub mod actions;
 
-use kit::types::frontend::{Actions, BlockEvent, ReviewInputRequest};
+use kit::types::frontend::{Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest};
 use kit::types::ValueStore;
 use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
 use txtx_addon_kit::types::frontend::{
@@ -263,14 +263,28 @@ impl CommandImplementation for Output {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
-        _instance_name: &str,
+        uuid: &ConstructUuid,
+        instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
-        Ok(Actions::none())
+        let value = args.get_expected_value("value")?;
+        let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest {
+            uuid: Uuid::new_v4(),
+            construct_uuid: Some(uuid.value()),
+            index: 0,
+            title: instance_name.into(),
+            description: "".into(),
+            action_status: ActionItemStatus::Todo,
+            action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                name: instance_name.into(),
+                description: None,
+                value: value.clone(),
+            }),
+        }]);
+        Ok(actions)
     }
 
     fn run_execution(
