@@ -423,6 +423,7 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
                     txtx_addon_kit::hex::decode(&val[0..]).unwrap()
                 }
             }
+            Some(Value::Primitive(PrimitiveValue::Buffer(val))) => val.bytes.clone(),
             _ => unreachable!(),
         };
 
