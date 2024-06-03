@@ -489,10 +489,12 @@ impl Actions {
     }
 
     pub fn push_sub_group(&mut self, action_items: Vec<ActionItemRequest>) {
-        self.store.push(ActionType::AppendSubGroup(ActionSubGroup {
-            action_items,
-            allow_batch_completion: false,
-        }));
+        if !action_items.is_empty() {
+            self.store.push(ActionType::AppendSubGroup(ActionSubGroup {
+                action_items,
+                allow_batch_completion: false,
+            }));
+        }
     }
 
     pub fn push_status_update(&mut self, action_item_request: &ActionItemRequest) {

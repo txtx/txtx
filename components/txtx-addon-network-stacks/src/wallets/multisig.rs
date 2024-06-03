@@ -22,6 +22,10 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
+use crate::constants::{NETWORK_ID, RPC_API_URL};
+
+use super::get_addition_actions_for_address;
+
 lazy_static! {
     pub static ref STACKS_MULTISIG: WalletSpecification = define_wallet! {
         StacksConnect => {
@@ -70,9 +74,13 @@ impl WalletImplementation for StacksConnect {
         unimplemented!()
     }
 
+    // Loop over the signers
+    // Ensuring that they are all correctly activable.
+    // When they are, collect the public keys
+    // and build the stacks address + Check the balance
     fn check_activability(
         uuid: &ConstructUuid,
-        _instance_name: &str,
+        instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
         wallet_state: ValueStore,
@@ -83,15 +91,6 @@ impl WalletImplementation for StacksConnect {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
-        // Loop over the signers
-        // Ensuring that they are all correctly activable.
-        // When they are, collect the public keys
-        // and build the stacks address + Check the balance
-
-        println!("1=> {:?}", _spec.inputs);
-        println!("2=> {:?}", args);
-        println!("3=> {:?}", wallets);
-
         let root_uuid = uuid.clone();
         let signers_uuid = args.get_expected_array("signers").unwrap();
         let mut signers = VecDeque::new();
@@ -106,13 +105,23 @@ impl WalletImplementation for StacksConnect {
         let wallets_instances = wallets_instances.clone();
         let defaults = defaults.clone();
         let execution_context = execution_context.clone();
+        let instance_name = instance_name.to_string();
+        let expected_address = None;
+        let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, &defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
 
         let future = async move {
             let mut consolidated_actions = Actions::none();
 
             let modal =
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
-            let open_modal_action = ActionItemRequest::new(
+            let mut open_modal_action = vec![ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(root_uuid.value()),
                 0,
@@ -123,8 +132,25 @@ impl WalletImplementation for StacksConnect {
                     modal_uuid: modal.uuid.clone(),
                     title: "START ASSISTANT".into(),
                 }),
-            );
-            consolidated_actions.push_sub_group(vec![open_modal_action]);
+            )];
+            let mut additional_actions_res = get_addition_actions_for_address(
+                &expected_address,
+                &root_uuid,
+                &instance_name,
+                &network_id,
+                &rpc_api_url,
+                is_public_key_required,
+                is_balance_check_required,
+            )
+            .await;
+            match additional_actions_res {
+                Ok(ref mut res) => {
+                    open_modal_action.append(res);
+                }
+                Err(diag) => return Err((wallets, diag)),
+            }
+
+            consolidated_actions.push_sub_group(open_modal_action);
             consolidated_actions.push_modal(modal);
 
             // Modal configuration
@@ -158,7 +184,7 @@ impl WalletImplementation for StacksConnect {
                 ActionItemRequestType::ValidateModal,
             );
             consolidated_actions.push_sub_group(vec![validate_modal_action]);
-
+            wallets.push_wallet_state(wallet_state);
             Ok((wallets, consolidated_actions))
         };
         Ok(Box::pin(future))

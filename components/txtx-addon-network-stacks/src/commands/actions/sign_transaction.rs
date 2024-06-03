@@ -19,7 +19,8 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_ok, WalletInstance, WalletSignFutureResult, WalletsState,
+    return_synchronous_err, return_synchronous_ok, WalletInstance, WalletSignFutureResult,
+    WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -110,7 +111,13 @@ impl CommandImplementation for SignStacksTransaction {
 
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
-        let transaction = build_unsigned_transaction(&wallet_state, spec, args, defaults).unwrap();
+        let transaction = match build_unsigned_transaction(&wallet_state, spec, args, defaults) {
+            Ok(transaction) => transaction,
+            Err(diag) => {
+                wallets.push_wallet_state(wallet_state);
+                return Err((wallets, diag));
+            }
+        };
 
         let mut bytes = vec![];
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
@@ -155,7 +162,14 @@ impl CommandImplementation for SignStacksTransaction {
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
-        let transaction = build_unsigned_transaction(&wallet_state, spec, args, defaults).unwrap();
+        let transaction = match build_unsigned_transaction(&wallet_state, spec, args, defaults) {
+            Ok(transaction) => transaction,
+            Err(diag) => {
+                wallets.push_wallet_state(wallet_state);
+                return return_synchronous_err(wallets, diag);
+            }
+        };
+
         let mut bytes = vec![];
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
         let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());

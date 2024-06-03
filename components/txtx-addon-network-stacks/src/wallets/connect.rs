@@ -24,11 +24,12 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    CHECKED_ADDRESS, CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, DEFAULT_MESSAGE, EXPECTED_ADDRESS,
-    FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_ADDRESS, CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE,
+    FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
-use crate::rpc::StacksRpc;
 use crate::typing::CLARITY_BUFFER;
+
+use super::get_addition_actions_for_address;
 
 lazy_static! {
     pub static ref STACKS_CONNECT: WalletSpecification = {
@@ -110,10 +111,14 @@ impl WalletImplementation for StacksConnect {
         // WIP
         let instance_name = instance_name.to_string();
         let uuid = uuid.clone();
-        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults).unwrap();
-        // .map_err(|e| (wallets, e))?;
-        let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
-        // .map_err(|e| (wallets, e))?;
+        let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
 
         if let Ok(public_key_buffer) = args.get_expected_buffer("public_key", &CLARITY_BUFFER) {
             let version = if network_id.eq("mainnet") {
@@ -162,85 +167,31 @@ impl WalletImplementation for StacksConnect {
         }
 
         let future = async move {
-            let stacks_rpc = StacksRpc::new(&rpc_api_url);
-            let mut action_items = vec![];
-
-            if is_public_key_required {
-                action_items.push(ActionItemRequest::new(
-                    &uuid.value(),
-                    &Some(uuid.value()),
-                    0,
-                    &format!("Connect wallet {instance_name}"),
-                    "".into(),
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                        check_expectation_action_uuid: Some(uuid.value()),
-                        message: DEFAULT_MESSAGE.to_string(),
-                        network_id,
-                        namespace: "stacks".to_string(),
-                    }),
-                ));
-            }
-
-            if let Some(ref expected_address) = expected_address {
-                action_items.push(ActionItemRequest::new(
-                    &Uuid::new_v4(),
-                    &Some(uuid.value()),
-                    0,
-                    &format!("Check {} expected address", instance_name),
-                    &expected_address.to_string(),
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(), // todo
-                    }),
-                ))
-            }
-
-            if is_balance_check_required {
-                let mut check_balance = ActionItemRequest::new(
-                    &Uuid::new_v4(),
-                    &Some(uuid.value()),
-                    0,
-                    "Check wallet balance (STX)",
-                    "",
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(), // todo
-                    }),
-                );
-                if let Some(ref expected_address) = expected_address {
-                    let balance = stacks_rpc
-                        .get_balance(&expected_address)
-                        .await
-                        // .map_err(|e| {
-                        //     (
-                        //         wallets,
-                        //         diagnosed_error!(
-                        //             "unable to retrieve balance {}: {}",
-                        //             expected_address,
-                        //             e.to_string()
-                        //         ),
-                        //     )
-                        // })?;
-                        .unwrap();
-
-                    check_balance.description = balance.balance.clone();
-                }
-                action_items.push(check_balance);
-            }
+            let mut actions = Actions::none();
+            let res = get_addition_actions_for_address(
+                &expected_address,
+                &uuid,
+                &instance_name,
+                &network_id,
+                &rpc_api_url,
+                is_public_key_required,
+                is_balance_check_required,
+            )
+            .await;
             wallets.push_wallet_state(wallet_state);
 
-            let mut actions = Actions::none();
-            if !action_items.is_empty() {
-                actions.push_sub_group(action_items);
-            }
+            let action_items = match res {
+                Ok(action_items) => action_items,
+                Err(diag) => return Err((wallets, diag)),
+            };
+            actions.push_sub_group(action_items);
             Ok((wallets, actions))
         };
         Ok(Box::pin(future))
     }
 
     fn activate(
-        uuid: &ConstructUuid,
+        _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,

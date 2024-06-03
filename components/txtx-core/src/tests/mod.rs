@@ -274,12 +274,12 @@ fn test_wallet_runbook_no_env() {
     println!("UPDATES = {:?}", updates);
     assert_eq!(updates.len(), 3);
     assert_eq!(
-        updates[0].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
     assert_eq!(
-        updates[1].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[1].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
 
     // Validate panel
@@ -321,7 +321,10 @@ fn test_wallet_runbook_no_env() {
 
     let updates = event.expect_updated_action_items();
     assert_eq!(updates.len(), 1);
-    assert_eq!(updates[0].new_status, ActionItemStatus::Success(None));
+    assert_eq!(
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(None)
+    );
 
     let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
 
@@ -463,12 +466,12 @@ fn test_multisig_runbook_no_env() {
     let updates = event.expect_updated_action_items();
     assert_eq!(updates.len(), 3);
     assert_eq!(
-        updates[0].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
     assert_eq!(
-        updates[1].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[1].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
 
     // Validate panel
@@ -510,7 +513,10 @@ fn test_multisig_runbook_no_env() {
 
     let updates = event.expect_updated_action_items();
     assert_eq!(updates.len(), 1);
-    assert_eq!(updates[0].new_status, ActionItemStatus::Success(None));
+    assert_eq!(
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(None)
+    );
 
     let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
 
@@ -647,12 +653,12 @@ fn test_bns_runbook_no_env() {
     let updates = event.expect_updated_action_items();
     assert_eq!(updates.len(), 3);
     assert_eq!(
-        updates[0].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
     assert_eq!(
-        updates[1].new_status,
-        ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[1].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
     );
 
     // Validate panel
