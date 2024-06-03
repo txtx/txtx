@@ -262,7 +262,7 @@ pub async fn start_runbook_runloop(
                         index: 0,
                         title: "Validate".into(),
                         description: "".into(),
-                        action_status: ActionItemStatus::Success(None),
+                        action_status: ActionItemStatus::Todo,
                         action_type: ActionItemRequestType::ValidatePanel,
                     }]));
                 }
