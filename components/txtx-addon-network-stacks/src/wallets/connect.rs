@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future;
 
 use clarity::address::AddressHashMode;
@@ -5,12 +6,13 @@ use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ActionSubGroup, Actions,
-    BlockEvent, ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
+    ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
-    WalletImplementation, WalletSignFutureResult, WalletSpecification, WalletsState,
+    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
+    WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -88,6 +90,7 @@ impl WalletImplementation for StacksConnect {
         args: &ValueStore,
         mut wallet_state: ValueStore,
         mut wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult {
@@ -233,6 +236,7 @@ impl WalletImplementation for StacksConnect {
         args: &ValueStore,
         mut wallet_state: ValueStore,
         mut wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
@@ -265,6 +269,7 @@ impl WalletImplementation for StacksConnect {
         args: &ValueStore,
         mut wallet_state: ValueStore,
         mut wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
@@ -306,6 +311,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         wallet_state: ValueStore,
         mut wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         let mut result = CommandExecutionResult::new();

@@ -97,6 +97,7 @@ pub type WalletActivateClosure = Box<
         &ValueStore,
         ValueStore,
         WalletsState,
+        &HashMap<ConstructUuid, WalletInstance>,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult,
@@ -125,6 +126,7 @@ pub type WalletSignClosure = Box<
         &ValueStore,
         ValueStore,
         WalletsState,
+        &HashMap<ConstructUuid, WalletInstance>,
         &AddonDefaults,
     ) -> WalletSignFutureResult,
 >;
@@ -136,6 +138,7 @@ pub type WalletCheckActivabilityClosure = fn(
     &ValueStore,
     ValueStore,
     WalletsState,
+    &HashMap<ConstructUuid, WalletInstance>,
     &AddonDefaults,
     &CommandExecutionContext,
 ) -> WalletActivabilityFutureResult;
@@ -161,6 +164,7 @@ pub type WalletCheckSignabilityClosure =
         &ValueStore,
         ValueStore,
         WalletsState,
+        &HashMap<ConstructUuid, WalletInstance>,
         &AddonDefaults,
         &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
@@ -359,6 +363,7 @@ impl WalletInstance {
         construct_uuid: &ConstructUuid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         mut wallets: WalletsState,
+        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         addon_defaults: &AddonDefaults,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponseType>>,
@@ -402,6 +407,7 @@ impl WalletInstance {
                                 &values,
                                 wallet_state,
                                 wallets,
+                                wallets_instances,
                                 &addon_defaults,
                                 &execution_context,
                             )?
@@ -448,6 +454,7 @@ impl WalletInstance {
             &values,
             wallet_state,
             wallets,
+            wallets_instances,
             &addon_defaults,
             &execution_context,
         )?
@@ -461,6 +468,7 @@ impl WalletInstance {
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         mut wallets: WalletsState,
+        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         addon_defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
@@ -483,6 +491,7 @@ impl WalletInstance {
             &values,
             wallet_state,
             wallets,
+            wallets_instances,
             &addon_defaults,
             progress_tx,
         )?
@@ -534,6 +543,7 @@ pub trait WalletImplementation {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult;
@@ -544,6 +554,7 @@ pub trait WalletImplementation {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult;
@@ -556,6 +567,7 @@ pub trait WalletImplementation {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
@@ -570,6 +582,7 @@ pub trait WalletImplementation {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult;
 }
