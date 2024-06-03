@@ -535,14 +535,7 @@ pub async fn run_constructs_evaluation(
             continue;
         };
 
-        let mut has_tainted_parent = false;
-        for unexecutable_node in unexecutable_nodes.iter() {
-            if is_child_of_node(unexecutable_node.clone(), node, &runbook.constructs_graph) {
-                has_tainted_parent = true;
-                break;
-            }
-        }
-        if has_tainted_parent {
+        if let Some(_) = unexecutable_nodes.get(&node) {
             println!("Ignoring {}", command_instance.name);
             continue;
         }
@@ -656,7 +649,9 @@ pub async fn run_constructs_evaluation(
         ) {
             if !new_actions.is_empty() {
                 consolidated_actions.push(new_actions);
-                unexecutable_nodes.insert(node);
+                for descendant in get_descendants_of_node(node, g.clone()) {
+                    unexecutable_nodes.insert(descendant);
+                }
                 continue;
             }
         }
