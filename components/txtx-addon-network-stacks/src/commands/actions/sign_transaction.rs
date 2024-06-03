@@ -125,6 +125,7 @@ impl CommandImplementation for SignStacksTransaction {
             &args,
             wallet_state,
             wallets,
+            wallets_instances,
             &defaults,
             execution_context,
         );
@@ -167,6 +168,7 @@ impl CommandImplementation for SignStacksTransaction {
             &args,
             wallet_state,
             wallets,
+            wallets_instances,
             &defaults,
         );
         res

@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
 use kit::types::frontend::{Actions, BlockEvent};
-use kit::types::wallets::{WalletActivateFutureResult, WalletSignFutureResult, WalletsState};
+use kit::types::wallets::{
+    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+};
 use txtx_addon_kit::types::commands::CommandExecutionContext;
 use txtx_addon_kit::types::wallets::{
     WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
@@ -61,6 +65,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> WalletActivabilityFutureResult {
@@ -73,6 +78,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
@@ -87,6 +93,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
@@ -101,6 +108,7 @@ impl WalletImplementation for StacksConnect {
         _args: &ValueStore,
         _wallet_state: ValueStore,
         _wallets: WalletsState,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         unimplemented!()
