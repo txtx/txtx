@@ -1,8 +1,12 @@
 use crate::{
-    types::{block::GqlBlock, runbook::RunbookDescription},
+    types::{
+        block::{GqlActionBlock, GqlModalBlock, GqlProgressBlock},
+        runbook::RunbookDescription,
+    },
     Context,
 };
 use juniper_codegen::graphql_object;
+use txtx_core::kit::types::frontend::Panel;
 
 pub struct Query;
 
@@ -14,9 +18,52 @@ impl Query {
         "1.0"
     }
 
-    async fn blocks(context: &Context) -> Vec<GqlBlock> {
+    async fn action_blocks(context: &Context) -> Vec<GqlActionBlock> {
         let block_store = context.block_store.read().await;
-        block_store.values().cloned().map(GqlBlock::new).collect()
+        block_store
+            .values()
+            .cloned()
+            .filter(|b| {
+                if let Panel::ActionPanel(_) = b.panel {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(GqlActionBlock::new)
+            .collect()
+    }
+
+    async fn modal_blocks(context: &Context) -> Vec<GqlModalBlock> {
+        let block_store = context.block_store.read().await;
+        block_store
+            .values()
+            .cloned()
+            .filter(|b| {
+                if let Panel::ModalPanel(_) = b.panel {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(GqlModalBlock::new)
+            .collect()
+    }
+
+    async fn progress_blocks(context: &Context) -> Vec<GqlProgressBlock> {
+        let block_store = context.block_store.read().await;
+        block_store
+            .values()
+            .cloned()
+            .filter(|b| {
+                if let Panel::ProgressBar(_) = b.panel {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(GqlProgressBlock::new)
+            .collect()
     }
 
     fn runbook(context: &Context) -> RunbookDescription {

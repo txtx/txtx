@@ -14,22 +14,12 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum BlockEvent {
-    Append(Block),
+    Action(Block),
     Clear,
     UpdateActionItems(Vec<SetActionItemStatus>),
     Exit,
-    ProgressBar(ProgressBarStatus),
+    ProgressBar(Block),
     Modal(Block),
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProgressBarStatus {
-    pub uuid: Uuid,
-    pub visible: bool,
-    pub status: String,
-    pub message: String,
-    pub diagnostic: Option<Diagnostic>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,14 +32,14 @@ pub struct SetActionItemStatus {
 impl BlockEvent {
     pub fn as_block(&self) -> Option<&Block> {
         match &self {
-            BlockEvent::Append(ref block) => Some(block),
+            BlockEvent::Action(ref block) => Some(block),
             _ => None,
         }
     }
 
     pub fn expect_block(&self) -> &Block {
         match &self {
-            BlockEvent::Append(ref block) => block,
+            BlockEvent::Action(ref block) => block,
             _ => unreachable!("block expected"),
         }
     }
@@ -99,6 +89,19 @@ impl Block {
                 }
                 return None;
             }
+            Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter() {
+                    for sub_group in group.sub_groups.iter() {
+                        for action in sub_group.action_items.iter() {
+                            if action.uuid == uuid {
+                                return Some(action.clone());
+                            }
+                        }
+                    }
+                }
+                return None;
+            }
+            Panel::ProgressBar(_) => None,
         }
     }
     pub fn set_action_status(&mut self, action_item_uuid: Uuid, new_status: ActionItemStatus) {
@@ -114,6 +117,18 @@ impl Block {
                     }
                 }
             }
+            Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter_mut() {
+                    for sub_group in group.sub_groups.iter_mut() {
+                        for action in sub_group.action_items.iter_mut() {
+                            if action.uuid == action_item_uuid {
+                                action.action_status = new_status.clone();
+                            }
+                        }
+                    }
+                }
+            }
+            Panel::ProgressBar(_) => {}
         }
     }
 }
@@ -145,6 +160,8 @@ impl Display for Block {
 #[serde(tag = "type")]
 pub enum Panel {
     ActionPanel(ActionPanelData),
+    ModalPanel(ModalPanelData),
+    ProgressBar(ProgressBarStatus),
 }
 
 impl Panel {
@@ -159,12 +176,14 @@ impl Panel {
     pub fn as_action_panel(&self) -> Option<&ActionPanelData> {
         match &self {
             Panel::ActionPanel(ref data) => Some(data),
+            _ => None,
         }
     }
 
     pub fn expect_action_panel(&self) -> &ActionPanelData {
         match &self {
             Panel::ActionPanel(ref data) => data,
+            _ => panic!("expected action panel, got {:?}", self),
         }
     }
 }
@@ -177,6 +196,21 @@ pub struct ActionPanelData {
     pub groups: Vec<ActionGroup>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatus {
+    pub status: String,
+    pub message: String,
+    pub diagnostic: Option<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModalPanelData {
+    pub title: String,
+    pub description: String,
+    pub groups: Vec<ActionGroup>,
+}
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionGroup {
@@ -431,7 +465,7 @@ impl Actions {
                 }
                 ActionType::NewBlock(data) => {
                     if current_panel_data.groups.len() > 1 {
-                        blocks.push(BlockEvent::Append(Block {
+                        blocks.push(BlockEvent::Action(Block {
                             uuid: Uuid::new_v4(),
                             panel: Panel::ActionPanel(current_panel_data.clone()),
                             visible: true,
@@ -443,7 +477,7 @@ impl Actions {
                 ActionType::UpdateConstruct(_) => continue,
             }
         }
-        blocks.push(BlockEvent::Append(Block {
+        blocks.push(BlockEvent::Action(Block {
             uuid: Uuid::new_v4(),
             panel: Panel::ActionPanel(current_panel_data.clone()),
             visible: true,
