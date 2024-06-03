@@ -172,7 +172,7 @@ pub async fn start_runbook_runloop(
         if !runbook_initialized {
             runbook_initialized = true;
             let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-            let genesis_event = build_genesis_panel(
+            let genesis_events = build_genesis_panel(
                 &environments,
                 &runtime_context.selected_env.clone(),
                 runbook,
@@ -183,7 +183,9 @@ pub async fn start_runbook_runloop(
                 &block_tx.clone(),
             )
             .await?;
-            let _ = block_tx.send(genesis_event);
+            for event in genesis_events {
+                let _ = block_tx.send(event).unwrap();
+            }
         }
 
         // Cooldown
@@ -447,7 +449,7 @@ pub async fn reset_runbook_execution(
 
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
 
-    let genesis_event = build_genesis_panel(
+    let genesis_events = build_genesis_panel(
         &environments,
         &Some(environment_key.clone()),
         runbook,
@@ -458,7 +460,9 @@ pub async fn reset_runbook_execution(
         &progress_tx,
     )
     .await?;
-    let _ = block_tx.send(genesis_event);
+    for event in genesis_events {
+        let _ = block_tx.send(event).unwrap();
+    }
     Ok(())
 }
 
@@ -471,7 +475,7 @@ pub async fn build_genesis_panel(
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
     progress_tx: &Sender<BlockEvent>,
-) -> Result<BlockEvent, Vec<Diagnostic>> {
+) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
     let input_options: Vec<InputOption> = environments
         .keys()
         .map(|k| InputOption {
@@ -536,5 +540,5 @@ pub async fn build_genesis_panel(
     }
     // assert_eq!(panels.len(), 1);
 
-    Ok(panels.remove(0))
+    Ok(panels)
 }
