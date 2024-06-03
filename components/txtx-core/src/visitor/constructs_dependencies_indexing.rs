@@ -1,3 +1,6 @@
+use std::collections::{BTreeSet, HashSet, VecDeque};
+
+use kit::types::wallets;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructUuid, PackageUuid};
 
 use crate::types::{Runbook, RuntimeContext};
@@ -69,6 +72,8 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
+        let mut wallets = VecDeque::new();
+        let mut instantiated_wallets = HashSet::new();
         for construct_uuid in package.addons_uuids.iter() {
             let command_instance = runbook.commands_instances.get(construct_uuid).unwrap();
             for dep in command_instance.collect_dependencies().iter() {
@@ -79,9 +84,8 @@ pub fn run_constructs_dependencies_indexing(
                 );
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
                     if let Some(_) = runbook.wallets_instances.get(&resolved_construct_uuid) {
-                        runbook
-                            .instantiated_wallet_instances
-                            .insert(resolved_construct_uuid.clone());
+                        wallets.push_front((resolved_construct_uuid.clone(), true));
+                        instantiated_wallets.insert(resolved_construct_uuid.clone());
                     }
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
@@ -99,6 +103,9 @@ pub fn run_constructs_dependencies_indexing(
                     runtime_ctx,
                 );
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
+                    if !instantiated_wallets.contains(&resolved_construct_uuid) {
+                        wallets.push_front((resolved_construct_uuid.clone(), false))
+                    }
                     runbook.wallets_state.as_mut().unwrap().create_new_wallet(
                         &resolved_construct_uuid,
                         &resolved_construct_uuid.value().to_string(),
@@ -109,6 +116,7 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
+        runbook.instantiated_wallet_instances = wallets;
     }
 
     for (src, dst) in constructs_edges.iter() {

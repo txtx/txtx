@@ -141,6 +141,8 @@ pub type WalletCheckActivabilityClosure = fn(
     &HashMap<ConstructUuid, WalletInstance>,
     &AddonDefaults,
     &CommandExecutionContext,
+    bool,
+    bool,
 ) -> WalletActivabilityFutureResult;
 
 pub type WalletActivabilityFutureResult = Result<
@@ -368,6 +370,8 @@ impl WalletInstance {
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponseType>>,
         execution_context: &CommandExecutionContext,
+        is_balance_check_required: bool,
+        is_public_key_required: bool,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for input in self.specification.inputs.iter() {
@@ -410,6 +414,8 @@ impl WalletInstance {
                                 wallets_instances,
                                 &addon_defaults,
                                 &execution_context,
+                                is_balance_check_required,
+                                is_public_key_required,
                             )?
                             .await;
 
@@ -457,6 +463,8 @@ impl WalletInstance {
             wallets_instances,
             &addon_defaults,
             &execution_context,
+            is_balance_check_required,
+            is_public_key_required,
         )?
         .await;
 
@@ -546,6 +554,8 @@ pub trait WalletImplementation {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
+        _is_balance_check_required: bool,
+        _is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult;
 
     fn activate(

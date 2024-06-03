@@ -226,6 +226,7 @@ pub async fn start_runbook_runloop(
         }
 
         match &payload {
+            ActionItemResponseType::ValidateModal => {}
             ActionItemResponseType::ValidateBlock => {
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;

@@ -80,6 +80,8 @@ impl WalletImplementation for StacksConnect {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
+        is_balance_check_required: bool,
+        is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         // Loop over the signers
         // Ensuring that they are all correctly activable.
@@ -107,23 +109,6 @@ impl WalletImplementation for StacksConnect {
 
         let future = async move {
             let mut consolidated_actions = Actions::none();
-            while let Some((wallet_uuid, wallet_instance)) = signers.pop_front() {
-                let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
-                let future = (wallet_instance.specification.check_activability)(
-                    &wallet_uuid,
-                    &wallet_instance.name,
-                    &wallet_instance.specification,
-                    &args,
-                    signer_wallet_state,
-                    wallets,
-                    &wallets_instances,
-                    &defaults,
-                    &execution_context,
-                )?;
-                let (updated_wallets, mut actions) = future.await?;
-                wallets = updated_wallets;
-                consolidated_actions.append(&mut actions);
-            }
 
             let modal =
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
@@ -141,6 +126,27 @@ impl WalletImplementation for StacksConnect {
             );
             consolidated_actions.push_sub_group(vec![open_modal_action]);
             consolidated_actions.push_modal(modal);
+
+            // Modal configuration
+            while let Some((wallet_uuid, wallet_instance)) = signers.pop_front() {
+                let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+                let future = (wallet_instance.specification.check_activability)(
+                    &wallet_uuid,
+                    &wallet_instance.name,
+                    &wallet_instance.specification,
+                    &args,
+                    signer_wallet_state,
+                    wallets,
+                    &wallets_instances,
+                    &defaults,
+                    &execution_context,
+                    false,
+                    true,
+                )?;
+                let (updated_wallets, mut actions) = future.await?;
+                wallets = updated_wallets;
+                consolidated_actions.append(&mut actions);
+            }
 
             let validate_modal_action = ActionItemRequest::new(
                 &Uuid::new_v4(),

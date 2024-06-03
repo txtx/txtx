@@ -49,7 +49,7 @@ pub struct Runbook {
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     pub wallets_instances: HashMap<ConstructUuid, WalletInstance>,
     pub wallets_state: Option<WalletsState>,
-    pub instantiated_wallet_instances: HashSet<ConstructUuid>,
+    pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
     pub constructs_execution_results:
@@ -84,7 +84,7 @@ impl Runbook {
             commands_instances: HashMap::new(),
             wallets_instances: HashMap::new(),
             wallets_state: Some(WalletsState::new()),
-            instantiated_wallet_instances: HashSet::new(),
+            instantiated_wallet_instances: VecDeque::new(),
             constructs_execution_results: HashMap::new(),
             command_inputs_evaluation_results: HashMap::new(),
             environment_variables_uuid_lookup: HashMap::new(),

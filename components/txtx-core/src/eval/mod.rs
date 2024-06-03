@@ -153,7 +153,7 @@ pub async fn run_wallets_evaluation(
     let constructs_locations = runbook.constructs_locations.clone();
     let wallets_instances = &runbook.wallets_instances;
     let instantiated_wallets = runbook.instantiated_wallet_instances.clone();
-    for construct_uuid in instantiated_wallets.into_iter() {
+    for (construct_uuid, instantiated) in instantiated_wallets.into_iter() {
         let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
 
         let (evaluated_inputs_res, group, addon_defaults) =
@@ -261,6 +261,8 @@ pub async fn run_wallets_evaluation(
                 &action_item_requests.get(&construct_uuid.value()),
                 &action_item_responses.get(&construct_uuid.value()),
                 execution_context,
+                instantiated,
+                instantiated,
             )
             .await;
 

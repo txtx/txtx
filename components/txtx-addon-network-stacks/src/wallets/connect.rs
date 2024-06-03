@@ -85,7 +85,7 @@ impl WalletImplementation for StacksConnect {
     // If the all of the informations above are present in the wallet state, nothing is returned.
     fn check_activability(
         uuid: &ConstructUuid,
-        _instance_name: &str,
+        instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
@@ -93,6 +93,8 @@ impl WalletImplementation for StacksConnect {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
+        is_balance_check_required: bool,
+        is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _checked_address = wallet_state.get_expected_string(CHECKED_ADDRESS);
@@ -102,11 +104,11 @@ impl WalletImplementation for StacksConnect {
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
         let _is_address_check_required = expected_address.is_some();
+        let is_public_key_required = is_public_key_required || expected_address.is_none();
         let _is_nonce_required = true;
-        let is_balance_check_required = true;
 
         // WIP
-        let instance_name = _instance_name.to_string();
+        let instance_name = instance_name.to_string();
         let uuid = uuid.clone();
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults).unwrap();
         // .map_err(|e| (wallets, e))?;
@@ -163,27 +165,29 @@ impl WalletImplementation for StacksConnect {
             let stacks_rpc = StacksRpc::new(&rpc_api_url);
             let mut action_items = vec![];
 
-            action_items.push(ActionItemRequest::new(
-                &uuid.value(),
-                &Some(uuid.value()),
-                0,
-                &format!("Connect wallet {instance_name}"),
-                "".into(),
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                    check_expectation_action_uuid: Some(uuid.value()),
-                    message: DEFAULT_MESSAGE.to_string(),
-                    network_id,
-                    namespace: "stacks".to_string(),
-                }),
-            ));
+            if is_public_key_required {
+                action_items.push(ActionItemRequest::new(
+                    &uuid.value(),
+                    &Some(uuid.value()),
+                    0,
+                    &format!("Connect wallet {instance_name}"),
+                    "".into(),
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
+                        check_expectation_action_uuid: Some(uuid.value()),
+                        message: DEFAULT_MESSAGE.to_string(),
+                        network_id,
+                        namespace: "stacks".to_string(),
+                    }),
+                ));
+            }
 
             if let Some(ref expected_address) = expected_address {
                 action_items.push(ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(uuid.value()),
                     0,
-                    "Check consistency with expected_address",
+                    &format!("Check {} expected address", instance_name),
                     &expected_address.to_string(),
                     ActionItemStatus::Todo,
                     ActionItemRequestType::ReviewInput(ReviewInputRequest {
@@ -225,7 +229,12 @@ impl WalletImplementation for StacksConnect {
                 action_items.push(check_balance);
             }
             wallets.push_wallet_state(wallet_state);
-            Ok((wallets, Actions::new_sub_group_of_items(action_items)))
+
+            let mut actions = Actions::none();
+            if !action_items.is_empty() {
+                actions.push_sub_group(action_items);
+            }
+            Ok((wallets, actions))
         };
         Ok(Box::pin(future))
     }

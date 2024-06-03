@@ -68,6 +68,8 @@ impl WalletImplementation for StacksConnect {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
+        _is_balance_check_required: bool,
+        _is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         unimplemented!()
     }
