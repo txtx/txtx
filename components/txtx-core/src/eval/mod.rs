@@ -667,7 +667,6 @@ pub async fn run_constructs_evaluation(
                 Ok((updated_wallets, new_actions)) => {
                     if new_actions.has_pending_actions() {
                         consolidated_actions.push(new_actions);
-                        unexecutable_nodes.insert(node);
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {
                             unexecutable_nodes.insert(descendant);
@@ -737,7 +736,6 @@ pub async fn run_constructs_evaluation(
             ) {
                 if new_actions.has_pending_actions() {
                     consolidated_actions.push(new_actions);
-                    unexecutable_nodes.insert(node);
                     for descendant in get_descendants_of_node(node, g.clone()) {
                         unexecutable_nodes.insert(descendant);
                     }
