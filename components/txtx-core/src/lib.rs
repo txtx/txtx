@@ -335,7 +335,7 @@ pub async fn start_runbook_runloop(
                     continue;
                 };
 
-                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                let mut map = BTreeMap::new();
                 map.insert(wallet_construct_uuid, scoped_requests);
 
                 let actions = run_wallets_evaluation(

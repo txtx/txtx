@@ -269,10 +269,12 @@ pub async fn run_wallets_evaluation(
         let wallets_state = match res {
             Ok((wallets_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
+                    println!("PENDING ACTIONS");
                     runbook.wallets_state = Some(wallets_state);
                     consolidated_actions.append(&mut new_actions);
                     continue;
                 }
+                println!("NO PENDING ACTIONS");
                 consolidated_actions.append(&mut new_actions);
                 wallets_state
             }
@@ -670,6 +672,7 @@ pub async fn run_constructs_evaluation(
             let wallets = match res {
                 Ok((updated_wallets, new_actions)) => {
                     if new_actions.has_pending_actions() {
+                        println!("PENDING ACTIONS");
                         consolidated_actions.push(new_actions);
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {

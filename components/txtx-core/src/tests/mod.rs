@@ -411,7 +411,26 @@ fn test_multisig_runbook_no_env() {
         panic!()
     };
 
-    let _action_panel_data = event.expect_modal();
+    let modal_panel_data = event.expect_modal().panel.as_modal_panel().unwrap();
+
+    assert_eq!(
+        modal_panel_data.title.to_uppercase(),
+        "STACKS MULTISIG CONFIGURATION ASSISTANT"
+    );
+    assert_eq!(modal_panel_data.groups.len(), 1);
+    assert_eq!(modal_panel_data.groups[0].sub_groups.len(), 3);
+    assert_eq!(
+        modal_panel_data.groups[0].sub_groups[0].action_items.len(),
+        1
+    );
+    assert_eq!(
+        modal_panel_data.groups[0].sub_groups[1].action_items.len(),
+        1
+    );
+    assert_eq!(
+        modal_panel_data.groups[0].sub_groups[2].action_items.len(),
+        1
+    );
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive genesis block");
@@ -421,57 +440,80 @@ fn test_multisig_runbook_no_env() {
     let action_panel_data = event.expect_block().panel.expect_action_panel();
 
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
-    assert_eq!(action_panel_data.groups.len(), 2);
-    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
+    assert_eq!(action_panel_data.groups.len(), 1);
+    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 4);
     assert_eq!(
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
+        1
+    );
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[1].action_items.len(),
+        1
+    );
+    assert_eq!(
+        action_panel_data.groups[0].sub_groups[2].action_items.len(),
         3
     );
-    assert_eq!(action_panel_data.groups[1].sub_groups.len(), 1);
     assert_eq!(
-        action_panel_data.groups[1].sub_groups[0].action_items.len(),
+        action_panel_data.groups[0].sub_groups[3].action_items.len(),
         1
     );
 
-    let get_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[0];
-    assert_eq!(get_public_key.action_status, ActionItemStatus::Todo);
-    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key.action_type else {
+    let get_public_key_alice = &modal_panel_data.groups[0].sub_groups[0].action_items[0];
+    assert_eq!(get_public_key_alice.action_status, ActionItemStatus::Todo);
+    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_alice.action_type
+    else {
         panic!("expected provide public key request");
     };
 
-    let check_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[1];
-    assert_eq!(check_public_key.action_status, ActionItemStatus::Todo);
-    let ActionItemRequestType::ReviewInput(_) = &check_public_key.action_type else {
+    let get_public_key_bob = &modal_panel_data.groups[0].sub_groups[1].action_items[0];
+    assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
+    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type else {
         panic!("expected provide public key request");
     };
 
-    let start_runbook = &action_panel_data.groups[1].sub_groups[0].action_items[0];
-    assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
-    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+    let start_runbook = &action_panel_data.groups[0].sub_groups[2].action_items[0];
+    assert_eq!(start_runbook.action_status, ActionItemStatus::Todo);
+    assert_eq!(
+        start_runbook.title.to_uppercase(),
+        "COMPUTE MULTISIG ADDRESS"
+    );
 
-    // Complete start_runbook action
+    // Provide Alice public key
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: get_public_key.uuid.clone(),
+        action_item_uuid: get_public_key_alice.uuid.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
-            public_key: "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7".into(),
+            public_key: "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33".into(),
         }),
     });
-
-    // Complete start_runbook action
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
-
     let updates = event.expect_updated_action_items();
-    assert_eq!(updates.len(), 3);
+    assert_eq!(updates.len(), 2);
     assert_eq!(
         updates[0].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        &ActionItemStatus::Success(Some("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into()))
     );
+
+    // Provide Bob public key
+    let _ = action_item_events_tx.send(ActionItemResponse {
+        action_item_uuid: get_public_key_bob.uuid.clone(),
+        payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
+            public_key: "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e".into(),
+        }),
+    });
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+    let updates = event.expect_updated_action_items();
+    println!("{:?}", updates);
+    assert_eq!(updates.len(), 2);
     assert_eq!(
-        updates[1].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
+        updates[0].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(Some("ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND".into()))
     );
 
     // Validate panel

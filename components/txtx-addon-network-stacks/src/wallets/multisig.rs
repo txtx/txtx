@@ -22,7 +22,8 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{NETWORK_ID, RPC_API_URL};
+use crate::constants::{CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL};
+use crate::typing::CLARITY_BUFFER;
 
 use super::get_addition_actions_for_address;
 
@@ -83,7 +84,7 @@ impl WalletImplementation for StacksConnect {
         instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        wallet_state: ValueStore,
+        mut wallet_state: ValueStore,
         mut wallets: WalletsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
@@ -100,6 +101,7 @@ impl WalletImplementation for StacksConnect {
             let wallet_spec = wallets_instances.get(&uuid).unwrap().clone();
             signers.push_back((uuid, wallet_spec));
         }
+        let signers_count = signers.len();
 
         let args = args.clone();
         let wallets_instances = wallets_instances.clone();
@@ -154,6 +156,7 @@ impl WalletImplementation for StacksConnect {
             consolidated_actions.push_modal(modal);
 
             // Modal configuration
+            let mut checked_public_keys = HashMap::new();
             while let Some((wallet_uuid, wallet_instance)) = signers.pop_front() {
                 let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
                 let future = (wallet_instance.specification.check_activability)(
@@ -171,20 +174,48 @@ impl WalletImplementation for StacksConnect {
                 )?;
                 let (updated_wallets, mut actions) = future.await?;
                 wallets = updated_wallets;
-                consolidated_actions.append(&mut actions);
+
+                let signer_wallet_state = wallets.get_wallet_state(&wallet_uuid).unwrap();
+
+                let Ok(checked_public_key) =
+                    signer_wallet_state.get_expected_value(CHECKED_PUBLIC_KEY)
+                else {
+                    consolidated_actions.append(&mut actions);
+                    continue;
+                };
+
+                checked_public_keys.insert(wallet_uuid, checked_public_key.clone());
             }
 
-            let validate_modal_action = ActionItemRequest::new(
-                &Uuid::new_v4(),
-                &Some(root_uuid.value()),
-                0,
-                "CONFIRM",
-                "",
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ValidateModal,
-            );
-            consolidated_actions.push_sub_group(vec![validate_modal_action]);
+            if signers_count == checked_public_keys.len() {
+                let mut ordered_public_keys = vec![];
+                for (signer_uuid, _) in signers.iter() {
+                    if let Some(public_key) = checked_public_keys.remove(signer_uuid) {
+                        ordered_public_keys.push(public_key)
+                    }
+                }
+                wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(ordered_public_keys));
+                let mut actions = Actions::none();
+                actions
+                    .push_status_update_construct_uuid(&root_uuid, ActionItemStatus::Success(None));
+                consolidated_actions = actions;
+            } else {
+                let validate_modal_action = ActionItemRequest::new(
+                    &Uuid::new_v4(),
+                    &Some(root_uuid.value()),
+                    0,
+                    "CONFIRM",
+                    "",
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ValidateModal,
+                );
+                consolidated_actions.push_sub_group(vec![validate_modal_action]);
+            }
+
             wallets.push_wallet_state(wallet_state);
+
+            println!("CHECK_ACTIVABILITY");
+
             Ok((wallets, consolidated_actions))
         };
         Ok(Box::pin(future))
