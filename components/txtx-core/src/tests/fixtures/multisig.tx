@@ -1,6 +1,6 @@
 action "defaults" "stacks::set_default_network" {
   network_id = "testnet"
-  rpc_api_url = "https://api.nakamoto.testnet.hiro.so"
+  rpc_api_url = "https://api.testnet.hiro.so"
 }
 
 wallet "alice" "stacks::connect" {
