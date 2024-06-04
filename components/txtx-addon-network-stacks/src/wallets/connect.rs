@@ -238,14 +238,14 @@ impl WalletImplementation for StacksConnect {
             // signed_transaction_bytes
             wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
             wallets.push_wallet_state(wallet_state);
-            return Ok((wallets, Actions::none()))
+            return Ok((wallets, Actions::none()));
         }
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
         };
-    
+
         let request = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
