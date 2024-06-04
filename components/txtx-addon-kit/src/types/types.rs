@@ -87,6 +87,20 @@ impl Value {
             _ => unreachable!(),
         }
     }
+    pub fn expect_buffer_bytes(&self) -> Vec<u8> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(value)) => value.bytes.clone(),
+            Value::Primitive(PrimitiveValue::String(bytes)) => {
+                let bytes = if bytes.starts_with("0x") {
+                    crate::hex::decode(&bytes[2..]).unwrap()
+                } else {
+                    crate::hex::decode(&bytes).unwrap()
+                };
+                bytes
+            }
+            _ => unreachable!(),
+        }
+    }
     pub fn expect_array(&self) -> &Box<Vec<Value>> {
         match &self {
             Value::Array(value) => value,

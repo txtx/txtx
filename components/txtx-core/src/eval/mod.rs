@@ -274,7 +274,6 @@ pub async fn run_wallets_evaluation(
                     consolidated_actions.append(&mut new_actions);
                     continue;
                 }
-                println!("NO PENDING ACTIONS");
                 consolidated_actions.append(&mut new_actions);
                 wallets_state
             }

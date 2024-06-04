@@ -3,6 +3,9 @@ use std::future::{self, Future};
 use std::pin::Pin;
 use std::str::FromStr;
 
+use clarity::address::AddressHashMode;
+use clarity::types::chainstate::StacksAddress;
+use clarity::util::secp256k1::Secp256k1PublicKey;
 use libsecp256k1::sign;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandInputsEvaluationResult, CommandSpecification,
@@ -189,15 +192,40 @@ impl WalletImplementation for StacksConnect {
 
             if signers_count == checked_public_keys.len() {
                 let mut ordered_public_keys = vec![];
+                let mut ordered_parsed_public_keys = vec![];
                 for (signer_uuid, _) in signers.iter() {
                     if let Some(public_key) = checked_public_keys.remove(signer_uuid) {
-                        ordered_public_keys.push(public_key)
+                        ordered_public_keys.push(public_key.clone());
+                        let bytes = public_key.expect_buffer_bytes();
+                        let public_key = match Secp256k1PublicKey::from_slice(&bytes) {
+                            Ok(public_key) => public_key,
+                            Err(e) => {
+                                wallets.push_wallet_state(wallet_state);
+                                return Err((wallets, diagnosed_error!("unable to parse public key {}", e.to_string())))
+                            }
+                        };
+                        ordered_parsed_public_keys.push(public_key);
                     }
                 }
                 wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(ordered_public_keys));
+
+                let version = if network_id.eq("mainnet") {
+                    clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_MULTISIG
+                } else {
+                    clarity_repl::clarity::address::C32_ADDRESS_VERSION_TESTNET_MULTISIG
+                };
+        
+                let stx_address = StacksAddress::from_public_keys(
+                    version,
+                    &AddressHashMode::SerializeP2SH,
+                    ordered_parsed_public_keys.len(),
+                    &ordered_parsed_public_keys,
+                ).map(|address| address.to_string());
+                println!("===> {:?}", stx_address);
+
                 let mut actions = Actions::none();
                 actions
-                    .push_status_update_construct_uuid(&root_uuid, ActionItemStatus::Success(None));
+                    .push_status_update_construct_uuid(&root_uuid, ActionItemStatus::Success(stx_address));
                 consolidated_actions = actions;
             } else {
                 let validate_modal_action = ActionItemRequest::new(
@@ -213,9 +241,6 @@ impl WalletImplementation for StacksConnect {
             }
 
             wallets.push_wallet_state(wallet_state);
-
-            println!("CHECK_ACTIVABILITY");
-
             Ok((wallets, consolidated_actions))
         };
         Ok(Box::pin(future))
