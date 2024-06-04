@@ -234,34 +234,34 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) else {
-            let network_id = args
-                .get_defaulting_string(NETWORK_ID, defaults)
-                // .map_err(|e| (wallets, e))?;
-                .unwrap();
-
-            let request = ActionItemRequest::new(
-                &Uuid::new_v4(),
-                &Some(uuid.value()),
-                0,
-                title,
-                "", //payload,
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                    check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
-                    payload: payload.clone(),
-                    namespace: "stacks".to_string(),
-                    network_id,
-                }),
-            );
+        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+            // signed_transaction_bytes
+            wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
             wallets.push_wallet_state(wallet_state);
-            return Ok((wallets, Actions::new_sub_group_of_items(vec![request])));
-        };
+            return Ok((wallets, Actions::none()))
+        }
 
-        // signed_transaction_bytes
-        wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+    
+        let request = ActionItemRequest::new(
+            &Uuid::new_v4(),
+            &Some(uuid.value()),
+            0,
+            title,
+            "", //payload,
+            ActionItemStatus::Todo,
+            ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
+                check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
+                payload: payload.clone(),
+                namespace: "stacks".to_string(),
+                network_id,
+            }),
+        );
         wallets.push_wallet_state(wallet_state);
-        Ok((wallets, Actions::none()))
+        Ok((wallets, Actions::new_sub_group_of_items(vec![request])))
     }
 
     fn sign(
