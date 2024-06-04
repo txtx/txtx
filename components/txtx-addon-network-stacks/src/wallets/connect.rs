@@ -169,7 +169,6 @@ impl WalletImplementation for StacksConnect {
 
         let future = async move {
             let mut actions = Actions::none();
-            println!("get_addition_actions_for_address");
             let res = get_addition_actions_for_address(
                 &expected_address,
                 &uuid,

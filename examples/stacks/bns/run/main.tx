@@ -8,22 +8,22 @@ wallet "alice" "stacks::connect" {
 }
 
 input "namespace" {
-  description = "Namespace"
+  description = "TLD / Namespace"
   default = "btc"
 }
 
 input "name" {
-  description = "Name"
-  default = "muneeb"
+  description = "Domain name to order"
+  default = "micaiah"
 }
 
 input "salt" {
-  description = "Name"
+  description = "Random salt to use for preventing front-running"
   default = "0000000000"
 }
 
 input "zonefile" {
-  description = "Name"
+  description = "Zonefile to attach to the new domain"
   default = "0000000000"
 }
 

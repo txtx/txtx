@@ -1,29 +1,24 @@
-action "defaults" "stacks::set_default_network" {
-  network_id = env.stacks_network_id
-  rpc_api_url = env.stacks_api_url
-}
-
 wallet "alice" "stacks::connect" {
   expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
 }
 
 input "namespace" {
-  description = "Namespace"
+  description = "TLD / Namespace"
   default = "btc"
 }
 
 input "name" {
-  description = "Name"
+  description = "Domain name to order"
   default = "micaiah"
 }
 
 input "salt" {
-  description = "Name"
+  description = "Random salt to use for preventing front-running"
   default = "0000000000"
 }
 
 input "zonefile" {
-  description = "Name"
+  description = "Zonefile to attach to the new domain"
   default = "0000000000"
 }
 
@@ -51,7 +46,6 @@ action "name_preorder" "stacks::send_call_contract" {
   signer = wallet.alice
   confirmations = 1
 }
-
 
 action "name_regiser" "stacks::send_call_contract" {  
   description = "Register name"
@@ -87,5 +81,7 @@ output "name_register_result" {
   value = action.name_regiser.result
 }
 
-
-
+action "defaults" "stacks::set_default_network" {
+  network_id = env.stacks_network_id
+  rpc_api_url = env.stacks_api_url
+}

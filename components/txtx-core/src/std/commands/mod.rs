@@ -144,7 +144,11 @@ impl CommandImplementation for Input {
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
+        let title = args.get_expected_string("description").unwrap_or(instance_name);
+
         if let Some(value) = args.get_value("value") {
+            let value = value.to_string();
+
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
                     return Ok(Actions::none());
@@ -156,8 +160,8 @@ impl CommandImplementation for Input {
                         &Uuid::new_v4(),
                         &Some(uuid.value()),
                         0,
-                        &instance_name,
-                        &value.to_string(),
+                        &title,
+                        &value,
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "value".to_string(),
@@ -192,7 +196,7 @@ impl CommandImplementation for Input {
             &Uuid::new_v4(),
             &Some(uuid.value()),
             0,
-            &instance_name,
+            &title,
             &default_value.unwrap_or("".into()),
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideInput(ProvideInputRequest {

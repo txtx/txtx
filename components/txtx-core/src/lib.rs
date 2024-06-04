@@ -537,10 +537,8 @@ pub async fn build_genesis_panel(
     for panel in panels.iter() {
         match panel {
             BlockEvent::Modal(data) => {
-                println!("{}", data);
             }
             BlockEvent::Action(data) => {
-                println!("{}", data);
             }
             _ => {
                 println!("-----");
