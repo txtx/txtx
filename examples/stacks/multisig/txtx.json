@@ -6,5 +6,11 @@
       "description": "Test stacks multisig",
       "location": "./run"
     }
-  ]
+  ],
+  "environments": {
+    "development": {
+      "stacks_network_id": "testnet",
+      "stacks_api_url": "https://api.testnet.hiro.so"
+    }
+  }
 }
