@@ -47,7 +47,7 @@ impl FunctionImplementation for EncodeHex {
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let input = args.get(0).unwrap().expect_string();
         let hex = kit::hex::encode(input);
-        Ok(Value::buffer(hex.as_bytes().to_vec(), STD_BUFFER.clone()))
+        Ok(Value::string(hex))
     }
 }
 

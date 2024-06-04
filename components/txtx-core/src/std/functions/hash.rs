@@ -53,13 +53,22 @@ impl FunctionImplementation for Ripemd160 {
             let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
             return Ok(value);
         }
-        if let Some(Value::Array(buffers)) = args.get(0) {
+        if let Some(Value::Array(values)) = args.get(0) {
             let mut joined = vec![];
-            for maybe_buffer in buffers.iter() {
-                let Value::Primitive(PrimitiveValue::Buffer(buf)) = maybe_buffer else {
-                    return Err(Diagnostic::error_from_string("wrong inputs".to_string()));
-                };
-                joined.extend(buf.bytes.clone());
+            for value in values.iter() {
+                match value {
+                    Value::Primitive(PrimitiveValue::Buffer(buf)) => {
+                        joined.extend(buf.bytes.clone());
+                    }
+                    Value::Primitive(PrimitiveValue::String(val)) => {
+                        joined.extend(val.as_bytes());
+                    }
+                    _ => {
+                        return Err(Diagnostic::error_from_string(
+                            "wrong inputs for Ripemd160 function".to_string(),
+                        ));
+                    }
+                }
             }
             let mut hasher = LibRipemd160::new();
             hasher.update(&joined[..]);

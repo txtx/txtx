@@ -49,6 +49,12 @@ lazy_static! {
                   typing: Type::string(),
                   optional: true,
                   interpolable: true
+              },
+              depends_on: {
+                documentation: "Coming soon",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
               }
           ],
           outputs: [

@@ -140,10 +140,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         let handle = web_ui::http::start_server(gql_context, port, ctx)
             .await
             .map_err(|e| format!("Failed to start web ui: {e}"))?;
-        let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: SET_ENV_UUID.clone(),
-            payload: ActionItemResponseType::PickInputOption("development".to_string()),
-        });
+
         Some(handle)
     } else {
         None

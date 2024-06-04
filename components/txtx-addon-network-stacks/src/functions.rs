@@ -314,10 +314,19 @@ impl FunctionImplementation for EncodeClarityValueUint {
 
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
-            _ => unreachable!(),
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val.clone(),
+            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => {
+                let as_u64 = u64::try_from(val.clone()).map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "Failed to encode_uint, could not parse SignedInteger: {e}"
+                    ))
+                })?;
+                as_u64
+            }
+            Some(any) => unreachable!("expected uint, got {:?}", any),
+            None => unreachable!("expected uint, got none :("),
         };
-        let clarity_value = ClarityValue::UInt(u128::from(*entry));
+        let clarity_value = ClarityValue::UInt(u128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
         Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
     }
