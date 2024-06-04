@@ -14,7 +14,7 @@ input "namespace" {
 
 input "name" {
   description = "Name"
-  default = "micaiah"
+  default = "muneeb"
 }
 
 input "salt" {
