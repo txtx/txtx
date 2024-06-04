@@ -62,8 +62,8 @@ pub async fn get_addition_actions_for_address(
         ));
     }
 
-    if is_address_check_required {
-        if let Some(ref expected_address) = expected_address {
+    if let Some(ref expected_address) = expected_address {
+        if is_address_check_required {
             action_items.push(ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(uuid.value()),
@@ -77,35 +77,35 @@ pub async fn get_addition_actions_for_address(
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
-    }
-
-    if is_balance_check_required {
-        let mut check_balance = ActionItemRequest::new(
-            &Uuid::new_v4(),
-            &Some(uuid.value()),
-            0,
-            "Check wallet balance (STX)",
-            "",
-            ActionItemStatus::Todo,
-            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                input_name: "".into(), // todo
-            }),
-            ACTION_ITEM_CHECK_BALANCE,
-        );
-        if let Some(ref expected_address) = expected_address {
-            let balance = stacks_rpc
+        if is_balance_check_required {
+            let action_status = match stacks_rpc
                 .get_balance(&expected_address)
-                .await
-                .map_err(|e| {
-                    diagnosed_error!(
+                .await {
+                Ok(response) => {
+                    ActionItemStatus::Success(Some(response.balance.to_string()))
+                }
+                Err(err) => {
+                    ActionItemStatus::Error(diagnosed_error!(
                         "unable to retrieve balance {}: {}",
                         expected_address,
-                        e.to_string()
-                    )
-                })?;
-            check_balance.description = balance.balance.clone();
+                        err.to_string()
+                    ))
+                }
+            };
+            let check_balance = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(uuid.value()),
+                0,
+                "Check wallet balance (STX)",
+                "",
+                action_status,
+                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                    input_name: "".into(), // todo
+                }),
+                ACTION_ITEM_CHECK_BALANCE,
+            );
+            action_items.push(check_balance);
         }
-        action_items.push(check_balance);
     }
     Ok(action_items)
 }

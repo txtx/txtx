@@ -139,9 +139,8 @@ impl WalletImplementation for StacksConnect {
             .to_string();
 
             let mut actions: Actions = Actions::none();
-            let mut error = false;
+            let mut success = true;
             let mut status_update = ActionItemStatus::Success(Some(stx_address.to_string()));
-
             if let Ok(expected_stx_address) = args.get_expected_string(EXPECTED_ADDRESS) {
                 if !expected_stx_address.eq(&stx_address) {
                     status_update = ActionItemStatus::Error(diagnosed_error!(
@@ -150,10 +149,10 @@ impl WalletImplementation for StacksConnect {
                         expected_stx_address,
                         stx_address
                     ));
-                    error = true;
+                    success = false;
                 }
             }
-            if !error {
+            if success {
                 wallet_state.insert(
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
