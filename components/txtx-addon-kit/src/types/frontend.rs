@@ -17,6 +17,7 @@ pub enum BlockEvent {
     Action(Block),
     Clear,
     UpdateActionItems(Vec<ActionItemRequestUpdate>),
+    RunbookCompleted,
     Exit,
     ProgressBar(Block),
     Modal(Block),

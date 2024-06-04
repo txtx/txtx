@@ -177,6 +177,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                           let len = block_store.len();
                           block_store.insert(len, new_block.clone());
                         },
+                        BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
                         BlockEvent::Exit => break
                       }
                       let _ = block_broadcaster.send(block_event.clone());

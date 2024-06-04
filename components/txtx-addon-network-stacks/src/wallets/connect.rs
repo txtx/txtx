@@ -7,7 +7,7 @@ use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
+    ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,

@@ -277,6 +277,9 @@ pub async fn start_runbook_runloop(
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
                 }
+                if runbook_completed {
+                    let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                }
             }
             ActionItemResponseType::PickInputOption(_response) => {
                 // collected_responses.insert(k, v)

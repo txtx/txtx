@@ -3,10 +3,7 @@ use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use kit::types::frontend::{Actions, BlockEvent};
 use petgraph::algo::toposort;
-use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
-    result,
-};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
