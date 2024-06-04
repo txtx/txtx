@@ -262,6 +262,7 @@ pub async fn start_runbook_runloop(
                         description: "".into(),
                         action_status: ActionItemStatus::Todo,
                         action_type: ActionItemRequestType::ValidateBlock,
+                        internal_key: "validate_block".into(),
                     }]));
                 }
 
@@ -353,6 +354,7 @@ pub async fn start_runbook_runloop(
 
                 let updated_actions =
                     actions.compile_actions_to_item_updates(&action_item_requests);
+                println!("{:?}", updated_actions);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_response) => {
@@ -384,6 +386,7 @@ pub async fn start_runbook_runloop(
                     .map(|actions| actions.compile_actions_to_item_updates(&action_item_requests))
                     .flatten()
                     .collect::<Vec<_>>();
+                println!("{:?}", updated_actions);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
         };
@@ -499,6 +502,7 @@ pub async fn build_genesis_panel(
             description: selected_env.clone().unwrap_or("".to_string()),
             action_status: ActionItemStatus::Todo,
             action_type: ActionItemRequestType::PickInputOption(input_options),
+            internal_key: "env".into(),
         };
         actions.push_group("Select Environment", vec![action_request]);
     }
@@ -523,6 +527,7 @@ pub async fn build_genesis_panel(
         description: "".into(),
         action_status: ActionItemStatus::Todo,
         action_type: ActionItemRequestType::ValidateBlock,
+        internal_key: "genesis".into(),
     };
     actions.push_sub_group(vec![validate_action]);
 

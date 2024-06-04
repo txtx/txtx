@@ -17,3 +17,9 @@ pub const RPC_API_URL: &str = "rpc_api_url";
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 3;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
+
+// Actions items keys
+pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
+pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
+pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
+pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";

@@ -266,7 +266,6 @@ pub async fn run_wallets_evaluation(
         let wallets_state = match res {
             Ok((wallets_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
-                    println!("PENDING ACTIONS");
                     runbook.wallets_state = Some(wallets_state);
                     consolidated_actions.append(&mut new_actions);
                     continue;
@@ -291,7 +290,7 @@ pub async fn run_wallets_evaluation(
             .command_inputs_evaluation_results
             .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
-        let (wallets_state, execution_result) = wallet
+        let res = wallet
             .perform_activation(
                 &construct_uuid,
                 &evaluated_inputs,
@@ -300,13 +299,20 @@ pub async fn run_wallets_evaluation(
                 &addon_defaults,
                 progress_tx,
             )
-            .await
-            .unwrap();
+            .await;
 
-        runbook.wallets_state = Some(wallets_state);
+        let (result, wallets_state) = match res {
+            Ok((wallets_state, result)) => {
+                (Ok(result), Some(wallets_state))
+            }
+            Err((wallets_state, diag)) => {
+                (Err(diag), Some(wallets_state))
+            }
+        };    
+        runbook.wallets_state = wallets_state;
         runbook
             .constructs_execution_results
-            .insert(construct_uuid.clone(), Ok(execution_result));
+            .insert(construct_uuid.clone(), result);
     }
 
     Ok(consolidated_actions)
@@ -668,7 +674,6 @@ pub async fn run_constructs_evaluation(
             let wallets = match res {
                 Ok((updated_wallets, new_actions)) => {
                     if new_actions.has_pending_actions() {
-                        println!("PENDING ACTIONS");
                         consolidated_actions.push(new_actions);
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {
@@ -849,6 +854,7 @@ pub fn collect_runbook_outputs(
                         description: None,
                         value: value.clone(),
                     }),
+                    internal_key: "output".into(),
                 });
         }
     }

@@ -25,8 +25,11 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS,
+    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
+use crate::rpc::StacksRpc;
 
 use super::get_addition_actions_for_address;
 
@@ -60,7 +63,11 @@ lazy_static! {
               public_key: {
                 documentation: "Coming soon",
                 typing: Type::array(Type::buffer())
-              }
+              },
+              signers: {
+                documentation: "Coming soon",
+                typing: Type::array(Type::string())
+              } 
           ],
           example: txtx_addon_kit::indoc! {r#"
         // Coming soon
@@ -93,7 +100,7 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         is_balance_check_required: bool,
-        is_public_key_required: bool,
+        _is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         let root_uuid = uuid.clone();
         let signers = get_signers(args, wallets_instances);
@@ -127,8 +134,9 @@ impl WalletImplementation for StacksConnect {
                 ActionItemStatus::Todo,
                 ActionItemRequestType::OpenModal(OpenModalData {
                     modal_uuid: modal.uuid.clone(),
-                    title: "START ASSISTANT".into(),
+                    title: "OPEN ASSISTANT".into(),
                 }),
+                ACTION_ITEM_PROVIDE_PUBLIC_KEY,
             )];
             let mut additional_actions_res = get_addition_actions_for_address(
                 &expected_address,
@@ -136,8 +144,9 @@ impl WalletImplementation for StacksConnect {
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
-                is_public_key_required,
+                false,
                 is_balance_check_required,
+                false,
             )
             .await;
             match additional_actions_res {
@@ -170,16 +179,15 @@ impl WalletImplementation for StacksConnect {
                 let (updated_wallets, mut actions) = future.await?;
                 wallets = updated_wallets;
 
+                println!("NEW_ACTIONS: {:?}", actions);
+                consolidated_actions.append(&mut actions);
+
                 let signer_wallet_state = wallets.get_wallet_state(&wallet_uuid).unwrap();
-
-                let Ok(checked_public_key) =
+                if let Ok(checked_public_key) =
                     signer_wallet_state.get_expected_value(CHECKED_PUBLIC_KEY)
-                else {
-                    consolidated_actions.append(&mut actions);
-                    continue;
-                };
-
-                checked_public_keys.insert(wallet_uuid, checked_public_key.clone());
+                {
+                    checked_public_keys.insert(wallet_uuid, checked_public_key.clone());
+                }
             }
 
             if signers.len() == checked_public_keys.len() {
@@ -213,21 +221,42 @@ impl WalletImplementation for StacksConnect {
                     clarity_repl::clarity::address::C32_ADDRESS_VERSION_TESTNET_MULTISIG
                 };
 
-                let stx_address = StacksAddress::from_public_keys(
+                if let Some(stacks_address) = StacksAddress::from_public_keys(
                     version,
                     &AddressHashMode::SerializeP2SH,
                     ordered_parsed_public_keys.len(),
                     &ordered_parsed_public_keys,
                 )
-                .map(|address| address.to_string());
-                println!("===> {:?}", stx_address);
+                .map(|address| address.to_string())
+                {
+                    let mut actions = Actions::none();
+                    let stacks_rpc = StacksRpc::new(&rpc_api_url);
+                    let status_update = match stacks_rpc.get_balance(&stacks_address).await {
+                        Ok(response) => ActionItemStatus::Success(Some(response.balance.clone())),
+                        Err(e) => {
+                            let diag = diagnosed_error!(
+                                "unable to retrieve balance {}: {}",
+                                stacks_address,
+                                e.to_string()
+                            );
+                            ActionItemStatus::Error(diag)
+                        }
+                    };
 
-                let mut actions = Actions::none();
-                actions.push_status_update_construct_uuid(
-                    &root_uuid,
-                    ActionItemStatus::Success(stx_address),
-                );
-                consolidated_actions = actions;
+                    actions.push_status_update_construct_uuid(
+                        &root_uuid,
+                        status_update,
+                        ACTION_ITEM_CHECK_BALANCE,
+                    );
+                    actions.push_status_update_construct_uuid(
+                        &root_uuid,
+                        ActionItemStatus::Success(Some(stacks_address)),
+                        ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+                    );
+                    consolidated_actions = actions;
+                } else {
+                    println!("Unable to compute Stacks address");
+                }
             } else {
                 let validate_modal_action = ActionItemRequest::new(
                     &Uuid::new_v4(),
@@ -237,6 +266,7 @@ impl WalletImplementation for StacksConnect {
                     "",
                     ActionItemStatus::Todo,
                     ActionItemRequestType::ValidateModal,
+                    "modal",
                 );
                 consolidated_actions.push_sub_group(vec![validate_modal_action]);
             }
@@ -274,10 +304,12 @@ impl WalletImplementation for StacksConnect {
         let progress_tx = progress_tx.clone();
 
         let future = async move {
-            let result = CommandExecutionResult::new();
+            let mut result = CommandExecutionResult::new();
 
             // Modal configuration
+            let mut signers_uuids = vec![];
             for (wallet_uuid, wallet_instance) in signers.into_iter() {
+                signers_uuids.push(Value::string(wallet_uuid.value().to_string()));
                 let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
                 let future = (wallet_instance.specification.activate)(
                     &wallet_uuid,
@@ -301,8 +333,10 @@ impl WalletImplementation for StacksConnect {
             };
             wallet_state.insert("hash_flag", Value::uint(version.into()));
             wallet_state.insert("multi_sig", Value::bool(true));
-
             wallets.push_wallet_state(wallet_state);
+
+            result.outputs.insert("signers".into(), Value::array(signers_uuids));
+            result.outputs.insert("public_key".into(), public_key);
 
             Ok((wallets, result))
         };
@@ -388,6 +422,7 @@ impl WalletImplementation for StacksConnect {
                 namespace: "stacks".to_string(),
                 network_id,
             }),
+            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
 
         Ok((wallets, Actions::new_sub_group_of_items(vec![request])))

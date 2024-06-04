@@ -206,8 +206,10 @@ impl Display for Block {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
                             writeln!(f, "      items: {} {{", item.uuid)?;
+                            writeln!(f, "          title: {:?}", item.title)?;
+                            writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
-                            writeln!(f, "          status: {:?}", item.action_type)?;
+                            writeln!(f, "          action: {:?}", item.action_type)?;
                             writeln!(f, "      }}")?;
                         }
                         writeln!(f, "    }}")?;
@@ -224,8 +226,10 @@ impl Display for Block {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
                             writeln!(f, "      items: {} {{", item.uuid)?;
+                            writeln!(f, "          title: {:?}", item.title)?;
+                            writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
-                            writeln!(f, "          status: {:?}", item.action_type)?;
+                            writeln!(f, "          action: {:?}", item.action_type)?;
                             writeln!(f, "      }}")?;
                         }
                         writeln!(f, "    }}")?;
@@ -377,6 +381,7 @@ pub struct ActionItemRequest {
     pub description: String,
     pub action_status: ActionItemStatus,
     pub action_type: ActionItemRequestType,
+    pub internal_key: String,
 }
 
 impl ActionItemRequest {
@@ -388,6 +393,7 @@ impl ActionItemRequest {
         description: &str,
         action_status: ActionItemStatus,
         action_type: ActionItemRequestType,
+        internal_key: &str,
     ) -> Self {
         ActionItemRequest {
             uuid: uuid.clone(),
@@ -397,6 +403,7 @@ impl ActionItemRequest {
             description: description.to_string(),
             action_status,
             action_type,
+            internal_key: internal_key.to_string(),
         }
     }
 }
@@ -422,6 +429,7 @@ pub enum ActionItemStatus {
 pub struct UpdateConstructData {
     pub construct_uuid: ConstructUuid,
     pub action_status: ActionItemStatus,
+    pub internal_key: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -508,11 +516,13 @@ impl Actions {
         &mut self,
         construct_uuid: &ConstructUuid,
         status_update: ActionItemStatus,
+        internal_key: &str,
     ) {
         self.store
             .push(ActionType::UpdateConstruct(UpdateConstructData {
                 construct_uuid: construct_uuid.clone(),
                 action_status: status_update.clone(),
+                internal_key: internal_key.to_string(),
             }))
     }
 
@@ -671,7 +681,6 @@ impl Actions {
         action_items_requests: &BTreeMap<Uuid, ActionItemRequest>,
     ) -> Vec<ActionItemRequestUpdate> {
         let mut updates = vec![];
-        let mut status_updates = HashMap::new();
 
         for item in self.store.iter() {
             match item {
@@ -679,7 +688,20 @@ impl Actions {
                 ActionType::AppendGroup(_) => {}
                 ActionType::NewBlock(_) | ActionType::NewModal(_) => {}
                 ActionType::UpdateConstruct(data) => {
-                    status_updates.insert(data.construct_uuid.value(), data.action_status.clone());
+                    let targeted_construct_uuid = Some(data.construct_uuid.value());
+                    for (_uuid, request) in action_items_requests.iter() {
+                        if request.construct_uuid.eq(&targeted_construct_uuid)
+                            && request.internal_key.eq(&data.internal_key)
+                        {
+                            updates.push(ActionItemRequestUpdate::from_parts(
+                                request.uuid.clone(),
+                                request.title.clone(),
+                                request.description.clone(),
+                                data.action_status.clone(),
+                                request.action_type.clone(),
+                            ))
+                        }
+                    }
                 }
                 ActionType::UpdateActionItemRequest(update) => {
                     updates.push(ActionItemRequestUpdate::from_parts(
@@ -693,16 +715,16 @@ impl Actions {
             }
         }
 
-        for (_, request) in action_items_requests.iter() {
-            if let Some(construct_uuid) = request.construct_uuid {
-                if let Some(status_update) = status_updates.get(&construct_uuid) {
-                    updates.push(
-                        ActionItemRequestUpdate::new(construct_uuid.clone())
-                            .status(status_update.clone()),
-                    )
-                }
-            }
-        }
+        // for (_, request) in action_items_requests.iter() {
+        //     if let Some(construct_uuid) = request.construct_uuid {
+        //         if let Some(status_update) = status_updates.get(&construct_uuid) {
+        //             updates.push(
+        //                 ActionItemRequestUpdate::new(construct_uuid.clone())
+        //                     .status(status_update.clone()),
+        //             )
+        //         }
+        //     }
+        // }
 
         updates
     }

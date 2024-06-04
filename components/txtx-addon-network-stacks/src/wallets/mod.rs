@@ -17,7 +17,13 @@ mod multisig;
 use connect::STACKS_CONNECT;
 use multisig::STACKS_MULTISIG;
 
-use crate::{constants::DEFAULT_MESSAGE, rpc::StacksRpc};
+use crate::{
+    constants::{
+        ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+        DEFAULT_MESSAGE,
+    },
+    rpc::StacksRpc,
+};
 
 lazy_static! {
     pub static ref WALLETS: Vec<WalletSpecification> =
@@ -32,6 +38,7 @@ pub async fn get_addition_actions_for_address(
     rpc_api_url: &str,
     is_public_key_required: bool,
     is_balance_check_required: bool,
+    is_address_check_required: bool,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
@@ -51,21 +58,25 @@ pub async fn get_addition_actions_for_address(
                 network_id: network_id.into(),
                 namespace: "stacks".to_string(),
             }),
+            ACTION_ITEM_PROVIDE_PUBLIC_KEY,
         ));
     }
 
-    if let Some(ref expected_address) = expected_address {
-        action_items.push(ActionItemRequest::new(
-            &Uuid::new_v4(),
-            &Some(uuid.value()),
-            0,
-            &format!("Check {} expected address", instance_name),
-            &expected_address.to_string(),
-            ActionItemStatus::Todo,
-            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                input_name: "".into(), // todo
-            }),
-        ))
+    if is_address_check_required {
+        if let Some(ref expected_address) = expected_address {
+            action_items.push(ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(uuid.value()),
+                0,
+                &format!("Check {} expected address", instance_name),
+                &expected_address.to_string(),
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                    input_name: "".into(), // todo
+                }),
+                ACTION_ITEM_CHECK_ADDRESS,
+            ))
+        }
     }
 
     if is_balance_check_required {
@@ -79,6 +90,7 @@ pub async fn get_addition_actions_for_address(
             ActionItemRequestType::ReviewInput(ReviewInputRequest {
                 input_name: "".into(), // todo
             }),
+            ACTION_ITEM_CHECK_BALANCE,
         );
         if let Some(ref expected_address) = expected_address {
             let balance = stacks_rpc

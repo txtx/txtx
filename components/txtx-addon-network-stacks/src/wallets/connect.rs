@@ -24,8 +24,9 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    CHECKED_ADDRESS, CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE,
-    FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
+    CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE,
+    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::typing::CLARITY_BUFFER;
 
@@ -137,29 +138,31 @@ impl WalletImplementation for StacksConnect {
             .unwrap()
             .to_string();
 
+            let mut actions: Actions = Actions::none();
+            let mut error = false;
+            let mut status_update = ActionItemStatus::Success(Some(stx_address.to_string()));
+
             if let Ok(expected_stx_address) = args.get_expected_string(EXPECTED_ADDRESS) {
                 if !expected_stx_address.eq(&stx_address) {
-                    wallets.push_wallet_state(wallet_state);
-                    return Err((
-                        wallets,
-                        diagnosed_error!(
-                            "Wallet '{}': expected {} got {}",
-                            instance_name,
-                            expected_stx_address,
-                            stx_address
-                        ),
+                    status_update = ActionItemStatus::Error(diagnosed_error!(
+                        "Wallet '{}': expected {} got {}",
+                        instance_name,
+                        expected_stx_address,
+                        stx_address
                     ));
+                    error = true;
                 }
             }
-
-            wallet_state.insert(
-                CHECKED_PUBLIC_KEY,
-                Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
-            );
-            let mut actions = Actions::none();
+            if !error {
+                wallet_state.insert(
+                    CHECKED_PUBLIC_KEY,
+                    Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
+                );    
+            }
             actions.push_status_update_construct_uuid(
                 &uuid,
-                ActionItemStatus::Success(Some(stx_address.into())),
+                status_update,
+                ACTION_ITEM_PROVIDE_PUBLIC_KEY,
             );
             wallets.push_wallet_state(wallet_state);
             return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
@@ -167,6 +170,7 @@ impl WalletImplementation for StacksConnect {
 
         let future = async move {
             let mut actions = Actions::none();
+            println!("get_addition_actions_for_address");
             let res = get_addition_actions_for_address(
                 &expected_address,
                 &uuid,
@@ -175,6 +179,7 @@ impl WalletImplementation for StacksConnect {
                 &rpc_api_url,
                 is_public_key_required,
                 is_balance_check_required,
+                true,
             )
             .await;
             wallets.push_wallet_state(wallet_state);
@@ -259,6 +264,7 @@ impl WalletImplementation for StacksConnect {
                 namespace: "stacks".to_string(),
                 network_id,
             }),
+            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
         wallets.push_wallet_state(wallet_state);
         Ok((wallets, Actions::new_sub_group_of_items(vec![request])))

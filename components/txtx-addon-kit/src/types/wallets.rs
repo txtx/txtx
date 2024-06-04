@@ -6,7 +6,11 @@ use crate::{
 };
 use futures::future;
 use hcl_edit::{expr::Expression, structure::Block};
-use std::{collections::HashMap, future::Future, pin::Pin};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    pin::Pin,
+};
 
 use super::{
     commands::{

@@ -162,6 +162,7 @@ impl CommandImplementation for Input {
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "value".to_string(),
                         }),
+                        "check_input",
                     ),
                 ]));
             } else {
@@ -198,6 +199,7 @@ impl CommandImplementation for Input {
                 input_name: "default".into(),
                 typing: typing,
             }),
+            "check_input",
         );
 
         return Ok(Actions::new_sub_group_of_items(vec![action]));
@@ -283,6 +285,7 @@ impl CommandImplementation for Output {
                 description: None,
                 value: value.clone(),
             }),
+            internal_key: "check_output".into(),
         }]);
         Ok(actions)
     }
