@@ -108,7 +108,6 @@ impl WalletImplementation for StacksConnect {
         let is_public_key_required = is_public_key_required || expected_address.is_none();
         let _is_nonce_required = true;
 
-        // WIP
         let instance_name = instance_name.to_string();
         let uuid = uuid.clone();
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, defaults) {
@@ -200,13 +199,15 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
-        // WIP
         let result = CommandExecutionResult::new();
-        let public_key = wallet_state.get_expected_value(CHECKED_PUBLIC_KEY).unwrap();
-        // .map_err(|e| (wallets, e))?;
-        let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
-        // .map_err(|e| (wallets, e))?;
-
+        let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
 
         let version = match network_id.as_str() {

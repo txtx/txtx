@@ -8,7 +8,7 @@ use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use libsecp256k1::sign;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandInputsEvaluationResult, CommandSpecification,
+    CommandExecutionContext, CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, OpenModalData,
@@ -249,14 +249,71 @@ impl WalletImplementation for StacksConnect {
     fn activate(
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
-        _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _defaults: &AddonDefaults,
-        _progress_tx: &channel::Sender<BlockEvent>,
+        args: &ValueStore,
+        mut wallet_state: ValueStore,
+        mut wallets: WalletsState,
+        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        defaults: &AddonDefaults,
+        progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
-        unimplemented!()
+        let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((wallets, diag)),
+        };
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+
+        let signers_uuid = args.get_expected_array("signers").unwrap();
+        let mut signers = VecDeque::new();
+        for signer_uuid in signers_uuid.iter() {
+            let uuid = signer_uuid.as_string().unwrap();
+            let uuid = ConstructUuid::from_uuid(&Uuid::from_str(uuid).unwrap());
+            let wallet_spec = wallets_instances.get(&uuid).unwrap().clone();
+            signers.push_back((uuid, wallet_spec));
+        }
+
+        let args = args.clone();
+        let wallets_instances = wallets_instances.clone();
+        let defaults = defaults.clone();
+        let progress_tx = progress_tx.clone();
+
+
+        let future = async move {
+            let mut result = CommandExecutionResult::new();
+
+            // Modal configuration
+            while let Some((wallet_uuid, wallet_instance)) = signers.pop_front() {
+                let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+                let future = (wallet_instance.specification.activate)(
+                    &wallet_uuid,
+                    &wallet_instance.specification,
+                    &args,
+                    signer_wallet_state,
+                    wallets,
+                    &wallets_instances,
+                    &defaults,
+                    &progress_tx,
+                )?;
+                let (updated_wallets, mut sub_results) = future.await?;
+                wallets = updated_wallets;
+            }
+
+            wallet_state.insert(PUBLIC_KEYS, public_key.clone());
+
+            let version = match network_id.as_str() {
+                "mainnet" => AddressHashMode::SerializeP2SH.to_version_mainnet(),
+                _ => AddressHashMode::SerializeP2SH.to_version_testnet(),
+            };
+            wallet_state.insert("hash_flag", Value::uint(version.into()));
+            wallet_state.insert("multi_sig", Value::bool(true));
+
+            wallets.push_wallet_state(wallet_state);
+
+            Ok((wallets, result))
+        };
+        Ok(Box::pin(future))
     }
 
     fn check_signability(
