@@ -622,10 +622,6 @@ impl CommandInstance {
                         input_name,
                         value_checked,
                     }) => {
-                        println!(
-                            "received review input response for cmd {}, input {}, value {}",
-                            self.name, input_name, value_checked
-                        );
                         for input in self.specification.inputs.iter_mut() {
                             if &input.name == input_name {
                                 input.check_performed = value_checked.clone();
@@ -637,10 +633,6 @@ impl CommandInstance {
                         input_name,
                         updated_value,
                     }) => {
-                        println!(
-                            "received provide input response for cmd {}, input {}",
-                            self.name, input_name
-                        );
                         input_evaluation_results
                             .inputs
                             .insert(input_name.clone(), Ok(updated_value.clone()));

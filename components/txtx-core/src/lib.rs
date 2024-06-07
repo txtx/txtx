@@ -245,12 +245,8 @@ pub async fn start_runbook_runloop(
                 .await?;
 
                 let block_uuid = Uuid::new_v4();
-                println!("validated block");
-                println!("action groups: {:?}", actions_groups);
                 let any_pending_actions = actions_groups.iter().any(|a| a.has_pending_actions());
-                println!("has pending actions: {}", any_pending_actions);
                 if !any_pending_actions {
-                    println!("no maor group");
                     runbook_completed = true;
                     let grouped_actions_items =
                         collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
@@ -334,10 +330,6 @@ pub async fn start_runbook_runloop(
                     true => ActionItemStatus::Success(None),
                     false => ActionItemStatus::Todo,
                 };
-                println!(
-                    "updating action item {} to status {:?}",
-                    &action_item_uuid, &new_status
-                );
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
                     ActionItemRequestUpdate::from_uuid(&action_item_uuid)
                         .set_status(new_status)
@@ -373,7 +365,6 @@ pub async fn start_runbook_runloop(
                     .into_iter()
                     .map(|u| u.normalize(&action_item_requests))
                     .collect();
-                println!("{:?}", updated_actions);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_response) => {
@@ -410,7 +401,6 @@ pub async fn start_runbook_runloop(
                     })
                     .flatten()
                     .collect::<Vec<_>>();
-                println!("{:?}", updated_actions);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
         };

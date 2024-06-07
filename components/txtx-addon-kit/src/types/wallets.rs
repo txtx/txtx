@@ -405,10 +405,6 @@ impl WalletInstance {
                             values.insert("public_key", Value::string(update.public_key.clone()));
 
                             let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
-                            println!(
-                                "checking activatability after public key provided for wallet {}",
-                                self.name
-                            );
                             let res = ((&self.specification).check_activability)(
                                 &construct_uuid,
                                 &self.name,
@@ -423,7 +419,6 @@ impl WalletInstance {
                                 is_public_key_required,
                             )?
                             .await;
-                            println!("{:?}", res);
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {

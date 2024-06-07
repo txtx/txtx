@@ -178,13 +178,8 @@ impl CommandImplementation for Input {
 
         let (default_value, typing) = match args.get_value("default") {
             Some(default_value) => {
-                println!(
-                    "input {} has default value {:?}",
-                    instance_name, default_value
-                );
                 for input_spec in spec.inputs.iter() {
                     if input_spec.name == "default" && input_spec.check_performed {
-                        println!("input {} has default value checked", instance_name);
                         return Ok(Actions::none());
                     }
                 }
