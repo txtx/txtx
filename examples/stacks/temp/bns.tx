@@ -1,0 +1,87 @@
+wallet "alice" "stacks::connect" {
+  expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+}
+
+input "namespace" {
+  description = "TLD / Namespace"
+  default = "btc"
+}
+
+input "name" {
+  description = "Domain name to order"
+  default = "micaiah"
+}
+
+input "salt" {
+  description = "Random salt to use for preventing front-running"
+  default = "0000000000"
+}
+
+input "zonefile" {
+  description = "Zonefile to attach to the new domain"
+  default = "0000000000"
+}
+
+action "get_name_price" "stacks::call_readonly_fn" {
+  description = "Preorder name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "get-name-price"
+  function_args = [ encode_buffer(input.namespace), encode_buffer(input.name) ]
+}
+
+action "name_preorder" "stacks::send_call_contract" {  
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-preorder"
+  function_args = [
+      encode_buffer(
+        ripemd160(
+          [
+            encode_hex("${input.name}.${input.namespace}"),
+            encode_hex(input.salt)
+          ]
+        )
+      ),
+      encode_uint(action.get_name_price.value), 
+  ]
+  signer = wallet.alice
+  confirmations = 1
+}
+
+action "name_regiser" "stacks::send_call_contract" {  
+  description = "Register name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-register"
+  function_args = [
+      encode_buffer(input.namespace),
+      encode_buffer(input.name),
+      encode_buffer(input.salt),
+      encode_buffer(input.zonefile),
+  ]
+  depends_on = action.broadcast_name_preorder.tx_id
+  signer = wallet.alice
+  confirmations = 1
+}
+
+output "bns_name" {
+  value = "Registering ${input.name}.${input.namespace}"
+}
+output "name_price" {
+  value = action.get_name_price.value
+}
+output "name_preorder_tx_link" {
+  value = "https://explorer.hiro.so/txid/${action.name_preorder.tx_id}?chain=${env.stacks_network_id}"
+}
+output "name_preorder_result" {
+  value = action.name_preorder.result
+}
+output "name_register_tx_link" {
+  value = "https://explorer.hiro.so/txid/${action.name_regiser.tx_id}?chain=${env.stacks_network_id}"
+}
+output "name_register_result" {
+  value = action.name_regiser.result
+}
+
+action "defaults" "stacks::set_default_network" {
+  network_id = env.stacks_network_id
+  rpc_api_url = env.stacks_api_url
+}

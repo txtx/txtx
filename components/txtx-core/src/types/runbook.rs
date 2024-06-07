@@ -3,10 +3,9 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
-use rust_fsm::StateMachine;
-use std::collections::HashMap;
+use kit::types::wallets::WalletsState;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, RwLock};
+use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{
@@ -14,6 +13,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -47,6 +47,9 @@ pub struct Runbook {
     pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
+    pub wallets_instances: HashMap<ConstructUuid, WalletInstance>,
+    pub wallets_state: Option<WalletsState>,
+    pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
     pub constructs_execution_results:
@@ -79,6 +82,9 @@ impl Runbook {
             errors: vec![],
             constructs_locations: HashMap::new(),
             commands_instances: HashMap::new(),
+            wallets_instances: HashMap::new(),
+            wallets_state: Some(WalletsState::new()),
+            instantiated_wallet_instances: VecDeque::new(),
             constructs_execution_results: HashMap::new(),
             command_inputs_evaluation_results: HashMap::new(),
             environment_variables_uuid_lookup: HashMap::new(),
@@ -143,7 +149,6 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_module_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -161,7 +166,6 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_input_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -179,7 +183,6 @@ impl Runbook {
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_output_specification(),
-                        state: Arc::new(Mutex::new(StateMachine::new())),
                         name: construct_name.clone(),
                         block: block.clone(),
                         package_uuid: package_uuid.clone(),
@@ -203,14 +206,13 @@ impl Runbook {
                 self.commands_instances
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
-            PreConstructData::Prompt(command_instance) => {
-                package.addons_uuids.insert(construct_uuid.clone());
-                package.addons_uuids_lookup.insert(
-                    CommandId::Prompt(construct_name).to_string(),
-                    construct_uuid.clone(),
-                );
-                self.commands_instances
-                    .insert(construct_uuid.clone(), command_instance.clone());
+            PreConstructData::Wallet(wallet_instance) => {
+                package.wallets_uuids.insert(construct_uuid.clone());
+                package
+                    .wallets_uuids_lookup
+                    .insert(construct_name, construct_uuid.clone());
+                self.wallets_instances
+                    .insert(construct_uuid.clone(), wallet_instance.clone());
             }
             PreConstructData::Root => unreachable!(),
         }
@@ -234,7 +236,7 @@ impl Runbook {
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
-        _runtime_context: &Arc<RwLock<RuntimeContext>>,
+        _runtime_context: &RuntimeContext,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
@@ -313,15 +315,14 @@ impl Runbook {
                     }
                 }
 
-                // Look for prompts
-                if component.eq_ignore_ascii_case("prompt") {
+                // Look for wallets
+                if component.eq_ignore_ascii_case("wallet") {
                     is_root = false;
-                    let Some(prompt_name) = components.pop_front() else {
+                    let Some(wallet_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_uuid) = current_package
-                        .addons_uuids_lookup
-                        .get(&CommandId::Prompt(prompt_name).to_string())
+                    if let Some(construct_uuid) =
+                        current_package.wallets_uuids_lookup.get(&wallet_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components)));
                     }

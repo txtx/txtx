@@ -9,7 +9,10 @@ mod functions;
 mod typing;
 
 use txtx_addon_kit::{
-    types::{commands::PreCommandSpecification, functions::FunctionSpecification},
+    types::{
+        commands::PreCommandSpecification, functions::FunctionSpecification,
+        wallets::WalletSpecification,
+    },
     Addon,
 };
 
@@ -43,7 +46,7 @@ impl Addon for BitcoinNetworkAddon {
         commands::actions::ACTIONS.clone()
     }
 
-    fn get_prompts(&self) -> Vec<PreCommandSpecification> {
-        commands::prompts::PROMPTS.clone()
+    fn get_wallets(&self) -> Vec<WalletSpecification> {
+        vec![]
     }
 }

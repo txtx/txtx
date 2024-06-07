@@ -40,7 +40,7 @@ macro_rules! define_function {
             example: String::from($example),
             snippet: String::from(""),
             runner: $func_key::run,
-            checker: $func_key::check,
+            checker: $func_key::check_instantiability,
         };
     };
 }
@@ -51,13 +51,15 @@ macro_rules! define_command {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
+        requires_signing_capability: $requires_signing_capability:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
         {
-        use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
+        use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandExecutionClosure};
+        let requires_signing_capability: bool = $requires_signing_capability;
         PreCommandSpecification::Atomic(
           CommandSpecification {
             name: String::from($fn_name),
@@ -66,12 +68,15 @@ macro_rules! define_command {
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
             update_addon_defaults: false,
+            requires_signing_capability,
             inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
+                check_required: false,
+                check_performed: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -79,56 +84,15 @@ macro_rules! define_command {
                 documentation: String::from($output_doc),
                 typing: $output_ts,
             }),*],
-            runner: CommandRunner::Sync($func_key::run),
-            checker: $func_key::check,
-            user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
+            check_instantiability: $func_key::check_instantiability,
+            check_executability: $func_key::check_executability,
+            run_execution: Box::new($func_key::run_execution),
+            check_signed_executability: $func_key::check_signed_executability,
+            run_signed_execution: Box::new($func_key::run_signed_execution),
             example: String::from($example),
         }
       )
     }
-    };
-}
-
-#[macro_export]
-macro_rules! define_async_command {
-    ($func_key:ident => {
-        name: $fn_name:expr,
-        matcher: $matcher:expr,
-        documentation: $doc:expr,
-        // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
-        outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
-        example: $example:expr,
-    }) => {
-        {
-            use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandRunner};
-            PreCommandSpecification::Atomic(CommandSpecification {
-                name: String::from($fn_name),
-                matcher: String::from($matcher),
-                documentation: String::from($doc),
-                accepts_arbitrary_inputs: false,
-                create_output_for_each_input: false,
-                update_addon_defaults: false,
-                default_inputs: CommandSpecification::default_inputs(),
-                inputs: vec![$(CommandInput {
-                    name: String::from(stringify!($input_name)),
-                    documentation: String::from($input_doc),
-                    typing: $input_ts,
-                    optional: $optional,
-                    interpolable: $interpolable,
-                }),*],
-                outputs: vec![$(CommandOutput {
-                    name: String::from(stringify!($output_name)),
-                    documentation: String::from($output_doc),
-                    typing: $output_ts,
-                }),*],
-                // runner:  txtx_addon_kit::types::commands::CommandRunner::Async(Box::new($func_key::run)),
-                runner: CommandRunner::Async(Box::new($func_key::run)),
-                checker: $func_key::check,
-                user_input_parser: $func_key::update_input_evaluation_results_from_user_input,
-                example: String::from($example),
-            })
-        }
     };
 }
 
@@ -142,7 +106,7 @@ macro_rules! define_multistep_command {
       example: $example:expr,
   }) => {
       {
-          use txtx_addon_kit::types::commands::{PreCommandSpecification, CompositeCommandSpecification, CommandInput, CommandOutput, CommandRunner};
+          use txtx_addon_kit::types::commands::{PreCommandSpecification, CompositeCommandSpecification, CommandInput, CommandOutput, CommandExecutionClosure};
 
           let mut parts = Vec::new();
           $(parts.push($part);)*
@@ -191,5 +155,49 @@ macro_rules! define_addon_type {
             documentation: String::from($doc),
             checker: $func_key::check,
         };
+    };
+}
+
+#[macro_export]
+macro_rules! define_wallet {
+    ($func_key:ident => {
+        name: $fn_name:expr,
+        matcher: $matcher:expr,
+        documentation: $doc:expr,
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
+        outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
+        example: $example:expr,
+    }) => {
+        {
+          use txtx_addon_kit::types::wallets::{WalletSpecification, WalletSignClosure};
+          use txtx_addon_kit::types::commands::{CommandInput, CommandOutput};
+          WalletSpecification {
+            name: String::from($fn_name),
+            matcher: String::from($matcher),
+            documentation: String::from($doc),
+            requires_interaction: false,
+            inputs: vec![$(CommandInput {
+                name: String::from(stringify!($input_name)),
+                documentation: String::from($input_doc),
+                typing: $input_ts,
+                optional: $optional,
+                interpolable: $interpolable,
+                check_required: false,
+                check_performed: false
+            }),*],
+            default_inputs: CommandSpecification::default_inputs(),
+            outputs: vec![$(CommandOutput {
+                name: String::from(stringify!($output_name)),
+                documentation: String::from($output_doc),
+                typing: $output_ts,
+            }),*],
+            check_instantiability: $func_key::check_instantiability,
+            check_activability: $func_key::check_activability,
+            activate: Box::new($func_key::activate),
+            check_signability: $func_key::check_signability,
+            sign: Box::new($func_key::sign),
+            example: String::from($example),
+        }
+    }
     };
 }

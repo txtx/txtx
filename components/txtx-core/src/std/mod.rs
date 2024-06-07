@@ -1,5 +1,8 @@
 use txtx_addon_kit::{
-    types::{commands::PreCommandSpecification, functions::FunctionSpecification},
+    types::{
+        commands::PreCommandSpecification, functions::FunctionSpecification,
+        wallets::WalletSpecification,
+    },
     Addon,
 };
 
@@ -7,6 +10,7 @@ use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
 
 pub mod commands;
 pub mod functions;
+pub mod wallets;
 
 #[derive(Debug)]
 pub struct StdAddon;
@@ -40,7 +44,7 @@ impl Addon for StdAddon {
         ACTIONS.clone()
     }
 
-    fn get_prompts(&self) -> Vec<PreCommandSpecification> {
+    fn get_wallets(&self) -> Vec<WalletSpecification> {
         vec![]
     }
 }

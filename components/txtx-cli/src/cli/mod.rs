@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use std::process;
 
@@ -47,9 +47,6 @@ enum Command {
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbooks),
     /// Inspect deployment protocol
-    #[clap(name = "inspect", bin_name = "inspect")]
-    Inspect(InspectRunbook),
-    /// Inspect deployment protocol
     #[clap(name = "run", bin_name = "run")]
     Run(RunRunbook),
     /// Display Documentation
@@ -94,6 +91,12 @@ pub struct RunRunbook {
     /// Name of runbook as indexed in txtx.json
     #[clap(long = "runbook")]
     pub runbook: Option<String>,
+    /// Start Web Console
+    #[clap(long = "web-console", short = 'w', action=ArgAction::SetTrue)]
+    pub web_console: bool,
+    /// Start Terminal Console
+    #[clap(long = "term-console")]
+    pub term_console: bool,
 }
 
 pub fn main() {
@@ -126,9 +129,6 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
     match opts.command {
         Command::Check(cmd) => {
             runbooks::handle_check_command(&cmd, ctx).await?;
-        }
-        Command::Inspect(cmd) => {
-            runbooks::handle_inspect_command(&cmd, ctx).await?;
         }
         Command::Run(cmd) => {
             runbooks::handle_run_command(&cmd, ctx).await?;

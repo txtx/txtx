@@ -35,7 +35,10 @@ lazy_static! {
 
 pub struct Base64Decode;
 impl FunctionImplementation for Base64Decode {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

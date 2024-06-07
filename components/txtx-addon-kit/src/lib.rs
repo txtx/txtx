@@ -8,24 +8,23 @@ extern crate lazy_static;
 mod macros;
 
 pub use hex;
+// pub use hiro_system_kit;
 pub use indoc::indoc;
-use rust_fsm::StateMachine;
+pub use rust_fsm as fsm;
 pub use uuid;
+pub extern crate crossbeam_channel as channel;
 
 use hcl::structure::Block;
 pub use hcl_edit as hcl;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, fmt::Debug};
 use types::{
     commands::{
-        CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceStateMachine,
-        CommandInstanceType, PreCommandSpecification,
+        CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceType,
+        PreCommandSpecification,
     },
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
+    wallets::{WalletInstance, WalletSpecification},
     ConstructUuid, PackageUuid,
 };
 
@@ -53,7 +52,7 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_actions(&self) -> Vec<PreCommandSpecification>;
     ///
-    fn get_prompts(&self) -> Vec<PreCommandSpecification>;
+    fn get_wallets(&self) -> Vec<WalletSpecification>;
     ///
     fn build_function_lookup(self: &Self) -> HashMap<String, FunctionSpecification> {
         let mut functions = HashMap::new();
@@ -73,21 +72,23 @@ pub trait Addon: Debug + Sync + Send {
             };
             commands.insert(CommandId::Action(matcher), command);
         }
-
-        for command in self.get_prompts().into_iter() {
-            let matcher = match &command {
-                PreCommandSpecification::Atomic(command) => command.matcher.clone(),
-                PreCommandSpecification::Composite(command) => command.matcher.clone(),
-            };
-            commands.insert(CommandId::Prompt(matcher), command);
-        }
         commands
     }
+    ///
+    fn build_wallet_lookup(self: &Self) -> HashMap<String, WalletSpecification> {
+        let mut wallet_specs = HashMap::new();
 
+        for wallet in self.get_wallets().into_iter() {
+            wallet_specs.insert(wallet.matcher.clone(), wallet);
+        }
+
+        wallet_specs
+    }
     fn create_context(&self) -> AddonContext {
         AddonContext {
             functions: self.build_function_lookup(),
             commands: self.build_command_lookup(),
+            wallets: self.build_wallet_lookup(),
             defaults: AddonDefaults::new(),
         }
     }
@@ -110,6 +111,7 @@ impl AddonDefaults {
 pub struct AddonContext {
     pub functions: HashMap<String, FunctionSpecification>,
     pub commands: HashMap<CommandId, PreCommandSpecification>,
+    pub wallets: HashMap<String, WalletSpecification>,
     pub defaults: AddonDefaults,
 }
 
@@ -127,15 +129,11 @@ impl AddonContext {
         };
         let typing = match command_id {
             CommandId::Action(_) => CommandInstanceType::Action,
-            CommandId::Prompt(_) => CommandInstanceType::Prompt,
         };
         match pre_command_spec {
             PreCommandSpecification::Atomic(command_spec) => {
                 let command_instance = CommandInstance {
                     specification: command_spec.clone(),
-                    state: Arc::new(Mutex::new(
-                        StateMachine::<CommandInstanceStateMachine>::new(),
-                    )),
                     name: command_name.to_string(),
                     block: block.clone(),
                     package_uuid: package_uuid.clone(),
@@ -153,6 +151,26 @@ impl AddonContext {
                 Ok(CommandInstanceOrParts::Parts(bodies))
             }
         }
+    }
+
+    pub fn create_wallet_instance(
+        self: &Self,
+        wallet_id: &str,
+        namespace: &str,
+        wallet_name: &str,
+        block: &Block,
+        package_uuid: &PackageUuid,
+    ) -> Result<WalletInstance, Diagnostic> {
+        let Some(wallet_spec) = self.wallets.get(wallet_id) else {
+            todo!("return diagnostic: unknown wallet: {:?}", wallet_id)
+        };
+        Ok(WalletInstance {
+            name: wallet_name.to_string(),
+            specification: wallet_spec.clone(),
+            block: block.clone(),
+            package_uuid: package_uuid.clone(),
+            namespace: namespace.to_string(),
+        })
     }
 
     pub fn resolve_construct_dependencies(

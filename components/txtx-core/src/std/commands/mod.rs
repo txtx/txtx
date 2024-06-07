@@ -1,15 +1,23 @@
 pub mod actions;
 
-use std::collections::HashMap;
+use kit::types::frontend::{Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest};
+use kit::types::ValueStore;
+use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
+};
+use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     define_command,
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+            CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        types::{PrimitiveValue, Type, Value},
+        frontend::ActionItemRequest,
+        types::Type,
+        ConstructUuid,
     },
     AddonDefaults,
 };
@@ -20,6 +28,7 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
+            requires_signing_capability: false,
             inputs: [],
             outputs: [],
             example: "",
@@ -37,26 +46,33 @@ pub fn new_module_specification() -> CommandSpecification {
 
 pub struct Module;
 impl CommandImplementation for Module {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        let result = CommandExecutionResult::new();
-        Ok(result)
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        unimplemented!()
     }
 
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        let result = CommandExecutionResult::new();
+        return_synchronous_result(Ok(result))
     }
 }
 
@@ -66,6 +82,7 @@ pub fn new_input_specification() -> CommandSpecification {
             name: "Input",
             matcher: "input",
             documentation: "Construct designed to store an input",
+            requires_signing_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the input",
@@ -110,64 +127,105 @@ pub fn new_input_specification() -> CommandSpecification {
 }
 
 pub struct Input;
+
 impl CommandImplementation for Input {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+    fn check_executability(
+        uuid: &ConstructUuid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        let mut result = CommandExecutionResult::new();
-        if let Some(value) = args.get("value") {
-            result.outputs.insert("value".to_string(), value.clone());
-        } else if let Some(default) = args.get("default") {
-            result.outputs.insert("value".to_string(), default.clone());
+        execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        let title = instance_name;
+        let description = args
+            .get_string("description")
+            .and_then(|d| Some(d.to_string()));
+
+        if let Some(value) = args.get_value("value") {
+            for input_spec in spec.inputs.iter() {
+                if input_spec.name == "value" && input_spec.check_performed {
+                    return Ok(Actions::none());
+                }
+            }
+            if execution_context.review_input_values {
+                return Ok(Actions::new_sub_group_of_items(vec![
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        0,
+                        &title,
+                        description,
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "value".to_string(),
+                            value: value.clone(),
+                        }),
+                        "check_input",
+                    ),
+                ]));
+            } else {
+                return Ok(Actions::none());
+            }
         }
-        Ok(result)
+
+        let (default_value, typing) = match args.get_value("default") {
+            Some(default_value) => {
+                for input_spec in spec.inputs.iter() {
+                    if input_spec.name == "default" && input_spec.check_performed {
+                        return Ok(Actions::none());
+                    }
+                }
+                (Some(default_value.clone()), default_value.get_type())
+            }
+            None => {
+                let typing = args.get_expected_value("type")?;
+                (
+                    None,
+                    Type::from(typing.as_string().unwrap_or("string").to_string()),
+                )
+            }
+        };
+
+        let action = ActionItemRequest::new(
+            &Uuid::new_v4(),
+            &Some(uuid.value()),
+            0,
+            &title,
+            description,
+            ActionItemStatus::Todo,
+            ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                default_value: default_value,
+                input_name: "default".into(),
+                typing,
+            }),
+            "provide_input",
+        );
+
+        return Ok(Actions::new_sub_group_of_items(vec![action]));
     }
 
-    fn update_input_evaluation_results_from_user_input(
-        ctx: &CommandSpecification,
-        current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        value: String,
-    ) {
-        let default_input = ctx
-            .inputs
-            .iter()
-            .find(|i| i.name == "default")
-            .expect("Variable specification must have default input");
-        let value = if value.is_empty() {
-            None
-        } else {
-            let type_casted_value = match current_input_evaluation_result
-                .inputs
-                .iter()
-                .find(|(i, _)| i.name == "type")
-            {
-                Some((_, expected_type)) => match expected_type {
-                    Err(e) => Err(e.clone()),
-                    Ok(Value::Primitive(PrimitiveValue::String(expected_type))) => {
-                        Value::from_string(value, Type::from(expected_type.clone()), None)
-                    }
-                    _ => Value::from_string(value, Type::default(), None),
-                },
-                None => unimplemented!("no type"), // todo
-            };
-            Some(type_casted_value)
-        };
-
-        match value {
-            Some(value) => current_input_evaluation_result
-                .inputs
-                .insert(default_input.clone(), value),
-            None => current_input_evaluation_result
-                .inputs
-                .remove(&default_input),
-        };
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        let mut result = CommandExecutionResult::new();
+        if let Some(value) = args.get_value("value") {
+            result.outputs.insert("value".to_string(), value.clone());
+        } else if let Some(default) = args.get_value("default") {
+            result.outputs.insert("value".to_string(), default.clone());
+        }
+        return_synchronous_result(Ok(result))
     }
 }
 
@@ -177,6 +235,7 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
+            requires_signing_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the output",
@@ -203,28 +262,51 @@ pub fn new_output_specification() -> CommandSpecification {
 }
 
 pub struct Output;
+
 impl CommandImplementation for Output {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+    fn check_executability(
+        uuid: &ConstructUuid,
+        instance_name: &str,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        let value = args.get("value").unwrap().clone(); // todo(lgalabru): get default, etc.
-        let mut result = CommandExecutionResult::new();
-        result.outputs.insert("value".to_string(), value);
-        Ok(result)
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        let value = args.get_expected_value("value")?;
+        let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest {
+            uuid: Uuid::new_v4(),
+            construct_uuid: Some(uuid.value()),
+            index: 0,
+            title: instance_name.into(),
+            description: None,
+            action_status: ActionItemStatus::Todo,
+            action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                name: instance_name.into(),
+                description: None,
+                value: value.clone(),
+            }),
+            internal_key: "check_output".into(),
+        }]);
+        Ok(actions)
     }
 
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        let value = args.get_expected_value("value")?;
+        let mut result = CommandExecutionResult::new();
+        result.outputs.insert("value".to_string(), value.clone());
+        return_synchronous_result(Ok(result))
     }
 }

@@ -3,26 +3,29 @@
     "default_workspace": "development",
     "environments": {
       "development": {
-        "stacks_network_id": "testnet",
-        "stacks_api_url": "http://localhost:20443",
+        "stacks_network_id": "mainnet",
+        "stacks_api_url": "https://api.hiro.so:443",
+        "pyth_deployer_address": "SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP",
         "pyth_hermes_api_url": "https://hermes.pyth.network"
       },
       "staging": {
         "stacks_network_id": "testnet",
         "stacks_api_url": "https://api.staging.hiro.so:20443",
+        "pyth_deployer_address": "SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP",
         "pyth_hermes_api_url": "https://hermes.pyth.network"
       },
       "production": {
         "stacks_network_id": "mainnet",
-        "stacks_api_url": "https://api.staging.hiro.so:20443",
+        "stacks_api_url": "https://api.hiro.so:443",
+        "pyth_deployer_address": "SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP",
         "pyth_hermes_api_url": "https://hermes.pyth.network"
       }
     },
     "runbooks": [
       {
-        "name": "Read Price Feed",
+        "name": "Update Price Feed",
         "description": "This runbook reads the price for a given Price feed ID.",
-        "location": "./run/price-feeds/read.tx"
+        "location": "./run/price-feeds/update.tx"
       }
     ]
 }

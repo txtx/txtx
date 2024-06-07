@@ -11,8 +11,8 @@ use txtx_addon_kit::types::{
 use crate::{
     stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
-        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE,
-        CLARITY_UINT, CLARITY_UTF8, CLARITY_VALUE,
+        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
+        CLARITY_UTF8, CLARITY_VALUE,
     },
 };
 
@@ -234,7 +234,10 @@ lazy_static! {
 
 pub struct EncodeClarityValueOk;
 impl FunctionImplementation for EncodeClarityValueOk {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -245,7 +248,10 @@ impl FunctionImplementation for EncodeClarityValueOk {
 
 pub struct EncodeClarityValueErr;
 impl FunctionImplementation for EncodeClarityValueErr {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -257,7 +263,10 @@ impl FunctionImplementation for EncodeClarityValueErr {
 #[derive(Clone)]
 pub struct StacksEncodeSome;
 impl FunctionImplementation for StacksEncodeSome {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -268,7 +277,10 @@ impl FunctionImplementation for StacksEncodeSome {
 
 pub struct StacksEncodeNone;
 impl FunctionImplementation for StacksEncodeNone {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -279,7 +291,10 @@ impl FunctionImplementation for StacksEncodeNone {
 
 pub struct StacksEncodeBool;
 impl FunctionImplementation for StacksEncodeBool {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -290,23 +305,38 @@ impl FunctionImplementation for StacksEncodeBool {
 
 pub struct EncodeClarityValueUint;
 impl FunctionImplementation for EncodeClarityValueUint {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
-            _ => unreachable!(),
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val.clone(),
+            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => {
+                let as_u64 = u64::try_from(val.clone()).map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "Failed to encode_uint, could not parse SignedInteger: {e}"
+                    ))
+                })?;
+                as_u64
+            }
+            Some(any) => unreachable!("expected uint, got {:?}", any),
+            None => unreachable!("expected uint, got none :("),
         };
-        let clarity_value = ClarityValue::UInt(u128::from(*entry));
+        let clarity_value = ClarityValue::UInt(u128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
         Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
     }
 }
 pub struct EncodeClarityValueInt;
 impl FunctionImplementation for EncodeClarityValueInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -323,7 +353,10 @@ impl FunctionImplementation for EncodeClarityValueInt {
 
 pub struct EncodeClarityValuePrincipal;
 impl FunctionImplementation for EncodeClarityValuePrincipal {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -340,7 +373,10 @@ impl FunctionImplementation for EncodeClarityValuePrincipal {
 
 pub struct EncodeClarityValueAscii;
 impl FunctionImplementation for EncodeClarityValueAscii {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -360,7 +396,10 @@ impl FunctionImplementation for EncodeClarityValueAscii {
 
 pub struct EncodeClarityValueUTF8;
 impl FunctionImplementation for EncodeClarityValueUTF8 {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -377,7 +416,10 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
 
 pub struct EncodeClarityValueBuffer;
 impl FunctionImplementation for EncodeClarityValueBuffer {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -390,6 +432,7 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
                     txtx_addon_kit::hex::decode(&val[0..]).unwrap()
                 }
             }
+            Some(Value::Primitive(PrimitiveValue::Buffer(val))) => val.bytes.clone(),
             _ => unreachable!(),
         };
 
@@ -401,7 +444,10 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
 
 pub struct EncodeClarityValueTuple;
 impl FunctionImplementation for EncodeClarityValueTuple {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -417,7 +463,10 @@ impl FunctionImplementation for EncodeClarityValueTuple {
 
 pub struct StacksEncodeInt;
 impl FunctionImplementation for StacksEncodeInt {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -428,7 +477,10 @@ impl FunctionImplementation for StacksEncodeInt {
 
 pub struct StacksEncodeBuffer;
 impl FunctionImplementation for StacksEncodeBuffer {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -439,7 +491,10 @@ impl FunctionImplementation for StacksEncodeBuffer {
 
 pub struct StacksEncodeList;
 impl FunctionImplementation for StacksEncodeList {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -450,7 +505,10 @@ impl FunctionImplementation for StacksEncodeList {
 
 pub struct StacksEncodeAsciiString;
 impl FunctionImplementation for StacksEncodeAsciiString {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -461,7 +519,10 @@ impl FunctionImplementation for StacksEncodeAsciiString {
 
 pub struct StacksEncodePrincipal;
 impl FunctionImplementation for StacksEncodePrincipal {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -472,7 +533,10 @@ impl FunctionImplementation for StacksEncodePrincipal {
 
 pub struct StacksEncodeTuple;
 impl FunctionImplementation for StacksEncodeTuple {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
@@ -483,7 +547,10 @@ impl FunctionImplementation for StacksEncodeTuple {
 
 pub struct DecodeClarityValueOk;
 impl FunctionImplementation for DecodeClarityValueOk {
-    fn check(_ctx: &FunctionSpecification, _args: &Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 

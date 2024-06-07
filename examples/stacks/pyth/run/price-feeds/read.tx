@@ -3,6 +3,10 @@ action "defaults" "stacks::set_default_network" {
     stacks_api_url = env.stacks_api_url
 }
 
+wallet "alice" "stacks::connect" {
+    expected_address = "SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP"
+}
+
 input "price_id" {
     description = "Price ID to retrieve"
     value = "ec7a775f46379b5e943c3526b1c8d54cd49749176b0b98e02dde68d1bd335c17"

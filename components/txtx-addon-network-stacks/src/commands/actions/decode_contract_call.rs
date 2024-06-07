@@ -1,15 +1,20 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
-use std::collections::HashMap;
-use txtx_addon_kit::types::commands::{CommandImplementation, PreCommandSpecification};
-use txtx_addon_kit::types::{
-    commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification},
-    diagnostics::Diagnostic,
-    types::{PrimitiveValue, Type, Value},
+use txtx_addon_kit::types::commands::{
+    return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
+    CommandImplementation, PreCommandSpecification,
 };
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::{
+    commands::{CommandExecutionResult, CommandSpecification},
+    diagnostics::Diagnostic,
+    types::{Type, Value},
+};
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::stacks_helpers::clarity_value_to_value;
+use crate::typing::CLARITY_BUFFER;
 
 lazy_static! {
     pub static ref DECODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -17,6 +22,7 @@ lazy_static! {
           name: "Decode Stacks Contract Call",
           matcher: "decode_call_contract",
           documentation: "Coming soon",
+          requires_signing_capability: false,
           inputs: [
             bytes: {
                   documentation: "The contract call transaction bytes to decode.",
@@ -59,24 +65,39 @@ lazy_static! {
 }
 
 pub struct EncodeStacksContractCall;
+
 impl CommandImplementation for EncodeStacksContractCall {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
+    }
+
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_id
-        let bytes = match args.get("bytes") {
-            Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => &buffer_data.bytes,
-            _ => todo!("bytes missing, return diagnostic"),
-        };
-        match StacksTransaction::consensus_deserialize(&mut &bytes[..]) {
+        let buffer = args.get_expected_buffer("bytes", &CLARITY_BUFFER)?;
+
+        match StacksTransaction::consensus_deserialize(&mut &buffer.bytes[..]) {
             Ok(tx) => {
                 match tx.payload {
                     TransactionPayload::ContractCall(payload) => {
@@ -92,7 +113,8 @@ impl CommandImplementation for EncodeStacksContractCall {
                             .function_args
                             .into_iter()
                             .map(|a| clarity_value_to_value(a))
-                            .collect::<Result<Vec<_>, _>>()?;
+                            .collect::<Result<Vec<_>, _>>()
+                            .unwrap();
                         result
                             .outputs
                             .insert("function_args".to_string(), Value::array(function_args));
@@ -119,15 +141,6 @@ impl CommandImplementation for EncodeStacksContractCall {
             Err(e) => unimplemented!("deserialize failed; return diagnostic: {}", e),
         };
 
-        Ok(result)
-    }
-
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
+        return_synchronous_result(Ok(result))
     }
 }

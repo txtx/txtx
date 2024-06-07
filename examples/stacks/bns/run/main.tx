@@ -1,0 +1,110 @@
+action "defaults" "stacks::set_default_network" {
+  network_id = env.stacks_network_id
+  rpc_api_url = env.stacks_api_url
+}
+
+wallet "alice" "stacks::connect" {
+  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+input "namespace" {
+  description = "TLD / Namespace"
+  default = "btc"
+}
+
+input "name" {
+  description = "Domain name to order"
+  default = "micaiah"
+}
+
+input "salt" {
+  description = "Random salt to use for preventing front-running"
+  default = "0000000000"
+}
+
+input "zonefile" {
+  description = "Zonefile to attach to the new domain"
+  default = "0000000000"
+}
+
+action "get_name_price" "stacks::call_readonly_fn" {
+  description = "Preorder name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "get-name-price"
+  function_args = [
+      encode_buffer(encode_hex(input.namespace)),
+      encode_buffer(encode_hex(input.name))
+  ]
+  sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+action "encode_name_preorder" "stacks::call_contract" {  
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-preorder"
+  function_args = [
+      encode_buffer(
+        ripemd160(
+          [
+            encode_hex("${input.name}.${input.namespace}"),
+            encode_hex(input.salt)
+          ]
+        )
+      ),
+      encode_uint(action.get_name_price.value), 
+  ]
+}
+
+action "sign_name_preorder" "stacks::sign_transaction" {
+  transaction_payload_bytes = action.encode_name_preorder.bytes
+  signer = wallet.alice
+}
+
+action "broadcast_name_preorder" "stacks::broadcast_transaction" {
+  signed_transaction_bytes = action.sign_name_preorder.signed_transaction_bytes
+  confirmations = 1
+}
+
+action "encode_name_regiser" "stacks::call_contract" {  
+  description = "Register name"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "name-register"
+  function_args = [
+      encode_buffer(encode_hex(input.namespace)),
+      encode_buffer(encode_hex(input.name)),
+      encode_buffer(encode_hex(input.salt)),
+      encode_buffer(encode_hex(input.zonefile)),
+  ]
+  depends_on = action.broadcast_name_preorder.tx_id
+}
+
+action "sign_name_regiser" "stacks::sign_transaction" {
+  transaction_payload_bytes = action.encode_name_regiser.bytes
+  signer = wallet.alice
+}
+
+action "broadcast_name_regiser" "stacks::broadcast_transaction" {
+  signed_transaction_bytes = action.sign_name_regiser.signed_transaction_bytes
+  confirmations = 1
+}
+
+output "bns_name" {
+  value = "Registering ${input.name}.${input.namespace}"
+}
+output "name_price" {
+  value = action.get_name_price.value
+}
+output "name_preorder_tx_link" {
+  value = "https://explorer.hiro.so/txid/${action.broadcast_name_preorder.tx_id}?chain=${env.stacks_network_id}"
+}
+output "name_preorder_result" {
+  value = action.broadcast_name_preorder.result
+}
+output "name_register_tx_link" {
+  value = "https://explorer.hiro.so/txid/${action.broadcast_name_regiser.tx_id}?chain=${env.stacks_network_id}"
+}
+output "name_register_result" {
+  value = action.broadcast_name_regiser.result
+}
+
+
+

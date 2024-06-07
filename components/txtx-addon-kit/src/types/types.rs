@@ -1,59 +1,19 @@
 use jaq_interpret::Val;
-use serde::{
-    ser::{SerializeMap, SerializeSeq},
-    Serialize, Serializer,
-};
+use serde::{ser::SerializeMap, Deserialize, Serialize, Serializer};
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::{Debug, Write},
+    fmt::Debug,
 };
 
 use super::diagnostics::Diagnostic;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", content = "value")]
 pub enum Value {
     Primitive(PrimitiveValue),
     Object(HashMap<String, Result<Value, Diagnostic>>),
     Array(Box<Vec<Value>>),
     Addon(Box<AddonData>),
-}
-
-impl Serialize for Value {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Value::Primitive(primitive) => primitive.serialize(serializer),
-            Value::Object(entries) => {
-                let mut map = serializer.serialize_map(Some(entries.len()))?;
-                for (k, v) in entries.iter() {
-                    match v {
-                        Ok(primitive_value) => {
-                            map.serialize_entry(&k, &primitive_value)?;
-                        }
-                        Err(e) => {
-                            map.serialize_entry(&k, &e.message)?;
-                        }
-                    }
-                }
-                map.end()
-            }
-            Value::Array(entries) => {
-                let mut seq = serializer.serialize_seq(Some(entries.len()))?;
-                for entry in entries.iter() {
-                    seq.serialize_element(entry)?;
-                }
-                seq.end()
-            }
-            Value::Addon(addon_data) => {
-                let mut map = serializer.serialize_map(Some(2))?;
-                map.serialize_entry("value", &addon_data.value)?;
-                map.serialize_entry("typing", &addon_data.typing)?;
-                map.end()
-            }
-        }
-    }
 }
 
 impl Value {
@@ -80,6 +40,9 @@ impl Value {
     }
     pub fn array(array: Vec<Value>) -> Value {
         Value::Array(Box::new(array))
+    }
+    pub fn object(object: HashMap<String, Result<Value, Diagnostic>>) -> Value {
+        Value::Object(object)
     }
 
     pub fn expect_string(&self) -> &str {
@@ -121,6 +84,20 @@ impl Value {
     pub fn expect_buffer_data(&self) -> &BufferData {
         match &self {
             Value::Primitive(PrimitiveValue::Buffer(value)) => &value,
+            _ => unreachable!(),
+        }
+    }
+    pub fn expect_buffer_bytes(&self) -> Vec<u8> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(value)) => value.bytes.clone(),
+            Value::Primitive(PrimitiveValue::String(bytes)) => {
+                let bytes = if bytes.starts_with("0x") {
+                    crate::hex::decode(&bytes[2..]).unwrap()
+                } else {
+                    crate::hex::decode(&bytes).unwrap()
+                };
+                bytes
+            }
             _ => unreachable!(),
         }
     }
@@ -193,7 +170,12 @@ impl Value {
             _ => None,
         }
     }
-
+    pub fn expect_primitive(&self) -> &PrimitiveValue {
+        match &self {
+            Value::Primitive(primitive) => primitive,
+            _ => unreachable!(),
+        }
+    }
     pub fn is_type_eq(&self, rhs: &Value) -> bool {
         match (self, rhs) {
             (Value::Primitive(PrimitiveValue::Null), Value::Primitive(PrimitiveValue::Null)) => {
@@ -310,12 +292,25 @@ impl Value {
             }
         }
     }
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::Primitive(t) => Type::Primitive(t.get_type()),
+            Value::Object(_) => todo!(),
+            Value::Array(t) => {
+                Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
+            }
+            Value::Addon(t) => Type::Addon(t.typing.clone()),
+        }
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", content = "value")]
 pub enum PrimitiveValue {
     String(String),
+    #[serde(rename = "UInt")]
     UnsignedInteger(u64),
+    #[serde(rename = "Int")]
     SignedInteger(i64),
     Float(f64),
     Bool(bool),
@@ -323,32 +318,32 @@ pub enum PrimitiveValue {
     Buffer(BufferData),
 }
 
-impl Serialize for PrimitiveValue {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            PrimitiveValue::String(val) => serializer.serialize_str(val),
-            PrimitiveValue::UnsignedInteger(val) => serializer.serialize_u64(*val),
-            PrimitiveValue::SignedInteger(val) => serializer.serialize_i64(*val),
-            PrimitiveValue::Float(val) => serializer.serialize_f64(*val),
-            PrimitiveValue::Bool(val) => serializer.serialize_bool(*val),
-            PrimitiveValue::Null => serializer.serialize_none(),
-            PrimitiveValue::Buffer(BufferData { bytes, typing: _ }) => {
-                let mut s = String::from("0x");
-                s.write_str(
-                    &bytes
-                        .iter()
-                        .map(|b| format!("{:02X}", b))
-                        .collect::<String>(),
-                )
-                .unwrap();
-                serializer.serialize_str(&s)
-            }
-        }
-    }
-}
+// impl Serialize for PrimitiveValue {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         match self {
+//             PrimitiveValue::String(val) => serializer.serialize_str(val),
+//             PrimitiveValue::UnsignedInteger(val) => serializer.serialize_u64(*val),
+//             PrimitiveValue::SignedInteger(val) => serializer.serialize_i64(*val),
+//             PrimitiveValue::Float(val) => serializer.serialize_f64(*val),
+//             PrimitiveValue::Bool(val) => serializer.serialize_bool(*val),
+//             PrimitiveValue::Null => serializer.serialize_none(),
+//             PrimitiveValue::Buffer(BufferData { bytes, typing: _ }) => {
+//                 let mut s = String::from("0x");
+//                 s.write_str(
+//                     &bytes
+//                         .iter()
+//                         .map(|b| format!("{:02X}", b))
+//                         .collect::<String>(),
+//                 )
+//                 .unwrap();
+//                 serializer.serialize_str(&s)
+//             }
+//         }
+//     }
+// }
 
 impl PrimitiveValue {
     pub fn from_string(
@@ -390,15 +385,27 @@ impl PrimitiveValue {
             },
         }
     }
+
+    pub fn get_type(&self) -> PrimitiveType {
+        match self {
+            PrimitiveValue::String(_) => PrimitiveType::String,
+            PrimitiveValue::UnsignedInteger(_) => PrimitiveType::UnsignedInteger,
+            PrimitiveValue::SignedInteger(_) => PrimitiveType::SignedInteger,
+            PrimitiveValue::Float(_) => PrimitiveType::Float,
+            PrimitiveValue::Bool(_) => PrimitiveType::Bool,
+            PrimitiveValue::Null => PrimitiveType::Null,
+            PrimitiveValue::Buffer(_) => PrimitiveType::Buffer,
+        }
+    }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct BufferData {
     pub bytes: Vec<u8>,
     pub typing: TypeSpecification,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AddonData {
     pub value: Value,
     pub typing: TypeSpecification,
@@ -494,10 +501,12 @@ impl Serialize for Type {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum PrimitiveType {
     String,
+    #[serde(rename = "UInt")]
     UnsignedInteger,
+    #[serde(rename = "Int")]
     SignedInteger,
     Float,
     Bool,
@@ -514,11 +523,20 @@ pub struct ObjectProperty {
     pub interpolable: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize)]
 pub struct TypeSpecification {
     pub id: String,
     pub documentation: String,
+    #[serde(skip, default = "default_checker")]
     pub checker: TypeChecker,
+}
+
+// todo: think through this for serde
+fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+    todo!();
+}
+fn default_checker() -> TypeChecker {
+    check
 }
 
 impl Serialize for TypeSpecification {

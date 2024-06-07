@@ -1,11 +1,17 @@
-use std::collections::HashMap;
-use txtx_addon_kit::types::commands::{CommandImplementation, PreCommandSpecification};
+use txtx_addon_kit::types::commands::{
+    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
+    CommandImplementation, PreCommandSpecification,
+};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
-    commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandSpecification},
+    commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
+
+use crate::constants::{NETWORK_ID, RPC_API_URL};
 
 lazy_static! {
     pub static ref SET_DEFAULT_NETWORK: PreCommandSpecification = {
@@ -21,6 +27,7 @@ lazy_static! {
                   For example, the `network_id` input is used in many Stacks txtx commands. 
                   By setting this input once with `set_default_network`, the `network_id` can be omitted from subsequent Stacks txtx commands.
                 "#},
+                requires_signing_capability: false,
                 inputs: [
                     network_id: {
                         documentation: indoc!{r#"A default Stacks network id to use. Valid values are `"mainnet"` and `"testnet"`."#},
@@ -28,7 +35,7 @@ lazy_static! {
                         optional: false,
                         interpolable: true
                     },
-                    stacks_api_url: {
+                    rpc_api_url: {
                         documentation: "A default Stacks API RPC URL to use.",
                         typing: Type::string(),
                         optional: false,
@@ -40,7 +47,7 @@ lazy_static! {
                 action "my_ref" "stacks::set_default_network" {
                     description = "Sets the default network id and Stacks API url."
                     network_id = "mainnet"
-                    stacks_api_url = "https://api.mainnet.hiro.so"
+                    rpc_api_url = "https://api.mainnet.hiro.so"
                 }
                 prompt "signed_bytes" "stacks::sign_transaction" {
                   transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
@@ -61,39 +68,45 @@ lazy_static! {
 }
 
 pub struct SetStacksGlobals;
+
 impl CommandImplementation for SetStacksGlobals {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        args: &HashMap<String, Value>,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        let mut result = CommandExecutionResult::new();
-
-        let stacks_network = args.get("network_id").unwrap().expect_string();
-        let stacks_api_url = args.get("stacks_api_url").unwrap().expect_string();
-
-        result.outputs.insert(
-            "network_id".to_string(),
-            Value::string(stacks_network.into()),
-        );
-
-        result.outputs.insert(
-            "stacks_api_url".to_string(),
-            Value::string(stacks_api_url.into()),
-        );
-        Ok(result)
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none())
     }
 
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        let mut result = CommandExecutionResult::new();
+
+        let stacks_network = args.get_expected_string(NETWORK_ID)?;
+        let rpc_api_url = args.get_expected_string(RPC_API_URL)?;
+
+        result
+            .outputs
+            .insert(NETWORK_ID.to_string(), Value::string(stacks_network.into()));
+
+        result
+            .outputs
+            .insert(RPC_API_URL.to_string(), Value::string(rpc_api_url.into()));
+        return_synchronous_ok(result)
     }
 }

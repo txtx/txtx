@@ -1,18 +1,14 @@
-use rust_fsm::{state_machine, StateMachine};
+use rust_fsm::state_machine;
 use serde::{
-    ser::{Error, SerializeMap, SerializeStruct},
+    ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
 };
 use std::{
     collections::HashMap,
-    future::Future,
+    future::{self, Future},
     hash::Hash,
     pin::Pin,
-    sync::{mpsc::Sender, Arc, Mutex},
 };
-#[cfg(not(feature = "wasm"))]
-use tokio::runtime::Builder as RuntimeBuilder;
-use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -25,9 +21,21 @@ use crate::{
 
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
+    frontend::{
+        ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
+        ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
+        ProvidedInputResponse, ReviewedInputResponse,
+    },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    ConstructUuid, PackageUuid,
+    wallets::{WalletInstance, WalletSignFutureResult, WalletsState},
+    ConstructUuid, PackageUuid, ValueStore,
 };
+
+#[derive(Clone, Debug)]
+pub struct CommandExecutionContext {
+    pub review_input_default_values: bool,
+    pub review_input_values: bool,
+}
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -56,7 +64,7 @@ impl CommandExecutionResult {
 
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
-    pub inputs: HashMap<CommandInput, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
+    pub inputs: HashMap<String, Result<Value, Diagnostic>>, // todo(lgalabru): replace Value with EvaluatedExpression
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -70,7 +78,7 @@ impl Serialize for CommandInputsEvaluationResult {
                 Ok(v) => Some(v),
                 Err(_) => None,
             };
-            map.serialize_entry(&k.name, &value)?;
+            map.serialize_entry(&k, &value)?;
         }
         map.end()
     }
@@ -83,8 +91,8 @@ impl CommandInputsEvaluationResult {
         }
     }
 
-    pub fn insert(&mut self, command_input: CommandInput, value: Result<Value, Diagnostic>) {
-        self.inputs.insert(command_input, value);
+    pub fn insert(&mut self, key: &str, value: Result<Value, Diagnostic>) {
+        self.inputs.insert(key.to_string(), value);
     }
 }
 
@@ -95,6 +103,8 @@ pub struct CommandInput {
     pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
+    pub check_required: bool,
+    pub check_performed: bool,
 }
 
 impl CommandInput {
@@ -161,14 +171,12 @@ impl Serialize for CommandOutput {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CommandId {
     Action(String),
-    Prompt(String),
 }
 
 impl CommandId {
     pub fn to_string(&self) -> String {
         match &self {
             &CommandId::Action(id) => format!("action::{id}"),
-            &CommandId::Prompt(id) => format!("prompt::{id}"),
         }
     }
 }
@@ -202,13 +210,16 @@ pub struct CommandSpecification {
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
     pub update_addon_defaults: bool,
+    pub requires_signing_capability: bool,
     pub example: String,
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub runner: CommandRunner,
-    pub checker: CommandChecker,
-    pub user_input_parser: CommandParser,
+    pub check_instantiability: InstantiabilityChecker,
+    pub check_executability: CommandCheckExecutabilityClosure,
+    pub run_execution: CommandExecutionClosure,
+    pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub run_signed_execution: CommandSignedExecutionClosure,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -231,6 +242,8 @@ impl CommandSpecification {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -238,6 +251,8 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -245,13 +260,26 @@ impl CommandSpecification {
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: false,
+                check_performed: false,
+                check_required: false,
             },
             CommandInput {
                 name: "redacted".into(),
-                documentation: "...".into(),
+                documentation: "Never include value in logs".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
                 interpolable: false,
+                check_performed: false,
+                check_required: false,
+            },
+            CommandInput {
+                name: "group".into(),
+                documentation: "Name used for grouping commands together".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: true,
+                check_performed: false,
+                check_required: false,
             },
         ]
     }
@@ -284,64 +312,70 @@ impl Serialize for CompositeCommandSpecification {
     }
 }
 
-type CommandChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
-// type CommandRunner = Box<
-//     fn(
-//         &CommandSpecification,
-//         &HashMap<String, Value>,
-//     ) -> Result<CommandExecutionResult, Diagnostic>,
-// >;
-type CommandParser = fn(&CommandSpecification, &mut CommandInputsEvaluationResult, String, String);
+pub type InstantiabilityChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type CommandExecutionFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>,
+    Diagnostic,
+>;
+
+pub type CommandExecutionClosure = Box<
+    fn(
+        &ConstructUuid,
+        &CommandSpecification,
+        &ValueStore,
+        &AddonDefaults,
+        &channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult,
+>;
+
+pub type CommandSignedExecutionClosure = Box<
+    fn(
+        &ConstructUuid,
+        &CommandSpecification,
+        &ValueStore,
+        &AddonDefaults,
+        &channel::Sender<BlockEvent>,
+        &HashMap<ConstructUuid, WalletInstance>,
+        WalletsState,
+    ) -> WalletSignFutureResult,
+>;
+
 type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum CommandRunner {
-    Async(CommandRunnerAsync),
-    Sync(CommandRunnerSync),
-}
-
-type CommandRunnerSync = fn(
+pub type CommandCheckExecutabilityClosure = fn(
+    &ConstructUuid,
+    &str,
     &CommandSpecification,
-    &HashMap<String, Value>,
+    &ValueStore,
     &AddonDefaults,
-) -> Result<CommandExecutionResult, Diagnostic>;
+    &CommandExecutionContext,
+) -> Result<Actions, Diagnostic>;
 
-type CommandRunnerAsync = Box<
+pub type CommandCheckSignedExecutabilityClosure =
     fn(
+        &ConstructUuid,
+        &str,
         &CommandSpecification,
-        &HashMap<String, Value>,
+        &ValueStore,
         &AddonDefaults,
-    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>,
->;
+        &CommandExecutionContext,
+        &HashMap<ConstructUuid, WalletInstance>,
+        WalletsState,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
 
-pub trait CommandImplementationAsync {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
-    fn run(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-    ) -> Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>>>>;
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    );
+pub fn return_synchronous_result(
+    res: Result<CommandExecutionResult, Diagnostic>,
+) -> CommandExecutionFutureResult {
+    Ok(Box::pin(future::ready(res)))
 }
-pub trait CommandImplementation {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic>;
-    fn run(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
-        _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic>;
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    );
+
+pub fn return_synchronous_ok(res: CommandExecutionResult) -> CommandExecutionFutureResult {
+    return_synchronous_result(Ok(res))
+}
+
+pub fn return_synchronous_err(diag: Diagnostic) -> CommandExecutionFutureResult {
+    return_synchronous_result(Err(diag))
 }
 
 pub trait CompositeCommandImplementation {
@@ -396,10 +430,10 @@ pub enum CommandInstanceType {
     Prompt,
     Module,
 }
+
 #[derive(Debug, Clone)]
 pub struct CommandInstance {
     pub specification: CommandSpecification,
-    pub state: Arc<Mutex<StateMachine<CommandInstanceStateMachine>>>,
     pub name: String,
     pub block: Block,
     pub package_uuid: PackageUuid,
@@ -419,9 +453,6 @@ impl Serialize for CommandInstance {
         let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
-        let state_machine = self.state.lock().map_err(S::Error::custom)?;
-        let state = state_machine.state();
-        ser.serialize_field("state", &state)?;
         ser.serialize_field("packageUuid", &self.package_uuid)?;
         ser.serialize_field("namespace", &self.namespace)?;
         ser.serialize_field("typing", &self.typing)?;
@@ -527,6 +558,13 @@ impl CommandInstance {
         }
     }
 
+    pub fn get_group(&self) -> String {
+        let Some(group) = self.block.body.get_attribute("group") else {
+            return format!("{} Review", self.specification.name.to_string());
+        };
+        group.value.to_string()
+    }
+
     pub fn get_expression_from_object_property(
         &self,
         input: &CommandInput,
@@ -558,18 +596,127 @@ impl CommandInstance {
         }
     }
 
-    pub fn perform_execution(
-        &self,
-        evaluated_inputs: &CommandInputsEvaluationResult,
-        runbook_uuid: Uuid,
-        construct_uuid: ConstructUuid,
-        eval_tx: Sender<EvalEvent>,
+    pub fn check_executability(
+        &mut self,
+        construct_uuid: &ConstructUuid,
+        input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-    ) -> Result<CommandExecutionStatus, Diagnostic> {
-        // todo: I don't think this one needs to be a result
-        let mut values = HashMap::new();
+        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
+        action_item_response: &Option<&Vec<ActionItemResponse>>,
+        execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        let mut values = ValueStore::new(
+            &format!("{}_inputs", self.specification.matcher),
+            &construct_uuid.value(),
+        );
+
+        // TODO
+        let mut consolidated_actions = Actions::none();
+        match action_item_response {
+            Some(responses) => responses.into_iter().for_each(
+                |ActionItemResponse {
+                     action_item_uuid,
+                     payload,
+                 }| match payload {
+                    ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                        input_name,
+                        value_checked,
+                    }) => {
+                        for input in self.specification.inputs.iter_mut() {
+                            if &input.name == input_name {
+                                input.check_performed = value_checked.clone();
+                                break;
+                            }
+                        }
+                    }
+                    ActionItemResponseType::ProvideInput(ProvidedInputResponse {
+                        input_name,
+                        updated_value,
+                    }) => {
+                        input_evaluation_results
+                            .inputs
+                            .insert(input_name.clone(), Ok(updated_value.clone()));
+
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_type(ActionItemRequestType::ProvideInput(
+                                    ProvideInputRequest {
+                                        default_value: Some(updated_value.clone()),
+                                        input_name: input_name.clone(),
+                                        typing: updated_value.get_type(),
+                                    },
+                                ))
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+
+                        for input in self.specification.inputs.iter_mut() {
+                            if &input.name == input_name {
+                                input.check_performed = true;
+                                break;
+                            }
+                        }
+                    }
+                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                        // TODO
+                        values.insert(
+                            "signed_transaction_bytes",
+                            Value::string(bytes.signed_transaction_bytes.clone()),
+                        );
+                    }
+                    _ => {}
+                },
+            ),
+            None => {}
+        }
+
         for input in self.specification.inputs.iter() {
-            let value = match evaluated_inputs.inputs.get(input) {
+            let value = match input_evaluation_results.inputs.get(&input.name) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => Err(Diagnostic {
+                    span: None,
+                    location: None,
+                    message: format!("Cannot execute command due to erroring inputs"),
+                    level: DiagnosticLevel::Error,
+                    documentation: None,
+                    example: None,
+                    parent_diagnostic: Some(Box::new(e.clone())),
+                }),
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!("{} missing?", input.name), // todo: return diagnostic
+                },
+            }
+            .unwrap();
+            values.insert(&input.name, value);
+        }
+
+        let spec = &self.specification;
+        if self.specification.matcher != "output" {
+            let mut actions = (spec.check_executability)(
+                &construct_uuid,
+                &self.name,
+                &self.specification,
+                &values,
+                &addon_defaults,
+                &execution_context,
+            )?;
+            consolidated_actions.append(&mut actions);
+        }
+        Ok(consolidated_actions)
+    }
+
+    pub async fn perform_execution(
+        &self,
+        construct_uuid: &ConstructUuid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        addon_defaults: AddonDefaults,
+        action_item_requests: &mut Vec<&mut ActionItemRequest>,
+        _action_item_responses: &Option<&Vec<ActionItemResponse>>,
+        progress_tx: &channel::Sender<BlockEvent>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        for input in self.specification.inputs.iter() {
+            let value = match evaluated_inputs.inputs.get(&input.name) {
                 Some(Ok(value)) => Ok(value.clone()),
                 Some(Err(e)) => Err(Diagnostic {
                     span: None,
@@ -585,37 +732,219 @@ impl CommandInstance {
                     false => unreachable!(), // todo(lgalabru): return diagnostic
                 },
             }?;
-            values.insert(input.name.clone(), value);
+            values.insert(&input.name, value);
         }
-        match &self.specification.runner {
-            CommandRunner::Async(async_runner) => {
-                #[cfg(not(feature = "wasm"))]
-                {
-                    let spec = self.specification.clone();
-                    let async_runner_moved = async_runner.clone();
-                    let _ = std::thread::spawn(move || {
-                        let runtime = RuntimeBuilder::new_current_thread()
-                            .enable_time()
-                            .enable_io()
-                            .build()
-                            .unwrap();
-                        let result =
-                            runtime.block_on((async_runner_moved)(&spec, &values, &addon_defaults));
-                        eval_tx.send(EvalEvent::AsyncRequestComplete {
-                            runbook_uuid,
-                            result: Ok(CommandExecutionStatus::Complete(result)),
-                            construct_uuid,
-                        })
-                    });
-                    Ok(CommandExecutionStatus::NeedsAsyncRequest)
+
+        let spec = &self.specification;
+        let res = (spec.run_execution)(
+            &construct_uuid,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            progress_tx,
+        )?
+        .await;
+
+        for request in action_item_requests.iter_mut() {
+            let (status, success) = match &res {
+                Ok(_) => (ActionItemStatus::Success(None), true),
+                Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
+            };
+            match request.action_type {
+                ActionItemRequestType::ReviewInput(_) => {
+                    request.action_status = status.clone();
                 }
-                #[cfg(feature = "wasm")]
-                panic!("async commands are not enabled for wasm")
+                ActionItemRequestType::ProvideInput(_) => {
+                    request.action_status = status.clone();
+                }
+                ActionItemRequestType::ProvidePublicKey(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                _ => unreachable!(),
             }
-            CommandRunner::Sync(sync_runner) => Ok(CommandExecutionStatus::Complete(
-                (sync_runner)(&self.specification, &values, &addon_defaults),
-            )),
         }
+        res
+    }
+
+    pub fn check_signed_executability(
+        &mut self,
+        construct_uuid: &ConstructUuid,
+        input_evaluation_results: &mut CommandInputsEvaluationResult,
+        wallets: WalletsState,
+        addon_defaults: AddonDefaults,
+        wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
+        action_item_response: &Option<&Vec<ActionItemResponse>>,
+        execution_context: &CommandExecutionContext,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+        let mut values = ValueStore::new(
+            &format!("{}_inputs", self.specification.matcher),
+            &construct_uuid.value(),
+        );
+
+        // TODO
+        let mut consolidated_actions = Actions::none();
+        match action_item_response {
+            Some(responses) => responses.into_iter().for_each(
+                |ActionItemResponse {
+                     action_item_uuid,
+                     payload,
+                 }| match payload {
+                    ActionItemResponseType::ReviewInput(update) => {
+                        for input in self.specification.inputs.iter_mut() {
+                            if input.name == update.input_name {
+                                input.check_performed = true;
+                                break;
+                            }
+                        }
+                    }
+                    ActionItemResponseType::ProvideInput(update) => {
+                        input_evaluation_results
+                            .inputs
+                            .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_type(ActionItemRequestType::ProvideInput(
+                                    ProvideInputRequest {
+                                        default_value: Some(update.updated_value.clone()),
+                                        input_name: update.input_name.clone(),
+                                        typing: update.updated_value.get_type(),
+                                    },
+                                ))
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                        // TODO
+                        values.insert(
+                            "signed_transaction_bytes",
+                            Value::string(bytes.signed_transaction_bytes.clone()),
+                        );
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    _ => {}
+                },
+            ),
+            None => {}
+        }
+
+        for input in self.specification.inputs.iter() {
+            let value = match input_evaluation_results.inputs.get(&input.name) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => Err(Diagnostic {
+                    span: None,
+                    location: None,
+                    message: format!("Cannot execute command due to erroring inputs"),
+                    level: DiagnosticLevel::Error,
+                    documentation: None,
+                    example: None,
+                    parent_diagnostic: Some(Box::new(e.clone())),
+                }),
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!("{} missing?", input.name), // todo: return diagnostic
+                },
+            }
+            .unwrap();
+            values.insert(&input.name, value);
+        }
+
+        let spec = &self.specification;
+        let (wallet_state, mut actions) = (spec.check_signed_executability)(
+            &construct_uuid,
+            &self.name,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            &execution_context,
+            wallet_instances,
+            wallets,
+        )?;
+        consolidated_actions.append(&mut actions);
+        Ok((wallet_state, consolidated_actions))
+    }
+
+    pub async fn perform_signed_execution(
+        &self,
+        construct_uuid: &ConstructUuid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        wallets: WalletsState,
+        addon_defaults: AddonDefaults,
+        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        action_item_requests: &mut Vec<&mut ActionItemRequest>,
+        _action_item_responses: &Option<&Vec<ActionItemResponse>>,
+        progress_tx: &channel::Sender<BlockEvent>,
+    ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
+        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        for input in self.specification.inputs.iter() {
+            let value = match evaluated_inputs.inputs.get(&input.name) {
+                Some(Ok(value)) => Ok(value.clone()),
+                Some(Err(e)) => {
+                    return Err((
+                        wallets,
+                        Diagnostic {
+                            span: None,
+                            location: None,
+                            message: format!("Cannot execute command due to erroring inputs"),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: Some(Box::new(e.clone())),
+                        },
+                    ))
+                }
+                None => match input.optional {
+                    true => continue,
+                    false => unreachable!(), // todo(lgalabru): return diagnostic
+                },
+            }?;
+            values.insert(&input.name, value);
+        }
+
+        let spec = &self.specification;
+        let res = (spec.run_signed_execution)(
+            &construct_uuid,
+            &self.specification,
+            &values,
+            &addon_defaults,
+            progress_tx,
+            wallet_instances,
+            wallets,
+        )?
+        .await;
+
+        for request in action_item_requests.iter_mut() {
+            let (status, success) = match &res {
+                Ok(_) => (ActionItemStatus::Success(None), true),
+                Err((_, diag)) => (ActionItemStatus::Error(diag.clone()), false),
+            };
+            match request.action_type {
+                ActionItemRequestType::ReviewInput(_) => {
+                    request.action_status = status.clone();
+                }
+                ActionItemRequestType::ProvidePublicKey(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        res
     }
 
     pub fn collect_dependencies(&self) -> Vec<Expression> {
@@ -646,21 +975,56 @@ impl CommandInstance {
         }
         dependencies
     }
-
-    pub fn update_input_evaluation_results_from_user_input(
-        self,
-        inputs: &mut CommandInputsEvaluationResult,
-        input_name: String,
-        value: String,
-    ) {
-        (self.specification.user_input_parser)(&self.specification, inputs, input_name, value);
-    }
 }
 
-pub enum EvalEvent {
-    AsyncRequestComplete {
-        runbook_uuid: Uuid,
-        result: Result<CommandExecutionStatus, Diagnostic>,
-        construct_uuid: ConstructUuid,
-    },
+pub trait CommandImplementation {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic>;
+
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        unreachable!()
+    }
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        unreachable!()
+    }
+
+    fn check_signed_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallets_state: WalletsState,
+    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+        unreachable!()
+    }
+
+    fn run_signed_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &channel::Sender<BlockEvent>,
+        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        _wallets_state: WalletsState,
+    ) -> WalletSignFutureResult {
+        unreachable!()
+    }
 }

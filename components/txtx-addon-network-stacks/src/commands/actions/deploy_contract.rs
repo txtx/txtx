@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionResult, CommandImplementation, CommandInputsEvaluationResult,
+            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        types::{Type, Value},
+        frontend::{Actions, BlockEvent},
+        types::Type,
+        ConstructUuid, ValueStore,
     },
     AddonDefaults,
 };
@@ -18,6 +18,7 @@ lazy_static! {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
           documentation: "Coming soon",
+          requires_signing_capability: false,
           inputs: [
               clarity_value: {
                   documentation: "",
@@ -39,25 +40,33 @@ lazy_static! {
     };
 }
 pub struct StacksDeployContract;
+
 impl CommandImplementation for StacksDeployContract {
-    fn check(_ctx: &CommandSpecification, _args: Vec<Type>) -> Result<Type, Diagnostic> {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(
-        _ctx: &CommandSpecification,
-        _args: &HashMap<String, Value>,
+    fn check_executability(
+        _uuid: &ConstructUuid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
         _defaults: &AddonDefaults,
-    ) -> Result<CommandExecutionResult, Diagnostic> {
-        unimplemented!()
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        Ok(Actions::none()) // todo
     }
 
-    fn update_input_evaluation_results_from_user_input(
-        _ctx: &CommandSpecification,
-        _current_input_evaluation_result: &mut CommandInputsEvaluationResult,
-        _input_name: String,
-        _value: String,
-    ) {
-        todo!()
+    fn run_execution(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        unimplemented!()
     }
 }

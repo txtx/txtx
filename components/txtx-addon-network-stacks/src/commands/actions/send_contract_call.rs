@@ -13,11 +13,11 @@ lazy_static! {
         SendContractCall => {
             name: "Send Contract Call Transaction",
             matcher: "send_contract_call",
-            documentation: "The `send_contract_call` prompt encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
+            documentation: "The `send_contract_call` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
             parts: [ENCODE_STACKS_CONTRACT_CALL.clone(), SIGN_STACKS_TRANSACTION.clone(), BROADCAST_STACKS_TRANSACTION.clone()],
             example: txtx_addon_kit::indoc! {r#"
               action "my_ref" "stacks::send_contract_call" {
-                  description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
+                  description = "Encodes the contract call, sign, and broadcasts the set-token function."
                   contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                   function_name = "verify-and-update-price-feeds"
                   function_args = [
@@ -67,16 +67,21 @@ impl CompositeCommandImplementation for SendContractCall {
         );
 
         let block_1 = format!(
-            r#"prompt "{}" "stacks::{}" {{
+            r#"action "{}" "stacks::{}" {{
                   transaction_payload_bytes = action.{}.bytes
                   network_id = action.{}.network_id
+                  signer = action.{}.signer
             }}"#,
-            signed_call_name, sign_tx.matcher, encoded_call_name, encoded_call_name
+            signed_call_name,
+            sign_tx.matcher,
+            encoded_call_name,
+            encoded_call_name,
+            encoded_call_name
         );
 
         let block_2 = format!(
             r#"action "{}" "stacks::{}" {{
-                  signed_transaction_bytes = prompt.{}.signed_transaction_bytes
+                  signed_transaction_bytes = action.{}.signed_transaction_bytes
                   network_id = action.{}.network_id
             }}"#,
             command_instance_name, broadcast_tx.matcher, signed_call_name, signed_call_name
