@@ -1,5 +1,6 @@
 // Wallet attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
+pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";
 pub const CHECKED_ADDRESS: &str = "checked_address";
 pub const EXPECTED_ADDRESS: &str = "expected_address";
 pub const CHECKED_COST_PROVISION: &str = "checked_costs";

@@ -37,15 +37,15 @@ pub async fn get_addition_actions_for_address(
     instance_name: &str,
     network_id: &str,
     rpc_api_url: &str,
-    is_public_key_required: bool,
-    is_balance_check_required: bool,
-    is_address_check_required: bool,
+    do_request_public_key: bool,
+    do_request_balance: bool,
+    do_request_address_check: bool,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
     let stacks_rpc = StacksRpc::new(&rpc_api_url);
 
-    if is_public_key_required {
+    if do_request_public_key {
         action_items.push(ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(wallet_uuid.value()),
@@ -64,7 +64,7 @@ pub async fn get_addition_actions_for_address(
     }
 
     if let Some(ref expected_address) = expected_address {
-        if is_address_check_required {
+        if do_request_address_check {
             action_items.push(ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
@@ -79,7 +79,7 @@ pub async fn get_addition_actions_for_address(
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
-        if is_balance_check_required {
+        if do_request_balance {
             let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
                 Ok(response) => (
                     ActionItemStatus::Success(None),

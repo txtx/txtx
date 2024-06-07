@@ -27,7 +27,7 @@ use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
     CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
-    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::typing::CLARITY_BUFFER;
 
@@ -100,15 +100,22 @@ impl WalletImplementation for StacksConnect {
         is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
+        let requested_startup_data = wallet_state
+            .get_expected_bool(REQUESTED_STARTUP_DATA)
+            .ok()
+            .unwrap_or(false);
         let _checked_address = wallet_state.get_expected_string(CHECKED_ADDRESS);
         let _checked_cost_provision = wallet_state.get_expected_uint(CHECKED_COST_PROVISION);
         let _fetched_nonce = wallet_state.get_expected_uint(FETCHED_NONCE);
         let _fetched_balance = wallet_state.get_expected_uint(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
-        let _is_address_check_required = expected_address.is_some();
-        let is_public_key_required = is_public_key_required || expected_address.is_none();
+        let do_request_address_check = expected_address.is_some() && !requested_startup_data;
+        let do_request_public_key = (is_public_key_required || expected_address.is_none())
+        // only request public key if we haven't already created that action
+            && !requested_startup_data;
         let _is_nonce_required = true;
+        let do_request_balance = is_balance_check_required && !requested_startup_data;
 
         let instance_name = instance_name.to_string();
         let wallet_uuid = uuid.clone();
@@ -183,11 +190,12 @@ impl WalletImplementation for StacksConnect {
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
-                is_public_key_required,
-                is_balance_check_required,
-                true,
+                do_request_public_key,
+                do_request_balance,
+                do_request_address_check,
             )
             .await;
+            wallet_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
             wallets.push_wallet_state(wallet_state);
 
             let action_items = match res {
