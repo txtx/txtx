@@ -528,7 +528,7 @@ pub async fn build_genesis_panel(
             index: 0,
             title: "Select Environment".into(),
             description: Some("Selecting a new environment will reset the Runbook with the newly selected environment variables.".into()),
-            action_status: ActionItemStatus::Todo,
+            action_status: ActionItemStatus::Success(None),
             action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest { options: input_options, selected: selected_option}),
             internal_key: "env".into(),
         };
