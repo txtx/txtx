@@ -4376,7 +4376,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "test-case",
- "tokio",
  "url",
  "uuid",
 ]
