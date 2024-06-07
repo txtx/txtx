@@ -8,7 +8,7 @@ extern crate lazy_static;
 mod macros;
 
 pub use hex;
-pub use hiro_system_kit;
+// pub use hiro_system_kit;
 pub use indoc::indoc;
 pub use rust_fsm as fsm;
 pub use uuid;
