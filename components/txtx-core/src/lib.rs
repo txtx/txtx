@@ -275,7 +275,8 @@ pub async fn start_runbook_runloop(
                     }
                     consolidated_actions.append(actions);
                 }
-                let block_events = consolidated_actions.compile_actions_to_block_events();
+                let block_events =
+                    consolidated_actions.compile_actions_to_block_events(&action_item_requests);
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
                 }
@@ -561,7 +562,7 @@ pub async fn build_genesis_panel(
 
     register_action_items_from_actions(&actions, action_item_requests);
 
-    let panels = actions.compile_actions_to_block_events();
+    let panels = actions.compile_actions_to_block_events(&action_item_requests);
     for panel in panels.iter() {
         match panel {
             BlockEvent::Modal(_) => {}
