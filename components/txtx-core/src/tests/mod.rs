@@ -38,7 +38,6 @@ fn test_ab_c_runbook_no_env() {
     let environments = BTreeMap::new();
     let mut addons_ctx = AddonsContext::new();
     addons_ctx.register(Box::new(StdAddon::new()));
-    // addons_ctx.register(Box::new(StacksNetworkAddon::new()));
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
@@ -71,104 +70,154 @@ fn test_ab_c_runbook_no_env() {
         }
     });
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
-        assert!(false, "unable to receive genesis block");
-        panic!()
-    };
+    // runbook checklist assertions
+    {
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
+            assert!(false, "unable to receive genesis block");
+            panic!()
+        };
 
-    let action_panel_data = event.expect_block().panel.expect_action_panel();
-    println!("{:?}", action_panel_data);
-    assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
-    assert_eq!(action_panel_data.groups.len(), 1);
-    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
-    );
+        let action_panel_data = event.expect_block().panel.expect_action_panel();
+        assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
+        assert_eq!(action_panel_data.groups.len(), 1);
+        assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
+        assert_eq!(
+            action_panel_data.groups[0].sub_groups[0].action_items.len(),
+            1
+        );
 
-    let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
-    // assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
-    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+        let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
+        // assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
+        assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
 
-    // Complete start_runbook action
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
-        payload: ActionItemResponseType::ValidateBlock,
-    });
+        // Complete start_runbook action
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_uuid: start_runbook.uuid.clone(),
+            payload: ActionItemResponseType::ValidateBlock,
+        });
+    }
+    // Review inputs assertions
+    {
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let inputs_panel_data = event.expect_block().panel.expect_action_panel();
+
+        // assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUT REVIEW");
+        assert_eq!(inputs_panel_data.groups.len(), 1);
+        assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 3);
+        assert_eq!(
+            inputs_panel_data.groups[0].sub_groups[0].action_items.len(),
+            1
+        );
+        assert_eq!(
+            inputs_panel_data.groups[0].sub_groups[1].action_items.len(),
+            1
+        );
+
+        let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
+        let input_a_action = &inputs_panel_data.groups[0].sub_groups[1].action_items[0];
+
+        assert_eq!(&input_a_action.internal_key, "check_input");
+        assert_eq!(&input_b_action.internal_key, "provide_input");
+
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_uuid: input_a_action.uuid.clone(),
+            payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                value_checked: true,
+                input_name: "value".into(),
+            }),
+        });
+
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let BlockEvent::UpdateActionItems(updates) = event else {
+            panic!("Sending ReviewedInputResponse did not trigger update")
+        };
+        assert_eq!(updates.len(), 1);
+        assert_eq!(&updates[0].uuid, &input_a_action.uuid);
+
+        // Should be a no-op
+        let Err(_) = block_rx.recv_timeout(Duration::from_secs(2)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_uuid: input_b_action.uuid.clone(),
+            payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
+                updated_value: Value::uint(5),
+                input_name: "default".into(),
+            }),
+        });
+
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let BlockEvent::UpdateActionItems(updates) = event else {
+            panic!("Sending ProvidedInputResponse did not trigger update")
+        };
+        println!("updates after providing input {:?}", updates);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(&updates[0].uuid, &input_b_action.uuid);
+
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_uuid: input_b_action.uuid.clone(),
+            payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                value_checked: true,
+                input_name: "default".into(),
+            }),
+        });
+
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let BlockEvent::UpdateActionItems(updates) = event else {
+            panic!("Sending ReviewedInputResponse did not trigger update")
+        };
+        assert_eq!(updates.len(), 1);
+        assert_eq!(&updates[0].uuid, &input_b_action.uuid);
+
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_uuid: Uuid::new_v4(),
+            payload: ActionItemResponseType::ValidateBlock,
+        });
+    }
+
+    // assert output review
+    {
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let outputs_panel_data = event.expect_block().panel.expect_action_panel();
+        assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
+        assert_eq!(outputs_panel_data.groups.len(), 1);
+        assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
+        assert_eq!(
+            outputs_panel_data.groups[0].sub_groups[0]
+                .action_items
+                .len(),
+            1
+        );
+    }
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive input block");
         panic!()
     };
 
-    let inputs_panel_data = event.expect_block().panel.expect_action_panel();
-
-    println!("{:?}", inputs_panel_data);
-    // assert_eq!(inputs_panel_data.title.to_uppercase(), "INPUT REVIEW");
-    assert_eq!(inputs_panel_data.groups.len(), 1);
-    assert_eq!(inputs_panel_data.groups[0].sub_groups.len(), 3);
-    assert_eq!(
-        inputs_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
-    );
-    assert_eq!(
-        inputs_panel_data.groups[0].sub_groups[1].action_items.len(),
-        1
-    );
-
-    let input_a_uuid = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
-    let input_b_uuid = &inputs_panel_data.groups[0].sub_groups[1].action_items[0];
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: input_a_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-            value_checked: true,
-            input_name: "value".into(),
-        }),
-    });
-
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-
-    println!("===> {:?}", event);
-
-    // Should be a no-op
-    let Err(_) = block_rx.recv_timeout(Duration::from_secs(2)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: input_b_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
-            updated_value: Value::uint(5),
-            input_name: "value".into(),
-        }),
-    });
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: Uuid::new_v4(),
-        payload: ActionItemResponseType::ValidateBlock,
-    });
-
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-
-    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
-
-    // assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
-    assert_eq!(outputs_panel_data.groups.len(), 1);
-    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(
-        outputs_panel_data.groups[0].sub_groups[0]
-            .action_items
-            .len(),
-        1
-    );
+    event.expect_runbook_completed();
 }
 
 #[test]
@@ -272,7 +321,7 @@ fn test_wallet_runbook_no_env() {
 
     let updates = event.expect_updated_action_items();
     println!("UPDATES = {:?}", updates);
-    assert_eq!(updates.len(), 3);
+    assert_eq!(updates.len(), 2);
     assert_eq!(
         updates[0].action_status.as_ref().unwrap(),
         &ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into()))
@@ -340,9 +389,9 @@ fn test_wallet_runbook_no_env() {
 
     let outputs_panel_data = event.expect_block().panel.expect_action_panel();
 
-    // assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
+    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
     assert_eq!(outputs_panel_data.groups.len(), 1);
-    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 2);
+    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(
         outputs_panel_data.groups[0].sub_groups[0]
             .action_items
@@ -356,6 +405,12 @@ fn test_wallet_runbook_no_env() {
             .map(|v| &v.value),
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
+
+    event.expect_runbook_completed();
 }
 
 #[test]
@@ -417,18 +472,21 @@ fn test_multisig_runbook_no_env() {
         modal_panel_data.title.to_uppercase(),
         "STACKS MULTISIG CONFIGURATION ASSISTANT"
     );
-    assert_eq!(modal_panel_data.groups.len(), 1);
-    assert_eq!(modal_panel_data.groups[0].sub_groups.len(), 3);
+    println!("");
+    assert_eq!(modal_panel_data.groups.len(), 3);
+    assert_eq!(modal_panel_data.groups[0].sub_groups.len(), 1);
+    assert_eq!(modal_panel_data.groups[1].sub_groups.len(), 1);
+    assert_eq!(modal_panel_data.groups[2].sub_groups.len(), 1);
     assert_eq!(
         modal_panel_data.groups[0].sub_groups[0].action_items.len(),
         1
     );
     assert_eq!(
-        modal_panel_data.groups[0].sub_groups[1].action_items.len(),
+        modal_panel_data.groups[1].sub_groups[0].action_items.len(),
         1
     );
     assert_eq!(
-        modal_panel_data.groups[0].sub_groups[2].action_items.len(),
+        modal_panel_data.groups[2].sub_groups[0].action_items.len(),
         1
     );
 
@@ -439,6 +497,7 @@ fn test_multisig_runbook_no_env() {
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
 
+    println!("action_panel_data  {:?}", action_panel_data);
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 1);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 4);
@@ -452,7 +511,7 @@ fn test_multisig_runbook_no_env() {
     );
     assert_eq!(
         action_panel_data.groups[0].sub_groups[2].action_items.len(),
-        3
+        1
     );
     assert_eq!(
         action_panel_data.groups[0].sub_groups[3].action_items.len(),
@@ -466,7 +525,7 @@ fn test_multisig_runbook_no_env() {
         panic!("expected provide public key request");
     };
 
-    let get_public_key_bob = &modal_panel_data.groups[0].sub_groups[1].action_items[0];
+    let get_public_key_bob = &modal_panel_data.groups[1].sub_groups[0].action_items[0];
     assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
     let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type else {
         panic!("expected provide public key request");
@@ -595,7 +654,7 @@ fn test_multisig_runbook_no_env() {
 #[test]
 fn test_bns_runbook_no_env() {
     // Load Runbook abc.tx
-    let wallet_tx = include_str!("./fixtures/bns.tx");
+    let wallet_tx = include_str!("./fixtures/wallet.tx");
 
     let mut source_tree = SourceTree::new();
     source_tree.add_source(
