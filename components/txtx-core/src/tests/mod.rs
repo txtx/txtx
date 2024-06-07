@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, time::Duration};
 use kit::types::frontend::ProvideSignedTransactionResponse;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
-    hiro_system_kit,
     types::{
         frontend::{
             ActionItemRequest, ActionItemRequestType, ActionItemResponse, ActionItemResponseType,

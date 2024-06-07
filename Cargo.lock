@@ -4456,6 +4456,7 @@ dependencies = [
  "base64 0.22.1",
  "daggy",
  "getrandom 0.2.13",
+ "hiro-system-kit 0.3.4",
  "indexmap 2.2.6",
  "jaq-interpret",
  "jaq-parse",
