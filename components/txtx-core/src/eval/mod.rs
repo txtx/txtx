@@ -1,7 +1,7 @@
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
-use kit::types::frontend::{Actions, BlockEvent};
+use kit::types::frontend::{ActionItemRequestUpdate, ActionItemResponse, Actions, BlockEvent};
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use txtx_addon_kit::{
@@ -16,8 +16,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
-            DisplayOutputRequest,
+            ActionItemRequest, ActionItemRequestType, ActionItemStatus, DisplayOutputRequest,
         },
         types::{PrimitiveValue, Value},
         wallets::WalletInstance,
@@ -140,7 +139,7 @@ pub async fn run_wallets_evaluation(
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<Actions, Vec<Diagnostic>> {
     let mut consolidated_actions: Actions = Actions::none();
@@ -153,7 +152,7 @@ pub async fn run_wallets_evaluation(
     for (construct_uuid, instantiated) in instantiated_wallets.into_iter() {
         let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
 
-        let (evaluated_inputs_res, group, addon_defaults) =
+        let (evaluated_inputs_res, _group, addon_defaults) =
             match runbook.wallets_instances.get(&construct_uuid) {
                 None => continue,
                 Some(wallet_instance) => {
@@ -278,8 +277,9 @@ pub async fn run_wallets_evaluation(
                 if let Some(requests) = action_item_requests.get_mut(&construct_uuid.value()) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
-                        item.action_status = ActionItemStatus::Error(diag.clone());
-                        consolidated_actions.push_status_update(item);
+                        let update = ActionItemRequestUpdate::from_uuid(&item.uuid)
+                            .set_status(ActionItemStatus::Error(diag.clone()));
+                        consolidated_actions.push_action_item_update(update);
                     }
                 }
                 continue;
@@ -302,13 +302,9 @@ pub async fn run_wallets_evaluation(
             .await;
 
         let (result, wallets_state) = match res {
-            Ok((wallets_state, result)) => {
-                (Ok(result), Some(wallets_state))
-            }
-            Err((wallets_state, diag)) => {
-                (Err(diag), Some(wallets_state))
-            }
-        };    
+            Ok((wallets_state, result)) => (Ok(result), Some(wallets_state)),
+            Err((wallets_state, diag)) => (Err(diag), Some(wallets_state)),
+        };
         runbook.wallets_state = wallets_state;
         runbook
             .constructs_execution_results
@@ -495,7 +491,7 @@ pub async fn run_constructs_evaluation(
     start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<Vec<Actions>, Vec<Diagnostic>> {
     let g = runbook.constructs_graph.clone();
@@ -847,7 +843,7 @@ pub fn collect_runbook_outputs(
                     construct_uuid: Some(construct_uuid.value()),
                     index: 0,
                     title: command_instance.name.to_string(),
-                    description: "".to_string(),
+                    description: None,
                     action_status: ActionItemStatus::Todo,
                     action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                         name: command_instance.name.to_string(),

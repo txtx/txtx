@@ -1,16 +1,16 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionItemRequestUpdate, ActionPanelData, ActionSubGroup,
-    Block, ModalPanelData, Panel, ProgressBarStatus,
+    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block, ModalPanelData,
+    NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus,
 };
 
 #[derive(Clone)]
 pub struct GqlActionItemRequestUpdate {
-    update: ActionItemRequestUpdate,
+    update: NormalizedActionItemRequestUpdate,
 }
 impl GqlActionItemRequestUpdate {
-    pub fn new(update: ActionItemRequestUpdate) -> Self {
+    pub fn new(update: NormalizedActionItemRequestUpdate) -> Self {
         GqlActionItemRequestUpdate { update }
     }
 }
@@ -24,7 +24,7 @@ impl GqlActionItemRequestUpdate {
         self.update.title.clone()
     }
     pub fn description(&self) -> Option<String> {
-        self.update.description.clone()
+        self.update.description.clone().unwrap_or(None)
     }
     pub fn action_status(&self) -> Result<Option<String>, String> {
         match &self.update.action_status {
@@ -312,7 +312,7 @@ impl GqlActionItemRequest {
         self.action_item.title.clone()
     }
 
-    pub fn description(&self) -> String {
+    pub fn description(&self) -> Option<String> {
         self.action_item.description.clone()
     }
 

@@ -6,8 +6,8 @@ use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
+    BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
@@ -24,9 +24,10 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
-    CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE,
-    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
+    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::typing::CLARITY_BUFFER;
 
@@ -110,7 +111,7 @@ impl WalletImplementation for StacksConnect {
         let _is_nonce_required = true;
 
         let instance_name = instance_name.to_string();
-        let uuid = uuid.clone();
+        let wallet_uuid = uuid.clone();
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
@@ -150,19 +151,26 @@ impl WalletImplementation for StacksConnect {
                         stx_address
                     ));
                     success = false;
+                } else {
+                    let update = ActionItemRequestUpdate::from_context(
+                        &wallet_uuid,
+                        ACTION_ITEM_CHECK_ADDRESS,
+                    )
+                    .set_status(status_update.clone());
+                    actions.push_action_item_update(update);
                 }
             }
             if success {
                 wallet_state.insert(
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
-                );    
+                );
             }
-            actions.push_status_update_construct_uuid(
-                &uuid,
-                status_update,
-                ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-            );
+            let update =
+                ActionItemRequestUpdate::from_context(&wallet_uuid, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
+                    .set_status(status_update);
+            actions.push_action_item_update(update);
+
             wallets.push_wallet_state(wallet_state);
             return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
         }
@@ -171,7 +179,7 @@ impl WalletImplementation for StacksConnect {
             let mut actions = Actions::none();
             let res = get_addition_actions_for_address(
                 &expected_address,
-                &uuid,
+                &wallet_uuid,
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
@@ -254,7 +262,7 @@ impl WalletImplementation for StacksConnect {
             &Some(uuid.value()),
             0,
             title,
-            "", //payload,
+            None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                 check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid

@@ -8,8 +8,8 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, OpenModalData,
-    ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
+    BlockEvent, OpenModalData, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
@@ -67,7 +67,7 @@ lazy_static! {
               signers: {
                 documentation: "Coming soon",
                 typing: Type::array(Type::string())
-              } 
+              }
           ],
           example: txtx_addon_kit::indoc! {r#"
         // Coming soon
@@ -130,7 +130,7 @@ impl WalletImplementation for StacksConnect {
                 &Some(root_uuid.value()),
                 0,
                 "Compute multisig address",
-                "",
+                Some("Multisig addresses are computed by hashing the public keys of all participants.".into()),
                 ActionItemStatus::Todo,
                 ActionItemRequestType::OpenModal(OpenModalData {
                     modal_uuid: modal.uuid.clone(),
@@ -162,6 +162,7 @@ impl WalletImplementation for StacksConnect {
             // Modal configuration
             let mut checked_public_keys = HashMap::new();
             for (wallet_uuid, wallet_instance) in signers.iter() {
+                consolidated_actions.push_group(&wallet_instance.name, vec![]);
                 let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
                 let future = (wallet_instance.specification.check_activability)(
                     &wallet_uuid,
@@ -242,17 +243,20 @@ impl WalletImplementation for StacksConnect {
                             ActionItemStatus::Error(diag)
                         }
                     };
-
-                    actions.push_status_update_construct_uuid(
-                        &root_uuid,
-                        status_update,
-                        ACTION_ITEM_CHECK_BALANCE,
+                    actions.push_action_item_update(
+                        ActionItemRequestUpdate::from_context(
+                            &root_uuid,
+                            ACTION_ITEM_CHECK_BALANCE,
+                        )
+                        .set_status(status_update),
                     );
-                    actions.push_status_update_construct_uuid(
-                        &root_uuid,
-                        ActionItemStatus::Success(Some(stacks_address)),
-                        ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-                    );
+                    // actions.push_action_item_update(
+                    //     ActionItemRequestUpdate::from_context(
+                    //         &root_uuid,
+                    //         ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+                    //     )
+                    //     .set_status(ActionItemStatus::Success(Some(stacks_address))),
+                    // );
                     consolidated_actions = actions;
                 } else {
                     println!("Unable to compute Stacks address");
@@ -263,12 +267,12 @@ impl WalletImplementation for StacksConnect {
                     &Some(root_uuid.value()),
                     0,
                     "CONFIRM",
-                    "",
+                    None,
                     ActionItemStatus::Todo,
                     ActionItemRequestType::ValidateModal,
                     "modal",
                 );
-                consolidated_actions.push_sub_group(vec![validate_modal_action]);
+                consolidated_actions.push_group("", vec![validate_modal_action]);
             }
 
             wallets.push_wallet_state(wallet_state);
@@ -335,7 +339,9 @@ impl WalletImplementation for StacksConnect {
             wallet_state.insert("multi_sig", Value::bool(true));
             wallets.push_wallet_state(wallet_state);
 
-            result.outputs.insert("signers".into(), Value::array(signers_uuids));
+            result
+                .outputs
+                .insert("signers".into(), Value::array(signers_uuids));
             result.outputs.insert("public_key".into(), public_key);
 
             Ok((wallets, result))
@@ -414,7 +420,7 @@ impl WalletImplementation for StacksConnect {
             &Some(origin_uuid.value()),
             0,
             title,
-            "", //payload,
+            None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                 check_expectation_action_uuid: Some(origin_uuid.value()), // todo: this is the wrong uuid

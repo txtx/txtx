@@ -22,8 +22,9 @@ use crate::{
 use super::{
     diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
-        ActionItemRequest, ActionItemRequestType, ActionItemResponseType, ActionItemStatus,
-        Actions, BlockEvent,
+        ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
+        ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
+        ProvidedInputResponse, ReviewedInputResponse,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
     wallets::{WalletInstance, WalletSignFutureResult, WalletsState},
@@ -601,7 +602,7 @@ impl CommandInstance {
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
-        action_item_response: &Option<&Vec<ActionItemResponseType>>,
+        action_item_response: &Option<&Vec<ActionItemResponse>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(
@@ -610,32 +611,62 @@ impl CommandInstance {
         );
 
         // TODO
+        let mut consolidated_actions = Actions::none();
         match action_item_response {
-            Some(responses) => responses.into_iter().for_each(|response| match response {
-                ActionItemResponseType::ReviewInput(update) => {
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = update.value_checked;
-                            break;
+            Some(responses) => responses.into_iter().for_each(
+                |ActionItemResponse {
+                     action_item_uuid,
+                     payload,
+                 }| match payload {
+                    ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                        input_name,
+                        value_checked,
+                    }) => {
+                        println!(
+                            "received review input response for cmd {}, input {}, value {}",
+                            self.name, input_name, value_checked
+                        );
+                        for input in self.specification.inputs.iter_mut() {
+                            if &input.name == input_name {
+                                input.check_performed = value_checked.clone();
+                                break;
+                            }
                         }
                     }
-                }
-                ActionItemResponseType::ProvideInput(update) => {
-                    input_evaluation_results
-                        .inputs
-                        .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
-                    // todo: when there is a provide input update, we need to actually send an updated action item.
-                    // the tricky part is we need to know the uuid of the original action we're updating
-                }
-                ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                    // TODO
-                    values.insert(
-                        "signed_transaction_bytes",
-                        Value::string(bytes.signed_transaction_bytes.clone()),
-                    );
-                }
-                _ => {}
-            }),
+                    ActionItemResponseType::ProvideInput(ProvidedInputResponse {
+                        input_name,
+                        updated_value,
+                    }) => {
+                        println!(
+                            "received provide input response for cmd {}, input {}",
+                            self.name, input_name
+                        );
+                        input_evaluation_results
+                            .inputs
+                            .insert(input_name.clone(), Ok(updated_value.clone()));
+
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_type(ActionItemRequestType::ProvideInput(
+                                    ProvideInputRequest {
+                                        default_value: Some(updated_value.clone()),
+                                        input_name: input_name.clone(),
+                                        typing: updated_value.get_type(),
+                                    },
+                                ))
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                        // TODO
+                        values.insert(
+                            "signed_transaction_bytes",
+                            Value::string(bytes.signed_transaction_bytes.clone()),
+                        );
+                    }
+                    _ => {}
+                },
+            ),
             None => {}
         }
 
@@ -661,14 +692,18 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        (spec.check_executability)(
-            &construct_uuid,
-            &self.name,
-            &self.specification,
-            &values,
-            &addon_defaults,
-            &execution_context,
-        )
+        if self.specification.matcher != "output" {
+            let mut actions = (spec.check_executability)(
+                &construct_uuid,
+                &self.name,
+                &self.specification,
+                &values,
+                &addon_defaults,
+                &execution_context,
+            )?;
+            consolidated_actions.append(&mut actions);
+        }
+        Ok(consolidated_actions)
     }
 
     pub async fn perform_execution(
@@ -677,7 +712,7 @@ impl CommandInstance {
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
-        _action_item_responses: &Option<&Vec<ActionItemResponseType>>,
+        _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
@@ -743,7 +778,7 @@ impl CommandInstance {
         wallets: WalletsState,
         addon_defaults: AddonDefaults,
         wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
-        action_item_response: &Option<&Vec<ActionItemResponseType>>,
+        action_item_response: &Option<&Vec<ActionItemResponse>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         let mut values = ValueStore::new(
@@ -752,36 +787,51 @@ impl CommandInstance {
         );
 
         // TODO
+        let mut consolidated_actions = Actions::none();
         match action_item_response {
-            Some(responses) => responses.into_iter().for_each(|response| match response {
-                ActionItemResponseType::ReviewInput(update) => {
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = true;
-                            break;
+            Some(responses) => responses.into_iter().for_each(
+                |ActionItemResponse {
+                     action_item_uuid,
+                     payload,
+                 }| match payload {
+                    ActionItemResponseType::ReviewInput(update) => {
+                        for input in self.specification.inputs.iter_mut() {
+                            if input.name == update.input_name {
+                                input.check_performed = true;
+                                break;
+                            }
                         }
                     }
-                }
-                ActionItemResponseType::ProvideInput(update) => {
-                    input_evaluation_results
-                        .inputs
-                        .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
-                    for input in self.specification.inputs.iter_mut() {
-                        if input.name == update.input_name {
-                            input.check_performed = true;
-                            break;
-                        }
+                    ActionItemResponseType::ProvideInput(update) => {
+                        input_evaluation_results
+                            .inputs
+                            .insert(update.input_name.clone(), Ok(update.updated_value.clone()));
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_type(ActionItemRequestType::ProvideInput(
+                                    ProvideInputRequest {
+                                        default_value: Some(update.updated_value.clone()),
+                                        input_name: update.input_name.clone(),
+                                        typing: update.updated_value.get_type(),
+                                    },
+                                ))
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
                     }
-                }
-                ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                    // TODO
-                    values.insert(
-                        "signed_transaction_bytes",
-                        Value::string(bytes.signed_transaction_bytes.clone()),
-                    );
-                }
-                _ => {}
-            }),
+                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                        // TODO
+                        values.insert(
+                            "signed_transaction_bytes",
+                            Value::string(bytes.signed_transaction_bytes.clone()),
+                        );
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    _ => {}
+                },
+            ),
             None => {}
         }
 
@@ -807,7 +857,7 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        (spec.check_signed_executability)(
+        let (wallet_state, mut actions) = (spec.check_signed_executability)(
             &construct_uuid,
             &self.name,
             &self.specification,
@@ -816,7 +866,9 @@ impl CommandInstance {
             &execution_context,
             wallet_instances,
             wallets,
-        )
+        )?;
+        consolidated_actions.append(&mut actions);
+        Ok((wallet_state, consolidated_actions))
     }
 
     pub async fn perform_signed_execution(
@@ -827,7 +879,7 @@ impl CommandInstance {
         addon_defaults: AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
-        _action_item_responses: &Option<&Vec<ActionItemResponseType>>,
+        _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());

@@ -28,6 +28,7 @@ use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
@@ -189,14 +190,14 @@ pub async fn start_runbook_runloop(
         }
 
         // Cooldown
-        let Some(ActionItemResponse {
-            action_item_uuid,
-            payload,
-        }) = event_opt
-        else {
+        let Some(action_item_response) = event_opt else {
             sleep(Duration::from_millis(1000));
             continue;
         };
+        let ActionItemResponse {
+            action_item_uuid,
+            payload,
+        } = action_item_response.clone();
 
         if action_item_uuid == SET_ENV_UUID.clone() {
             reset_runbook_execution(
@@ -218,9 +219,9 @@ pub async fn start_runbook_runloop(
             let action_item = action_item.clone();
             if let Some(construct_uuid) = action_item.construct_uuid {
                 if let Some(responses) = action_item_responses.get_mut(&construct_uuid) {
-                    responses.push(payload.clone());
+                    responses.push(action_item_response);
                 } else {
-                    action_item_responses.insert(construct_uuid, vec![payload.clone()]);
+                    action_item_responses.insert(construct_uuid, vec![action_item_response]);
                 }
             }
         }
@@ -244,27 +245,32 @@ pub async fn start_runbook_runloop(
                 .await?;
 
                 let block_uuid = Uuid::new_v4();
-
-                if actions_groups.is_empty() {
+                println!("validated block");
+                println!("action groups: {:?}", actions_groups);
+                let any_pending_actions = actions_groups.iter().any(|a| a.has_pending_actions());
+                println!("has pending actions: {}", any_pending_actions);
+                if !any_pending_actions {
+                    println!("no maor group");
                     runbook_completed = true;
                     let grouped_actions_items =
                         collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
+                    let mut actions = Actions::new_panel("output review", "");
                     for (key, action_items) in grouped_actions_items.into_iter() {
-                        actions_groups
-                            .push(Actions::new_group_of_items(key.as_str(), action_items));
+                        actions.push_group(key.as_str(), action_items);
                     }
+                    actions_groups.push(actions);
                 } else {
                     actions_groups.push(Actions::new_sub_group_of_items(vec![ActionItemRequest {
                         uuid: Uuid::new_v4(),
                         construct_uuid: None,
                         index: 0,
                         title: "Validate".into(),
-                        description: "".into(),
+                        description: None,
                         action_status: ActionItemStatus::Todo,
                         action_type: ActionItemRequestType::ValidateBlock,
                         internal_key: "validate_block".into(),
                     }]));
-                }
+                };
 
                 let mut consolidated_actions = Actions::none();
                 for actions in actions_groups.iter_mut() {
@@ -273,7 +279,6 @@ pub async fn start_runbook_runloop(
                     }
                     consolidated_actions.append(actions);
                 }
-
                 let block_events = consolidated_actions.compile_actions_to_block_events();
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
@@ -312,7 +317,12 @@ pub async fn start_runbook_runloop(
 
                 let updated_actions = actions
                     .iter()
-                    .map(|actions| actions.compile_actions_to_item_updates(&action_item_requests))
+                    .map(|actions| {
+                        actions
+                            .compile_actions_to_item_updates()
+                            .into_iter()
+                            .map(|u| u.normalize(&action_item_requests))
+                    })
                     .flatten()
                     .collect::<Vec<_>>();
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
@@ -324,8 +334,14 @@ pub async fn start_runbook_runloop(
                     true => ActionItemStatus::Success(None),
                     false => ActionItemStatus::Todo,
                 };
+                println!(
+                    "updating action item {} to status {:?}",
+                    &action_item_uuid, &new_status
+                );
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                    ActionItemRequestUpdate::new(action_item_uuid).status(new_status),
+                    ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                        .set_status(new_status)
+                        .normalize(&action_item_requests),
                 ]));
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
@@ -352,8 +368,11 @@ pub async fn start_runbook_runloop(
                 )
                 .await?;
 
-                let updated_actions =
-                    actions.compile_actions_to_item_updates(&action_item_requests);
+                let updated_actions = actions
+                    .compile_actions_to_item_updates()
+                    .into_iter()
+                    .map(|u| u.normalize(&action_item_requests))
+                    .collect();
                 println!("{:?}", updated_actions);
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
@@ -383,7 +402,12 @@ pub async fn start_runbook_runloop(
 
                 let updated_actions = actions
                     .iter()
-                    .map(|actions| actions.compile_actions_to_item_updates(&action_item_requests))
+                    .map(|actions| {
+                        actions
+                            .compile_actions_to_item_updates()
+                            .into_iter()
+                            .map(|u| u.normalize(&action_item_requests))
+                    })
                     .flatten()
                     .collect::<Vec<_>>();
                 println!("{:?}", updated_actions);
@@ -436,7 +460,7 @@ pub async fn reset_runbook_execution(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
@@ -480,28 +504,42 @@ pub async fn build_genesis_panel(
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponseType>>,
+    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
-    let input_options: Vec<InputOption> = environments
-        .keys()
-        .map(|k| InputOption {
-            value: k.to_string(),
-            displayed_value: k.to_string(),
-        })
-        .collect();
-
     let mut actions = Actions::new_panel("runbook checklist", "");
 
     if environments.len() > 0 {
+        let input_options: Vec<InputOption> = environments
+            .keys()
+            .map(|k| InputOption {
+                value: k.to_string(),
+                displayed_value: k.to_string(),
+            })
+            .collect();
+        let selected_option: InputOption = selected_env
+            .clone()
+            .and_then(|e| {
+                Some(InputOption {
+                    value: e.clone(),
+                    displayed_value: e.clone(),
+                })
+            })
+            .unwrap_or({
+                let k = environments.keys().next().unwrap();
+                InputOption {
+                    value: k.clone(),
+                    displayed_value: k.clone(),
+                }
+            });
         let action_request = ActionItemRequest {
             uuid: SET_ENV_UUID.clone(),
             construct_uuid: None,
             index: 0,
             title: "Select Environment".into(),
-            description: selected_env.clone().unwrap_or("".to_string()),
+            description: Some("Selecting a new environment will reset the Runbook with the newly selected environment variables.".into()),
             action_status: ActionItemStatus::Todo,
-            action_type: ActionItemRequestType::PickInputOption(input_options),
+            action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest { options: input_options, selected: selected_option}),
             internal_key: "env".into(),
         };
         actions.push_group("Select Environment", vec![action_request]);
@@ -524,7 +562,7 @@ pub async fn build_genesis_panel(
         construct_uuid: None,
         index: 0,
         title: "start runbook".into(),
-        description: "".into(),
+        description: None,
         action_status: ActionItemStatus::Todo,
         action_type: ActionItemRequestType::ValidateBlock,
         internal_key: "genesis".into(),
@@ -533,13 +571,11 @@ pub async fn build_genesis_panel(
 
     register_action_items_from_actions(&actions, action_item_requests);
 
-    let mut panels = actions.compile_actions_to_block_events();
+    let panels = actions.compile_actions_to_block_events();
     for panel in panels.iter() {
         match panel {
-            BlockEvent::Modal(data) => {
-            }
-            BlockEvent::Action(data) => {
-            }
+            BlockEvent::Modal(_) => {}
+            BlockEvent::Action(_) => {}
             _ => {
                 println!("-----");
             }

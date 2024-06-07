@@ -144,11 +144,12 @@ impl CommandImplementation for Input {
         _defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
-        let title = args.get_expected_string("description").unwrap_or(instance_name);
+        let title = instance_name;
+        let description = args
+            .get_string("description")
+            .and_then(|d| Some(d.to_string()));
 
         if let Some(value) = args.get_value("value") {
-            let value = value.to_string();
-
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
                     return Ok(Actions::none());
@@ -161,10 +162,11 @@ impl CommandImplementation for Input {
                         &Some(uuid.value()),
                         0,
                         &title,
-                        &value,
+                        description,
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "value".to_string(),
+                            value: value.clone(),
                         }),
                         "check_input",
                     ),
@@ -176,19 +178,24 @@ impl CommandImplementation for Input {
 
         let (default_value, typing) = match args.get_value("default") {
             Some(default_value) => {
+                println!(
+                    "input {} has default value {:?}",
+                    instance_name, default_value
+                );
                 for input_spec in spec.inputs.iter() {
                     if input_spec.name == "default" && input_spec.check_performed {
+                        println!("input {} has default value checked", instance_name);
                         return Ok(Actions::none());
                     }
                 }
-                (
-                    Some(default_value.to_string()),
-                    default_value.expect_primitive().get_type(),
-                )
+                (Some(default_value.clone()), default_value.get_type())
             }
             None => {
                 let typing = args.get_expected_value("type")?;
-                (None, serde_json::de::from_str(&typing.to_string()).unwrap())
+                (
+                    None,
+                    Type::from(typing.as_string().unwrap_or("string").to_string()),
+                )
             }
         };
 
@@ -197,13 +204,14 @@ impl CommandImplementation for Input {
             &Some(uuid.value()),
             0,
             &title,
-            &default_value.unwrap_or("".into()),
+            description,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                default_value: default_value,
                 input_name: "default".into(),
-                typing: typing,
+                typing,
             }),
-            "check_input",
+            "provide_input",
         );
 
         return Ok(Actions::new_sub_group_of_items(vec![action]));
@@ -282,7 +290,7 @@ impl CommandImplementation for Output {
             construct_uuid: Some(uuid.value()),
             index: 0,
             title: instance_name.into(),
-            description: "".into(),
+            description: None,
             action_status: ActionItemStatus::Todo,
             action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                 name: instance_name.into(),

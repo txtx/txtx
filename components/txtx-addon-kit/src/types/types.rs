@@ -292,6 +292,16 @@ impl Value {
             }
         }
     }
+    pub fn get_type(&self) -> Type {
+        match self {
+            Value::Primitive(t) => Type::Primitive(t.get_type()),
+            Value::Object(_) => todo!(),
+            Value::Array(t) => {
+                Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
+            }
+            Value::Addon(t) => Type::Addon(t.typing.clone()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

@@ -3,11 +3,9 @@ use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel::{self, select},
-        types::frontend::{
-            ActionItemRequest, ActionItemResponse, ActionItemResponseType, BlockEvent,
-        },
+        types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
     },
-    pre_compute_runbook, start_runbook_runloop, SET_ENV_UUID,
+    pre_compute_runbook, start_runbook_runloop,
 };
 
 use txtx_gql::Context as GqlContext;

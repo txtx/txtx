@@ -5,6 +5,7 @@ use txtx_addon_kit::{
             ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
             ReviewInputRequest,
         },
+        types::Value,
         wallets::WalletSpecification,
         ConstructUuid,
     },
@@ -32,7 +33,7 @@ lazy_static! {
 
 pub async fn get_addition_actions_for_address(
     expected_address: &Option<String>,
-    uuid: &ConstructUuid,
+    wallet_uuid: &ConstructUuid,
     instance_name: &str,
     network_id: &str,
     rpc_api_url: &str,
@@ -46,14 +47,14 @@ pub async fn get_addition_actions_for_address(
 
     if is_public_key_required {
         action_items.push(ActionItemRequest::new(
-            &uuid.value(),
-            &Some(uuid.value()),
+            &Uuid::new_v4(),
+            &Some(wallet_uuid.value()),
             0,
             &format!("Connect wallet {instance_name}"),
-            "".into(),
+            None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                check_expectation_action_uuid: Some(uuid.value()),
+                check_expectation_action_uuid: Some(wallet_uuid.value()),
                 message: DEFAULT_MESSAGE.to_string(),
                 network_id: network_id.into(),
                 namespace: "stacks".to_string(),
@@ -66,41 +67,43 @@ pub async fn get_addition_actions_for_address(
         if is_address_check_required {
             action_items.push(ActionItemRequest::new(
                 &Uuid::new_v4(),
-                &Some(uuid.value()),
+                &Some(wallet_uuid.value()),
                 0,
                 &format!("Check {} expected address", instance_name),
-                &expected_address.to_string(),
+                None,
                 ActionItemStatus::Todo,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
                     input_name: "".into(), // todo
+                    value: Value::string(expected_address.to_owned()),
                 }),
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
         if is_balance_check_required {
-            let action_status = match stacks_rpc
-                .get_balance(&expected_address)
-                .await {
-                Ok(response) => {
-                    ActionItemStatus::Success(Some(response.balance.to_string()))
-                }
-                Err(err) => {
+            let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
+                Ok(response) => (
+                    ActionItemStatus::Success(None),
+                    Value::string(response.balance.to_string()),
+                ),
+                Err(err) => (
                     ActionItemStatus::Error(diagnosed_error!(
                         "unable to retrieve balance {}: {}",
                         expected_address,
                         err.to_string()
-                    ))
-                }
+                    )),
+                    Value::string("N/A".to_string()),
+                ),
             };
             let check_balance = ActionItemRequest::new(
                 &Uuid::new_v4(),
-                &Some(uuid.value()),
+                &Some(wallet_uuid.value()),
                 0,
                 "Check wallet balance (STX)",
-                "",
+                None,
                 action_status,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
                     input_name: "".into(), // todo
+                    value: value,
                 }),
                 ACTION_ITEM_CHECK_BALANCE,
             );

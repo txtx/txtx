@@ -6,11 +6,7 @@ use crate::{
 };
 use futures::future;
 use hcl_edit::{expr::Expression, structure::Block};
-use std::{
-    collections::{BTreeMap, HashMap},
-    future::Future,
-    pin::Pin,
-};
+use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::{
     commands::{
@@ -18,7 +14,9 @@ use super::{
         CommandInputsEvaluationResult, CommandOutput,
     },
     diagnostics::{Diagnostic, DiagnosticLevel},
-    frontend::{ActionItemRequest, ActionItemResponseType, Actions, BlockEvent},
+    frontend::{
+        ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
+    },
     types::{ObjectProperty, Type, Value},
     ConstructUuid, PackageUuid, ValueStore,
 };
@@ -371,8 +369,8 @@ impl WalletInstance {
         mut wallets: WalletsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         addon_defaults: &AddonDefaults,
-        action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
-        action_item_responses: &Option<&Vec<ActionItemResponseType>>,
+        _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
+        action_item_responses: &Option<&Vec<ActionItemResponse>>,
         execution_context: &CommandExecutionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
@@ -401,13 +399,16 @@ impl WalletInstance {
 
         match action_item_responses {
             Some(responses) => {
-                for response in responses.iter() {
-                    match response {
+                for ActionItemResponse { payload, .. } in responses.iter() {
+                    match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
                             values.insert("public_key", Value::string(update.public_key.clone()));
 
                             let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
-
+                            println!(
+                                "checking activatability after public key provided for wallet {}",
+                                self.name
+                            );
                             let res = ((&self.specification).check_activability)(
                                 &construct_uuid,
                                 &self.name,
@@ -422,7 +423,7 @@ impl WalletInstance {
                                 is_public_key_required,
                             )?
                             .await;
-
+                            println!("{:?}", res);
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {
@@ -444,7 +445,7 @@ impl WalletInstance {
                             //     _ => unreachable!(),
                             // }
 
-                            for request in action_item_requests.iter() {}
+                            // for request in action_item_requests.iter() {}
                             return res;
                         }
                         _ => {}
