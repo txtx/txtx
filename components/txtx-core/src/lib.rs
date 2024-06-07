@@ -269,6 +269,9 @@ pub async fn start_runbook_runloop(
                 };
 
                 let mut consolidated_actions = Actions::none();
+                let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                    .set_status(ActionItemStatus::Success(None));
+                consolidated_actions.push_action_item_update(update);
                 for actions in actions_groups.iter_mut() {
                     for new_request in actions.get_new_action_item_requests().into_iter() {
                         action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
