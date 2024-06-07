@@ -127,7 +127,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let progress_tx = progress_tx.clone();
-
+        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut progress_bar = Block {
                 uuid: Uuid::new_v4(),
@@ -188,7 +188,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let backoff_ms = 5000;
 
             loop {
-                println!("{:?}", confirmed_blocks_ids);
+                println!("confirmed block ids: {:?}", confirmed_blocks_ids);
 
                 if confirmed_blocks_ids.len() >= confirmations_required {
                     break;
@@ -248,6 +248,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 }

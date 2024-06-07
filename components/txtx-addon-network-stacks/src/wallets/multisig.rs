@@ -110,7 +110,7 @@ impl WalletImplementation for StacksConnect {
         let defaults = defaults.clone();
         let execution_context = execution_context.clone();
         let instance_name = instance_name.to_string();
-        let expected_address = None;
+        let expected_address: Option<String> = None;
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
@@ -120,6 +120,7 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, diag)),
         };
 
+        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut consolidated_actions = Actions::none();
 
@@ -278,6 +279,9 @@ impl WalletImplementation for StacksConnect {
             wallets.push_wallet_state(wallet_state);
             Ok((wallets, consolidated_actions))
         };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 
@@ -307,6 +311,7 @@ impl WalletImplementation for StacksConnect {
         let defaults = defaults.clone();
         let progress_tx = progress_tx.clone();
 
+        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
@@ -346,6 +351,9 @@ impl WalletImplementation for StacksConnect {
 
             Ok((wallets, result))
         };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 

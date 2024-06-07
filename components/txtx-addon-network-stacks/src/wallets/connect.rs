@@ -182,6 +182,7 @@ impl WalletImplementation for StacksConnect {
             return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
         }
 
+        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut actions = Actions::none();
             let res = get_addition_actions_for_address(
@@ -205,6 +206,9 @@ impl WalletImplementation for StacksConnect {
             actions.push_sub_group(action_items);
             Ok((wallets, actions))
         };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 

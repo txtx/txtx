@@ -125,6 +125,7 @@ impl CommandImplementation for SendHttpRequest {
             .get_value("request_headers")
             .and_then(|value| Some(value.expect_object().clone()));
 
+        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
@@ -167,6 +168,9 @@ impl CommandImplementation for SendHttpRequest {
 
             Ok(result)
         };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 }
