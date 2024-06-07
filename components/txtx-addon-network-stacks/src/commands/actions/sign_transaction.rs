@@ -29,7 +29,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
+use txtx_addon_kit::{hex, AddonDefaults};
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
@@ -230,12 +230,17 @@ fn build_unsigned_transaction(
     let stacks_public_keys: Vec<StacksPublicKey> = public_keys
         .iter()
         .map(|v| {
-            StacksPublicKey::from_hex(v.expect_string())
-                // .map_err(|e| Diagnostic::error_from_string(e.to_string()))
-                .unwrap()
+            let bytes = hex::decode(v.expect_string()).map_err(|e| {
+                Diagnostic::error_from_string(format!(
+                    "Error parsing public key {}: {}",
+                    v.expect_string(),
+                    e.to_string()
+                ))
+            })?;
+            StacksPublicKey::from_slice(&bytes[..])
+                .map_err(|e| Diagnostic::error_from_string(e.to_string()))
         })
-        // .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?
-        .collect::<Vec<StacksPublicKey>>();
+        .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
     let version: u8 = wallet_state
         .get_expected_uint("hash_flag")?
