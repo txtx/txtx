@@ -648,6 +648,13 @@ impl CommandInstance {
                                 ))
                                 .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
+
+                        for input in self.specification.inputs.iter_mut() {
+                            if &input.name == input_name {
+                                input.check_performed = true;
+                                break;
+                            }
+                        }
                     }
                     ActionItemResponseType::ProvideSignedTransaction(bytes) => {
                         // TODO
@@ -745,6 +752,9 @@ impl CommandInstance {
             };
             match request.action_type {
                 ActionItemRequestType::ReviewInput(_) => {
+                    request.action_status = status.clone();
+                }
+                ActionItemRequestType::ProvideInput(_) => {
                     request.action_status = status.clone();
                 }
                 ActionItemRequestType::ProvidePublicKey(_) => {
