@@ -86,7 +86,7 @@ pub struct NextPoxCycle {
     pub blocks_until_reward_phase: i16,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Balance {
     pub balance: String,
     pub nonce: u64,
@@ -202,23 +202,7 @@ impl StacksRpc {
         Ok(res)
     }
 
-    pub async fn get_nonce(&self, address: &str) -> Result<u64, RpcError> {
-        let request_url = format!("{}/v2/accounts/{addr}", self.url, addr = address,);
-
-        let res: Balance = self
-            .client
-            .get(request_url)
-            .send()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?
-            .json()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
-        let nonce = res.nonce;
-        Ok(nonce)
-    }
-
-    pub async fn get_balance(&self, address: &str) -> Result<Balance, RpcError> {
+    pub async fn get_v2_accounts(&self, address: &str) -> Result<Balance, RpcError> {
         let request_url = format!("{}/v2/accounts/{addr}", self.url, addr = address,);
 
         let mut res: Balance = self

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::future;
 
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
@@ -31,7 +30,7 @@ use crate::constants::{
 };
 use crate::typing::CLARITY_BUFFER;
 
-use super::get_addition_actions_for_address;
+use super::get_additional_actions_for_address;
 
 lazy_static! {
     pub static ref STACKS_CONNECT: WalletSpecification = {
@@ -100,22 +99,15 @@ impl WalletImplementation for StacksConnect {
         is_public_key_required: bool,
     ) -> WalletActivabilityFutureResult {
         let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let requested_startup_data = wallet_state
-            .get_expected_bool(REQUESTED_STARTUP_DATA)
-            .ok()
-            .unwrap_or(false);
-        let _checked_address = wallet_state.get_expected_string(CHECKED_ADDRESS);
         let _checked_cost_provision = wallet_state.get_expected_uint(CHECKED_COST_PROVISION);
         let _fetched_nonce = wallet_state.get_expected_uint(FETCHED_NONCE);
         let _fetched_balance = wallet_state.get_expected_uint(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
-        let do_request_address_check = expected_address.is_some() && !requested_startup_data;
-        let do_request_public_key = (is_public_key_required || expected_address.is_none())
-        // only request public key if we haven't already created that action
-            && !requested_startup_data;
-        let _is_nonce_required = true;
-        let do_request_balance = is_balance_check_required && !requested_startup_data;
+        let is_address_check_required = expected_address.is_some();
+        let is_public_key_required = is_public_key_required;
+        let is_balance_check_required = is_balance_check_required;
+        let is_nonce_check_required = true;
 
         let instance_name = instance_name.to_string();
         let wallet_uuid = uuid.clone();
@@ -128,6 +120,7 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, diag)),
         };
 
+        let mut actions: Actions = Actions::none();
         if let Ok(public_key_buffer) = args.get_expected_buffer("public_key", &CLARITY_BUFFER) {
             let version = if network_id.eq("mainnet") {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
@@ -146,7 +139,6 @@ impl WalletImplementation for StacksConnect {
             .unwrap()
             .to_string();
 
-            let mut actions: Actions = Actions::none();
             let mut success = true;
             let mut status_update = ActionItemStatus::Success(Some(stx_address.to_string()));
             if let Ok(expected_stx_address) = args.get_expected_string(EXPECTED_ADDRESS) {
@@ -172,38 +164,43 @@ impl WalletImplementation for StacksConnect {
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
                 );
+                wallet_state.insert(CHECKED_ADDRESS, Value::string(stx_address));
             }
             let update =
                 ActionItemRequestUpdate::from_context(&wallet_uuid, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
                     .set_status(status_update);
             actions.push_action_item_update(update);
-
-            wallets.push_wallet_state(wallet_state);
-            return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
         }
+
+        let checked_address = wallet_state
+            .get_expected_string(CHECKED_ADDRESS)
+            .ok()
+            .map(|a| a.to_string());
 
         #[cfg(not(feature = "wasm"))]
         let future = async move {
-            let mut actions = Actions::none();
-            let res = get_addition_actions_for_address(
+            let res = get_additional_actions_for_address(
+                &checked_address,
                 &expected_address,
                 &wallet_uuid,
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
-                do_request_public_key,
-                do_request_balance,
-                do_request_address_check,
+                is_public_key_required,
+                is_balance_check_required,
+                is_address_check_required,
+                is_nonce_check_required,
+                &mut wallet_state,
             )
             .await;
             wallet_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
             wallets.push_wallet_state(wallet_state);
 
-            let action_items = match res {
-                Ok(action_items) => action_items,
+            let mut additional_actions = match res {
+                Ok(actions) => actions,
                 Err(diag) => return Err((wallets, diag)),
             };
-            actions.push_sub_group(action_items);
+            actions.append(&mut additional_actions);
             Ok((wallets, actions))
         };
         #[cfg(feature = "wasm")]

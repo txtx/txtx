@@ -26,12 +26,12 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS,
-    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, NETWORK_ID,
+    PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
 
-use super::get_addition_actions_for_address;
+use super::get_additional_actions_for_address;
 
 lazy_static! {
     pub static ref STACKS_MULTISIG: WalletSpecification = define_wallet! {
@@ -120,13 +120,17 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, diag)),
         };
 
+        let checked_address = wallet_state
+            .get_expected_string(CHECKED_ADDRESS)
+            .ok()
+            .map(|a| a.to_string());
         #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut consolidated_actions = Actions::none();
 
             let modal =
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
-            let mut open_modal_action = vec![ActionItemRequest::new(
+            let open_modal_action = vec![ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(root_uuid.value()),
                 0,
@@ -139,7 +143,10 @@ impl WalletImplementation for StacksConnect {
                 }),
                 ACTION_ITEM_PROVIDE_PUBLIC_KEY,
             )];
-            let mut additional_actions_res = get_addition_actions_for_address(
+            consolidated_actions.push_modal(modal);
+            consolidated_actions.push_sub_group(open_modal_action);
+            let mut additional_actions_res = get_additional_actions_for_address(
+                &checked_address,
                 &expected_address,
                 &root_uuid,
                 &instance_name,
@@ -148,17 +155,16 @@ impl WalletImplementation for StacksConnect {
                 false,
                 is_balance_check_required,
                 false,
+                true,
+                &mut wallet_state,
             )
             .await;
             match additional_actions_res {
                 Ok(ref mut res) => {
-                    open_modal_action.append(res);
+                    consolidated_actions.append(res);
                 }
                 Err(diag) => return Err((wallets, diag)),
             }
-
-            consolidated_actions.push_sub_group(open_modal_action);
-            consolidated_actions.push_modal(modal);
 
             // Modal configuration
             let mut checked_public_keys = HashMap::new();
@@ -233,7 +239,7 @@ impl WalletImplementation for StacksConnect {
                 {
                     let mut actions = Actions::none();
                     let stacks_rpc = StacksRpc::new(&rpc_api_url);
-                    let status_update = match stacks_rpc.get_balance(&stacks_address).await {
+                    let status_update = match stacks_rpc.get_v2_accounts(&stacks_address).await {
                         Ok(response) => ActionItemStatus::Success(Some(response.balance.clone())),
                         Err(e) => {
                             let diag = diagnosed_error!(
