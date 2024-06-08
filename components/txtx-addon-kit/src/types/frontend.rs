@@ -664,7 +664,7 @@ impl Actions {
     }
 
     pub fn compile_actions_to_block_events(
-        &self,
+        &mut self,
         action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
     ) -> Vec<BlockEvent> {
         let mut blocks = vec![];
@@ -673,165 +673,184 @@ impl Actions {
             description: "".to_string(),
             groups: vec![],
         };
+        let mut index = 0;
         let mut current_modal: Option<Block> = None;
         let mut updates = vec![];
-        for item in self.store.iter() {
+        for item in self.store.iter_mut() {
             match item {
-                ActionType::AppendItem(item, group_title, panel_title) => match current_modal {
-                    None => {
-                        if current_panel_data.groups.len() > 0 {
-                            let Some(group) = current_panel_data.groups.last_mut() else {
-                                continue;
-                            };
-                            if group.sub_groups.len() > 0 {
-                                // if the last sub group has no action items, don't push a new group, just replace it
-                                let Some(sub_group) = group.sub_groups.last_mut() else {
+                ActionType::AppendItem(item, group_title, panel_title) => {
+                    item.index = index;
+                    index += 1;
+                    match current_modal {
+                        None => {
+                            if current_panel_data.groups.len() > 0 {
+                                let Some(group) = current_panel_data.groups.last_mut() else {
                                     continue;
                                 };
-                                if sub_group.action_items.is_empty() {
-                                    *sub_group = ActionSubGroup {
-                                        action_items: vec![item.clone()],
-                                        allow_batch_completion: true,
+                                if group.sub_groups.len() > 0 {
+                                    // if the last sub group has no action items, don't push a new group, just replace it
+                                    let Some(sub_group) = group.sub_groups.last_mut() else {
+                                        continue;
                                     };
-                                    continue;
+                                    if sub_group.action_items.is_empty() {
+                                        *sub_group = ActionSubGroup {
+                                            action_items: vec![item.clone()],
+                                            allow_batch_completion: true,
+                                        };
+                                        continue;
+                                    }
                                 }
-                            }
-                            group
-                                .sub_groups
-                                .last_mut()
-                                .unwrap()
-                                .action_items
-                                .push(item.clone());
-                        } else {
-                            current_panel_data.groups.push(ActionGroup {
-                                title: group_title.as_ref().unwrap_or(&"".into()).into(),
-                                sub_groups: vec![ActionSubGroup {
-                                    action_items: vec![item.clone()],
-                                    allow_batch_completion: true,
-                                }],
-                            });
-                        }
-                        if let Some(panel_title) = panel_title {
-                            current_panel_data.title = panel_title.to_string();
-                        }
-                    }
-                    Some(ref mut modal) => {
-                        if modal.panel.expect_modal_panel().groups.len() > 0 {
-                            let Some(group) =
-                                modal.panel.expect_modal_panel_mut().groups.last_mut()
-                            else {
-                                continue;
-                            };
-                            if group.sub_groups.len() > 0 {
-                                // if the last sub group has no action items, don't push a new group, just replace it
-                                let Some(sub_group) = group.sub_groups.last_mut() else {
-                                    continue;
-                                };
-                                if sub_group.action_items.is_empty() {
-                                    *sub_group = ActionSubGroup {
-                                        action_items: vec![item.clone()],
-                                        allow_batch_completion: true,
-                                    };
-                                    continue;
-                                }
-                            }
-                            group.sub_groups.push(ActionSubGroup {
-                                action_items: vec![item.clone()],
-                                allow_batch_completion: true,
-                            });
-                        } else {
-                            modal
-                                .panel
-                                .expect_modal_panel_mut()
-                                .groups
-                                .push(ActionGroup {
+                                group
+                                    .sub_groups
+                                    .last_mut()
+                                    .unwrap()
+                                    .action_items
+                                    .push(item.clone());
+                            } else {
+                                current_panel_data.groups.push(ActionGroup {
                                     title: group_title.as_ref().unwrap_or(&"".into()).into(),
                                     sub_groups: vec![ActionSubGroup {
                                         action_items: vec![item.clone()],
                                         allow_batch_completion: true,
                                     }],
                                 });
+                            }
+                            if let Some(panel_title) = panel_title {
+                                current_panel_data.title = panel_title.to_string();
+                            }
                         }
-                        if let ActionItemRequestType::ValidateModal = item.action_type {
-                            blocks.push(BlockEvent::Modal(modal.clone()));
-                            current_modal = None;
-                        }
-                    }
-                },
-                ActionType::AppendSubGroup(data) => match current_modal {
-                    None => {
-                        if current_panel_data.groups.len() > 0 {
-                            let Some(group) = current_panel_data.groups.last_mut() else {
-                                continue;
-                            };
-                            if group.sub_groups.len() > 0 {
-                                // if the last sub group has no action items, don't push a new group, just replace it
-                                let Some(sub_group) = group.sub_groups.last_mut() else {
+                        Some(ref mut modal) => {
+                            if modal.panel.expect_modal_panel().groups.len() > 0 {
+                                let Some(group) =
+                                    modal.panel.expect_modal_panel_mut().groups.last_mut()
+                                else {
                                     continue;
                                 };
-                                if sub_group.action_items.is_empty() {
-                                    *sub_group = data.clone();
-                                    continue;
+                                if group.sub_groups.len() > 0 {
+                                    // if the last sub group has no action items, don't push a new group, just replace it
+                                    let Some(sub_group) = group.sub_groups.last_mut() else {
+                                        continue;
+                                    };
+                                    if sub_group.action_items.is_empty() {
+                                        *sub_group = ActionSubGroup {
+                                            action_items: vec![item.clone()],
+                                            allow_batch_completion: true,
+                                        };
+                                        continue;
+                                    }
                                 }
+                                group.sub_groups.push(ActionSubGroup {
+                                    action_items: vec![item.clone()],
+                                    allow_batch_completion: true,
+                                });
+                            } else {
+                                modal
+                                    .panel
+                                    .expect_modal_panel_mut()
+                                    .groups
+                                    .push(ActionGroup {
+                                        title: group_title.as_ref().unwrap_or(&"".into()).into(),
+                                        sub_groups: vec![ActionSubGroup {
+                                            action_items: vec![item.clone()],
+                                            allow_batch_completion: true,
+                                        }],
+                                    });
                             }
-                            group.sub_groups.push(data.clone());
-                        } else {
-                            current_panel_data.groups.push(ActionGroup {
-                                title: "".to_string(),
-                                sub_groups: vec![data.clone()],
-                            });
+                            if let ActionItemRequestType::ValidateModal = item.action_type {
+                                blocks.push(BlockEvent::Modal(modal.clone()));
+                                current_modal = None;
+                            }
                         }
                     }
-                    Some(ref mut modal) => {
-                        if modal.panel.expect_modal_panel().groups.len() > 0 {
-                            let Some(group) =
-                                modal.panel.expect_modal_panel_mut().groups.last_mut()
-                            else {
-                                continue;
-                            };
-                            if group.sub_groups.len() > 0 {
-                                // if the last sub group has no action items, don't push a new group, just replace it
-                                let Some(sub_group) = group.sub_groups.last_mut() else {
+                }
+                ActionType::AppendSubGroup(data) => {
+                    for item in data.action_items.iter_mut() {
+                        item.index = index;
+                        index += 1;
+                    }
+                    match current_modal {
+                        None => {
+                            if current_panel_data.groups.len() > 0 {
+                                let Some(group) = current_panel_data.groups.last_mut() else {
                                     continue;
                                 };
-                                if sub_group.action_items.is_empty() {
-                                    *sub_group = data.clone();
-                                    continue;
+                                if group.sub_groups.len() > 0 {
+                                    // if the last sub group has no action items, don't push a new group, just replace it
+                                    let Some(sub_group) = group.sub_groups.last_mut() else {
+                                        continue;
+                                    };
+                                    if sub_group.action_items.is_empty() {
+                                        *sub_group = data.clone();
+                                        continue;
+                                    }
                                 }
+                                group.sub_groups.push(data.clone());
+                            } else {
+                                current_panel_data.groups.push(ActionGroup {
+                                    title: "".to_string(),
+                                    sub_groups: vec![data.clone()],
+                                });
                             }
-                            group.sub_groups.push(data.clone());
-                        } else {
+                        }
+                        Some(ref mut modal) => {
+                            if modal.panel.expect_modal_panel().groups.len() > 0 {
+                                let Some(group) =
+                                    modal.panel.expect_modal_panel_mut().groups.last_mut()
+                                else {
+                                    continue;
+                                };
+                                if group.sub_groups.len() > 0 {
+                                    // if the last sub group has no action items, don't push a new group, just replace it
+                                    let Some(sub_group) = group.sub_groups.last_mut() else {
+                                        continue;
+                                    };
+                                    if sub_group.action_items.is_empty() {
+                                        *sub_group = data.clone();
+                                        continue;
+                                    }
+                                }
+                                group.sub_groups.push(data.clone());
+                            } else {
+                                modal
+                                    .panel
+                                    .expect_modal_panel_mut()
+                                    .groups
+                                    .push(ActionGroup {
+                                        title: "".to_string(),
+                                        sub_groups: vec![data.clone()],
+                                    });
+                            }
+                            if data.contains_validate_modal_item() {
+                                blocks.push(BlockEvent::Modal(modal.clone()));
+                                current_modal = None;
+                            }
+                        }
+                    }
+                }
+                ActionType::AppendGroup(data) => {
+                    for subgroup in data.sub_groups.iter_mut() {
+                        for item in subgroup.action_items.iter_mut() {
+                            item.index = index;
+                            index += 1;
+                        }
+                    }
+                    match current_modal {
+                        None => {
+                            current_panel_data.groups.push(data.clone());
+                        }
+                        Some(ref mut modal) => {
                             modal
                                 .panel
                                 .expect_modal_panel_mut()
                                 .groups
-                                .push(ActionGroup {
-                                    title: "".to_string(),
-                                    sub_groups: vec![data.clone()],
-                                });
-                        }
-                        if data.contains_validate_modal_item() {
-                            blocks.push(BlockEvent::Modal(modal.clone()));
-                            current_modal = None;
+                                .push(data.clone());
+                            if data.contains_validate_modal_item() {
+                                blocks.push(BlockEvent::Modal(modal.clone()));
+                                current_modal = None;
+                            }
                         }
                     }
-                },
-                ActionType::AppendGroup(data) => match current_modal {
-                    None => {
-                        current_panel_data.groups.push(data.clone());
-                    }
-                    Some(ref mut modal) => {
-                        modal
-                            .panel
-                            .expect_modal_panel_mut()
-                            .groups
-                            .push(data.clone());
-                        if data.contains_validate_modal_item() {
-                            blocks.push(BlockEvent::Modal(modal.clone()));
-                            current_modal = None;
-                        }
-                    }
-                },
+                }
                 ActionType::NewBlock(data) => {
                     if current_panel_data.groups.len() > 1 {
                         blocks.push(BlockEvent::Action(Block {
