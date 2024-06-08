@@ -48,8 +48,8 @@ pub async fn get_additional_actions_for_address(
     let mut action_items: Vec<ActionItemRequest> = vec![];
     let mut actions = Actions::none();
 
-    let nonce_is_cached = wallet_state.get_expected_uint(FETCHED_NONCE).is_ok();
-    let balance_is_cached = wallet_state.get_expected_string(FETCHED_BALANCE).is_ok();
+    let is_nonce_already_fetched = wallet_state.get_expected_uint(FETCHED_NONCE).is_ok();
+    let is_balance_already_fetched = wallet_state.get_expected_string(FETCHED_BALANCE).is_ok();
     let requested_startup_data = wallet_state
         .get_expected_bool(REQUESTED_STARTUP_DATA)
         .ok()
@@ -93,9 +93,12 @@ pub async fn get_additional_actions_for_address(
             ));
         }
     }
+    // we get balance/nonce in the same trip to the api, so I only make the trip
+    // if we need it for one of these two values
     let v2_fetch_required = (is_balance_check_required || is_nonce_check_required)
-        && (!nonce_is_cached || !balance_is_cached);
+        && (!is_nonce_already_fetched || !is_balance_already_fetched);
     if v2_fetch_required {
+        // if we have a connected address, we can fetch the nonce/balance.
         if let Some(ref connected_address) = connected_address {
             let (action_status, balance, nonce) =
                 match stacks_rpc.get_v2_accounts(&connected_address).await {
@@ -117,7 +120,8 @@ pub async fn get_additional_actions_for_address(
                         Value::string("N/A".to_string()),
                     ),
                 };
-            if is_balance_check_required && !balance_is_cached {
+
+            if is_balance_check_required && !is_balance_already_fetched {
                 let check_balance_update =
                     ActionItemRequestUpdate::from_context(wallet_uuid, ACTION_ITEM_CHECK_BALANCE)
                         .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
@@ -127,7 +131,8 @@ pub async fn get_additional_actions_for_address(
                         .set_status(action_status.clone());
                 actions.push_action_item_update(check_balance_update);
             }
-            if is_nonce_check_required && !nonce_is_cached {
+
+            if is_nonce_check_required && !is_nonce_already_fetched {
                 let check_nonce_update =
                     ActionItemRequestUpdate::from_context(wallet_uuid, ACTION_ITEM_CHECK_NONCE)
                         .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
@@ -138,9 +143,7 @@ pub async fn get_additional_actions_for_address(
                 actions.push_action_item_update(check_nonce_update);
             }
         } else {
-            println!("nonce check? {}", is_nonce_check_required);
             if is_balance_check_required && !requested_startup_data {
-                println!("adding check balance action");
                 let check_balance = ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(wallet_uuid.value()),
@@ -156,8 +159,8 @@ pub async fn get_additional_actions_for_address(
                 );
                 action_items.push(check_balance);
             }
+
             if is_nonce_check_required && !requested_startup_data {
-                println!("adding check nonce action");
                 let check_nonce = ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(wallet_uuid.value()),
