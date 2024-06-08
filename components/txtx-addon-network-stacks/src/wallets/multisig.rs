@@ -180,7 +180,6 @@ impl WalletImplementation for StacksConnect {
                 let (updated_wallets, mut actions) = future.await?;
                 wallets = updated_wallets;
 
-                println!("NEW_ACTIONS: {:?}", actions);
                 consolidated_actions.append(&mut actions);
 
                 let signer_wallet_state = wallets.get_wallet_state(&wallet_uuid).unwrap();
