@@ -52,8 +52,7 @@ pub struct Runbook {
     pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
     pub errors: Vec<ConstructErrors>,
-    pub constructs_execution_results:
-        HashMap<ConstructUuid, Result<CommandExecutionResult, Diagnostic>>,
+    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub environment_variables_uuid_lookup: HashMap<String, ConstructUuid>,
     pub environment_variables_values: HashMap<ConstructUuid, String>,

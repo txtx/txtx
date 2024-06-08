@@ -1,9 +1,13 @@
 use crate::types::{Runbook, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
-use kit::types::frontend::{ActionItemRequestUpdate, ActionItemResponse, Actions, BlockEvent};
+use kit::types::commands::CommandExecutionFuture;
+use kit::types::frontend::{
+    ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
+};
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::fmt::Display;
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
@@ -87,15 +91,8 @@ pub fn log_evaluated_outputs(runbook: &Runbook) {
         for construct_uuid in package.outputs_uuids.iter() {
             let _construct = runbook.commands_instances.get(construct_uuid).unwrap();
             if let Some(result) = runbook.constructs_execution_results.get(construct_uuid) {
-                match result {
-                    Ok(result) => {
-                        for (key, value) in result.outputs.iter() {
-                            println!("- {}: {:?}", key, value);
-                        }
-                    }
-                    Err(e) => {
-                        println!(" - {e}")
-                    }
+                for (key, value) in result.outputs.iter() {
+                    println!("- {}: {:?}", key, value);
                 }
             } else {
                 println!(" - (no execution results)")
@@ -143,7 +140,6 @@ pub async fn run_wallets_evaluation(
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<Actions, Vec<Diagnostic>> {
     let mut consolidated_actions: Actions = Actions::none();
-
     let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
 
     let constructs_locations = runbook.constructs_locations.clone();
@@ -180,16 +176,10 @@ pub async fn run_wallets_evaluation(
 
                             if let Some(evaluation_result) = evaluation_result_opt {
                                 match cached_dependency_execution_results.get(&dependency) {
-                                    None => match evaluation_result {
-                                        Ok(evaluation_result) => {
-                                            cached_dependency_execution_results
-                                                .insert(dependency, Ok(evaluation_result));
-                                        }
-                                        Err(e) => {
-                                            cached_dependency_execution_results
-                                                .insert(dependency, Err(e));
-                                        }
-                                    },
+                                    None => {
+                                        cached_dependency_execution_results
+                                            .insert(dependency, Ok(evaluation_result));
+                                    }
                                     Some(Err(_)) => continue,
                                     Some(Ok(_)) => {}
                                 }
@@ -228,19 +218,9 @@ pub async fn run_wallets_evaluation(
                 CommandInputEvaluationStatus::NeedsUserInteraction => {
                     continue;
                 }
-                CommandInputEvaluationStatus::Aborted(result) => {
-                    let mut diags = vec![];
-                    for (_k, res) in result.inputs.into_iter() {
-                        if let Err(diag) = res {
-                            diags.push(diag);
-                        }
-                    }
-                    return Err(diags);
-                }
+                CommandInputEvaluationStatus::Aborted(diags) => return Err(diags),
             },
-            Err(e) => {
-                todo!("build input evaluation diagnostic: {}", e)
-            }
+            Err(e) => return Err(e),
         };
 
         let wallet = runbook.wallets_instances.get(&construct_uuid).unwrap();
@@ -301,11 +281,14 @@ pub async fn run_wallets_evaluation(
             )
             .await;
 
-        let (result, wallets_state) = match res {
-            Ok((wallets_state, result)) => (Ok(result), Some(wallets_state)),
-            Err((wallets_state, diag)) => (Err(diag), Some(wallets_state)),
+        let (mut result, wallets_state) = match res {
+            Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
+            Err((wallets_state, _)) => (None, Some(wallets_state)),
         };
         runbook.wallets_state = wallets_state;
+        let Some(result) = result.take() else {
+            continue;
+        };
         runbook
             .constructs_execution_results
             .insert(construct_uuid.clone(), result);
@@ -326,7 +309,7 @@ pub async fn run_commands_updating_defaults(
         res.outputs.insert("value".into(), Value::string(value));
         runbook
             .constructs_execution_results
-            .insert(env_variable_uuid, Ok(res));
+            .insert(env_variable_uuid, res);
     }
 
     let mut cached_dependency_execution_results = HashMap::new();
@@ -370,15 +353,10 @@ pub async fn run_commands_updating_defaults(
 
                     if let Some(evaluation_result) = evaluation_result_opt {
                         match cached_dependency_execution_results.get(&dependency) {
-                            None => match evaluation_result {
-                                Ok(evaluation_result) => {
-                                    cached_dependency_execution_results
-                                        .insert(dependency, Ok(evaluation_result));
-                                }
-                                Err(e) => {
-                                    cached_dependency_execution_results.insert(dependency, Err(e));
-                                }
-                            },
+                            None => {
+                                cached_dependency_execution_results
+                                    .insert(dependency, Ok(evaluation_result));
+                            }
                             Some(Err(_)) => continue,
                             Some(Ok(_)) => {}
                         }
@@ -390,6 +368,7 @@ pub async fn run_commands_updating_defaults(
                 command_instance,
                 &cached_dependency_execution_results,
                 &input_evaluation_results,
+                &None,
                 package_uuid,
                 &runbook,
                 runtime_ctx,
@@ -415,25 +394,15 @@ pub async fn run_commands_updating_defaults(
                 .and_then(|addon| Some(addon.defaults.clone()))
                 .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
 
-            let mut evaluated_inputs = CommandInputsEvaluationResult::new();
+            let mut evaluated_inputs = CommandInputsEvaluationResult::new(&command_instance.name);
 
             match evaluated_inputs_res {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
                     CommandInputEvaluationStatus::NeedsUserInteraction => {}
-                    CommandInputEvaluationStatus::Aborted(result) => {
-                        let mut diags = vec![];
-                        for (_k, res) in result.inputs.into_iter() {
-                            if let Err(diag) = res {
-                                diags.push(diag);
-                            }
-                        }
-                        return Err(diags);
-                    }
+                    CommandInputEvaluationStatus::Aborted(diags) => return Err(diags),
                 },
-                Err(e) => {
-                    todo!("build input evaluation diagnostic: {}", e)
-                }
+                Err(diags) => return Err(diags),
             };
 
             {
@@ -481,11 +450,46 @@ pub async fn run_commands_updating_defaults(
     Ok(())
 }
 
+pub struct EvaluationPassResult {
+    pub actions: Actions,
+    pub diagnostics: Vec<Diagnostic>,
+    pub pending_background_tasks_futures: Vec<CommandExecutionFuture>,
+    pub pending_background_tasks_constructs_uuids: Vec<ConstructUuid>,
+    pub background_tasks_uuid: Uuid,
+}
+
+impl EvaluationPassResult {
+    pub fn new(background_tasks_uuid: &Uuid) -> Self {
+        Self {
+            actions: Actions::none(),
+            diagnostics: vec![],
+            pending_background_tasks_futures: vec![],
+            pending_background_tasks_constructs_uuids: vec![],
+            background_tasks_uuid: background_tasks_uuid.clone(),
+        }
+    }
+}
+
+impl Display for EvaluationPassResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "EvaluationPassResult {} {{", self.background_tasks_uuid)?;
+        writeln!(f, "  actions: {:?}", self.actions)?;
+        writeln!(f, "  diagnostics: {:?}", self.diagnostics)?;
+        writeln!(
+            f,
+            "  pending_background_tasks: {:?}",
+            self.pending_background_tasks_constructs_uuids
+        )?;
+        writeln!(f, "}}")
+    }
+}
+
 // When the graph is being traversed, we are evaluating constructs one after the other.
 // After ensuring their executability, we execute them.
 // Unexecutable nodes are tainted.
 // Before evaluating the executability, we first check if they depend on a tainted node.
 pub async fn run_constructs_evaluation(
+    background_tasks_uuid: &Uuid,
     runbook: &mut Runbook,
     runtime_ctx: &mut RuntimeContext,
     start_node: Option<NodeIndex>,
@@ -493,11 +497,12 @@ pub async fn run_constructs_evaluation(
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-) -> Result<Vec<Actions>, Vec<Diagnostic>> {
+) -> EvaluationPassResult {
     let g = runbook.constructs_graph.clone();
 
+    let mut pass_result = EvaluationPassResult::new(background_tasks_uuid);
+
     let mut unexecutable_nodes: HashSet<NodeIndex> = HashSet::new();
-    let mut consolidated_actions = vec![];
 
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -505,7 +510,7 @@ pub async fn run_constructs_evaluation(
         res.outputs.insert("value".into(), Value::string(value));
         runbook
             .constructs_execution_results
-            .insert(env_variable_uuid, Ok(res));
+            .insert(env_variable_uuid, res);
     }
 
     let ordered_nodes_to_process = match start_node {
@@ -603,15 +608,10 @@ pub async fn run_constructs_evaluation(
 
                 if let Some(evaluation_result) = evaluation_result_opt {
                     match cached_dependency_execution_results.get(&dependency) {
-                        None => match evaluation_result {
-                            Ok(evaluation_result) => {
-                                cached_dependency_execution_results
-                                    .insert(dependency, Ok(evaluation_result));
-                            }
-                            Err(e) => {
-                                cached_dependency_execution_results.insert(dependency, Err(e));
-                            }
-                        },
+                        None => {
+                            cached_dependency_execution_results
+                                .insert(dependency, Ok(evaluation_result));
+                        }
                         Some(Err(_)) => continue,
                         Some(Ok(_)) => {}
                     }
@@ -623,6 +623,7 @@ pub async fn run_constructs_evaluation(
             command_instance,
             &cached_dependency_execution_results,
             &input_evaluation_results,
+            &action_item_responses.get(&construct_uuid.value()),
             package_uuid,
             &runbook,
             runtime_ctx,
@@ -633,28 +634,24 @@ pub async fn run_constructs_evaluation(
             continue;
         };
 
-        let mut evaluated_inputs = CommandInputsEvaluationResult::new();
+        let mut evaluated_inputs = CommandInputsEvaluationResult::new(&command_instance.name);
 
         match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
                 CommandInputEvaluationStatus::NeedsUserInteraction => {}
-                CommandInputEvaluationStatus::Aborted(result) => {
-                    let mut diags = vec![];
-                    for (_k, res) in result.inputs.into_iter() {
-                        if let Err(diag) = res {
-                            diags.push(diag);
-                        }
-                    }
-                    return Err(diags);
+                CommandInputEvaluationStatus::Aborted(mut diags) => {
+                    pass_result.diagnostics.append(&mut diags);
+                    return pass_result;
                 }
             },
-            Err(e) => {
-                todo!("build input evaluation diagnostic: {}", e)
+            Err(mut diags) => {
+                pass_result.diagnostics.append(&mut diags);
+                return pass_result;
             }
         };
 
-        let execution_result = if command_instance.specification.requires_signing_capability {
+        let execution_result = if command_instance.specification.implements_signing_capability {
             let wallets = runbook.wallets_state.take().unwrap();
 
             let res = command_instance.check_signed_executability(
@@ -668,19 +665,22 @@ pub async fn run_constructs_evaluation(
             );
 
             let wallets = match res {
-                Ok((updated_wallets, new_actions)) => {
+                Ok((updated_wallets, mut new_actions)) => {
                     if new_actions.has_pending_actions() {
-                        consolidated_actions.push(new_actions);
+                        pass_result.actions.append(&mut new_actions);
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {
                             unexecutable_nodes.insert(descendant);
                         }
                         continue;
                     }
-                    consolidated_actions.push(new_actions);
+                    pass_result.actions.append(&mut new_actions);
                     updated_wallets
                 }
-                Err((updated_wallets, diag)) => updated_wallets,
+                Err((updated_wallets, diag)) => {
+                    pass_result.diagnostics.push(diag);
+                    updated_wallets
+                }
             };
 
             runbook
@@ -730,7 +730,7 @@ pub async fn run_constructs_evaluation(
             };
             execution_result
         } else {
-            if let Ok(new_actions) = command_instance.check_executability(
+            if let Ok(mut new_actions) = command_instance.check_executability(
                 &construct_uuid,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
@@ -739,13 +739,13 @@ pub async fn run_constructs_evaluation(
                 execution_context,
             ) {
                 if new_actions.has_pending_actions() {
-                    consolidated_actions.push(new_actions);
+                    pass_result.actions.append(&mut new_actions);
                     for descendant in get_descendants_of_node(node, g.clone()) {
                         unexecutable_nodes.insert(descendant);
                     }
                     continue;
                 }
-                consolidated_actions.push(new_actions);
+                pass_result.actions.append(&mut new_actions);
             }
 
             runbook
@@ -792,11 +792,43 @@ pub async fn run_constructs_evaluation(
             execution_result
         };
 
+        let Ok(mut execution_result) = execution_result else {
+            println!("Moving on {:?}", execution_result);
+            continue;
+        };
+
+        if command_instance
+            .specification
+            .implements_background_task_capability
+        {   
+            let future_res = command_instance.build_background_task(
+                &construct_uuid,
+                &evaluated_inputs,
+                &execution_result,
+                addon_defaults.clone(),
+                progress_tx,
+                &pass_result.background_tasks_uuid,
+            );
+            let future = match future_res {
+                Ok(future) => future,
+                Err(diag) => {
+                    pass_result.diagnostics.push(diag);
+                    return pass_result;
+                }
+            };
+
+            pass_result.pending_background_tasks_futures.push(future);
+            pass_result
+                .pending_background_tasks_constructs_uuids
+                .push(construct_uuid.clone());
+        }
         runbook
             .constructs_execution_results
-            .insert(construct_uuid, execution_result);
+            .entry(construct_uuid)
+            .or_insert_with(CommandExecutionResult::new)
+            .append(&mut execution_result);
     }
-    Ok(consolidated_actions)
+    pass_result
 }
 
 pub fn collect_runbook_outputs(
@@ -825,8 +857,7 @@ pub fn collect_runbook_outputs(
             .to_lowercase()
             .eq("output")
         {
-            let Some(Ok(execution_result)) =
-                runbook.constructs_execution_results.get(&construct_uuid)
+            let Some(execution_result) = runbook.constructs_execution_results.get(&construct_uuid)
             else {
                 unreachable!()
             };
@@ -1158,7 +1189,7 @@ pub fn eval_expression(
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
     NeedsUserInteraction,
-    Aborted(CommandInputsEvaluationResult),
+    Aborted(Vec<Diagnostic>),
 }
 
 pub fn perform_inputs_evaluation(
@@ -1168,18 +1199,46 @@ pub fn perform_inputs_evaluation(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
+    action_item_response: &Option<&Vec<ActionItemResponse>>,
     package_uuid: &PackageUuid,
     runbook: &Runbook,
     runtime_ctx: &RuntimeContext,
-) -> Result<CommandInputEvaluationStatus, Diagnostic> {
-    let mut results = CommandInputsEvaluationResult::new();
+) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
+    let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
+    let mut diags = vec![];
     let inputs = command_instance.specification.inputs.clone();
     let mut fatal_error = false;
+
+    match action_item_response {
+        Some(responses) => responses.into_iter().for_each(
+            |ActionItemResponse {
+                 action_item_uuid: _,
+                 payload,
+             }| match payload {
+                ActionItemResponseType::ReviewInput(_update) => {}
+                ActionItemResponseType::ProvideInput(update) => {
+                    results
+                        .inputs
+                        .insert(&update.input_name, update.updated_value.clone());
+                }
+                ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                    results.insert(
+                        "signed_transaction_bytes",
+                        Value::string(bytes.signed_transaction_bytes.clone()),
+                    );
+                }
+                _ => {}
+            },
+        ),
+        None => {}
+    }
 
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
         let previously_evaluated_input = match input_evaluation_results {
-            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input.name),
+            Some(input_evaluation_results) => {
+                input_evaluation_results.inputs.get_value(&input.name)
+            }
             None => None,
         };
         if let Some(object_props) = input.as_object() {
@@ -1188,16 +1247,13 @@ pub fn perform_inputs_evaluation(
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
                     match value.clone() {
-                        Ok(Value::Object(obj)) => {
+                        Value::Object(obj) => {
                             for (k, v) in obj.into_iter() {
                                 object_values.insert(k, v);
                             }
                         }
-                        Ok(v) => {
+                        v => {
                             object_values.insert(prop.name.to_string(), Ok(v));
-                        }
-                        Err(diag) => {
-                            object_values.insert(prop.name.to_string(), Err(diag));
                         }
                     };
                 }
@@ -1245,20 +1301,16 @@ pub fn perform_inputs_evaluation(
                 };
             }
             if !object_values.is_empty() {
-                results.insert(&input.name, Ok(Value::Object(object_values)));
+                results.insert(&input.name, Value::Object(object_values));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
             if let Some(value) = previously_evaluated_input {
                 match value.clone() {
-                    Ok(Value::Array(entries)) => {
+                    Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Err(diag) => {
-                        results.insert(&input.name, Err(diag));
-                        continue;
-                    }
-                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
+                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
                         unreachable!()
                     }
                 }
@@ -1280,22 +1332,27 @@ pub fn perform_inputs_evaluation(
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
-                        Ok(Value::array(array_values))
+                        Value::array(array_values)
                     }
                 },
-                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                Err(e) => Err(e),
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    continue;
+                }
+                Err(e) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    continue;
+                }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                    println!("2 ==> {}", expr);
                     return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
 
             results.insert(&input.name, value);
         } else if let Some(_) = input.as_action() {
@@ -1312,21 +1369,26 @@ pub fn perform_inputs_evaluation(
                     runbook,
                     runtime_ctx,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("3 ==> {}", expr);
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
 
             results.insert(&input.name, value);
         } else {
@@ -1343,28 +1405,33 @@ pub fn perform_inputs_evaluation(
                     runbook,
                     runtime_ctx,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
-
             results.insert(&input.name, value);
         }
     }
 
     let status = match fatal_error {
         false => CommandInputEvaluationStatus::Complete(results),
-        true => CommandInputEvaluationStatus::Aborted(results),
+        true => CommandInputEvaluationStatus::Aborted(diags),
     };
     Ok(status)
 }
@@ -1379,15 +1446,18 @@ pub fn perform_wallet_inputs_evaluation(
     package_uuid: &PackageUuid,
     runbook: &Runbook,
     runtime_ctx: &RuntimeContext,
-) -> Result<CommandInputEvaluationStatus, Diagnostic> {
-    let mut results = CommandInputsEvaluationResult::new();
+) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
+    let mut results = CommandInputsEvaluationResult::new(&wallet_instance.name);
+    let mut diags = vec![];
     let inputs = wallet_instance.specification.inputs.clone();
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
         // todo(micaiah): this value still needs to be for inputs that are objects
         let previously_evaluated_input = match input_evaluation_results {
-            Some(input_evaluation_results) => input_evaluation_results.inputs.get(&input.name),
+            Some(input_evaluation_results) => {
+                input_evaluation_results.inputs.get_value(&input.name)
+            }
             None => None,
         };
         if let Some(object_props) = input.as_object() {
@@ -1396,16 +1466,13 @@ pub fn perform_wallet_inputs_evaluation(
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
                     match value.clone() {
-                        Ok(Value::Object(obj)) => {
+                        Value::Object(obj) => {
                             for (k, v) in obj.into_iter() {
                                 object_values.insert(k, v);
                             }
                         }
-                        Ok(v) => {
+                        v => {
                             object_values.insert(prop.name.to_string(), Ok(v));
-                        }
-                        Err(diag) => {
-                            object_values.insert(prop.name.to_string(), Err(diag));
                         }
                     };
                 }
@@ -1451,20 +1518,16 @@ pub fn perform_wallet_inputs_evaluation(
                 };
             }
             if !object_values.is_empty() {
-                results.insert(&input.name, Ok(Value::Object(object_values)));
+                results.insert(&input.name, Value::Object(object_values));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
             if let Some(value) = previously_evaluated_input {
                 match value.clone() {
-                    Ok(Value::Array(entries)) => {
+                    Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Err(diag) => {
-                        results.insert(&input.name, Err(diag));
-                        continue;
-                    }
-                    Ok(Value::Primitive(_)) | Ok(Value::Object(_)) | Ok(Value::Addon(_)) => {
+                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
                         unreachable!()
                     }
                 }
@@ -1486,11 +1549,23 @@ pub fn perform_wallet_inputs_evaluation(
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
-                        Ok(Value::array(array_values))
+                        Value::array(array_values)
                     }
                 },
-                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                Err(e) => Err(e),
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    continue;
+                }
+                Err(e) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    continue;
+                }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     // todo
                     let Expression::Array(exprs) = expr else {
@@ -1507,18 +1582,10 @@ pub fn perform_wallet_inputs_evaluation(
                             references.push(Value::string(construct_uuid.value().to_string()));
                         }
                     }
-                    results
-                        .inputs
-                        .insert(input.name, Ok(Value::array(references)));
+                    results.inputs.insert(&input.name, Value::array(references));
                     continue;
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
 
             results.insert(&input.name, value);
         } else if let Some(_) = input.as_action() {
@@ -1535,20 +1602,26 @@ pub fn perform_wallet_inputs_evaluation(
                     runbook,
                     runtime_ctx,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
 
             results.insert(&input.name, value);
         } else {
@@ -1565,20 +1638,26 @@ pub fn perform_wallet_inputs_evaluation(
                     runbook,
                     runtime_ctx,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 }
             };
-
-            if let Err(ref diag) = value {
-                if diag.is_error() {
-                    fatal_error = true;
-                }
-            }
 
             results.insert(&input.name, value);
         }
@@ -1586,7 +1665,7 @@ pub fn perform_wallet_inputs_evaluation(
 
     let status = match fatal_error {
         false => CommandInputEvaluationStatus::Complete(results),
-        true => CommandInputEvaluationStatus::Aborted(results),
+        true => CommandInputEvaluationStatus::Aborted(diags),
     };
     Ok(status)
 }

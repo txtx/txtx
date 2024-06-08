@@ -277,7 +277,6 @@ impl WalletImplementation for StacksConnect {
         let request = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
-            0,
             title,
             None,
             ActionItemStatus::Todo,

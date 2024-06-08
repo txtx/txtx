@@ -1,10 +1,11 @@
 use std::collections::HashMap;
-
+use txtx_addon_kit::channel;
+use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionContext, CommandImplementation, CommandSpecification,
-            PreCommandSpecification,
+            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
+            CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::{Actions, BlockEvent},
@@ -31,7 +32,8 @@ lazy_static! {
           name: "Send Contract Call Transaction",
           matcher: "send_contract_call",
           documentation: "The `send_contract_call` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
-          requires_signing_capability: true,
+          implements_signing_capability: true,
+          implements_background_task_capability: true,
           inputs: [
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
@@ -77,6 +79,10 @@ lazy_static! {
               }
           ],
           outputs: [
+            signed_transaction_bytes: {
+                documentation: "The signed transaction bytes.",
+                typing: Type::string()
+            },
             tx_id: {
               documentation: "The transaction id.",
               typing: Type::string()
@@ -166,7 +172,7 @@ impl CommandImplementation for SendContractCall {
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        progress_tx: &channel::Sender<BlockEvent>,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         wallets: WalletsState,
     ) -> WalletSignFutureResult {
@@ -203,7 +209,7 @@ impl CommandImplementation for SendContractCall {
                 &wallets_instances,
                 wallets,
             );
-            let (wallets, res) = match run_signing_future {
+            let (wallets, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -213,9 +219,13 @@ impl CommandImplementation for SendContractCall {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
+                res_signing
+                    .outputs
+                    .get(SIGNED_TRANSACTION_BYTES)
+                    .unwrap()
+                    .clone(),
             );
-            let res = match BroadcastStacksTransaction::run_execution(
+            let mut res = match BroadcastStacksTransaction::run_execution(
                 &uuid,
                 &spec,
                 &args,
@@ -229,8 +239,28 @@ impl CommandImplementation for SendContractCall {
                 Err(data) => return Err((wallets, data)),
             };
 
-            Ok((wallets, res))
+            res_signing.append(&mut res);
+            Ok((wallets, res_signing))
         };
         Ok(Box::pin(future))
+    }
+
+    fn build_background_task(
+        uuid: &ConstructUuid,
+        spec: &CommandSpecification,
+        args: &ValueStore,
+        defaults: &AddonDefaults,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> CommandExecutionFutureResult {
+        println!("build_background_task: {:?}", args);
+        BroadcastStacksTransaction::build_background_task(
+            &uuid,
+            &spec,
+            &args,
+            &defaults,
+            &progress_tx,
+            &background_tasks_uuid,
+        )
     }
 }

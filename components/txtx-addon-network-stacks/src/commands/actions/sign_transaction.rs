@@ -42,7 +42,8 @@ lazy_static! {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
           documentation: "The `sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
-          requires_signing_capability: true,
+          implements_signing_capability: true,
+          implements_background_task_capability: false,
           inputs: [
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
@@ -126,9 +127,13 @@ impl CommandImplementation for SignStacksTransaction {
         let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
         let payload = Value::string(hex_str);
 
+        let title = args
+            .get_expected_string("description")
+            .unwrap_or("New Transaction".into());
+
         let res = (wallet.specification.check_signability)(
             uuid,
-            "Sign Transaction",
+            title,
             &payload,
             &wallet.specification,
             &args,
@@ -176,9 +181,13 @@ impl CommandImplementation for SignStacksTransaction {
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
         let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
 
+        let title = args
+            .get_expected_string("description")
+            .unwrap_or("New Transaction".into());
+
         let res = (wallet.specification.sign)(
             uuid,
-            "Sign Transaction",
+            title,
             &payload,
             &wallet.specification,
             &args,

@@ -13,6 +13,7 @@ pub use indoc::indoc;
 pub use rust_fsm as fsm;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
+pub use futures;
 
 use hcl::structure::Block;
 pub use hcl_edit as hcl;

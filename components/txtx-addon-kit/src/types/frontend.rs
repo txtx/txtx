@@ -459,7 +459,6 @@ impl ActionItemRequest {
     pub fn new(
         uuid: &Uuid,
         construct_uuid: &Option<Uuid>,
-        index: u16,
         title: &str,
         description: Option<String>,
         action_status: ActionItemStatus,
@@ -469,7 +468,7 @@ impl ActionItemRequest {
         ActionItemRequest {
             uuid: uuid.clone(),
             construct_uuid: construct_uuid.clone(),
-            index,
+            index: 0,
             title: title.to_string(),
             description,
             action_status,

@@ -3,14 +3,13 @@ use clarity::vm::types::QualifiedContractIdentifier;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, Block, BlockEvent, Panel, ProgressBarStatus};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::Type,
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
@@ -24,7 +23,8 @@ lazy_static! {
             name: "Call Clarity Read only function",
             matcher: "call_readonly_fn",
             documentation: "The `call_readonly_fn` action queries public functions.",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 contract_id: {
                     documentation: "Address and identifier of the contract to invoke",
@@ -117,17 +117,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         #[cfg(not(feature = "wasm"))]
         let future = async move {
-            let mut progress_bar = Block {
-                uuid: Uuid::new_v4(),
-                visible: true,
-                panel: Panel::ProgressBar(ProgressBarStatus {
-                    status: "status".to_string(),
-                    message: "message".to_string(),
-                    diagnostic: None,
-                }),
-            };
-            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
-
             let mut result = CommandExecutionResult::new();
 
             let backoff_ms = 5000;
@@ -162,9 +151,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let value = clarity_value_to_value(call_result)?;
             result.outputs.insert("value".into(), value);
-
-            progress_bar.visible = false;
-            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar));
 
             Ok(result)
         };

@@ -49,7 +49,6 @@ pub async fn get_addition_actions_for_address(
         action_items.push(ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(wallet_uuid.value()),
-            0,
             &format!("Connect wallet {instance_name}"),
             None,
             ActionItemStatus::Todo,
@@ -68,7 +67,6 @@ pub async fn get_addition_actions_for_address(
             action_items.push(ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
-                0,
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
@@ -82,7 +80,7 @@ pub async fn get_addition_actions_for_address(
         if do_request_balance {
             let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
                 Ok(response) => (
-                    ActionItemStatus::Success(None),
+                    ActionItemStatus::Todo,
                     Value::string(response.get_formatted_balance()),
                 ),
                 Err(err) => (
@@ -97,7 +95,6 @@ pub async fn get_addition_actions_for_address(
             let check_balance = ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
-                0,
                 "Check wallet balance",
                 None,
                 action_status,

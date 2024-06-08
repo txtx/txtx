@@ -28,7 +28,8 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [],
             outputs: [],
             example: "",
@@ -82,7 +83,8 @@ pub fn new_input_specification() -> CommandSpecification {
             name: "Input",
             matcher: "input",
             documentation: "Construct designed to store an input",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the input",
@@ -160,7 +162,6 @@ impl CommandImplementation for Input {
                     ActionItemRequest::new(
                         &Uuid::new_v4(),
                         &Some(uuid.value()),
-                        0,
                         &title,
                         description,
                         ActionItemStatus::Todo,
@@ -197,7 +198,6 @@ impl CommandImplementation for Input {
         let action = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
-            0,
             &title,
             description,
             ActionItemStatus::Todo,
@@ -239,7 +239,8 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the output",

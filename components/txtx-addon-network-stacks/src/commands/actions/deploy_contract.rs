@@ -18,7 +18,8 @@ lazy_static! {
           name: "Stacks Contract Deployment",
           matcher: "deploy_contract",
           documentation: "Coming soon",
-          requires_signing_capability: false,
+          implements_signing_capability: false,
+          implements_background_task_capability: false,
           inputs: [
               clarity_value: {
                   documentation: "",

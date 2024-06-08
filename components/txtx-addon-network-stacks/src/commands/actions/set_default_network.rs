@@ -27,7 +27,8 @@ lazy_static! {
                   For example, the `network_id` input is used in many Stacks txtx commands. 
                   By setting this input once with `set_default_network`, the `network_id` can be omitted from subsequent Stacks txtx commands.
                 "#},
-                requires_signing_capability: false,
+                implements_signing_capability: false,
+                implements_background_task_capability: false,
                 inputs: [
                     network_id: {
                         documentation: indoc!{r#"A default Stacks network id to use. Valid values are `"mainnet"` and `"testnet"`."#},

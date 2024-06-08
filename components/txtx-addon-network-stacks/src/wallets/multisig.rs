@@ -129,7 +129,6 @@ impl WalletImplementation for StacksConnect {
             let mut open_modal_action = vec![ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(root_uuid.value()),
-                0,
                 "Compute multisig address",
                 Some("Multisig addresses are computed by hashing the public keys of all participants.".into()),
                 ActionItemStatus::Todo,
@@ -234,7 +233,9 @@ impl WalletImplementation for StacksConnect {
                     let mut actions = Actions::none();
                     let stacks_rpc = StacksRpc::new(&rpc_api_url);
                     let status_update = match stacks_rpc.get_balance(&stacks_address).await {
-                        Ok(response) => ActionItemStatus::Success(Some(response.get_formatted_balance())),
+                        Ok(response) => {
+                            ActionItemStatus::Success(Some(response.get_formatted_balance()))
+                        }
                         Err(e) => {
                             let diag = diagnosed_error!(
                                 "unable to retrieve balance {}: {}",
@@ -266,7 +267,6 @@ impl WalletImplementation for StacksConnect {
                 let validate_modal_action = ActionItemRequest::new(
                     &Uuid::new_v4(),
                     &Some(root_uuid.value()),
-                    0,
                     "CONFIRM",
                     None,
                     ActionItemStatus::Todo,
@@ -426,7 +426,6 @@ impl WalletImplementation for StacksConnect {
         let request = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(origin_uuid.value()),
-            0,
             title,
             None,
             ActionItemStatus::Todo,
