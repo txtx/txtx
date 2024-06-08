@@ -255,11 +255,12 @@ fn build_unsigned_transaction(
 
     let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
 
+    let nonce = wallet_state.get_expected_uint(NONCE)?;
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
             hash_mode: MultisigHashMode::P2SH,
             signer,
-            nonce: 0,
+            nonce,
             tx_fee: 0,
             fields: vec![],
             signatures_required: stacks_public_keys.len() as u16,
@@ -267,7 +268,7 @@ fn build_unsigned_transaction(
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
             signer,
-            nonce: 0,
+            nonce,
             tx_fee: 0,
             key_encoding: TransactionPublicKeyEncoding::Compressed,
             signature: MessageSignature::empty(),

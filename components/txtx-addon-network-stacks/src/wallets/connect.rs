@@ -224,11 +224,25 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
         };
+        // is we have NONCE cached, we've already used this wallet in a tx and incremented it.
+        // if not, this is our first time using the wallet and we should use the fetched nonce.
+        let nonce = match wallet_state.get_expected_uint(NONCE) {
+            Ok(nonce) => {
+                nonce
+            }
+            Err(_) => match wallet_state.get_expected_uint(FETCHED_NONCE) {
+                Ok(nonce) => {
+                    nonce
+                }
+                Err(diag) => return Err((wallets, diag)),
+            },
+        };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
         };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        wallet_state.insert(NONCE, Value::uint(nonce));
 
         let version = match network_id.as_str() {
             "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
@@ -306,6 +320,12 @@ impl WalletImplementation for StacksConnect {
             .outputs
             .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
 
+            Ok(nonce) => {
+                nonce
+            }
+            Err(diag) => return Err((wallets, diag)),
+        };
+        wallet_state.insert(NONCE, Value::uint(nonce + 1));
         wallets.push_wallet_state(wallet_state);
         return_synchronous_result(Ok((wallets, result)))
     }

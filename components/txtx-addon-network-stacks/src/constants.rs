@@ -9,6 +9,7 @@ pub const FETCHED_NONCE: &str = "fetched_nonce";
 
 // Wallets
 pub const PUBLIC_KEYS: &str = "public_keys";
+pub const NONCE: &str = "nonce";
 pub const SIGNED_TRANSACTION_BYTES: &str = "signed_transaction_bytes";
 pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
 
