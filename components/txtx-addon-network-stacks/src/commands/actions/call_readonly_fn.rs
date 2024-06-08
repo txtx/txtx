@@ -88,7 +88,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
         let contract_id_arg = args.get_expected_string("contract_id")?;
@@ -112,8 +112,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
         }
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-
-        let progress_tx = progress_tx.clone();
 
         #[cfg(not(feature = "wasm"))]
         let future = async move {

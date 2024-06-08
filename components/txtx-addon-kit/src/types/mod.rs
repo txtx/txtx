@@ -274,6 +274,6 @@ impl ValueStore {
     }
 
     pub fn len(&self) -> usize {
-        self.len()
+        self.storage.len()
     }
 }

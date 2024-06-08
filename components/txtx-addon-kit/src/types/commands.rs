@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    diagnostics::{Diagnostic, DiagnosticLevel},
+    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
@@ -816,7 +816,7 @@ impl CommandInstance {
                                 .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
-                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                    ActionItemResponseType::ProvideSignedTransaction(_bytes) => {
                         let action_item_update =
                             ActionItemRequestUpdate::from_uuid(&action_item_uuid)
                                 .set_status(ActionItemStatus::Success(None));

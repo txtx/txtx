@@ -1,6 +1,5 @@
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
-use kit::types::wallets;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructUuid, PackageUuid};
 
 use crate::types::{Runbook, RuntimeContext};

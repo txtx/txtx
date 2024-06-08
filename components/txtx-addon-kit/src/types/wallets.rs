@@ -13,7 +13,7 @@ use super::{
         CommandExecutionContext, CommandExecutionResult, CommandInput,
         CommandInputsEvaluationResult, CommandOutput,
     },
-    diagnostics::{Diagnostic, DiagnosticLevel},
+    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },

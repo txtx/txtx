@@ -260,7 +260,9 @@ pub async fn start_runbook_runloop(
                                     .constructs_execution_results
                                     .insert(construct_uuid, result);
                             }
-                            Err(e) => unimplemented!(),
+                            Err(diag) => {
+                                println!("{}", diag);
+                            },
                         }
                     }
 

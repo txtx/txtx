@@ -5,14 +5,13 @@ use crate::std::commands;
 use daggy::{Dag, NodeIndex};
 use kit::types::wallets::WalletsState;
 use std::collections::VecDeque;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandInstance, CommandInstanceType,
 };
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
-use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
