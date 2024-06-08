@@ -188,8 +188,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let backoff_ms = 5000;
 
             loop {
-                println!("confirmed block ids: {:?}", confirmed_blocks_ids);
-
                 if confirmed_blocks_ids.len() >= confirmations_required {
                     break;
                 }

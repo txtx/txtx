@@ -31,7 +31,9 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{hex, AddonDefaults};
 
-use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
+use crate::constants::{
+    NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
+};
 use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
 
 lazy_static! {
@@ -203,7 +205,7 @@ fn build_unsigned_transaction(
 ) -> Result<StacksTransaction, Diagnostic> {
     // Extract and decode transaction_payload_bytes
     let transaction_payload_bytes =
-        args.get_expected_buffer("transaction_payload_bytes", &CLARITY_BUFFER)?;
+        args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
     let transaction_payload = match TransactionPayload::consensus_deserialize(
         &mut &transaction_payload_bytes.bytes[..],
     ) {

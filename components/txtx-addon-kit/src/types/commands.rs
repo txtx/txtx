@@ -281,6 +281,15 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
             },
+            CommandInput {
+                name: "depends_on".into(),
+                documentation: "Name used for grouping commands together".into(),
+                typing: Type::array(Type::string()),
+                optional: true,
+                interpolable: true,
+                check_performed: false,
+                check_required: false,
+            },
         ]
     }
 }
