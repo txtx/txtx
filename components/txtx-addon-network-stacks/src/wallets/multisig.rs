@@ -234,7 +234,7 @@ impl WalletImplementation for StacksConnect {
                     let mut actions = Actions::none();
                     let stacks_rpc = StacksRpc::new(&rpc_api_url);
                     let status_update = match stacks_rpc.get_balance(&stacks_address).await {
-                        Ok(response) => ActionItemStatus::Success(Some(response.balance.clone())),
+                        Ok(response) => ActionItemStatus::Success(Some(response.get_formatted_balance())),
                         Err(e) => {
                             let diag = diagnosed_error!(
                                 "unable to retrieve balance {}: {}",

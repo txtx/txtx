@@ -83,7 +83,7 @@ pub async fn get_addition_actions_for_address(
             let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
                 Ok(response) => (
                     ActionItemStatus::Success(None),
-                    Value::string(response.balance.to_string()),
+                    Value::string(response.get_formatted_balance()),
                 ),
                 Err(err) => (
                     ActionItemStatus::Error(diagnosed_error!(
@@ -98,7 +98,7 @@ pub async fn get_addition_actions_for_address(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
                 0,
-                "Check wallet balance (STX)",
+                "Check wallet balance",
                 None,
                 action_status,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {

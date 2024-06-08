@@ -3,6 +3,7 @@ use clarity_repl::clarity::util::hash::{bytes_to_hex, hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
 use clarity_repl::codec::TransactionPayload;
 use serde_json::Value as JsonValue;
+use txtx_addon_kit::helpers::format_currency;
 use std::io::Cursor;
 
 use serde_json::json;
@@ -88,10 +89,19 @@ pub struct NextPoxCycle {
 
 #[derive(Deserialize, Debug)]
 pub struct Balance {
-    pub balance: String,
+    #[serde(rename = "balance")]
+    pub balance_hex: String,
+    #[serde(skip)]
+    pub balance: u128,
     pub nonce: u64,
     pub balance_proof: String,
     pub nonce_proof: String,
+}
+
+impl Balance {
+    pub fn get_formatted_balance(&self) -> String {
+        format_currency(self.balance, 6, "STX")
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -230,14 +240,14 @@ impl StacksRpc {
             .json()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?;
-        let balance_bytes = txtx_addon_kit::hex::decode(&res.balance[2..]).unwrap();
+        let balance_bytes = txtx_addon_kit::hex::decode(&res.balance_hex[2..]).unwrap();
 
         let mut bytes = [0u8; 16];
         let offset = 16 - balance_bytes.len();
         for (i, &byte) in balance_bytes.iter().enumerate() {
             bytes[offset + i] = byte;
         }
-        res.balance = format!("{}", u128::from_be_bytes(bytes));
+        res.balance = u128::from_be_bytes(bytes);
         Ok(res)
     }
 
