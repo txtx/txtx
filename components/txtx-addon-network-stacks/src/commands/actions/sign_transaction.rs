@@ -32,7 +32,7 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{hex, AddonDefaults};
 
 use crate::constants::{
-    NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
+    NETWORK_ID, NONCE, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
 };
 use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
 
@@ -152,12 +152,15 @@ impl CommandImplementation for SignStacksTransaction {
         mut wallets: WalletsState,
     ) -> WalletSignFutureResult {
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+            println!("found signed tx bytes in args");
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
             return return_synchronous_ok(wallets, result);
+        } else {
+            println!("didn't find signes tx bytes in args: {:?}", args);
         }
 
         let wallet_uuid = get_wallet_uuid(args).unwrap();
@@ -176,6 +179,7 @@ impl CommandImplementation for SignStacksTransaction {
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
         let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
 
+        println!("bouta call sign. args: {:?}", args);
         let res = (wallet.specification.sign)(
             uuid,
             "Sign Transaction",
@@ -256,6 +260,7 @@ fn build_unsigned_transaction(
     let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
 
     let nonce = wallet_state.get_expected_uint(NONCE)?;
+    println!("building unsigned tx with nonce {}", nonce.to_string());
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
             hash_mode: MultisigHashMode::P2SH,

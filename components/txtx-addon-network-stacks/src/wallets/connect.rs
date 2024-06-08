@@ -25,8 +25,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
-    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, NONCE,
+    PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::typing::CLARITY_BUFFER;
 
@@ -228,10 +228,15 @@ impl WalletImplementation for StacksConnect {
         // if not, this is our first time using the wallet and we should use the fetched nonce.
         let nonce = match wallet_state.get_expected_uint(NONCE) {
             Ok(nonce) => {
+                println!("found cached nonce {}", nonce.clone().to_string());
                 nonce
             }
             Err(_) => match wallet_state.get_expected_uint(FETCHED_NONCE) {
                 Ok(nonce) => {
+                    println!(
+                        "didn't find cached nonce, found fetched nonce {}",
+                        nonce.clone().to_string()
+                    );
                     nonce
                 }
                 Err(diag) => return Err((wallets, diag)),
@@ -242,6 +247,7 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, diag)),
         };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        println!("inserting nonce to cache {}", nonce.clone().to_string());
         wallet_state.insert(NONCE, Value::uint(nonce));
 
         let version = match network_id.as_str() {
@@ -305,7 +311,7 @@ impl WalletImplementation for StacksConnect {
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
+        mut wallet_state: ValueStore,
         mut wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
@@ -320,12 +326,23 @@ impl WalletImplementation for StacksConnect {
             .outputs
             .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
 
+        let nonce = match wallet_state.get_expected_uint(NONCE) {
             Ok(nonce) => {
+                println!(
+                    "found cached nonce after sign {}",
+                    nonce.clone().to_string()
+                );
                 nonce
             }
             Err(diag) => return Err((wallets, diag)),
         };
+
+        println!(
+            "inserting new cached nonce {}",
+            (nonce + 1).clone().to_string()
+        );
         wallet_state.insert(NONCE, Value::uint(nonce + 1));
+
         wallets.push_wallet_state(wallet_state);
         return_synchronous_result(Ok((wallets, result)))
     }

@@ -381,6 +381,7 @@ pub async fn start_runbook_runloop(
                 else {
                     continue;
                 };
+
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 

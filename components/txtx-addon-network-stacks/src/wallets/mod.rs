@@ -104,6 +104,7 @@ pub async fn get_additional_actions_for_address(
                         wallet_state.insert(FETCHED_BALANCE, balance.clone());
                         let nonce = Value::uint(response.nonce);
                         wallet_state.insert(FETCHED_NONCE, nonce.clone());
+                        println!("inserting fetched nonce {}", nonce.clone().to_string());
                         (ActionItemStatus::Success(None), balance, nonce)
                     }
                     Err(err) => (
