@@ -645,7 +645,10 @@ impl Actions {
         new_action_item_requests
     }
 
-    pub fn compile_actions_to_block_events(&self) -> Vec<BlockEvent> {
+    pub fn compile_actions_to_block_events(
+        &self,
+        action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
+    ) -> Vec<BlockEvent> {
         let mut blocks = vec![];
         let mut current_panel_data = ActionPanelData {
             title: "".to_string(),
@@ -653,6 +656,7 @@ impl Actions {
             groups: vec![],
         };
         let mut current_modal: Option<Block> = None;
+        let mut updates = vec![];
         for item in self.store.iter() {
             match item {
                 ActionType::AppendSubGroup(data) => match current_modal {
@@ -742,9 +746,12 @@ impl Actions {
                 ActionType::NewModal(data) => {
                     current_modal = Some(data.clone());
                 }
-                ActionType::UpdateActionItemRequest(_) => {}
+                ActionType::UpdateActionItemRequest(data) => {
+                    updates.push(data.normalize(&action_item_requests));
+                }
             }
         }
+        blocks.push(BlockEvent::UpdateActionItems(updates));
         blocks.push(BlockEvent::Action(Block {
             uuid: Uuid::new_v4(),
             panel: Panel::ActionPanel(current_panel_data.clone()),

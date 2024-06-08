@@ -269,13 +269,17 @@ pub async fn start_runbook_runloop(
                 };
 
                 let mut consolidated_actions = Actions::none();
+                let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                    .set_status(ActionItemStatus::Success(None));
+                consolidated_actions.push_action_item_update(update);
                 for actions in actions_groups.iter_mut() {
                     for new_request in actions.get_new_action_item_requests().into_iter() {
                         action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
                     }
                     consolidated_actions.append(actions);
                 }
-                let block_events = consolidated_actions.compile_actions_to_block_events();
+                let block_events =
+                    consolidated_actions.compile_actions_to_block_events(&action_item_requests);
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
                 }
@@ -528,7 +532,7 @@ pub async fn build_genesis_panel(
             index: 0,
             title: "Select Environment".into(),
             description: Some("Selecting a new environment will reset the Runbook with the newly selected environment variables.".into()),
-            action_status: ActionItemStatus::Todo,
+            action_status: ActionItemStatus::Success(None),
             action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest { options: input_options, selected: selected_option}),
             internal_key: "env".into(),
         };
@@ -561,7 +565,7 @@ pub async fn build_genesis_panel(
 
     register_action_items_from_actions(&actions, action_item_requests);
 
-    let panels = actions.compile_actions_to_block_events();
+    let panels = actions.compile_actions_to_block_events(&action_item_requests);
     for panel in panels.iter() {
         match panel {
             BlockEvent::Modal(_) => {}
