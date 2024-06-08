@@ -1,5 +1,9 @@
-use kit::types::types::{PrimitiveValue, TypeImplementation, TypeSpecification};
+use std::collections::BTreeMap;
+
+use kit::{helpers::fs::FileLocation, types::types::{TypeImplementation, TypeSpecification}};
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
+use sha2::Sha256 as LibSha256;
+
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -9,25 +13,47 @@ use txtx_addon_kit::{
     },
 };
 
+use crate::{pre_compute_runbook, std::StdAddon, types::{Runbook, RuntimeContext, SourceTree}, AddonsContext};
+
 lazy_static! {
-    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
-        Ripemd160 => {
-            name: "ripemd160",
-            documentation: "Coming soon",
-            example: indoc!{r#"
-          "#},
-            inputs: [
-                value: {
-                    documentation: "Coming soon",
-                    typing: vec![Type::buffer(), Type::array(Type::buffer())]
-                }
-            ],
-            output: {
-                documentation: "",
-                typing: Type::string()
-            },
+    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
+        define_function! {
+            Ripemd160 => {
+                name: "ripemd160",
+                documentation: "Coming soon",
+                example: indoc!{r#"
+              "#},
+                inputs: [
+                    value: {
+                        documentation: "Coming soon",
+                        typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Type::string()
+                },
+            }
+        },
+        define_function! {
+            Sha256 => {
+                name: "sha256",
+                documentation: "Coming soon",
+                example: indoc!{r#"
+              "#},
+                inputs: [
+                    value: {
+                        documentation: "Coming soon",
+                        typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                    }
+                ],
+                output: {
+                    documentation: "",
+                    typing: Type::string()
+                },
+            }
         }
-    },];
+    ];
     pub static ref HASH_BUFFER: TypeSpecification = define_addon_type! {
         HashBuffer => {
             name: "hash_buffer",
@@ -45,38 +71,38 @@ impl FunctionImplementation for Ripemd160 {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        if let Some(Value::Primitive(PrimitiveValue::Buffer(buf))) = args.get(0) {
-            let mut hasher = LibRipemd160::new();
-            hasher.update(&buf.bytes[..]);
-            let result = hasher.finalize();
-            let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
-            return Ok(value);
-        }
-        if let Some(Value::Array(values)) = args.get(0) {
-            let mut joined = vec![];
-            for value in values.iter() {
-                match value {
-                    Value::Primitive(PrimitiveValue::Buffer(buf)) => {
-                        joined.extend(buf.bytes.clone());
-                    }
-                    Value::Primitive(PrimitiveValue::String(val)) => {
-                        joined.extend(val.as_bytes());
-                    }
-                    _ => {
-                        return Err(Diagnostic::error_from_string(
-                            "wrong inputs for Ripemd160 function".to_string(),
-                        ));
-                    }
-                }
-            }
-            let mut hasher = LibRipemd160::new();
-            hasher.update(&joined[..]);
-            let result = hasher.finalize();
-            let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
-            return Ok(value);
-        }
-        Err(Diagnostic::error_from_string("wrong inputs".to_string()))
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let Some(value) = args.get(0) else {
+            return Err(diagnosed_error!("{}: expected 1 argument, got 0", ctx.name));
+        };
+
+        let mut hasher = LibRipemd160::new();
+        hasher.update(value.to_bytes());
+        let result = hasher.finalize();
+        let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
+        Ok(value)
+    }
+}
+
+pub struct Sha256;
+impl FunctionImplementation for Sha256 {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let Some(value) = args.get(0) else {
+            return Err(diagnosed_error!("{}: expected 1 argument, got 0", ctx.name));
+        };
+
+        let mut hasher = LibSha256::new();
+        hasher.update(value.to_bytes());
+        let result = hasher.finalize();
+        let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
+        Ok(value)
     }
 }
 

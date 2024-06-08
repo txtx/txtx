@@ -191,7 +191,7 @@ pub async fn start_runbook_runloop(
 
         // Cooldown
         let Some(action_item_response) = event_opt else {
-            sleep(Duration::from_millis(1000));
+            sleep(Duration::from_millis(50));
             continue;
         };
         let ActionItemResponse {

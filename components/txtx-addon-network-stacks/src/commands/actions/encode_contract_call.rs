@@ -18,6 +18,8 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
+use super::encode_contract_call;
+
 lazy_static! {
     pub static ref ENCODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
         EncodeStacksContractCall => {
@@ -126,87 +128,22 @@ impl CommandImplementation for EncodeStacksContractCall {
 
         // Extract network_id
         let network_id = args.get_defaulting_string("network_id", defaults)?;
-
-        // Extract contract_address
         let contract_id_value = args.get_expected_value("contract_id")?;
-
-        let contract_id = match contract_id_value {
-            Value::Primitive(PrimitiveValue::Buffer(contract_id)) => {
-                match parse_clarity_value(&contract_id.bytes, &contract_id.typing).unwrap() {
-                    clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
-                    cv => {
-                        return return_synchronous_err(diagnosed_error!(
-                            "command {}: unexpected clarity value {cv}",
-                            spec.matcher
-                        ))
-                    }
-                }
-            }
-            Value::Primitive(PrimitiveValue::String(contract_id)) => {
-                match clarity::vm::types::QualifiedContractIdentifier::parse(contract_id) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return return_synchronous_err(diagnosed_error!(
-                            "command {}: error parsing contract_id {}",
-                            spec.matcher,
-                            e.to_string()
-                        ))
-                    }
-                }
-            }
-            _ => {
-                return return_synchronous_err(diagnosed_error!(
-                    "command {}: attribute 'contract_id' expecting type string",
-                    spec.matcher
-                ))
-            }
-        };
-
-        // validate contract_id against network_id
-        // todo, is there a better way to do this?
-        let id_str = contract_id.to_string();
-        let mainnet_match = id_str.starts_with("SP") && network_id.eq("mainnet");
-        let testnet_match = id_str.starts_with("ST") && network_id.eq("testnet");
-        if !mainnet_match && !testnet_match {
-            unimplemented!(
-                "contract id {} is not valid for network {}; return diagnostic",
-                id_str,
-                network_id
-            );
-        }
-
         let function_name = args.get_expected_string("function_name")?;
         let function_args_values = args.get_expected_array("function_args")?;
 
-        let mut function_args = vec![];
-        for arg_value in function_args_values.iter() {
-            let Some(buffer) = arg_value.as_buffer_data() else {
-                return return_synchronous_err(diagnosed_error!(
-                    "function '{}': expected array, got {:?}",
-                    spec.matcher,
-                    arg_value
-                ));
-            };
-            let arg = parse_clarity_value(&buffer.bytes, &buffer.typing).unwrap();
-            function_args.push(arg);
-        }
+        let bytes = encode_contract_call(
+            spec,
+            function_name,
+            function_args_values,
+            &network_id,
+            contract_id_value,
+        )?;
 
-        let payload = TransactionPayload::ContractCall(TransactionContractCall {
-            contract_name: contract_id.name.clone(),
-            address: StacksAddress::from(contract_id.issuer.clone()),
-            function_name: ClarityName::try_from(function_name).unwrap(),
-            function_args,
-        });
-
-        let mut bytes = vec![];
-        payload.consensus_serialize(&mut bytes).unwrap();
-        let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
-
-        result.outputs.insert("bytes".to_string(), value);
+        result.outputs.insert("bytes".to_string(), bytes);
         result
             .outputs
             .insert("network_id".to_string(), Value::string(network_id));
-
         return_synchronous_ok(result)
     }
 }

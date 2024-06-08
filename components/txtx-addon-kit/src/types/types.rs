@@ -232,6 +232,27 @@ impl Value {
             (Value::Addon(_), Value::Array(_)) => false,
         }
     }
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match &self {
+            Value::Primitive(PrimitiveValue::Buffer(buf)) => buf.bytes.clone(),
+            Value::Array(values) => {
+                let mut joined = vec![];
+                for value in values.iter() {
+                    joined.extend(value.to_bytes());
+                }
+                joined
+            }
+            Value::Primitive(PrimitiveValue::String(bytes)) => {
+                let bytes = if bytes.starts_with("0x") {
+                    crate::hex::decode(&bytes[2..]).unwrap()
+                } else {
+                    crate::hex::decode(&bytes).unwrap()
+                };
+                bytes
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 impl Value {
