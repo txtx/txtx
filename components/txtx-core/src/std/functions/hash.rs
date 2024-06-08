@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use kit::{helpers::fs::FileLocation, types::types::{TypeImplementation, TypeSpecification}};
+use kit::{
+    helpers::fs::FileLocation,
+    types::types::{TypeImplementation, TypeSpecification},
+};
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
 use sha2::Sha256 as LibSha256;
 
@@ -13,7 +16,12 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::{pre_compute_runbook, std::StdAddon, types::{Runbook, RuntimeContext, SourceTree}, AddonsContext};
+use crate::{
+    pre_compute_runbook,
+    std::StdAddon,
+    types::{Runbook, RuntimeContext, SourceTree},
+    AddonsContext,
+};
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![

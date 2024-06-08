@@ -209,7 +209,11 @@ impl CommandImplementation for Input {
             "provide_input",
         );
 
-        return Ok(Actions::new_sub_group_of_items(vec![action]));
+        return Ok(Actions::append_item(
+            action,
+            Some("Review and check the inputs from the list below"),
+            Some("Inputs Review"),
+        ));
     }
 
     fn run_execution(

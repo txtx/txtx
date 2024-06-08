@@ -536,7 +536,7 @@ pub async fn build_genesis_panel(
             action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest { options: input_options, selected: selected_option}),
             internal_key: "env".into(),
         };
-        actions.push_group("Select Environment", vec![action_request]);
+        actions.push_sub_group(vec![action_request]);
     }
 
     let mut wallet_actions = run_wallets_evaluation(

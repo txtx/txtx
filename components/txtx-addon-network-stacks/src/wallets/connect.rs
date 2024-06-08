@@ -203,7 +203,12 @@ impl WalletImplementation for StacksConnect {
                 Ok(action_items) => action_items,
                 Err(diag) => return Err((wallets, diag)),
             };
-            actions.push_sub_group(action_items);
+            if !action_items.is_empty() {
+                actions.push_group(
+                    "Review and check the following wallet related action items",
+                    action_items,
+                );
+            }
             Ok((wallets, actions))
         };
         #[cfg(feature = "wasm")]
@@ -285,7 +290,14 @@ impl WalletImplementation for StacksConnect {
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
         wallets.push_wallet_state(wallet_state);
-        Ok((wallets, Actions::new_sub_group_of_items(vec![request])))
+        Ok((
+            wallets,
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transactions Signing"),
+            ),
+        ))
     }
 
     fn sign(
