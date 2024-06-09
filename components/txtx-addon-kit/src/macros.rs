@@ -51,7 +51,8 @@ macro_rules! define_command {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
-        requires_signing_capability: $requires_signing_capability:expr,
+        implements_signing_capability: $implements_signing_capability:expr,
+        implements_background_task_capability: $implements_background_task_capability:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
@@ -59,7 +60,8 @@ macro_rules! define_command {
     }) => {
         {
         use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandExecutionClosure};
-        let requires_signing_capability: bool = $requires_signing_capability;
+        let implements_signing_capability: bool = $implements_signing_capability;
+        let implements_background_task_capability: bool = $implements_background_task_capability;
         PreCommandSpecification::Atomic(
           CommandSpecification {
             name: String::from($fn_name),
@@ -68,7 +70,8 @@ macro_rules! define_command {
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
             update_addon_defaults: false,
-            requires_signing_capability,
+            implements_signing_capability,
+            implements_background_task_capability,
             inputs: vec![$(CommandInput {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
@@ -89,6 +92,7 @@ macro_rules! define_command {
             run_execution: Box::new($func_key::run_execution),
             check_signed_executability: $func_key::check_signed_executability,
             run_signed_execution: Box::new($func_key::run_signed_execution),
+            build_background_task: Box::new($func_key::build_background_task),
             example: String::from($example),
         }
       )

@@ -13,7 +13,7 @@ use super::{
         CommandExecutionContext, CommandExecutionResult, CommandInput,
         CommandInputsEvaluationResult, CommandOutput,
     },
-    diagnostics::{Diagnostic, DiagnosticLevel},
+    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
@@ -305,7 +305,7 @@ impl WalletInstance {
     pub fn get_expression_from_input(
         &self,
         input: &CommandInput,
-    ) -> Result<Option<Expression>, Diagnostic> {
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let res = match &input.typing {
             Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
                 visit_optional_untyped_attribute(&input.name, &self.block)?
@@ -335,7 +335,7 @@ impl WalletInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Diagnostic> {
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let object = self.block.body.get_blocks(&input.name).next();
         match (object, input.optional) {
             (Some(block), _) => {
@@ -377,23 +377,13 @@ impl WalletInstance {
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for input in self.specification.inputs.iter() {
-            let value = match input_evaluation_results.inputs.get(&input.name) {
-                Some(Ok(value)) => Ok(value.clone()),
-                Some(Err(e)) => Err(Diagnostic {
-                    span: None,
-                    location: None,
-                    message: format!("Cannot execute command due to erroring inputs"),
-                    level: DiagnosticLevel::Error,
-                    documentation: None,
-                    example: None,
-                    parent_diagnostic: Some(Box::new(e.clone())),
-                }),
+            let value = match input_evaluation_results.inputs.get_value(&input.name) {
+                Some(value) => value.clone(),
                 None => match input.optional {
                     true => continue,
                     false => unreachable!(), // todo: return diagnostic
                 },
-            }
-            .unwrap();
+            };
             values.insert(&input.name, value);
         }
 
@@ -482,13 +472,8 @@ impl WalletInstance {
     ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
         // todo: I don't think this one needs to be a result
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
-        for (key, value_res) in evaluated_inputs.inputs.iter() {
-            match value_res {
-                Ok(value) => {
-                    values.insert(&key, value.clone());
-                }
-                Err(diag) => return Err((wallets, diag.clone())),
-            };
+        for (key, value) in evaluated_inputs.inputs.iter() {
+            values.insert(&key, value.clone());
         }
 
         let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
@@ -556,7 +541,9 @@ pub trait WalletImplementation {
         _execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult;
+    ) -> WalletActivabilityFutureResult {
+        unimplemented!()
+    }
 
     fn activate(
         _uuid: &ConstructUuid,
@@ -567,7 +554,9 @@ pub trait WalletImplementation {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult;
+    ) -> WalletActivateFutureResult {
+        unimplemented!()
+    }
 
     fn check_signability(
         _caller_uuid: &ConstructUuid,
@@ -594,5 +583,7 @@ pub trait WalletImplementation {
         _wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
-    ) -> WalletSignFutureResult;
+    ) -> WalletSignFutureResult {
+        unimplemented!()
+    }
 }

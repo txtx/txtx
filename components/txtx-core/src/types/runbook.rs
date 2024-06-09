@@ -3,16 +3,16 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
+use kit::types::diagnostics::Diagnostic;
 use kit::types::wallets::WalletsState;
+use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::collections::{HashMap, HashSet};
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandInstance, CommandInstanceType,
 };
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
-use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::wallets::WalletInstance;
 use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
@@ -51,9 +51,8 @@ pub struct Runbook {
     pub wallets_state: Option<WalletsState>,
     pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
-    pub errors: Vec<ConstructErrors>,
-    pub constructs_execution_results:
-        HashMap<ConstructUuid, Result<CommandExecutionResult, Diagnostic>>,
+    pub errors: Vec<Diagnostic>,
+    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub environment_variables_uuid_lookup: HashMap<String, ConstructUuid>,
     pub environment_variables_values: HashMap<ConstructUuid, String>,

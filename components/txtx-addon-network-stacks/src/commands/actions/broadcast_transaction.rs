@@ -24,7 +24,8 @@ lazy_static! {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
             documentation: "The `broadcast_transaction` action sends a signed transaction payload to the specified network.",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: true,
             inputs: [
                 signed_transaction_bytes: {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",
@@ -114,32 +115,16 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
         let transaction_bytes =
             args.get_expected_buffer(SIGNED_TRANSACTION_BYTES, &CLARITY_BUFFER)?;
 
-        let confirmations_required = args
-            .get_expected_uint("confirmations")
-            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
-
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
-        let progress_tx = progress_tx.clone();
         #[cfg(not(feature = "wasm"))]
         let future = async move {
-            let mut progress_bar = Block {
-                uuid: Uuid::new_v4(),
-                visible: true,
-                panel: Panel::ProgressBar(ProgressBarStatus {
-                    status: "status".to_string(),
-                    message: "message".to_string(),
-                    diagnostic: None,
-                }),
-            };
-            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
-
             let mut result = CommandExecutionResult::new();
 
             let mut s = String::from("0x");
@@ -176,12 +161,62 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
             };
 
-            // // Strip extra double quotes
-            // txid = txid[1..65].to_string();
-
             result
                 .outputs
                 .insert(format!("tx_id"), Value::string(tx_result.txid.clone()));
+
+            result.outputs.insert(
+                SIGNED_TRANSACTION_BYTES.into(),
+                Value::buffer(transaction_bytes.bytes, CLARITY_BUFFER.clone()),
+            );
+
+            Ok(result)
+        };
+        #[cfg(feature = "wasm")]
+        panic!("async commands are not enabled for wasm");
+        #[cfg(not(feature = "wasm"))]
+        Ok(Box::pin(future))
+    }
+
+    fn build_background_task(
+        _uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        defaults: &AddonDefaults,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _background_tasks_uuid: &Uuid,
+    ) -> CommandExecutionFutureResult {
+        let args = args.clone();
+
+        let confirmations_required = args
+            .get_expected_uint("confirmations")
+            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
+
+        let txid = args.get_expected_string("tx_id").unwrap().to_string();
+
+        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+
+        let progress_tx = progress_tx.clone();
+        #[cfg(not(feature = "wasm"))]
+        let future = async move {
+            let client = StacksRpc::new(&rpc_api_url);
+            let mut retry_count = 4;
+
+            let mut progress_bar = Block {
+                uuid: Uuid::new_v4(),
+                visible: true,
+                panel: Panel::ProgressBar(ProgressBarStatus {
+                    status: "Broadcasting".to_string(),
+                    message: format!(
+                        "Broadcasting transaction to the Stacks network through node {}",
+                        rpc_api_url
+                    ),
+                    diagnostic: None,
+                }),
+            };
+            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
+
+            let mut result = CommandExecutionResult::new();
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
@@ -220,7 +255,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     continue;
                 }
 
-                let tx_details_result = client.get_tx(&tx_result.txid).await.map_err(|e| {
+                let tx_details_result = client.get_tx(&txid).await.map_err(|e| {
                     Diagnostic::error_from_string(format!(
                         "Failed to broadcast stacks transaction: {e}"
                     ))

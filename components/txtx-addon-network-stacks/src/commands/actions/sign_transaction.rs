@@ -42,7 +42,8 @@ lazy_static! {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
           documentation: "The `sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
-          requires_signing_capability: true,
+          implements_signing_capability: true,
+          implements_background_task_capability: false,
           inputs: [
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
@@ -75,7 +76,7 @@ lazy_static! {
           ],
           example: txtx_addon_kit::indoc! {r#"
           action "my_ref" "stacks::sign_transaction" {
-              transaction_payload_bytes = encode_buffer("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
+              transaction_payload_bytes = stacks::cv_buff("0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631")
               nonce = 1
               fee = 1200
               network_id = "testnet"
@@ -126,9 +127,13 @@ impl CommandImplementation for SignStacksTransaction {
         let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
         let payload = Value::string(hex_str);
 
+        let title = args
+            .get_expected_string("description")
+            .unwrap_or("New Transaction".into());
+
         let res = (wallet.specification.check_signability)(
             uuid,
-            "Sign Transaction",
+            title,
             &payload,
             &wallet.specification,
             &args,
@@ -176,9 +181,13 @@ impl CommandImplementation for SignStacksTransaction {
         transaction.consensus_serialize(&mut bytes).unwrap(); // todo
         let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
 
+        let title = args
+            .get_expected_string("description")
+            .unwrap_or("New Transaction".into());
+
         let res = (wallet.specification.sign)(
             uuid,
-            "Sign Transaction",
+            title,
             &payload,
             &wallet.specification,
             &args,

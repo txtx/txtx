@@ -1,3 +1,4 @@
+use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -266,5 +267,13 @@ impl ValueStore {
 
     pub fn insert(&mut self, key: &str, value: Value) {
         self.storage.insert(key.to_string(), value);
+    }
+
+    pub fn iter(&self) -> Iter<String, Value> {
+        self.storage.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.storage.len()
     }
 }

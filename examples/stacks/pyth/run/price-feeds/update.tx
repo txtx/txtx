@@ -32,7 +32,7 @@ action "update_price_feed" "stacks::send_contract_call" {
   contract_id = "${env.pyth_deployer_address}.pyth-oracle-v2"
   function_name = "verify-and-update-price"
   function_args = [
-    // encode_buffer(base64_decode(index(jq(action.fetch_price.response_body, ".[0].vaa"), 0))),
+    // stacks::cv_buff(base64_decode(index(jq(action.fetch_price.response_body, ".[0].vaa"), 0))),
     // index(jq(action.fetch_execution_plan.response_body, ".result"), 0),
   ]
   wallet = wallet.alice

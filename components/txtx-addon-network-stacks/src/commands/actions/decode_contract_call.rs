@@ -22,7 +22,8 @@ lazy_static! {
           name: "Decode Stacks Contract Call",
           matcher: "decode_call_contract",
           documentation: "Coming soon",
-          requires_signing_capability: false,
+          implements_signing_capability: false,
+          implements_background_task_capability: false,
           inputs: [
             bytes: {
                   documentation: "The contract call transaction bytes to decode.",

@@ -16,19 +16,24 @@ mod tests;
 use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
 use ::std::thread::sleep;
+use ::std::time;
 use ::std::time::Duration;
 
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
+use kit::channel;
 use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
 use kit::types::frontend::ActionItemResponse;
 use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
+use kit::types::frontend::Block;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
+use kit::types::frontend::ProgressBarStatus;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
@@ -56,13 +61,17 @@ pub fn pre_compute_runbook(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let _ = run_constructs_indexing(runbook, runtime_context)?;
+    let res = run_constructs_indexing(runbook, runtime_context)?;
+    if res {
+        return Err(runbook.errors.clone())
+    }
     let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
     Ok(())
 }
 
+#[derive(Debug)]
 pub struct AddonsContext {
-    addons: HashMap<String, Box<dyn Addon>>,
+    addons: HashMap<String, (Box<dyn Addon>, bool)>,
     contexts: HashMap<(PackageUuid, String), AddonContext>,
 }
 
@@ -74,13 +83,14 @@ impl AddonsContext {
         }
     }
 
-    pub fn register(&mut self, addon: Box<dyn Addon>) {
-        self.addons.insert(addon.get_namespace().to_string(), addon);
+    pub fn register(&mut self, addon: Box<dyn Addon>, scope: bool) {
+        self.addons
+            .insert(addon.get_namespace().to_string(), (addon, scope));
     }
 
     pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionSpecification> {
         let mut functions = vec![];
-        for (_, addon) in self.addons.iter() {
+        for (_, (addon, _)) in self.addons.iter() {
             let mut addon_functions = addon.get_functions();
             functions.append(&mut addon_functions);
         }
@@ -94,7 +104,7 @@ impl AddonsContext {
     ) -> Result<&AddonContext, Diagnostic> {
         let key = (package_uuid.clone(), namespace.to_string());
         if self.contexts.get(&key).is_none() {
-            let Some(addon) = self.addons.get(namespace) else {
+            let Some((addon, _)) = self.addons.get(namespace) else {
                 unimplemented!();
             };
             let ctx = addon.create_context();
@@ -140,19 +150,104 @@ lazy_static! {
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
+    _environments: BTreeMap<String, BTreeMap<String, String>>,
+) -> Result<(), Vec<Diagnostic>> {
+    let execution_context = CommandExecutionContext {
+        review_input_default_values: false,
+        review_input_values: false,
+    };
+
+    let (tx, _rx) = channel::unbounded();
+    let mut action_item_requests = BTreeMap::new();
+    let action_item_responses = BTreeMap::new();
+    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
+
+    let actions = run_wallets_evaluation(
+        runbook,
+        runtime_context,
+        &execution_context,
+        &mut action_item_requests,
+        &action_item_responses,
+        &tx,
+    )
+    .await?;
+
+    assert!(!actions.has_pending_actions());
+
+    let mut uuid = Uuid::new_v4();
+    let mut background_tasks_futures = vec![];
+    let mut background_tasks_contructs_uuids = vec![];
+    let mut runbook_completed = false;
+
+    loop {
+        let mut pass_results = run_constructs_evaluation(
+            &uuid,
+            runbook,
+            runtime_context,
+            None,
+            &execution_context,
+            &mut action_item_requests,
+            &action_item_responses,
+            &tx,
+        )
+        .await;
+
+        if !pass_results.diagnostics.is_empty() {
+            println!("Errors / warning");
+            for diag in pass_results.diagnostics.iter() {
+                println!("- {}", diag);
+            }    
+        }
+
+        if !pass_results.actions.has_pending_actions()
+            && background_tasks_contructs_uuids.is_empty()
+        {
+            let grouped_actions_items = collect_runbook_outputs(&uuid, &runbook, &runtime_context);
+            for (group, items) in grouped_actions_items.iter() {
+                println!("{}", group);
+                for item in items.iter() {
+                    if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                        println!("- {}: {}", output.name, output.value.to_string());
+                    }
+                }
+            }
+            runbook_completed = true;
+        }
+
+        if !pass_results
+            .pending_background_tasks_constructs_uuids
+            .is_empty()
+        {
+            background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
+            background_tasks_contructs_uuids
+                .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+        }
+
+        sleep(time::Duration::from_secs(3));
+        uuid = Uuid::new_v4();
+
+        if runbook_completed {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn start_interactive_runbook_runloop(
+    runbook: &mut Runbook,
+    runtime_context: &mut RuntimeContext,
     block_tx: Sender<BlockEvent>,
     _action_item_request_tx: Sender<ActionItemRequest>,
     action_item_responses_rx: Receiver<ActionItemResponse>,
     environments: BTreeMap<String, BTreeMap<String, String>>,
-    interactive_by_default: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
     let mut runbook_initialized = false;
-
     let execution_context = CommandExecutionContext {
-        review_input_default_values: interactive_by_default,
-        review_input_values: interactive_by_default,
+        review_input_default_values: true,
+        review_input_values: true,
     };
 
     // Compute number of steps
@@ -162,6 +257,10 @@ pub async fn start_runbook_runloop(
     let mut action_item_requests: BTreeMap<Uuid, ActionItemRequest> = BTreeMap::new();
     // store of construct_uuids and its associated action_item_response_types
     let mut action_item_responses = BTreeMap::new();
+
+    let mut background_tasks_futures = vec![];
+    let mut background_tasks_contructs_uuids = vec![];
+    let mut background_tasks_handle_uuid = Uuid::new_v4();
 
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
@@ -229,11 +328,50 @@ pub async fn start_runbook_runloop(
         match &payload {
             ActionItemResponseType::ValidateModal => {}
             ActionItemResponseType::ValidateBlock => {
+                // Handle background tasks
+                if !background_tasks_futures.is_empty() {
+                    let mut block = Block {
+                        uuid: background_tasks_handle_uuid,
+                        visible: true,
+                        panel: Panel::ProgressBar(ProgressBarStatus {
+                            status: "Broadcasting".to_string(),
+                            message: format!("Broadcasting transaction to the Stacks network",),
+                            diagnostic: None,
+                        }),
+                    };
+
+                    let _ = block_tx.send(BlockEvent::ProgressBar(block.clone()));
+
+                    let results = kit::futures::future::join_all(background_tasks_futures).await;
+                    for (construct_uuid, result) in
+                        background_tasks_contructs_uuids.into_iter().zip(results)
+                    {
+                        match result {
+                            Ok(result) => {
+                                runbook
+                                    .constructs_execution_results
+                                    .insert(construct_uuid, result);
+                            }
+                            Err(diag) => {
+                                println!("{}", diag);
+                            }
+                        }
+                    }
+
+                    block.visible = false;
+                    let _ = block_tx.send(BlockEvent::ProgressBar(block));
+                    background_tasks_futures = vec![];
+                    background_tasks_contructs_uuids = vec![];
+                }
+
+                background_tasks_handle_uuid = Uuid::new_v4();
+
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
 
-                let mut actions_groups = run_constructs_evaluation(
+                let mut pass_results = run_constructs_evaluation(
+                    &background_tasks_handle_uuid,
                     runbook,
                     runtime_context,
                     None,
@@ -242,11 +380,12 @@ pub async fn start_runbook_runloop(
                     &action_item_responses,
                     &block_tx.clone(),
                 )
-                .await?;
+                .await;
 
                 let block_uuid = Uuid::new_v4();
-                let any_pending_actions = actions_groups.iter().any(|a| a.has_pending_actions());
-                if !any_pending_actions {
+                if !pass_results.actions.has_pending_actions()
+                    && background_tasks_contructs_uuids.is_empty()
+                {
                     runbook_completed = true;
                     let grouped_actions_items =
                         collect_runbook_outputs(&block_uuid, &runbook, &runtime_context);
@@ -254,9 +393,10 @@ pub async fn start_runbook_runloop(
                     for (key, action_items) in grouped_actions_items.into_iter() {
                         actions.push_group(key.as_str(), action_items);
                     }
-                    actions_groups.push(actions);
-                } else {
-                    actions_groups.push(Actions::new_sub_group_of_items(vec![ActionItemRequest {
+                    pass_results.actions.append(&mut actions);
+                    println!("OUTPUTS: {:?}", actions);
+                } else if !pass_results.actions.store.is_empty() {
+                    pass_results.actions.push_sub_group(vec![ActionItemRequest {
                         uuid: Uuid::new_v4(),
                         construct_uuid: None,
                         index: 0,
@@ -265,21 +405,33 @@ pub async fn start_runbook_runloop(
                         action_status: ActionItemStatus::Todo,
                         action_type: ActionItemRequestType::ValidateBlock,
                         internal_key: "validate_block".into(),
-                    }]));
-                };
+                    }]);
+                }
 
-                let mut consolidated_actions = Actions::none();
+                if !pass_results
+                    .pending_background_tasks_constructs_uuids
+                    .is_empty()
+                {
+                    background_tasks_futures
+                        .append(&mut pass_results.pending_background_tasks_futures);
+                    background_tasks_contructs_uuids
+                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
+
                 let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
                     .set_status(ActionItemStatus::Success(None));
-                consolidated_actions.push_action_item_update(update);
-                for actions in actions_groups.iter_mut() {
-                    for new_request in actions.get_new_action_item_requests().into_iter() {
-                        action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
-                    }
-                    consolidated_actions.append(actions);
+                pass_results.actions.push_action_item_update(update);
+                for new_request in pass_results
+                    .actions
+                    .get_new_action_item_requests()
+                    .into_iter()
+                {
+                    action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
                 }
-                let block_events =
-                    consolidated_actions.compile_actions_to_block_events(&action_item_requests);
+                let block_events = pass_results
+                    .actions
+                    .compile_actions_to_block_events(&action_item_requests);
+
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
                 }
@@ -304,7 +456,8 @@ pub async fn start_runbook_runloop(
 
                 // todo: as of now, there won't actually be actions returned here from a pick input option response.
                 // we need to return actions in this loop when the user provides inputs
-                let actions = run_constructs_evaluation(
+                let mut pass_results = run_constructs_evaluation(
+                    &background_tasks_handle_uuid,
                     runbook,
                     runtime_context,
                     None,
@@ -313,19 +466,27 @@ pub async fn start_runbook_runloop(
                     &action_item_responses,
                     &block_tx.clone(),
                 )
-                .await?;
+                .await;
 
-                let updated_actions = actions
-                    .iter()
-                    .map(|actions| {
-                        actions
-                            .compile_actions_to_item_updates()
-                            .into_iter()
-                            .map(|u| u.normalize(&action_item_requests))
-                    })
-                    .flatten()
-                    .collect::<Vec<_>>();
+                let mut updated_actions = vec![];
+                for action in pass_results
+                    .actions
+                    .compile_actions_to_item_updates()
+                    .into_iter()
+                {
+                    updated_actions.push(action.normalize(&action_item_requests))
+                }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+
+                if !pass_results
+                    .pending_background_tasks_constructs_uuids
+                    .is_empty()
+                {
+                    background_tasks_futures
+                        .append(&mut pass_results.pending_background_tasks_futures);
+                    background_tasks_contructs_uuids
+                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
             }
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 value_checked, ..
@@ -384,7 +545,8 @@ pub async fn start_runbook_runloop(
                 let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 
-                let actions = run_constructs_evaluation(
+                let mut pass_results = run_constructs_evaluation(
+                    &background_tasks_handle_uuid,
                     runbook,
                     runtime_context,
                     None,
@@ -393,19 +555,27 @@ pub async fn start_runbook_runloop(
                     &action_item_responses,
                     &block_tx.clone(),
                 )
-                .await?;
+                .await;
 
-                let updated_actions = actions
-                    .iter()
-                    .map(|actions| {
-                        actions
-                            .compile_actions_to_item_updates()
-                            .into_iter()
-                            .map(|u| u.normalize(&action_item_requests))
-                    })
-                    .flatten()
-                    .collect::<Vec<_>>();
+                let mut updated_actions = vec![];
+                for action in pass_results
+                    .actions
+                    .compile_actions_to_item_updates()
+                    .into_iter()
+                {
+                    updated_actions.push(action.normalize(&action_item_requests))
+                }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+
+                if !pass_results
+                    .pending_background_tasks_constructs_uuids
+                    .is_empty()
+                {
+                    background_tasks_futures
+                        .append(&mut pass_results.pending_background_tasks_futures);
+                    background_tasks_contructs_uuids
+                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
             }
         };
     }
@@ -530,13 +700,16 @@ pub async fn build_genesis_panel(
             uuid: SET_ENV_UUID.clone(),
             construct_uuid: None,
             index: 0,
-            title: "Select Environment".into(),
-            description: Some("Selecting a new environment will reset the Runbook with the newly selected environment variables.".into()),
+            title: "Select the environment to target".into(),
+            description: None,
             action_status: ActionItemStatus::Success(None),
-            action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest { options: input_options, selected: selected_option}),
+            action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+                options: input_options,
+                selected: selected_option,
+            }),
             internal_key: "env".into(),
         };
-        actions.push_group("Select Environment", vec![action_request]);
+        actions.push_sub_group(vec![action_request]);
     }
 
     let mut wallet_actions = run_wallets_evaluation(

@@ -69,7 +69,7 @@ pub fn visit_required_string_literal_attribute(
 pub fn visit_optional_untyped_attribute(
     field_name: &str,
     block: &Block,
-) -> Result<Option<Expression>, Diagnostic> {
+) -> Result<Option<Expression>, Vec<Diagnostic>> {
     let Some(attribute) = block.body.get_attribute(field_name) else {
         return Ok(None);
     };

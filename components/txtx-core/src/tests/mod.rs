@@ -16,7 +16,7 @@ use txtx_addon_kit::{
 use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
-    pre_compute_runbook, start_runbook_runloop,
+    pre_compute_runbook, start_interactive_runbook_runloop,
     std::StdAddon,
     types::{Runbook, RuntimeContext, SourceTree},
     AddonsContext,
@@ -36,7 +36,7 @@ fn test_ab_c_runbook_no_env() {
 
     let environments = BTreeMap::new();
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()));
+    addons_ctx.register(Box::new(StdAddon::new()), false);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
@@ -50,17 +50,14 @@ fn test_ab_c_runbook_no_env() {
     let (action_item_events_tx, action_item_events_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
 
-    let interactive_by_default = true;
-
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_runbook_runloop(
+        let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
-            interactive_by_default,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -233,8 +230,8 @@ fn test_wallet_runbook_no_env() {
 
     let environments = BTreeMap::new();
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()));
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+    addons_ctx.register(Box::new(StdAddon::new()), false);
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
@@ -248,17 +245,14 @@ fn test_wallet_runbook_no_env() {
     let (action_item_events_tx, action_item_events_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
 
-    let interactive_by_default = true;
-
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_runbook_runloop(
+        let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
-            interactive_by_default,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -426,8 +420,8 @@ fn test_multisig_runbook_no_env() {
 
     let environments = BTreeMap::new();
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()));
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+    addons_ctx.register(Box::new(StdAddon::new()), false);
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
@@ -441,17 +435,14 @@ fn test_multisig_runbook_no_env() {
     let (action_item_events_tx, action_item_events_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
 
-    let interactive_by_default = true;
-
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_runbook_runloop(
+        let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
-            interactive_by_default,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -664,8 +655,8 @@ fn test_bns_runbook_no_env() {
 
     let environments = BTreeMap::new();
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()));
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+    addons_ctx.register(Box::new(StdAddon::new()), false);
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let mut runbook = Runbook::new(Some(source_tree), None);
@@ -679,17 +670,14 @@ fn test_bns_runbook_no_env() {
     let (action_item_events_tx, action_item_events_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
 
-    let interactive_by_default = true;
-
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_runbook_runloop(
+        let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
-            interactive_by_default,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {

@@ -28,7 +28,8 @@ pub fn new_module_specification() -> CommandSpecification {
             name: "Module",
             matcher: "module",
             documentation: "Read Construct attribute",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [],
             outputs: [],
             example: "",
@@ -82,7 +83,8 @@ pub fn new_input_specification() -> CommandSpecification {
             name: "Input",
             matcher: "input",
             documentation: "Construct designed to store an input",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the input",
@@ -149,6 +151,21 @@ impl CommandImplementation for Input {
             .get_string("description")
             .and_then(|d| Some(d.to_string()));
 
+        if !execution_context.review_input_values && !execution_context.review_input_default_values
+        {
+            let executable =
+                args.get_value("value").is_some() || args.get_value("default").is_some();
+            match executable {
+                true => return Ok(Actions::none()),
+                false => {
+                    return Err(diagnosed_error!(
+                        "input {}: attribute 'default' or 'value' must be present",
+                        instance_name
+                    ))
+                }
+            }
+        }
+
         if let Some(value) = args.get_value("value") {
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {
@@ -160,7 +177,6 @@ impl CommandImplementation for Input {
                     ActionItemRequest::new(
                         &Uuid::new_v4(),
                         &Some(uuid.value()),
-                        0,
                         &title,
                         description,
                         ActionItemStatus::Todo,
@@ -197,7 +213,6 @@ impl CommandImplementation for Input {
         let action = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
-            0,
             &title,
             description,
             ActionItemStatus::Todo,
@@ -209,7 +224,11 @@ impl CommandImplementation for Input {
             "provide_input",
         );
 
-        return Ok(Actions::new_sub_group_of_items(vec![action]));
+        return Ok(Actions::append_item(
+            action,
+            Some("Review and check the inputs from the list below"),
+            Some("Inputs Review"),
+        ));
     }
 
     fn run_execution(
@@ -235,7 +254,8 @@ pub fn new_output_specification() -> CommandSpecification {
             name: "Output",
             matcher: "output",
             documentation: "Read Construct attribute",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 value: {
                     documentation: "Value of the output",

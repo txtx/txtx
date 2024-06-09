@@ -58,8 +58,7 @@ pub fn run_constructs_indexing(
                 "import" => {
                     // imports are the only constructs that we need to process in this step
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::ImportConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "import name missing".to_string(),
@@ -67,8 +66,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -129,8 +127,7 @@ pub fn run_constructs_indexing(
                 }
                 "input" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::VariableConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "variable name missing".to_string(),
@@ -138,8 +135,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -152,8 +148,7 @@ pub fn run_constructs_indexing(
                 }
                 "module" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::ModuleConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "module name missing".to_string(),
@@ -161,8 +156,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -175,8 +169,7 @@ pub fn run_constructs_indexing(
                 }
                 "output" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::OutputConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "output name missing".to_string(),
@@ -184,8 +177,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -200,8 +192,7 @@ pub fn run_constructs_indexing(
                     let (Some(command_name), Some(namespaced_action)) =
                         (block.labels.get(0), block.labels.get(1))
                     else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::OutputConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "action syntax invalid".to_string(),
@@ -209,8 +200,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -246,9 +236,7 @@ pub fn run_constructs_indexing(
                             }
                         },
                         Err(diagnostic) => {
-                            runbook.errors.push(ConstructErrors::Discovery(
-                                DiscoveryError::AddonConstruct(diagnostic),
-                            ));
+                            runbook.errors.push(diagnostic);
                             continue;
                         }
                     };
@@ -257,8 +245,7 @@ pub fn run_constructs_indexing(
                     let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
                         (block.labels.get(0), block.labels.get(1))
                     else {
-                        runbook.errors.push(ConstructErrors::Discovery(
-                            DiscoveryError::OutputConstruct(Diagnostic {
+                        runbook.errors.push(Diagnostic {
                                 location: Some(location.clone()),
                                 span: None,
                                 message: "action syntax invalid".to_string(),
@@ -266,8 +253,7 @@ pub fn run_constructs_indexing(
                                 documentation: None,
                                 example: None,
                                 parent_diagnostic: None,
-                            }),
-                        ));
+                            });
                         has_errored = true;
                         continue;
                     };
@@ -287,16 +273,14 @@ pub fn run_constructs_indexing(
                             );
                         }
                         Err(diagnostic) => {
-                            runbook.errors.push(ConstructErrors::Discovery(
-                                DiscoveryError::AddonConstruct(diagnostic),
-                            ));
+                            runbook.errors.push(diagnostic);
+                            has_errored = true;
                             continue;
                         }
                     }
                 }
                 _ => {
-                    runbook.errors.push(ConstructErrors::Discovery(
-                        DiscoveryError::UnknownConstruct(Diagnostic {
+                    runbook.errors.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "construct unknown".to_string(),
@@ -304,8 +288,7 @@ pub fn run_constructs_indexing(
                             documentation: None,
                             example: None,
                             parent_diagnostic: None,
-                        }),
-                    ));
+                        });
                     has_errored = true;
                 }
             }

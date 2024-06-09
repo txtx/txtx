@@ -1,0 +1,14 @@
+action "default" "stacks::set_default_network" {
+  network_id = "mainnet"
+  rpc_api_url = "https://api.mainnet.hiro.so"
+}
+
+input "salt" {
+  description = "Random salt to use for preventing front-running"
+  default = "00000000000000"
+}
+
+output "encoded_salt" {
+  value = stacks::cv_buff(encode_hex(input.salt))
+}
+

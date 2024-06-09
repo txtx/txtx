@@ -1,19 +1,13 @@
-use crate::stacks_helpers::parse_clarity_value;
-use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE, STACKS_CONTRACT_CALL};
-use clarity::vm::types::PrincipalData;
-use clarity_repl::clarity::stacks_common::types::chainstate::StacksAddress;
-use clarity_repl::clarity::ClarityName;
-use clarity_repl::codec::TransactionContractCall;
-use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
+use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
 use txtx_addon_kit::types::commands::{
-    return_synchronous_err, return_synchronous_ok, CommandExecutionContext,
-    CommandExecutionFutureResult, PreCommandSpecification,
+    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
-    types::{PrimitiveValue, Type, Value},
+    types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
@@ -26,7 +20,8 @@ lazy_static! {
           name: "Stacks Contract Call",
           matcher: "call_contract",
           documentation: "The `call_contract` action encodes a valid contract call payload and serializes it as a hex string.",
-          requires_signing_capability: false,
+          implements_signing_capability: false,
+          implements_background_task_capability: false,
           inputs: [
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
@@ -75,11 +70,11 @@ lazy_static! {
                 contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                 function_name = "verify-and-update-price-feeds"
                 function_args = [
-                    encode_buffer(output.bitcoin_price_feed),
-                    encode_tuple({
-                        "pyth-storage-contract": encode_principal("${env.pyth_deployer}.pyth-store-v1"),
-                        "pyth-decoder-contract": encode_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                        "wormhole-core-contract": encode_principal("${env.pyth_deployer}.wormhole-core-v1")
+                    stacks::cv_buff(output.bitcoin_price_feed),
+                    stacks::cv_tuple({
+                        "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
+                        "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                        "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
                     })
                 ]
             }

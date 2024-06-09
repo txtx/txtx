@@ -20,7 +20,8 @@ lazy_static! {
             name: "Send an HTTP request",
             matcher: "send_http_request",
             documentation: "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
-            requires_signing_capability: false,
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
             inputs: [
                 url: {
                     documentation: "The URL for the request. Supported schemes are http and https.",

@@ -20,11 +20,11 @@ lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
             EncodeClarityValueUint => {
-                name: "encode_uint",
-                documentation: "`encode_uint` returns the given number as a Clarity `uint`.",
+                name: "cv_uint",
+                documentation: "`stacks::cv_uint` returns the given number as a Clarity `uint`.",
                 example: indoc! {r#"
                 output "my_uint" { 
-                  value = encode_uint(1)
+                  value = stacks::cv_uint(1)
                 }
                 // > my_uint: 0x0100000000000000000000000000000001
                 "#},
@@ -42,11 +42,11 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueInt => {
-                name: "encode_int",
-                documentation: "`encode_int` returns the given number as a Clarity `int`.",
+                name: "cv_int",
+                documentation: "`stacks::cv_int` returns the given number as a Clarity `int`.",
                 example: indoc! {r#"
                 output "my_int" { 
-                  value = encode_int(-1)
+                  value = stacks::cv_int(-1)
                 }
                 // > my_int: 0x00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
                 "#},
@@ -64,9 +64,9 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValuePrincipal => {
-                name: "encode_principal",
+                name: "cv_principal",
                 documentation: txtx_addon_kit::indoc! {r#"
-                `encode_principal` returns the given string as a Clarity principal. 
+                `stacks::cv_principal` returns the given string as a Clarity principal. 
                 A Clarity principal represents a Stacks address on the blockchain.
 
                 Clarity admits two different kinds of principals: _standard principals_ and _contract principals_. 
@@ -74,7 +74,7 @@ lazy_static! {
                 "#},
                 example: indoc! {r#"
                 output "my_principal" { 
-                  value = encode_principal("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE")
+                  value = stacks::cv_principal("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE")
                 }
                 // > my_principal: 0x0516DEBC095099629BADB11B9D5335E874D12F1F1D45
                 "#},
@@ -92,11 +92,11 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueAscii => {
-                name: "encode_string_ascii",
-                documentation: "`encode_string_ascii` returns the given string as a Clarity ASCII string.",
+                name: "cv_string_ascii",
+                documentation: "`stacks::cv_string_ascii` returns the given string as a Clarity ASCII string.",
                 example: indoc! {r#"
                 output "my_ascii" { 
-                  value = encode_string_ascii("my ascii string")
+                  value = stacks::cv_string_ascii("my ascii string")
                 }
                 // > my_ascii: 0x0D0000000F6D7920617363696920737472696E67
                 "#},
@@ -114,11 +114,11 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueUTF8 => {
-                name: "encode_string_utf8",
-                documentation: "`encode_string_utf8` returns the given string as a Clarity UTF-8 string.",
+                name: "cv_string_utf8",
+                documentation: "`stacks::cv_string_utf8` returns the given string as a Clarity UTF-8 string.",
                 example: indoc! {r#"
                 output "my_utf8" { 
-                  value = encode_string_utf8("🍊")
+                  value = stacks::cv_string_utf8("🍊")
                 }
                 // > my_utf8: 0x0E00000004F09F8D8A
                 "#},
@@ -136,11 +136,11 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueTuple => {
-                name: "encode_tuple",
-                documentation: "`encode_tuple` returns the given object as a Clarity tuple.",
+                name: "cv_tuple",
+                documentation: "`stacks::cv_tuple` returns the given object as a Clarity tuple.",
                 example: indoc! {r#"
                 output "my_tuple" { 
-                  value = encode_tuple({ "key": encode_uint(1) })
+                  value = stacks::cv_tuple({ "key": stacks::cv_uint(1) })
                 }
                 // > my_tuple: 0x0C00000001036B65790100000000000000000000000000000001
                 "#},
@@ -158,11 +158,11 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueBuffer => {
-                name: "encode_buffer",
-                documentation: "`encode_buffer` returns the given hex string as a Clarity buffer.",
+                name: "cv_buff",
+                documentation: "`stacks::cv_buff` returns the given hex string as a Clarity buffer.",
                 example: indoc! {r#"
                 output "my_buffer" { 
-                  value = encode_buffer("0x010203")
+                  value = stacks::cv_buff("0x010203")
                 }
                 // > my_buffer: 0x0200000003010203
                 "#},
@@ -180,8 +180,8 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueOk => {
-                name: "encode_ok",
-                documentation: "Coming soon - `encode_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.",
+                name: "cv_ok",
+                documentation: "Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     clarity_value: {
@@ -197,8 +197,8 @@ lazy_static! {
         },
         define_function! {
             EncodeClarityValueErr => {
-                name: "encode_err",
-                documentation: "Coming soon - `encode_err` returns the given Clarity value wrapped in an `Err` Clarity type.",
+                name: "cv_err",
+                documentation: "Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     clarity_value: {
@@ -215,7 +215,7 @@ lazy_static! {
         define_function! {
             DecodeClarityValueOk => {
                 name: "decode_ok",
-                documentation: "`decode_ok` returns the inner value as a Clarity buffer.",
+                documentation: "`stacks::decode_ok` returns the inner value as a Clarity buffer.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     clarity_value: {
@@ -224,7 +224,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "The inner value that was wrapped in an `Ok` Clarity type.",
+                    documentation: "The inner value that was wrapped in an `(ok <inner>)` Clarity type.",
                     typing: Type::buffer()
                 },
             }
@@ -318,7 +318,7 @@ impl FunctionImplementation for EncodeClarityValueUint {
             Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => {
                 let as_u64 = u64::try_from(val.clone()).map_err(|e| {
                     Diagnostic::error_from_string(format!(
-                        "Failed to encode_uint, could not parse SignedInteger: {e}"
+                        "Failed to stacks::cv_uint, could not parse SignedInteger: {e}"
                     ))
                 })?;
                 as_u64

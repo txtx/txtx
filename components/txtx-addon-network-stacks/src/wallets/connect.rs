@@ -86,6 +86,7 @@ impl WalletImplementation for StacksConnect {
     // - ReviewInput (StacksBalance):
     // - ReviewInput (Assosiated Costs):
     // If the all of the informations above are present in the wallet state, nothing is returned.
+    #[cfg(not(feature = "wasm"))]
     fn check_activability(
         uuid: &ConstructUuid,
         instance_name: &str,
@@ -182,7 +183,6 @@ impl WalletImplementation for StacksConnect {
             return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
         }
 
-        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut actions = Actions::none();
             let res = get_addition_actions_for_address(
@@ -203,12 +203,14 @@ impl WalletImplementation for StacksConnect {
                 Ok(action_items) => action_items,
                 Err(diag) => return Err((wallets, diag)),
             };
-            actions.push_sub_group(action_items);
+            if !action_items.is_empty() {
+                actions.push_group(
+                    "Review and check the following wallet related action items",
+                    action_items,
+                );
+            }
             Ok((wallets, actions))
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 
@@ -272,7 +274,6 @@ impl WalletImplementation for StacksConnect {
         let request = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
-            0,
             title,
             None,
             ActionItemStatus::Todo,
@@ -285,7 +286,14 @@ impl WalletImplementation for StacksConnect {
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
         wallets.push_wallet_state(wallet_state);
-        Ok((wallets, Actions::new_sub_group_of_items(vec![request])))
+        Ok((
+            wallets,
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transactions Signing"),
+            ),
+        ))
     }
 
     fn sign(

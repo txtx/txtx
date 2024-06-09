@@ -13,6 +13,7 @@ pub use indoc::indoc;
 pub use rust_fsm as fsm;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
+pub use futures;
 
 use hcl::structure::Block;
 pub use hcl_edit as hcl;
@@ -162,7 +163,7 @@ impl AddonContext {
         package_uuid: &PackageUuid,
     ) -> Result<WalletInstance, Diagnostic> {
         let Some(wallet_spec) = self.wallets.get(wallet_id) else {
-            todo!("return diagnostic: unknown wallet: {:?}", wallet_id)
+            return Err(Diagnostic::error_from_string(format!("unknown wallet specification: {} ({})", wallet_id, wallet_name)))
         };
         Ok(WalletInstance {
             name: wallet_name.to_string(),

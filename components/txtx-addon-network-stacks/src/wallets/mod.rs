@@ -12,11 +12,13 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
+mod mnemonic;
 mod connect;
 mod multisig;
 
 use connect::STACKS_CONNECT;
 use multisig::STACKS_MULTISIG;
+use mnemonic::STACKS_MNEMONIC;
 
 use crate::{
     constants::{
@@ -26,9 +28,11 @@ use crate::{
     rpc::StacksRpc,
 };
 
+pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
+
 lazy_static! {
     pub static ref WALLETS: Vec<WalletSpecification> =
-        vec![STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
+        vec![STACKS_MNEMONIC.clone(), STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
 }
 
 pub async fn get_addition_actions_for_address(
@@ -49,7 +53,6 @@ pub async fn get_addition_actions_for_address(
         action_items.push(ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(wallet_uuid.value()),
-            0,
             &format!("Connect wallet {instance_name}"),
             None,
             ActionItemStatus::Todo,
@@ -68,7 +71,6 @@ pub async fn get_addition_actions_for_address(
             action_items.push(ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
-                0,
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
@@ -82,8 +84,8 @@ pub async fn get_addition_actions_for_address(
         if do_request_balance {
             let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
                 Ok(response) => (
-                    ActionItemStatus::Success(None),
-                    Value::string(response.balance.to_string()),
+                    ActionItemStatus::Todo,
+                    Value::string(response.get_formatted_balance()),
                 ),
                 Err(err) => (
                     ActionItemStatus::Error(diagnosed_error!(
@@ -97,8 +99,7 @@ pub async fn get_addition_actions_for_address(
             let check_balance = ActionItemRequest::new(
                 &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
-                0,
-                "Check wallet balance (STX)",
+                "Check wallet balance",
                 None,
                 action_status,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
