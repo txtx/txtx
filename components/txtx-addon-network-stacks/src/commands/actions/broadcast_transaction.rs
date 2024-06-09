@@ -110,6 +110,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         Ok(Actions::none()) // todo
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
@@ -123,7 +124,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
-        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
@@ -172,9 +172,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
+
         Ok(Box::pin(future))
     }
 

@@ -13,12 +13,10 @@ use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActivateFutureResult, WalletInstance, WalletSignFutureResult,
-    WalletsState,
+    return_synchronous_result, WalletActionsFutureResult, WalletActivateFutureResult,
+    WalletInstance, WalletSignFutureResult, WalletsState,
 };
-use txtx_addon_kit::types::wallets::{
-    WalletActivabilityFutureResult, WalletImplementation, WalletSpecification,
-};
+use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -99,7 +97,7 @@ impl WalletImplementation for StacksConnect {
         _execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult {
+    ) -> WalletActionsFutureResult {
         let future = async move {
             let actions = Actions::none();
             wallets.push_wallet_state(wallet_state);

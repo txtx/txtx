@@ -64,7 +64,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             _ => unreachable!(),
         };
 
-    println!("\n{} Starting runbook '{}'\n", purple!("→"), runbook_name);
+    println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);

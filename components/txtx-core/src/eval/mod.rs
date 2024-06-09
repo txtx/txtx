@@ -654,15 +654,17 @@ pub async fn run_constructs_evaluation(
         let execution_result = if command_instance.specification.implements_signing_capability {
             let wallets = runbook.wallets_state.take().unwrap();
 
-            let res = command_instance.check_signed_executability(
-                &construct_uuid,
-                &mut evaluated_inputs,
-                wallets,
-                addon_defaults.clone(),
-                &mut runbook.wallets_instances,
-                &action_item_responses.get(&construct_uuid.value()),
-                execution_context,
-            );
+            let res = command_instance
+                .check_signed_executability(
+                    &construct_uuid,
+                    &mut evaluated_inputs,
+                    wallets,
+                    addon_defaults.clone(),
+                    &mut runbook.wallets_instances,
+                    &action_item_responses.get(&construct_uuid.value()),
+                    execution_context,
+                )
+                .await;
 
             let wallets = match res {
                 Ok((updated_wallets, mut new_actions)) => {

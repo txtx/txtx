@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     types::{
@@ -138,7 +139,7 @@ impl CommandImplementation for SendContractCall {
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         wallets: WalletsState,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    ) -> WalletActionsFutureResult {
         // Extract network_id
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();

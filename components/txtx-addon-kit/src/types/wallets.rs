@@ -145,9 +145,9 @@ pub type WalletCheckActivabilityClosure = fn(
     &CommandExecutionContext,
     bool,
     bool,
-) -> WalletActivabilityFutureResult;
+) -> WalletActionsFutureResult;
 
-pub type WalletActivabilityFutureResult = Result<
+pub type WalletActionsFutureResult = Result<
     Pin<
         Box<
             dyn Future<Output = Result<(WalletsState, Actions), (WalletsState, Diagnostic)>> + Send,
@@ -186,6 +186,12 @@ pub type WalletOperationFutureResult = Result<
     >,
     (WalletsState, Diagnostic),
 >;
+
+pub fn return_synchronous_actions(
+    res: Result<(WalletsState, Actions), (WalletsState, Diagnostic)>,
+) -> WalletActionsFutureResult {
+    Ok(Box::pin(future::ready(res)))
+}
 
 pub fn return_synchronous_result(
     res: Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)>,
@@ -541,7 +547,7 @@ pub trait WalletImplementation {
         _execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult {
+    ) -> WalletActionsFutureResult {
         unimplemented!()
     }
 
@@ -565,12 +571,12 @@ pub trait WalletImplementation {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         _wallet_state: ValueStore,
-        wallets: WalletsState,
+        _wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        Ok((wallets, Actions::none()))
+        unimplemented!()
     }
 
     fn sign(

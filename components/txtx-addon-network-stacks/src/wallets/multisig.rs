@@ -12,7 +12,7 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, OpenModalData, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
+    return_synchronous_result, WalletActionsFutureResult, WalletActivateFutureResult,
     WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
     WalletsState,
 };
@@ -101,7 +101,7 @@ impl WalletImplementation for StacksConnect {
         execution_context: &CommandExecutionContext,
         is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult {
+    ) -> WalletActionsFutureResult {
         let root_uuid = uuid.clone();
         let signers = get_signers(args, wallets_instances);
 

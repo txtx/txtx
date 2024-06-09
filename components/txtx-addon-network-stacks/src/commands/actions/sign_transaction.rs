@@ -19,8 +19,8 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_err, return_synchronous_ok, WalletInstance, WalletSignFutureResult,
-    WalletsState,
+    return_synchronous_actions, return_synchronous_err, return_synchronous_ok,
+    WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -58,10 +58,22 @@ lazy_static! {
                 interpolable: true
             },
             signer: {
-              documentation: "Coming soon",
-              typing: Type::string(),
-              optional: false,
-              interpolable: true
+                documentation: "Coming soon",
+                typing: Type::string(),
+                optional: false,
+                interpolable: true
+            },
+            nonce: {
+                documentation: "Coming soon",
+                typing: Type::uint(),
+                optional: false,
+                interpolable: true
+            },
+            fee: {
+                documentation: "Coming soon",
+                typing: Type::uint(),
+                optional: false,
+                interpolable: true
             }
           ],
           outputs: [
@@ -108,7 +120,7 @@ impl CommandImplementation for SignStacksTransaction {
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    ) -> WalletActionsFutureResult {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
 
@@ -144,7 +156,7 @@ impl CommandImplementation for SignStacksTransaction {
             execution_context,
         );
 
-        res
+        return_synchronous_actions(res)
     }
 
     fn run_signed_execution(
