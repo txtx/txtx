@@ -151,6 +151,21 @@ impl CommandImplementation for Input {
             .get_string("description")
             .and_then(|d| Some(d.to_string()));
 
+        if !execution_context.review_input_values && !execution_context.review_input_default_values
+        {
+            let executable =
+                args.get_value("value").is_some() || args.get_value("default").is_some();
+            match executable {
+                true => return Ok(Actions::none()),
+                false => {
+                    return Err(diagnosed_error!(
+                        "input {}: attribute 'default' or 'value' must be present",
+                        instance_name
+                    ))
+                }
+            }
+        }
+
         if let Some(value) = args.get_value("value") {
             for input_spec in spec.inputs.iter() {
                 if input_spec.name == "value" && input_spec.check_performed {

@@ -1075,10 +1075,7 @@ pub fn eval_expression(
             }
             runtime_ctx
                 .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
-                .map_err(|e| {
-                    // todo: add more context to error
-                    e
-                })?
+                .map_err(|e| e)?
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
@@ -1274,13 +1271,12 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        println!("1 ==> {}", expr);
-
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
 
                 if let Err(ref diag) = value {
+                    diags.push(diag.clone());
                     if diag.is_error() {
                         fatal_error = true;
                     }
@@ -1498,6 +1494,7 @@ pub fn perform_wallet_inputs_evaluation(
                 };
 
                 if let Err(ref diag) = value {
+                    diags.push(diag.clone());
                     if diag.is_error() {
                         fatal_error = true;
                     }

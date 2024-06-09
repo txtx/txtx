@@ -30,7 +30,10 @@ impl RuntimeContext {
     ) -> RuntimeContext {
         let mut functions = HashMap::new();
 
-        for (_, addon) in addons_ctx.addons.iter() {
+        for (_, (addon, scoped)) in addons_ctx.addons.iter() {
+            if *scoped {
+                continue;
+            }
             for function in addon.get_functions().iter() {
                 functions.insert(function.name.clone(), function.clone());
             }
@@ -64,7 +67,7 @@ impl RuntimeContext {
                     Some(function) => function,
                     None => {
                         return Err(diagnosed_error!(
-                            "could not find function {name} in addon {}",
+                            "could not find function {name} in namespace {}",
                             namespace
                         ))
                     }

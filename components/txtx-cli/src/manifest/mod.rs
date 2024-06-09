@@ -99,8 +99,8 @@ pub fn read_runbook_from_location(
     }
 
     let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()));
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()));
+    addons_ctx.register(Box::new(StdAddon::new()), false);
+    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
     let runtime_context = RuntimeContext::new(addons_ctx, BTreeMap::new());
     Ok((
         runbook_name,

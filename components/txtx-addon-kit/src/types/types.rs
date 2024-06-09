@@ -282,7 +282,7 @@ impl Value {
             Value::Primitive(PrimitiveValue::UnsignedInteger(val)) => val.to_string(),
             Value::Primitive(PrimitiveValue::Float(val)) => val.to_string(),
             Value::Primitive(PrimitiveValue::Null) => "null".to_string(),
-            Value::Primitive(PrimitiveValue::Buffer(_)) => todo!(),
+            Value::Primitive(PrimitiveValue::Buffer(val)) => format!("0x{}", hex::encode(&val.bytes)),
             Value::Object(_) => todo!(),
             Value::Array(_) => todo!(),
             Value::Addon(_) => todo!(),

@@ -18,7 +18,7 @@ addon stacks deploy_contract "deploy_wormhole_traits_payload" {
     source = fs_read(path_expand("contracts/pyth-traits.clar")) 
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
 }
 
 addon stacks deploy_contract "deploy_pyth_traits_payload" {
@@ -27,7 +27,7 @@ addon stacks deploy_contract "deploy_pyth_traits_payload" {
     source = fs_read(path_expand("contracts/wormhole/wormhole-traits.clar")) 
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
 }
 
 addon stacks deploy_contract "deploy_pyth_governance_payload" {
@@ -36,7 +36,7 @@ addon stacks deploy_contract "deploy_pyth_governance_payload" {
     source = fs_read(path_expand("contracts/pyth-governance.clar"))
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
     depends_on deploy_contract deploy_wormhole_traits_payload {
         remap_contract_id_references = true
     }
@@ -51,7 +51,7 @@ addon stacks deploy_contract "deploy_pyth_oracle_payload" {
     source = fs_read(path_expand("contracts/pyth-oracle.clar"))
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
     depends_on deploy_wormhole_traits_payload {
         remap_contract_id_references = true
     }
@@ -69,7 +69,7 @@ addon stacks deploy_contract "deploy_pyth_pnau_decoder_payload" {
     source = fs_read(path_expand("contracts/pyth-pnau-decoder.clar"))
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
     depends_on deploy_pyth_traits_payload {
         remap_contract_id_references = true
     }
@@ -81,7 +81,7 @@ addon stacks deploy_contract "deploy_pyth_store_payload" {
     source = fs_read(path_expand("contracts/pyth-store.clar"))
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
     depends_on deploy_pyth_traits_payload {
         remap_contract_id_references = true
     }
@@ -93,7 +93,7 @@ addon stacks deploy_contract "deploy_wormhole_core_payload" {
     source = fs_read(path_expand("contracts/wormhole/wormhole-core.clar"))
     contract_version = "todo"
     clarity_version = 2
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
     depends_on deploy_wormhole_traits_payload {
         remap_contract_id_references = true
     }
@@ -158,10 +158,10 @@ addon stacks call_contract "run_wormhole_guardians_set_1_payload" {
     contract_id = stacks.deploy_wormhole_core_payload.contract_id
     method = "update-guardians-set"
     args = [
-        stacks_encode_buffer(wormhole.output.guardian_set_1_vaa),
-        stacks_encode_list(sequence_map(wormhole.output.guardian_set_1, stacks_encode_buffer()))
+        stacks::cv_buff(wormhole.output.guardian_set_1_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_1, stacks::cv_buff()))
     ]
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
 }
 
 addon stacks call_contract "run_wormhole_guardians_set_2_payload" {
@@ -169,10 +169,10 @@ addon stacks call_contract "run_wormhole_guardians_set_2_payload" {
     contract_id = stacks.deploy_wormhole_core_payload.contract_id
     method = "update-guardians-set"
     args = [
-        stacks_encode_buffer(wormhole.output.guardian_set_2_vaa),
-        stacks_encode_list(sequence_map(wormhole.output.guardian_set_2, stacks_encode_buffer()))
+        stacks::cv_buff(wormhole.output.guardian_set_2_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_2, stacks::cv_buff()))
     ]
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
 }
 
 addon stacks call_contract "run_wormhole_guardians_set_3_payload" {
@@ -180,10 +180,10 @@ addon stacks call_contract "run_wormhole_guardians_set_3_payload" {
     contract_id = stacks.deploy_wormhole_core_payload.contract_id
     method = "update-guardians-set"
     args = [
-        stacks_encode_buffer(wormhole.output.guardian_set_3_vaa),
-        stacks_encode_list(sequence_map(wormhole.output.guardian_set_3, stacks_encode_buffer()))
+        stacks::cv_buff(wormhole.output.guardian_set_3_vaa),
+        stacks_encode_list(sequence_map(wormhole.output.guardian_set_3, stacks::cv_buff()))
     ]
-    expected_sender = stacks_encode_principal(variable.expected_deployer_address)
+    expected_sender = stacks::cv_principal(variable.expected_deployer_address)
 }
 
 addon stacks transaction "run_wormhole_guardians_set_1_tx" {

@@ -2,11 +2,13 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
-        channel::{self, select},
+        channel::{self},
         helpers::fs::FileLocation,
-        types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+        types::frontend::{
+            ActionItemRequest, ActionItemResponse, BlockEvent,
+        },
     },
-    pre_compute_runbook, start_runbook_runloop,
+    pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
     types::{Runbook, RuntimeContext},
 };
 
@@ -64,7 +66,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             _ => unreachable!(),
         };
 
-    println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
+    println!("\n{} Starting runbook '{}'\n", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
@@ -91,19 +93,29 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     //   - listen to checklist_action_events_rx
     //   - update graph
 
-    let interactive_by_default = cmd.web_console;
+    let is_execution_interactive = cmd.web_console || cmd.term_console;
     let runbook_description = runbook.description.clone();
     let moved_block_tx = block_tx.clone();
     // Start runloop
+
+    if !is_execution_interactive {
+        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, environments).await;
+        if let Err(diags) = res {
+            for diag in diags.iter() {
+                println!("{} {}", red!("x"), diag);
+            }
+        }
+        return Ok(());
+    }
+
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_runbook_runloop(
+        let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             moved_block_tx,
             action_item_updates_tx,
             action_item_events_rx,
             environments,
-            interactive_by_default,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -146,38 +158,35 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     let _ = tokio::spawn(async move {
         loop {
-            select! {
-                recv(block_rx) -> msg => {
-                    if let Ok(block_event) = msg {
-                      let mut block_store = block_store.write().await;
-
-                      match block_event.clone() {
-                        BlockEvent::Action(new_block) => {
-                          let len = block_store.len();
-                          block_store.insert(len, new_block.clone());
-                        },
-                        BlockEvent::Clear => {*block_store = BTreeMap::new();}
-                        BlockEvent::UpdateActionItems(updates) => {
-                            for update in updates.iter() {
-                              for (_, block) in block_store.iter_mut() {
-                                block.update_action_item(update.clone());
-                              }
-                            }
-                        },
-                        BlockEvent::Modal(new_block) => {
-                          let len = block_store.len();
-                          block_store.insert(len, new_block.clone());
-                        },
-                        BlockEvent::ProgressBar(new_block) => {
-                          let len = block_store.len();
-                          block_store.insert(len, new_block.clone());
-                        },
-                        BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
-                        BlockEvent::Exit => break
-                      }
-                      let _ = block_broadcaster.send(block_event.clone());
+            if let Ok(block_event) = block_rx.recv() {
+                let mut block_store = block_store.write().await;
+                match block_event.clone() {
+                    BlockEvent::Action(new_block) => {
+                        let len = block_store.len();
+                        block_store.insert(len, new_block.clone());
                     }
+                    BlockEvent::Clear => {
+                        *block_store = BTreeMap::new();
+                    }
+                    BlockEvent::UpdateActionItems(updates) => {
+                        for update in updates.iter() {
+                            for (_, block) in block_store.iter_mut() {
+                                block.update_action_item(update.clone());
+                            }
+                        }
+                    }
+                    BlockEvent::Modal(new_block) => {
+                        let len = block_store.len();
+                        block_store.insert(len, new_block.clone());
+                    }
+                    BlockEvent::ProgressBar(new_block) => {
+                        let len = block_store.len();
+                        block_store.insert(len, new_block.clone());
+                    }
+                    BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
+                    BlockEvent::Exit => break,
                 }
+                let _ = block_broadcaster.send(block_event.clone());
             }
         }
     });

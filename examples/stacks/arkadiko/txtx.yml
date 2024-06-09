@@ -1,10 +1,7 @@
-{
-    "name": "Arkadiko",
-    "runbooks": [
-      {
-        "name": "Set Collateral Token",
-        "description": "This runbook calls the set-token function of the arkadiko-vaults-tokens-v1-1 contract.",
-        "location": "./run"
-      }
-    ]
-}
+---
+name: Arkadiko
+runbooks:
+- name: Set Collateral Token
+  description: This runbook calls the set-token function of the arkadiko-vaults-tokens-v1-1
+    contract.
+  location: "./run"
