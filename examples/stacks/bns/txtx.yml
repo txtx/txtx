@@ -1,18 +1,15 @@
 ---
-name: Txtx
+name: BNS Runbook
 environments:
   development:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so
-    pyth_hermes_api_url: https://hermes.pyth.network
   staging:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so
-    pyth_hermes_api_url: https://hermes.pyth.network
   production:
     stacks_network_id: mainnet
     stacks_api_url: https://api.mainnet.hiro.so
-    pyth_hermes_api_url: https://hermes.pyth.network
 runbooks:
 - name: Register BNS
   description: This runbook pre-orders and registers a user-input BNS name.

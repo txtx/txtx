@@ -39,7 +39,7 @@ pub fn run_constructs_dependencies_indexing(
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
-                        "input '{}': unable to resolve {}",
+                        "input '{}': unable to resolve '{}'",
                         construct.name,
                         dep
                     ));
@@ -58,7 +58,7 @@ pub fn run_constructs_dependencies_indexing(
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
-                        "module '{}': unable to resolve {}",
+                        "module '{}': unable to resolve '{}'",
                         construct.name,
                         dep
                     ));
@@ -77,7 +77,7 @@ pub fn run_constructs_dependencies_indexing(
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
-                        "output '{}': unable to resolve {}",
+                        "output '{}': unable to resolve '{}'",
                         construct.name,
                         dep
                     ));
@@ -102,7 +102,7 @@ pub fn run_constructs_dependencies_indexing(
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
-                        "action '{}': unable to resolve {}",
+                        "action '{}': unable to resolve '{}'",
                         command_instance.name,
                         dep
                     ));
@@ -129,7 +129,7 @@ pub fn run_constructs_dependencies_indexing(
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
-                        "wallet '{}': unable to resolve {}",
+                        "wallet '{}': unable to resolve '{}'",
                         wallet_instance.name,
                         dep
                     ));

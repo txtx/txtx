@@ -1,9 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::{
-    errors::{ConstructErrors, DiscoveryError},
-    types::{PreConstructData, Runbook, RuntimeContext},
-};
+use crate::types::{PreConstructData, Runbook, RuntimeContext};
 use txtx_addon_kit::{
     hcl::structure::Block,
     types::{
@@ -59,14 +56,14 @@ pub fn run_constructs_indexing(
                     // imports are the only constructs that we need to process in this step
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "import name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "import name missing".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -128,14 +125,14 @@ pub fn run_constructs_indexing(
                 "input" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "variable name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "variable name missing".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -149,14 +146,14 @@ pub fn run_constructs_indexing(
                 "module" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "module name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "module name missing".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -170,14 +167,14 @@ pub fn run_constructs_indexing(
                 "output" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "output name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "output name missing".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -193,14 +190,14 @@ pub fn run_constructs_indexing(
                         (block.labels.get(0), block.labels.get(1))
                     else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "action syntax invalid".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "action syntax invalid".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -246,14 +243,14 @@ pub fn run_constructs_indexing(
                         (block.labels.get(0), block.labels.get(1))
                     else {
                         runbook.errors.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "action syntax invalid".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "action syntax invalid".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
                         has_errored = true;
                         continue;
                     };
@@ -281,14 +278,14 @@ pub fn run_constructs_indexing(
                 }
                 _ => {
                     runbook.errors.push(Diagnostic {
-                            location: Some(location.clone()),
-                            span: None,
-                            message: "construct unknown".to_string(),
-                            level: DiagnosticLevel::Error,
-                            documentation: None,
-                            example: None,
-                            parent_diagnostic: None,
-                        });
+                        location: Some(location.clone()),
+                        span: None,
+                        message: "construct unknown".to_string(),
+                        level: DiagnosticLevel::Error,
+                        documentation: None,
+                        example: None,
+                        parent_diagnostic: None,
+                    });
                     has_errored = true;
                 }
             }

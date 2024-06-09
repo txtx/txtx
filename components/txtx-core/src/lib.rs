@@ -31,6 +31,7 @@ use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
 use kit::types::frontend::Block;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::NormalizedActionItemRequestUpdate;
 use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ProgressBarStatus;
@@ -63,7 +64,7 @@ pub fn pre_compute_runbook(
 ) -> Result<(), Vec<Diagnostic>> {
     let res = run_constructs_indexing(runbook, runtime_context)?;
     if res {
-        return Err(runbook.errors.clone())
+        return Err(runbook.errors.clone());
     }
     let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
     Ok(())
@@ -196,7 +197,7 @@ pub async fn start_runbook_runloop(
             println!("Errors / warning");
             for diag in pass_results.diagnostics.iter() {
                 println!("- {}", diag);
-            }    
+            }
         }
 
         if !pass_results.actions.has_pending_actions()
@@ -330,6 +331,16 @@ pub async fn start_interactive_runbook_runloop(
             ActionItemResponseType::ValidateBlock => {
                 // Handle background tasks
                 if !background_tasks_futures.is_empty() {
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
+                        NormalizedActionItemRequestUpdate {
+                            uuid: action_item_uuid.clone(),
+                            title: None,
+                            description: None,
+                            action_status: Some(ActionItemStatus::Success(None)),
+                            action_type: None,
+                        },
+                    ]));
+
                     let mut block = Block {
                         uuid: background_tasks_handle_uuid,
                         visible: true,
@@ -633,6 +644,8 @@ pub async fn reset_runbook_execution(
             payload
         );
     };
+
+    println!("==> {:?}", environments);
 
     if environments.get(environment_key.as_str()).is_none() {
         unreachable!("Invalid environment variable was sent",);

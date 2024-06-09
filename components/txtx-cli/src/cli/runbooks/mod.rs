@@ -4,9 +4,7 @@ use txtx_core::{
     kit::{
         channel::{self},
         helpers::fs::FileLocation,
-        types::frontend::{
-            ActionItemRequest, ActionItemResponse, BlockEvent,
-        },
+        types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
     },
     pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
     types::{Runbook, RuntimeContext},

@@ -253,7 +253,6 @@ impl CommandImplementation for SendContractCall {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
     ) -> CommandExecutionFutureResult {
-        println!("build_background_task: {:?}", args);
         BroadcastStacksTransaction::build_background_task(
             &uuid,
             &spec,
