@@ -792,9 +792,12 @@ pub async fn run_constructs_evaluation(
             execution_result
         };
 
-        let Ok(mut execution_result) = execution_result else {
-            println!("Moving on {:?}", execution_result);
-            continue;
+        let mut execution_result = match execution_result {
+            Ok(res) => res,
+            Err(diag) => {
+                pass_result.diagnostics.push(diag);
+                continue;
+            }
         };
 
         if command_instance

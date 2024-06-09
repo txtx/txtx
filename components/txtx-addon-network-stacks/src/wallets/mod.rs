@@ -12,11 +12,13 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
+mod mnemonic;
 mod connect;
 mod multisig;
 
 use connect::STACKS_CONNECT;
 use multisig::STACKS_MULTISIG;
+use mnemonic::STACKS_MNEMONIC;
 
 use crate::{
     constants::{
@@ -26,9 +28,11 @@ use crate::{
     rpc::StacksRpc,
 };
 
+pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
+
 lazy_static! {
     pub static ref WALLETS: Vec<WalletSpecification> =
-        vec![STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
+        vec![STACKS_MNEMONIC.clone(), STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
 }
 
 pub async fn get_addition_actions_for_address(

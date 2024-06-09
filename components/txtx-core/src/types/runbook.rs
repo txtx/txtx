@@ -3,6 +3,7 @@ use super::{Package, PreConstructData};
 use crate::errors::ConstructErrors;
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
+use kit::types::diagnostics::Diagnostic;
 use kit::types::wallets::WalletsState;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -50,7 +51,7 @@ pub struct Runbook {
     pub wallets_state: Option<WalletsState>,
     pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
     pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
-    pub errors: Vec<ConstructErrors>,
+    pub errors: Vec<Diagnostic>,
     pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
     pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
     pub environment_variables_uuid_lookup: HashMap<String, ConstructUuid>,

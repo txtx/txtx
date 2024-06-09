@@ -541,7 +541,9 @@ pub trait WalletImplementation {
         _execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult;
+    ) -> WalletActivabilityFutureResult {
+        unimplemented!()
+    }
 
     fn activate(
         _uuid: &ConstructUuid,
@@ -552,7 +554,9 @@ pub trait WalletImplementation {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult;
+    ) -> WalletActivateFutureResult {
+        unimplemented!()
+    }
 
     fn check_signability(
         _caller_uuid: &ConstructUuid,
@@ -579,5 +583,7 @@ pub trait WalletImplementation {
         _wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
-    ) -> WalletSignFutureResult;
+    ) -> WalletSignFutureResult {
+        unimplemented!()
+    }
 }

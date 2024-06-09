@@ -61,7 +61,10 @@ pub fn pre_compute_runbook(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
 ) -> Result<(), Vec<Diagnostic>> {
-    let _ = run_constructs_indexing(runbook, runtime_context)?;
+    let res = run_constructs_indexing(runbook, runtime_context)?;
+    if res {
+        return Err(runbook.errors.clone())
+    }
     let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
     Ok(())
 }
@@ -188,6 +191,13 @@ pub async fn start_runbook_runloop(
             &tx,
         )
         .await;
+
+        if !pass_results.diagnostics.is_empty() {
+            println!("Errors / warning");
+            for diag in pass_results.diagnostics.iter() {
+                println!("- {}", diag);
+            }    
+        }
 
         if !pass_results.actions.has_pending_actions()
             && background_tasks_contructs_uuids.is_empty()
