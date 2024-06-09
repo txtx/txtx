@@ -800,7 +800,7 @@ pub async fn run_constructs_evaluation(
         if command_instance
             .specification
             .implements_background_task_capability
-        {   
+        {
             let future_res = command_instance.build_background_task(
                 &construct_uuid,
                 &evaluated_inputs,

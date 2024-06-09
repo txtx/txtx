@@ -262,7 +262,7 @@ pub async fn start_runbook_runloop(
                             }
                             Err(diag) => {
                                 println!("{}", diag);
-                            },
+                            }
                         }
                     }
 

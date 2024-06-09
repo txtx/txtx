@@ -18,6 +18,7 @@ pub fn run_constructs_dependencies_indexing(
 
     let mut constructs_edges = vec![];
     let packages_edges = vec![];
+    let mut diags = vec![];
 
     let packages = runbook.packages.clone();
 
@@ -37,7 +38,11 @@ pub fn run_constructs_dependencies_indexing(
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
-                    println!("  -> {} (unable to resolve)", dep,);
+                    diags.push(diagnosed_error!(
+                        "input '{}': unable to resolve {}",
+                        construct.name,
+                        dep
+                    ));
                 }
             }
         }
@@ -52,7 +57,11 @@ pub fn run_constructs_dependencies_indexing(
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
-                    println!("  -> {} (unable to resolve)", dep,);
+                    diags.push(diagnosed_error!(
+                        "module '{}': unable to resolve {}",
+                        construct.name,
+                        dep
+                    ));
                 }
             }
         }
@@ -67,7 +76,11 @@ pub fn run_constructs_dependencies_indexing(
                 if let Ok(Some((resolved_construct_uuid, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
-                    println!("  -> {} (unable to resolve)", dep,);
+                    diags.push(diagnosed_error!(
+                        "output '{}': unable to resolve {}",
+                        construct.name,
+                        dep
+                    ));
                 }
             }
         }
@@ -88,7 +101,11 @@ pub fn run_constructs_dependencies_indexing(
                     }
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
-                    println!("  -> {} (unable to resolve)", dep,);
+                    diags.push(diagnosed_error!(
+                        "action '{}': unable to resolve {}",
+                        command_instance.name,
+                        dep
+                    ));
                 }
             }
         }
@@ -111,7 +128,11 @@ pub fn run_constructs_dependencies_indexing(
                     );
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
-                    println!("  -> {} (unable to resolve)", dep,);
+                    diags.push(diagnosed_error!(
+                        "wallet '{}': unable to resolve {}",
+                        wallet_instance.name,
+                        dep
+                    ));
                 }
             }
         }
@@ -136,5 +157,9 @@ pub fn run_constructs_dependencies_indexing(
             .unwrap();
     }
 
-    Ok((constructs_edges, packages_edges))
+    if diags.is_empty() {
+        return Ok((constructs_edges, packages_edges));
+    }
+
+    Err(diags)
 }

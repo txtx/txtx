@@ -82,8 +82,19 @@ pub struct InspectRunbook {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct RunRunbook {
+    /// Path to runbook file or directory
+    #[clap(
+        long = "runbook-file-path",
+        short = 'f',
+        conflicts_with = "manifest-file-path"
+    )]
+    pub runbook_path: Option<String>,
     /// Path to manifest (default to ./txtx.json)
-    #[clap(long = "manifest-path")]
+    #[clap(
+        long = "manifest-file-path",
+        short = 'm',
+        conflicts_with = "runbook-file-path"
+    )]
     pub manifest_path: Option<String>,
     /// Path to runbook root file
     // #[clap(long = "runbook-path", conflicts_with = "runbook")]
