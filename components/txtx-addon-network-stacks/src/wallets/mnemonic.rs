@@ -151,6 +151,7 @@ impl WalletImplementation for StacksConnect {
     fn check_signability(
         _caller_uuid: &ConstructUuid,
         _title: &str,
+        _description: &Option<String>,
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
