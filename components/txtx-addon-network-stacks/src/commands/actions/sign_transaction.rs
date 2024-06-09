@@ -58,20 +58,26 @@ lazy_static! {
                 interpolable: true
             },
             signer: {
-                documentation: "Coming soon",
+              documentation: "Coming soon",
+              typing: Type::string(),
+              optional: false,
+              interpolable: true
+            },
+            description: {
+                documentation: "Description of the transaction",
                 typing: Type::string(),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             nonce: {
-                documentation: "Coming soon",
                 typing: Type::uint(),
+                documentation: "Coming soon",
                 optional: false,
                 interpolable: true
             },
             fee: {
-                documentation: "Coming soon",
                 typing: Type::uint(),
+                documentation: "Coming soon",
                 optional: false,
                 interpolable: true
             }
@@ -113,7 +119,7 @@ impl CommandImplementation for SignStacksTransaction {
 
     fn check_signed_executability(
         uuid: &ConstructUuid,
-        _instance_name: &str,
+        instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
@@ -139,13 +145,15 @@ impl CommandImplementation for SignStacksTransaction {
         let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
         let payload = Value::string(hex_str);
 
-        let title = args
+        let description = args
             .get_expected_string("description")
-            .unwrap_or("New Transaction".into());
+            .ok()
+            .and_then(|d| Some(d.to_string()));
 
         let res = (wallet.specification.check_signability)(
             uuid,
-            title,
+            instance_name,
+            &description,
             &payload,
             &wallet.specification,
             &args,
