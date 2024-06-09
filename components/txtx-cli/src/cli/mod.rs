@@ -86,14 +86,14 @@ pub struct RunRunbook {
     #[clap(
         long = "runbook-file-path",
         short = 'f',
-        conflicts_with = "manifest-file-path"
+        conflicts_with = "manifest_path"
     )]
     pub runbook_path: Option<String>,
     /// Path to manifest (default to ./txtx.json)
     #[clap(
         long = "manifest-file-path",
         short = 'm',
-        conflicts_with = "runbook-file-path"
+        conflicts_with = "runbook_path"
     )]
     pub manifest_path: Option<String>,
     /// Path to runbook root file
