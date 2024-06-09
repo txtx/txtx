@@ -68,7 +68,7 @@ pub fn read_runbooks_from_manifest(
         let mut package_location = root_path.clone();
         package_location.append_path(runbook_root_package_relative_path)?;
         let (_, runbook, runtime_context) =
-            read_runbook_from_location(&package_location, description)?;
+            read_runbook_from_location(&package_location, description, &manifest.environments)?;
 
         runbooks.insert(runbook_name.to_string(), (runbook, runtime_context));
     }
@@ -78,6 +78,7 @@ pub fn read_runbooks_from_manifest(
 pub fn read_runbook_from_location(
     location: &FileLocation,
     description: &Option<String>,
+    environments: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<(String, Runbook, RuntimeContext), String> {
     let runbook_name = location.get_file_name().unwrap_or(location.to_string());
     let mut source_tree = SourceTree::new();
@@ -101,7 +102,7 @@ pub fn read_runbook_from_location(
     let mut addons_ctx = AddonsContext::new();
     addons_ctx.register(Box::new(StdAddon::new()), false);
     addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
-    let runtime_context = RuntimeContext::new(addons_ctx, BTreeMap::new());
+    let runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     Ok((
         runbook_name,
         Runbook::new(Some(source_tree), description.clone()),

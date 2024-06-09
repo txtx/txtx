@@ -247,7 +247,7 @@ pub async fn load_runbook_from_file_path(
     let location = FileLocation::from_path_string(file_path)?;
 
     let (runbook_name, mut runbook, mut runtime_context) =
-        read_runbook_from_location(&location, &None)?;
+        read_runbook_from_location(&location, &None, &BTreeMap::new())?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
 
