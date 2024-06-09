@@ -250,6 +250,7 @@ impl WalletImplementation for StacksConnect {
     fn check_signability(
         uuid: &ConstructUuid,
         title: &str,
+        description: &Option<String>,
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
@@ -275,7 +276,7 @@ impl WalletImplementation for StacksConnect {
             &Uuid::new_v4(),
             &Some(uuid.value()),
             title,
-            None,
+            description.clone(),
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                 check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid

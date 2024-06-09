@@ -76,6 +76,12 @@ lazy_static! {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
+              },
+              description: {
+                  documentation: "Description of the transaction",
+                  typing: Type::string(),
+                  optional: true,
+                  interpolable: true
               }
           ],
           outputs: [

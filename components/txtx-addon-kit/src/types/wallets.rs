@@ -163,6 +163,7 @@ pub type WalletCheckSignabilityClosure =
     fn(
         &ConstructUuid,
         &str,
+        &Option<String>,
         &Value,
         &WalletSpecification,
         &ValueStore,
@@ -561,6 +562,7 @@ pub trait WalletImplementation {
     fn check_signability(
         _caller_uuid: &ConstructUuid,
         _title: &str,
+        _description: &Option<String>,
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
