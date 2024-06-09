@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use serde_json::Value;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::std::StdAddon;
@@ -34,16 +33,10 @@ pub struct EnvironmentMetadata {
     description: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Txvar {
-    description: Option<String>,
-    value: Value,
-}
-
 pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifest, String> {
     let location = FileLocation::from_path_string(manifest_file_path)?;
     let manifest_bytes = location.read_content()?;
-    let mut manifest = serde_json::from_slice::<ProtocolManifest>(&manifest_bytes)
+    let mut manifest = serde_yml::from_slice::<ProtocolManifest>(&manifest_bytes)
         .map_err(|e| format!("unable to parse manifest: {}", e))?;
     manifest.location = Some(location);
     Ok(manifest)

@@ -1,0 +1,6 @@
+---
+name: Simple Project
+runbooks:
+- name: Another Runbook
+  description: This runbook does less things. Either way, check it out.
+  location: "./run3"
