@@ -218,7 +218,11 @@ impl CommandImplementation for SignStacksTransaction {
                 &defaults,
                 &execution_context,
             )?;
-            actions.append(&mut wallet_actions);
+            if wallet_actions.has_pending_actions() {
+                actions.append(&mut wallet_actions);
+            } else {
+                actions = wallet_actions;
+            }
             Ok((wallets, actions))
         };
         Ok(Box::pin(future))
