@@ -1,5 +1,5 @@
 use clarity::address::public_keys_to_address_hash;
-use clarity::types::chainstate::StacksPublicKey;
+use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
 use clarity::util::secp256k1::MessageSignature;
 use clarity_repl::codec::{
     MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
@@ -12,12 +12,13 @@ use clarity_repl::{
         TransactionVersion,
     },
 };
+use txtx_addon_kit::reqwest::redirect::Action;
 use std::collections::HashMap;
 use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest};
 use txtx_addon_kit::types::wallets::{
     return_synchronous_actions, return_synchronous_err, return_synchronous_ok,
     WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
@@ -32,8 +33,10 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{hex, AddonDefaults};
 
 use crate::constants::{
-    NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
+    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
+    UNSIGNED_TRANSACTION_BYTES,
 };
+use crate::rpc::StacksRpc;
 use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
 
 lazy_static! {
@@ -45,6 +48,12 @@ lazy_static! {
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
+            description: {
+                documentation: "Description of the transaction",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
@@ -58,26 +67,20 @@ lazy_static! {
                 interpolable: true
             },
             signer: {
-              documentation: "Coming soon",
-              typing: Type::string(),
-              optional: false,
-              interpolable: true
-            },
-            description: {
-                documentation: "Description of the transaction",
+                documentation: "Coming soon",
                 typing: Type::string(),
-                optional: true,
+                optional: false,
                 interpolable: true
             },
             nonce: {
-                typing: Type::uint(),
                 documentation: "Coming soon",
+                typing: Type::uint(),
                 optional: false,
                 interpolable: true
             },
             fee: {
-                typing: Type::uint(),
                 documentation: "Coming soon",
+                typing: Type::uint(),
                 optional: false,
                 interpolable: true
             }
@@ -128,43 +131,98 @@ impl CommandImplementation for SignStacksTransaction {
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
-        let wallet = wallets_instances.get(&wallet_uuid).unwrap();
+        let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
+        let uuid = uuid.clone();
+        let instance_name = instance_name.to_string();
+        let spec = spec.clone();
+        let args = args.clone();
+        let defaults = defaults.clone();
+        let execution_context = execution_context.clone();
+        let wallets_instances = wallets_instances.clone();
 
-        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+        let future = async move {
+            let mut actions = Actions::none();
+            let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+            let nonce = args.get_value("nonce").map(|v| v.expect_uint());
+            let fee = args.get_value("fee").map(|v| v.expect_uint());
+            let transaction = match build_unsigned_transaction(
+                &wallet_state,
+                &spec,
+                fee,
+                nonce,
+                &args,
+                &defaults,
+            )
+            .await
+            {
+                Ok(transaction) => transaction,
+                Err(diag) => {
+                    wallets.push_wallet_state(wallet_state);
+                    return Err((wallets, diag));
+                }
+            };
 
-        let transaction = match build_unsigned_transaction(&wallet_state, spec, args, defaults) {
-            Ok(transaction) => transaction,
-            Err(diag) => {
-                wallets.push_wallet_state(wallet_state);
-                return Err((wallets, diag));
+            let mut bytes = vec![];
+            transaction.consensus_serialize(&mut bytes).unwrap(); // todo
+            let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
+            let payload = Value::string(hex_str);
+
+            if execution_context.review_input_values {
+                actions.push_sub_group(vec![
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        "Check nonce".into(),
+                        Some(format!("{}", transaction.get_origin_nonce())),
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "".into(),
+                            value: Value::uint(transaction.get_origin_nonce()),
+                        }),
+                        "check nonce",
+                    ),
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        "Check fee".into(),
+                        Some(format!("{}", transaction.get_tx_fee())),
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "".into(),
+                            value: Value::uint(transaction.get_tx_fee()),
+                        }),
+                        "check fee",
+                    )
+                ])
             }
+            wallet_state.insert_scoped_value(
+                &uuid.value().to_string(),
+                UNSIGNED_TRANSACTION_BYTES,
+                payload.clone(),
+            );
+
+            let description = args
+                .get_expected_string("description")
+                .ok()
+                .and_then(|d| Some(d.to_string()));
+
+            let (wallets, mut wallet_actions) = (wallet.specification.check_signability)(
+                &uuid,
+                &instance_name,
+                &description,
+                &payload,
+                &wallet.specification,
+                &args,
+                wallet_state,
+                wallets,
+                &wallets_instances,
+                &defaults,
+                &execution_context,
+            )?;
+            actions.append(&mut wallet_actions);
+            Ok((wallets, actions))
         };
-
-        let mut bytes = vec![];
-        transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-        let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
-        let payload = Value::string(hex_str);
-
-        let description = args
-            .get_expected_string("description")
-            .ok()
-            .and_then(|d| Some(d.to_string()));
-
-        let res = (wallet.specification.check_signability)(
-            uuid,
-            instance_name,
-            &description,
-            &payload,
-            &wallet.specification,
-            &args,
-            wallet_state,
-            wallets,
-            wallets_instances,
-            &defaults,
-            execution_context,
-        );
-
-        return_synchronous_actions(res)
+        Ok(Box::pin(future))
     }
 
     fn run_signed_execution(
@@ -189,17 +247,10 @@ impl CommandImplementation for SignStacksTransaction {
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
-        let transaction = match build_unsigned_transaction(&wallet_state, spec, args, defaults) {
-            Ok(transaction) => transaction,
-            Err(diag) => {
-                wallets.push_wallet_state(wallet_state);
-                return return_synchronous_err(wallets, diag);
-            }
-        };
-
-        let mut bytes = vec![];
-        transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-        let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+        let payload = wallet_state
+            .get_scoped_value(&uuid.value().to_string(), UNSIGNED_TRANSACTION_BYTES)
+            .unwrap()
+            .clone();
 
         let title = args
             .get_expected_string("description")
@@ -226,9 +277,11 @@ fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
     Ok(wallet_uuid)
 }
 
-fn build_unsigned_transaction(
+async fn build_unsigned_transaction(
     wallet_state: &ValueStore,
     _spec: &CommandSpecification,
+    fee: Option<u64>,
+    nonce: Option<u64>,
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
@@ -247,9 +300,21 @@ fn build_unsigned_transaction(
         }
     };
 
+    let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
+    let fee = match fee {
+        Some(fee) => fee,
+        None => {
+            let rpc = StacksRpc::new(&rpc_api_url);
+            let fee = rpc
+                .estimate_transaction_fee(&transaction_payload, 1)
+                .await
+                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+            fee
+        }
+    };
+
     // Extract network_id
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
-
     let transaction_version = match network_id.as_str() {
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
@@ -282,22 +347,36 @@ fn build_unsigned_transaction(
     let signer =
         public_keys_to_address_hash(&hash_flag, stacks_public_keys.len(), &stacks_public_keys);
 
+    let address = StacksAddress::new(version, signer.clone());
+
+    let nonce = match nonce {
+        Some(nonce) => nonce,
+        None => {
+            let rpc = StacksRpc::new(&rpc_api_url);
+            let nonce = rpc
+                .get_nonce(&address.to_string())
+                .await
+                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+            nonce
+        }
+    };
+
     let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
 
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
             hash_mode: MultisigHashMode::P2SH,
             signer,
-            nonce: 0,
-            tx_fee: 0,
+            nonce,
+            tx_fee: fee,
             fields: vec![],
             signatures_required: stacks_public_keys.len() as u16,
         }),
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
             signer,
-            nonce: 0,
-            tx_fee: 0,
+            nonce,
+            tx_fee: fee,
             key_encoding: TransactionPublicKeyEncoding::Compressed,
             signature: MessageSignature::empty(),
         }),

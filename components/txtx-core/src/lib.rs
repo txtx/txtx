@@ -163,17 +163,22 @@ pub async fn start_runbook_runloop(
     let action_item_responses = BTreeMap::new();
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
 
-    let actions = run_wallets_evaluation(
+    let pass_result = run_wallets_evaluation(
         runbook,
         runtime_context,
         &execution_context,
         &mut action_item_requests,
         &action_item_responses,
         &tx,
-    )
-    .await?;
+    ).await;
 
-    assert!(!actions.has_pending_actions());
+    assert!(!pass_result.actions.has_pending_actions());
+    if !pass_result.diagnostics.is_empty() {
+        println!("Errors / warning");
+        for diag in pass_result.diagnostics.iter() {
+            println!("- {}", diag);
+        }
+    }
 
     let mut uuid = Uuid::new_v4();
     let mut background_tasks_futures = vec![];
@@ -526,7 +531,7 @@ pub async fn start_interactive_runbook_runloop(
                 let mut map = BTreeMap::new();
                 map.insert(wallet_construct_uuid, scoped_requests);
 
-                let actions = run_wallets_evaluation(
+                let pass_result = run_wallets_evaluation(
                     runbook,
                     runtime_context,
                     &execution_context,
@@ -534,9 +539,16 @@ pub async fn start_interactive_runbook_runloop(
                     &action_item_responses,
                     &block_tx.clone(),
                 )
-                .await?;
+                .await;
 
-                let updated_actions = actions
+                if !pass_result.diagnostics.is_empty() {
+                    println!("Errors / warning");
+                    for diag in pass_result.diagnostics.iter() {
+                        println!("- {}", diag);
+                    }
+                }
+            
+                let updated_actions = pass_result.actions
                     .compile_actions_to_item_updates()
                     .into_iter()
                     .map(|u| u.normalize(&action_item_requests))
@@ -725,7 +737,7 @@ pub async fn build_genesis_panel(
         actions.push_sub_group(vec![action_request]);
     }
 
-    let mut wallet_actions = run_wallets_evaluation(
+    let mut pass_result = run_wallets_evaluation(
         runbook,
         runtime_context,
         &execution_context,
@@ -733,9 +745,16 @@ pub async fn build_genesis_panel(
         &action_item_responses,
         &progress_tx,
     )
-    .await?;
+    .await;
 
-    actions.append(&mut wallet_actions);
+    if !pass_result.diagnostics.is_empty() {
+        println!("Errors / warning");
+        for diag in pass_result.diagnostics.iter() {
+            println!("- {}", diag);
+        }
+    }
+
+    actions.append(&mut pass_result.actions);
 
     let validate_action = ActionItemRequest {
         uuid: Uuid::new_v4(),

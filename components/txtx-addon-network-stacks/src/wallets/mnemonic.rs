@@ -110,7 +110,6 @@ impl WalletImplementation for StacksMnemonic {
             return return_synchronous_actions(Ok((wallets, actions)))
         }        
 
-        println!("{instance_name} => {:?}", args);
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
         let derivation_path = match args.get_value("derivation_path") {
             Some(v) => v.clone(),
@@ -201,8 +200,6 @@ impl WalletImplementation for StacksMnemonic {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
-        println!("VALUES: {:?}", args);
-        println!("WALLET: {:?}", wallet_state);
         let mut result = CommandExecutionResult::new();
 
         let (secret_key_value, _, _) = match compute_keypair(args, defaults, &wallet_state) {
