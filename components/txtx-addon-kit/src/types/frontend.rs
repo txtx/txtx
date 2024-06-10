@@ -19,6 +19,7 @@ pub enum BlockEvent {
     UpdateProgressBarStatus(ProgressBarStatusUpdate),
     UpdateProgressBarVisibility(ProgressBarVisibilityUpdate),
     Modal(Block),
+    Error(Block),
 }
 
 impl BlockEvent {
@@ -104,6 +105,18 @@ impl Block {
                 return None;
             }
             Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter() {
+                    for sub_group in group.sub_groups.iter() {
+                        for action in sub_group.action_items.iter() {
+                            if action.uuid == uuid {
+                                return Some(action.clone());
+                            }
+                        }
+                    }
+                }
+                return None;
+            }
+            Panel::ErrorPanel(panel) => {
                 for group in panel.groups.iter() {
                     for sub_group in group.sub_groups.iter() {
                         for action in sub_group.action_items.iter() {
@@ -340,6 +353,7 @@ pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
     ProgressBar(Vec<ConstructProgressBarStatuses>),
+    ErrorPanel(ErrorPanelData),
 }
 
 impl Panel {
@@ -494,6 +508,15 @@ pub struct ModalPanelData {
     pub description: String,
     pub groups: Vec<ActionGroup>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorPanelData {
+    pub title: String,
+    pub description: String,
+    pub groups: Vec<ActionGroup>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionGroup {
@@ -1006,6 +1029,7 @@ pub enum ActionItemRequestType {
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
+    DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
     ValidateBlock,
     ValidateModal,
@@ -1041,6 +1065,12 @@ pub struct DisplayOutputRequest {
     pub name: String,
     pub description: Option<String>,
     pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayErrorLogRequest {
+    pub diagnostic: Diagnostic,
 }
 
 #[derive(Debug, Clone, Serialize)]

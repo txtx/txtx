@@ -2,8 +2,9 @@ use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
     ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
-    ConstructProgressBarStatuses, ModalPanelData, NormalizedActionItemRequestUpdate, Panel,
-    ProgressBarStatus, ProgressBarStatusUpdate, ProgressBarVisibilityUpdate,
+    ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
+    NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
+    ProgressBarVisibilityUpdate,
 };
 
 #[derive(Clone)]
@@ -124,6 +125,42 @@ impl GqlModalBlock {
 }
 
 #[derive(Clone)]
+pub struct GqlErrorBlock {
+    block: Block,
+}
+impl GqlErrorBlock {
+    pub fn new(block: Block) -> Self {
+        GqlErrorBlock { block }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlErrorBlock {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        match &self.block.panel {
+            Panel::ErrorPanel(_) => "ErrorPanel".into(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn uuid(&self) -> String {
+        self.block.uuid.to_string()
+    }
+
+    pub fn visible(&self) -> bool {
+        self.block.visible
+    }
+
+    pub fn panel(&self) -> GqlErrorPanelData {
+        match &self.block.panel {
+            Panel::ErrorPanel(panel_data) => GqlErrorPanelData::new(panel_data.clone()),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct GqlProgressBlock {
     block: Block,
 }
@@ -218,6 +255,33 @@ impl GqlModalPanelData {
     }
 }
 
+pub struct GqlErrorPanelData {
+    data: ErrorPanelData,
+}
+impl GqlErrorPanelData {
+    pub fn new(data: ErrorPanelData) -> Self {
+        GqlErrorPanelData { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlErrorPanelData {
+    pub fn title(&self) -> String {
+        self.data.title.clone()
+    }
+
+    pub fn description(&self) -> String {
+        self.data.description.clone()
+    }
+
+    pub fn groups(&self) -> Vec<GqlActionGroup> {
+        self.data
+            .groups
+            .clone()
+            .into_iter()
+            .map(GqlActionGroup::new)
+            .collect()
+    }
+}
 pub struct GqlConstructProgressBarStatuses {
     data: ConstructProgressBarStatuses,
 }

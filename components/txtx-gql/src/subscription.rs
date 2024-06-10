@@ -2,8 +2,8 @@ use std::pin::Pin;
 
 use crate::{
     types::block::{
-        GqlActionBlock, GqlActionItemRequestUpdate, GqlModalBlock, GqlProgressBarStatusUpdate,
-        GqlProgressBarVisibilityUpdate, GqlProgressBlock,
+        GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlModalBlock,
+        GqlProgressBarStatusUpdate, GqlProgressBarVisibilityUpdate, GqlProgressBlock,
     },
     Context,
 };
@@ -15,6 +15,7 @@ pub struct Subscription;
 
 type GqlActionBlockStream = Pin<Box<dyn Stream<Item = Result<GqlActionBlock, FieldError>> + Send>>;
 type GqlModalBlockStream = Pin<Box<dyn Stream<Item = Result<GqlModalBlock, FieldError>> + Send>>;
+type GqlErrorBlockStream = Pin<Box<dyn Stream<Item = Result<GqlErrorBlock, FieldError>> + Send>>;
 type GqlProgressBlockStream =
     Pin<Box<dyn Stream<Item = Result<GqlProgressBlock, FieldError>> + Send>>;
 type GqlProgressBarStatusUpdateStream =
@@ -56,6 +57,23 @@ impl Subscription {
               if let Ok(block_event) = block_rx.recv().await {
                 match block_event {
                     BlockEvent::Modal(block) => yield Ok(GqlModalBlock::new(block)),
+                    _ => {}
+                }
+              }
+            }
+
+        };
+        Box::pin(stream)
+    }
+
+    async fn error_block_event(context: &Context) -> GqlErrorBlockStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                    BlockEvent::Error(block) => yield Ok(GqlErrorBlock::new(block)),
                     _ => {}
                 }
               }
