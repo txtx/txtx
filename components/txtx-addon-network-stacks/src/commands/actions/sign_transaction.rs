@@ -12,7 +12,6 @@ use clarity_repl::{
         TransactionVersion,
     },
 };
-use txtx_addon_kit::reqwest::redirect::Action;
 use std::collections::HashMap;
 use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
@@ -20,7 +19,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_actions, return_synchronous_err, return_synchronous_ok,
+    return_synchronous_ok,
     WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
 };
 use txtx_addon_kit::types::{
@@ -37,7 +36,7 @@ use crate::constants::{
     UNSIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
-use crate::typing::{CLARITY_BUFFER, STACKS_SIGNED_TRANSACTION};
+use crate::typing::CLARITY_BUFFER;
 
 lazy_static! {
     pub static ref SIGN_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
@@ -172,8 +171,8 @@ impl CommandImplementation for SignStacksTransaction {
                     ActionItemRequest::new(
                         &Uuid::new_v4(),
                         &Some(uuid.value()),
-                        "Check nonce".into(),
-                        Some(format!("{}", transaction.get_origin_nonce())),
+                        "".into(),
+                        Some(format!("Check account nonce")),
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
@@ -184,8 +183,8 @@ impl CommandImplementation for SignStacksTransaction {
                     ActionItemRequest::new(
                         &Uuid::new_v4(),
                         &Some(uuid.value()),
-                        "Check fee".into(),
-                        Some(format!("{}", transaction.get_tx_fee())),
+                        "µSTX".into(),
+                        Some(format!("Check transaction fee")),
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
@@ -227,7 +226,7 @@ impl CommandImplementation for SignStacksTransaction {
 
     fn run_signed_execution(
         uuid: &ConstructUuid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
