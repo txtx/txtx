@@ -28,7 +28,7 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{WalletInstance, WalletSignFutureResult, WalletsState},
+    wallets::{WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState},
     ConstructUuid, PackageUuid, ValueStore,
 };
 
@@ -376,17 +376,16 @@ pub type CommandCheckExecutabilityClosure = fn(
     &CommandExecutionContext,
 ) -> Result<Actions, Diagnostic>;
 
-pub type CommandCheckSignedExecutabilityClosure =
-    fn(
-        &ConstructUuid,
-        &str,
-        &CommandSpecification,
-        &ValueStore,
-        &AddonDefaults,
-        &CommandExecutionContext,
-        &HashMap<ConstructUuid, WalletInstance>,
-        WalletsState,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
+pub type CommandCheckSignedExecutabilityClosure = fn(
+    &ConstructUuid,
+    &str,
+    &CommandSpecification,
+    &ValueStore,
+    &AddonDefaults,
+    &CommandExecutionContext,
+    &HashMap<ConstructUuid, WalletInstance>,
+    WalletsState,
+) -> WalletActionsFutureResult;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -771,7 +770,7 @@ impl CommandInstance {
         res
     }
 
-    pub fn check_signed_executability(
+    pub async fn check_signed_executability(
         &mut self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
@@ -829,7 +828,7 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        let (wallet_state, mut actions) = (spec.check_signed_executability)(
+        let future = (spec.check_signed_executability)(
             &construct_uuid,
             &self.name,
             &self.specification,
@@ -839,6 +838,7 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         )?;
+        let (wallet_state, mut actions) = future.await?;
         consolidated_actions.append(&mut actions);
         Ok((wallet_state, consolidated_actions))
     }
@@ -990,7 +990,7 @@ pub trait CommandImplementation {
         _execution_context: &CommandExecutionContext,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _wallets_state: WalletsState,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    ) -> WalletActionsFutureResult {
         unimplemented!()
     }
 

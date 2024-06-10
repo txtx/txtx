@@ -108,6 +108,9 @@ pub struct RunRunbook {
     /// Start Terminal Console
     #[clap(long = "term-console")]
     pub term_console: bool,
+    /// Start Terminal Console
+    #[clap(long = "port", short = 'p')]
+    pub port: Option<u16>,
 }
 
 pub fn main() {

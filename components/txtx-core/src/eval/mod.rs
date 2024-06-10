@@ -138,8 +138,8 @@ pub async fn run_wallets_evaluation(
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-) -> Result<Actions, Vec<Diagnostic>> {
-    let mut consolidated_actions: Actions = Actions::none();
+) -> EvaluationPassResult {
+    let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
     let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
 
     let constructs_locations = runbook.constructs_locations.clone();
@@ -180,7 +180,10 @@ pub async fn run_wallets_evaluation(
                                         cached_dependency_execution_results
                                             .insert(dependency, Ok(evaluation_result));
                                     }
-                                    Some(Err(_)) => continue,
+                                    Some(Err(diag)) => {
+                                        pass_result.diagnostics.push((*diag).clone());
+                                        continue;
+                                    }
                                     Some(Ok(_)) => {}
                                 }
                             }
@@ -218,9 +221,15 @@ pub async fn run_wallets_evaluation(
                 CommandInputEvaluationStatus::NeedsUserInteraction => {
                     continue;
                 }
-                CommandInputEvaluationStatus::Aborted(diags) => return Err(diags),
+                CommandInputEvaluationStatus::Aborted(mut diags) => {
+                    pass_result.diagnostics.append(&mut diags);
+                    continue;
+                }
             },
-            Err(e) => return Err(e),
+            Err(mut diags) => {
+                pass_result.diagnostics.append(&mut diags);
+                continue;
+            }
         };
 
         let wallet = runbook.wallets_instances.get(&construct_uuid).unwrap();
@@ -246,10 +255,10 @@ pub async fn run_wallets_evaluation(
             Ok((wallets_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
                     runbook.wallets_state = Some(wallets_state);
-                    consolidated_actions.append(&mut new_actions);
+                    pass_result.actions.append(&mut new_actions);
                     continue;
                 }
-                consolidated_actions.append(&mut new_actions);
+                pass_result.actions.append(&mut new_actions);
                 wallets_state
             }
             Err((wallets_state, diag)) => {
@@ -259,9 +268,10 @@ pub async fn run_wallets_evaluation(
                         // This should be improved / become more granular
                         let update = ActionItemRequestUpdate::from_uuid(&item.uuid)
                             .set_status(ActionItemStatus::Error(diag.clone()));
-                        consolidated_actions.push_action_item_update(update);
+                        pass_result.actions.push_action_item_update(update);
                     }
                 }
+                pass_result.diagnostics.push(diag.clone());
                 continue;
             }
         };
@@ -283,7 +293,10 @@ pub async fn run_wallets_evaluation(
 
         let (mut result, wallets_state) = match res {
             Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
-            Err((wallets_state, _)) => (None, Some(wallets_state)),
+            Err((wallets_state, diag)) => {
+                pass_result.diagnostics.push(diag);
+                (None, Some(wallets_state))
+            }
         };
         runbook.wallets_state = wallets_state;
         let Some(result) = result.take() else {
@@ -294,7 +307,7 @@ pub async fn run_wallets_evaluation(
             .insert(construct_uuid.clone(), result);
     }
 
-    Ok(consolidated_actions)
+    pass_result
 }
 
 pub async fn run_commands_updating_defaults(
@@ -654,15 +667,17 @@ pub async fn run_constructs_evaluation(
         let execution_result = if command_instance.specification.implements_signing_capability {
             let wallets = runbook.wallets_state.take().unwrap();
 
-            let res = command_instance.check_signed_executability(
-                &construct_uuid,
-                &mut evaluated_inputs,
-                wallets,
-                addon_defaults.clone(),
-                &mut runbook.wallets_instances,
-                &action_item_responses.get(&construct_uuid.value()),
-                execution_context,
-            );
+            let res = command_instance
+                .check_signed_executability(
+                    &construct_uuid,
+                    &mut evaluated_inputs,
+                    wallets,
+                    addon_defaults.clone(),
+                    &mut runbook.wallets_instances,
+                    &action_item_responses.get(&construct_uuid.value()),
+                    execution_context,
+                )
+                .await;
 
             let wallets = match res {
                 Ok((updated_wallets, mut new_actions)) => {

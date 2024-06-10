@@ -158,6 +158,14 @@ impl ValueStore {
         Ok(value)
     }
 
+    pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
+        self.storage.insert(format!("{}:{}", scope, key), value);
+    }
+
+    pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
+        self.storage.get(&format!("{}:{}", scope, key))
+    }
+
     pub fn get_value(&self, key: &str) -> Option<&Value> {
         self.storage.get(key)
     }

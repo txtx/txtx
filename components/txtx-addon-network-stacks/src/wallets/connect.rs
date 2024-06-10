@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::future;
 
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
@@ -10,9 +9,9 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActivabilityFutureResult, WalletActivateFutureResult,
-    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
-    WalletsState,
+    return_synchronous_actions, return_synchronous_result, WalletActionsFutureResult,
+    WalletActivateFutureResult, WalletImplementation, WalletInstance, WalletSignFutureResult,
+    WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -99,7 +98,7 @@ impl WalletImplementation for StacksConnect {
         _execution_context: &CommandExecutionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
-    ) -> WalletActivabilityFutureResult {
+    ) -> WalletActionsFutureResult {
         let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let requested_startup_data = wallet_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)
@@ -180,7 +179,7 @@ impl WalletImplementation for StacksConnect {
             actions.push_action_item_update(update);
 
             wallets.push_wallet_state(wallet_state);
-            return Ok(Box::pin(future::ready(Ok((wallets, actions)))));
+            return return_synchronous_actions(Ok((wallets, actions)));
         }
 
         let future = async move {
