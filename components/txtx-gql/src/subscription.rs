@@ -1,7 +1,10 @@
 use std::pin::Pin;
 
 use crate::{
-    types::block::{GqlActionBlock, GqlActionItemRequestUpdate, GqlModalBlock, GqlProgressBlock},
+    types::block::{
+        GqlActionBlock, GqlActionItemRequestUpdate, GqlModalBlock, GqlProgressBarStatusUpdate,
+        GqlProgressBarVisibilityUpdate, GqlProgressBlock,
+    },
     Context,
 };
 use futures::Stream;
@@ -14,8 +17,12 @@ type GqlActionBlockStream = Pin<Box<dyn Stream<Item = Result<GqlActionBlock, Fie
 type GqlModalBlockStream = Pin<Box<dyn Stream<Item = Result<GqlModalBlock, FieldError>> + Send>>;
 type GqlProgressBlockStream =
     Pin<Box<dyn Stream<Item = Result<GqlProgressBlock, FieldError>> + Send>>;
+type GqlProgressBarStatusUpdateStream =
+    Pin<Box<dyn Stream<Item = Result<GqlProgressBarStatusUpdate, FieldError>> + Send>>;
+type GqlProgressBarVisibilityUpdateStream =
+    Pin<Box<dyn Stream<Item = Result<GqlProgressBarVisibilityUpdate, FieldError>> + Send>>;
 
-type GqlSetActionItemStatusStream =
+type GqlActionItemRequestUpdateStream =
     Pin<Box<dyn Stream<Item = Result<Vec<GqlActionItemRequestUpdate>, FieldError>> + Send>>;
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
@@ -75,7 +82,44 @@ impl Subscription {
         Box::pin(stream)
     }
 
-    async fn update_action_items_event(context: &Context) -> GqlSetActionItemStatusStream {
+    async fn update_progress_bar_status_event(
+        context: &Context,
+    ) -> GqlProgressBarStatusUpdateStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                    BlockEvent::UpdateProgressBarStatus(update) => yield Ok(GqlProgressBarStatusUpdate::new(update)),
+                    _ => {}
+                }
+              }
+            }
+
+        };
+        Box::pin(stream)
+    }
+    async fn update_progress_bar_visibility_event(
+        context: &Context,
+    ) -> GqlProgressBarVisibilityUpdateStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                  BlockEvent::UpdateProgressBarVisibility(update) => yield Ok(GqlProgressBarVisibilityUpdate::new(update)),
+                    _ => {}
+                }
+              }
+            }
+
+        };
+        Box::pin(stream)
+    }
+
+    async fn update_action_items_event(context: &Context) -> GqlActionItemRequestUpdateStream {
         let block_tx = context.block_broadcaster.clone();
         let mut block_rx = block_tx.subscribe();
         let stream = async_stream::stream! {

@@ -16,6 +16,8 @@ pub enum BlockEvent {
     RunbookCompleted,
     Exit,
     ProgressBar(Block),
+    UpdateProgressBarStatus(ProgressBarStatusUpdate),
+    UpdateProgressBarVisibility(ProgressBarVisibilityUpdate),
     Modal(Block),
 }
 
@@ -79,9 +81,9 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(uuid: Uuid, panel: Panel) -> Self {
+    pub fn new(uuid: &Uuid, panel: Panel) -> Self {
         Block {
-            uuid,
+            uuid: uuid.clone(),
             panel,
             visible: true,
         }
@@ -139,6 +141,31 @@ impl Block {
                             }
                         }
                     }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn update_progress_bar_status(
+        &mut self,
+        construct_uuid: &Uuid,
+        new_status: &ProgressBarStatus,
+    ) {
+        match self.panel.borrow_mut() {
+            Panel::ProgressBar(progress_bar) => {
+                let mut construct_status_found = false;
+                for construct_statuses in progress_bar.iter_mut() {
+                    if &construct_statuses.construct_uuid == construct_uuid {
+                        construct_statuses.push_status(new_status);
+                        construct_status_found = true;
+                    }
+                }
+                if !construct_status_found {
+                    progress_bar.push(ConstructProgressBarStatuses {
+                        construct_uuid: construct_uuid.clone(),
+                        statuses: vec![new_status.clone()],
+                    })
                 }
             }
             _ => {}
@@ -312,7 +339,7 @@ impl Display for Block {
 pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
-    ProgressBar(ProgressBarStatus),
+    ProgressBar(Vec<ConstructProgressBarStatuses>),
 }
 
 impl Panel {
@@ -378,10 +405,86 @@ pub struct ActionPanelData {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConstructProgressBarStatuses {
+    pub construct_uuid: Uuid,
+    pub statuses: Vec<ProgressBarStatus>,
+}
+
+impl ConstructProgressBarStatuses {
+    pub fn new(construct_uuid: &Uuid) -> Self {
+        ConstructProgressBarStatuses {
+            construct_uuid: construct_uuid.clone(),
+            statuses: vec![],
+        }
+    }
+    pub fn push_status(&mut self, new_status: &ProgressBarStatus) {
+        self.statuses.push(new_status.clone());
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatus {
     pub status: String,
     pub message: String,
     pub diagnostic: Option<Diagnostic>,
+}
+
+impl ProgressBarStatus {
+    pub fn new_msg(status: &str, message: &str) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            message: message.to_string(),
+            diagnostic: None,
+        }
+    }
+    pub fn new_err(status: &str, message: &str, diag: &Diagnostic) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            message: message.to_string(),
+            diagnostic: Some(diag.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatusUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub construct_uuid: Uuid,
+    pub new_status: ProgressBarStatus,
+}
+
+impl ProgressBarStatusUpdate {
+    pub fn new(
+        progress_bar_uuid: &Uuid,
+        &construct_uuid: &Uuid,
+        new_status: &ProgressBarStatus,
+    ) -> Self {
+        ProgressBarStatusUpdate {
+            progress_bar_uuid: progress_bar_uuid.clone(),
+            construct_uuid: construct_uuid.clone(),
+            new_status: new_status.clone(),
+        }
+    }
+    pub fn update_status(&mut self, new_status: &ProgressBarStatus) {
+        self.new_status = new_status.clone();
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarVisibilityUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub visible: bool,
+}
+impl ProgressBarVisibilityUpdate {
+    pub fn new(progress_bar_uuid: &Uuid, visible: bool) -> Self {
+        ProgressBarVisibilityUpdate {
+            progress_bar_uuid: progress_bar_uuid.clone(),
+            visible,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

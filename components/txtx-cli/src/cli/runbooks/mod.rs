@@ -183,6 +183,16 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
+                    BlockEvent::UpdateProgressBarStatus(update) => block_store
+                        .iter_mut()
+                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
+                        .for_each(|(_, b)| {
+                            b.update_progress_bar_status(&update.construct_uuid, &update.new_status)
+                        }),
+                    BlockEvent::UpdateProgressBarVisibility(update) => block_store
+                        .iter_mut()
+                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
+                        .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
                     BlockEvent::Exit => break,
                 }
