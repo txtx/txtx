@@ -3,7 +3,8 @@ use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
-    ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
+    ActionGroup, ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType,
+    ActionSubGroup, Actions, Block, BlockEvent, DisplayErrorLogRequest, ErrorPanelData, Panel,
 };
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -480,6 +481,44 @@ impl EvaluationPassResult {
             pending_background_tasks_constructs_uuids: vec![],
             background_tasks_uuid: background_tasks_uuid.clone(),
         }
+    }
+
+    pub fn compile_diagnostics_to_block(&self) -> Option<Block> {
+        if self.diagnostics.is_empty() {
+            return None;
+        };
+
+        let mut diag_actions = vec![];
+        for (i, diag) in self.diagnostics.iter().enumerate() {
+            diag_actions.push(ActionItemRequest {
+                uuid: Uuid::new_v4(),
+                construct_uuid: None,
+                index: i as u16,
+                title: "".into(),
+                description: None,
+                action_status: ActionItemStatus::Error(diag.clone()),
+                action_type: ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+                    diagnostic: diag.clone(),
+                }),
+                internal_key: "diagnostic".to_string(),
+            });
+        }
+        Some(Block {
+            uuid: Uuid::new_v4(),
+            visible: true,
+            panel: Panel::ErrorPanel(ErrorPanelData {
+                title: "EXECUTION ERROR".into(),
+                description: "Review the following execution errors and restart the runbook."
+                    .into(),
+                groups: vec![ActionGroup {
+                    title: "".into(),
+                    sub_groups: vec![ActionSubGroup {
+                        action_items: diag_actions,
+                        allow_batch_completion: false,
+                    }],
+                }],
+            }),
+        })
     }
 }
 

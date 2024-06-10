@@ -429,25 +429,29 @@ pub async fn start_interactive_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                 }
 
-                let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                    .set_status(ActionItemStatus::Success(None));
-                pass_results.actions.push_action_item_update(update);
-                for new_request in pass_results
-                    .actions
-                    .get_new_action_item_requests()
-                    .into_iter()
-                {
-                    action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
-                }
-                let block_events = pass_results
-                    .actions
-                    .compile_actions_to_block_events(&action_item_requests);
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                } else {
+                    let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                        .set_status(ActionItemStatus::Success(None));
+                    pass_results.actions.push_action_item_update(update);
+                    for new_request in pass_results
+                        .actions
+                        .get_new_action_item_requests()
+                        .into_iter()
+                    {
+                        action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
+                    }
+                    let block_events = pass_results
+                        .actions
+                        .compile_actions_to_block_events(&action_item_requests);
 
-                for event in block_events.into_iter() {
-                    let _ = block_tx.send(event);
-                }
-                if runbook_completed {
-                    let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                    for event in block_events.into_iter() {
+                        let _ = block_tx.send(event);
+                    }
+                    if runbook_completed {
+                        let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                    }
                 }
             }
             ActionItemResponseType::PickInputOption(_response) => {
@@ -479,24 +483,28 @@ pub async fn start_interactive_runbook_runloop(
                 )
                 .await;
 
-                let mut updated_actions = vec![];
-                for action in pass_results
-                    .actions
-                    .compile_actions_to_item_updates()
-                    .into_iter()
-                {
-                    updated_actions.push(action.normalize(&action_item_requests))
-                }
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                } else {
+                    let mut updated_actions = vec![];
+                    for action in pass_results
+                        .actions
+                        .compile_actions_to_item_updates()
+                        .into_iter()
+                    {
+                        updated_actions.push(action.normalize(&action_item_requests))
+                    }
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
-                if !pass_results
-                    .pending_background_tasks_constructs_uuids
-                    .is_empty()
-                {
-                    background_tasks_futures
-                        .append(&mut pass_results.pending_background_tasks_futures);
-                    background_tasks_contructs_uuids
-                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    if !pass_results
+                        .pending_background_tasks_constructs_uuids
+                        .is_empty()
+                    {
+                        background_tasks_futures
+                            .append(&mut pass_results.pending_background_tasks_futures);
+                        background_tasks_contructs_uuids
+                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    }
                 }
             }
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
@@ -536,20 +544,17 @@ pub async fn start_interactive_runbook_runloop(
                 )
                 .await;
 
-                if !pass_result.diagnostics.is_empty() {
-                    println!("Errors / warning");
-                    for diag in pass_result.diagnostics.iter() {
-                        println!("- {}", diag);
-                    }
+                if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                } else {
+                    let updated_actions = pass_result
+                        .actions
+                        .compile_actions_to_item_updates()
+                        .into_iter()
+                        .map(|u| u.normalize(&action_item_requests))
+                        .collect();
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
                 }
-
-                let updated_actions = pass_result
-                    .actions
-                    .compile_actions_to_item_updates()
-                    .into_iter()
-                    .map(|u| u.normalize(&action_item_requests))
-                    .collect();
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
@@ -594,6 +599,9 @@ pub async fn start_interactive_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_uuids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
                 }
             }
         };
