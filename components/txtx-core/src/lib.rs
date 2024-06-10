@@ -34,7 +34,7 @@ use kit::types::frontend::BlockEvent;
 use kit::types::frontend::NormalizedActionItemRequestUpdate;
 use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
-use kit::types::frontend::ProgressBarStatus;
+use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
@@ -347,17 +347,10 @@ pub async fn start_interactive_runbook_runloop(
                         },
                     ]));
 
-                    let mut block = Block {
-                        uuid: background_tasks_handle_uuid,
-                        visible: true,
-                        panel: Panel::ProgressBar(ProgressBarStatus {
-                            status: "Broadcasting".to_string(),
-                            message: format!("Broadcasting transaction to the Stacks network",),
-                            diagnostic: None,
-                        }),
-                    };
-
-                    let _ = block_tx.send(BlockEvent::ProgressBar(block.clone()));
+                    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
+                        &background_tasks_handle_uuid,
+                        Panel::ProgressBar(vec![]),
+                    )));
 
                     let results = kit::futures::future::join_all(background_tasks_futures).await;
                     for (construct_uuid, result) in
@@ -375,8 +368,9 @@ pub async fn start_interactive_runbook_runloop(
                         }
                     }
 
-                    block.visible = false;
-                    let _ = block_tx.send(BlockEvent::ProgressBar(block));
+                    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+                        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+                    ));
                     background_tasks_futures = vec![];
                     background_tasks_contructs_uuids = vec![];
                 }
