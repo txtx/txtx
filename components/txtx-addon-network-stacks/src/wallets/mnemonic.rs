@@ -24,6 +24,11 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
+use txtx_addon_kit::{types::frontend::{ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest}, uuid::Uuid};
+
+use crate::constants::ACTION_ITEM_CHECK_ADDRESS;
+use txtx_addon_kit::types::wallets::return_synchronous_actions;
+
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::CLARITY_BUFFER;
@@ -32,7 +37,7 @@ use super::DEFAULT_DERIVATION_PATH;
 
 lazy_static! {
     pub static ref STACKS_MNEMONIC: WalletSpecification = define_wallet! {
-        StacksConnect => {
+        StacksMnemonic => {
           name: "Mnemonic Wallet",
           matcher: "mnemonic",
           documentation: "Coming soon",
@@ -75,8 +80,8 @@ lazy_static! {
     };
 }
 
-pub struct StacksConnect;
-impl WalletImplementation for StacksConnect {
+pub struct StacksMnemonic;
+impl WalletImplementation for StacksMnemonic {
     fn check_instantiability(
         _ctx: &WalletSpecification,
         _args: Vec<Type>,
@@ -87,19 +92,66 @@ impl WalletImplementation for StacksConnect {
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
         _uuid: &ConstructUuid,
-        _instance_name: &str,
+        instance_name: &str,
         _spec: &WalletSpecification,
-        _args: &ValueStore,
-        wallet_state: ValueStore,
+        args: &ValueStore,
+        mut wallet_state: ValueStore,
         mut wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        defaults: &AddonDefaults,
+        execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
+        let mut actions = Actions::none();
+
+        if wallet_state.get_value(PUBLIC_KEYS).is_some() {
+            wallets.push_wallet_state(wallet_state);
+            return return_synchronous_actions(Ok((wallets, actions)))
+        }        
+
+        println!("{instance_name} => {:?}", args);
+        let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
+        let derivation_path = match args.get_value("derivation_path") {
+            Some(v) => v.clone(),
+            None => Value::string(DEFAULT_DERIVATION_PATH.into())
+        };
+        let is_encrypted = match args.get_value("is_encrypted") {
+            Some(v) => v.clone(),
+            None => Value::bool(false)
+        };
+        let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
+        let version = match network_id.as_str() {
+            "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
+            _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
+        };
+        wallet_state.insert("mnemonic", mnemonic);
+        wallet_state.insert("derivation_path", derivation_path);
+        wallet_state.insert("is_encrypted", is_encrypted);
+        wallet_state.insert("hash_flag", Value::uint(version.into()));
+        wallet_state.insert("multi_sig", Value::bool(false));
+
+        let (_, public_key, expected_address) = match compute_keypair(args, defaults, &wallet_state) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, diag)),
+        };
+        wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));        
+
+        if execution_context.review_input_values {
+            actions.push_sub_group(vec![ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &None,
+                &format!("Check {} expected address", instance_name),
+                None,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                    input_name: "".into(),
+                    value: Value::string(expected_address.to_string()),
+                }),
+                ACTION_ITEM_CHECK_ADDRESS,
+            )])
+        }
         let future = async move {
-            let actions = Actions::none();
             wallets.push_wallet_state(wallet_state);
             Ok((wallets, actions))
         };
@@ -109,41 +161,14 @@ impl WalletImplementation for StacksConnect {
     fn activate(
         _uuid: &ConstructUuid,
         _spec: &WalletSpecification,
-        args: &ValueStore,
-        mut wallet_state: ValueStore,
+        _args: &ValueStore,
+        wallet_state: ValueStore,
         mut wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        defaults: &AddonDefaults,
+        _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
         let result = CommandExecutionResult::new();
-
-        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
-        };
-        let version = match network_id.as_str() {
-            "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
-            _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
-        };
-        let mnemonic = args.get_expected_string("mnemonic").unwrap();
-        let derivation_path = args
-            .get_expected_string("derivation_path")
-            .unwrap_or(DEFAULT_DERIVATION_PATH);
-        let is_encrypted = args.get_expected_bool("is_encrypted").unwrap_or(false);
-        if is_encrypted {
-            unimplemented!()
-        }
-        let (_, public_key, _) = compute_keypair(mnemonic, derivation_path, &network_id);
-
-        wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        wallet_state.insert("mnemonic", Value::string(mnemonic.into()));
-        wallet_state.insert("derivation_path", Value::string(derivation_path.into()));
-        wallet_state.insert("is_encrypted", Value::bool(is_encrypted));
-
-        wallet_state.insert("hash_flag", Value::uint(version.into()));
-        wallet_state.insert("multi_sig", Value::bool(false));
-
         wallets.push_wallet_state(wallet_state);
         return_synchronous_result(Ok((wallets, result)))
     }
@@ -180,26 +205,14 @@ impl WalletImplementation for StacksConnect {
         println!("WALLET: {:?}", wallet_state);
         let mut result = CommandExecutionResult::new();
 
-        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+        let (secret_key_value, _, _) = match compute_keypair(args, defaults, &wallet_state) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
         };
-        let mnemonic = wallet_state.get_expected_string("mnemonic").unwrap();
-        let derivation_path = wallet_state
-            .get_expected_string("derivation_path")
-            .unwrap_or(DEFAULT_DERIVATION_PATH);
-        let is_encrypted = wallet_state
-            .get_expected_bool("is_encrypted")
-            .unwrap_or(false);
-        if is_encrypted {
-            unimplemented!()
-        }
-        let (secret_key_value, _, _) = compute_keypair(mnemonic, derivation_path, &network_id);
 
-        let transaction_payload_bytes = payload.expect_buffer_data().clone();
+        let transaction_payload_bytes = payload.expect_buffer_bytes();
         let transaction =
-            StacksTransaction::consensus_deserialize(&mut &transaction_payload_bytes.bytes[..])
-                .unwrap();
+            StacksTransaction::consensus_deserialize(&mut &transaction_payload_bytes[..]).unwrap();
 
         let mut tx_signer = StacksTransactionSigner::new(&transaction);
         let secret_key = Secp256k1PrivateKey::from_slice(&secret_key_value.to_bytes()).unwrap();
@@ -224,10 +237,23 @@ impl WalletImplementation for StacksConnect {
 }
 
 pub fn compute_keypair(
-    mnemonic: &str,
-    derivation_path: &str,
-    network_id: &str,
-) -> (Value, Value, StacksAddress) {
+    args: &ValueStore,
+    defaults: &AddonDefaults,
+    wallet_state: &ValueStore,
+) -> Result<(Value, Value, StacksAddress), Diagnostic> {
+
+    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+    let mnemonic = wallet_state.get_expected_string("mnemonic")?;
+    let derivation_path = wallet_state
+        .get_expected_string("derivation_path")
+        .unwrap_or(DEFAULT_DERIVATION_PATH);
+    let is_encrypted = wallet_state
+        .get_expected_bool("is_encrypted")
+        .unwrap_or(false);
+    if is_encrypted {
+        unimplemented!()
+    }
+
     let bip39_seed = match get_bip39_seed_from_mnemonic(mnemonic, "") {
         Ok(bip39_seed) => bip39_seed,
         Err(_) => panic!(),
@@ -259,7 +285,7 @@ pub fn compute_keypair(
     )
     .unwrap();
 
-    (secret_key_hex, public_key_hex, stx_address)
+    Ok((secret_key_hex, public_key_hex, stx_address))
 }
 
 pub fn get_bip39_seed_from_mnemonic(mnemonic: &str, password: &str) -> Result<Vec<u8>, String> {

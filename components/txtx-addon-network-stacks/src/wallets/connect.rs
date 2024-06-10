@@ -100,8 +100,6 @@ impl WalletImplementation for StacksConnect {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        use txtx_addon_kit::types::wallets::return_synchronous_actions;
-
         let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let requested_startup_data = wallet_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)

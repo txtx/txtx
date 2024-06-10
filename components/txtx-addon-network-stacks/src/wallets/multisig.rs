@@ -89,6 +89,7 @@ impl WalletImplementation for StacksConnect {
     // Ensuring that they are all correctly activable.
     // When they are, collect the public keys
     // and build the stacks address + Check the balance
+    #[cfg(not(feature = "wasm"))]
     fn check_activability(
         uuid: &ConstructUuid,
         instance_name: &str,
@@ -120,7 +121,6 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, diag)),
         };
 
-        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut consolidated_actions = Actions::none();
 
@@ -278,9 +278,6 @@ impl WalletImplementation for StacksConnect {
             wallets.push_wallet_state(wallet_state);
             Ok((wallets, consolidated_actions))
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 
