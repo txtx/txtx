@@ -4,7 +4,9 @@ use std::fmt::Write;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, Block, BlockEvent, Panel, ProgressBarStatus};
+use txtx_addon_kit::types::frontend::{
+    Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
+};
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -178,14 +180,16 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        _uuid: &ConstructUuid,
+        uuid: &ConstructUuid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        background_tasks_uuid: &Uuid,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
+        let uuid = uuid.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
 
         let confirmations_required = args
             .get_expected_uint("confirmations")
@@ -200,19 +204,19 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
 
-            let mut progress_bar = Block {
-                uuid: Uuid::new_v4(),
-                visible: true,
-                panel: Panel::ProgressBar(ProgressBarStatus {
-                    status: "Broadcasting".to_string(),
+            let mut status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &uuid.value(),
+                &ProgressBarStatus {
+                    status: "Pending".to_string(),
                     message: format!(
                         "Broadcasting transaction to the Stacks network through node {}",
                         rpc_api_url
                     ),
                     diagnostic: None,
-                }),
-            };
-            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar.clone()));
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut result = CommandExecutionResult::new();
 
@@ -222,6 +226,16 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             loop {
                 if confirmed_blocks_ids.len() >= confirmations_required {
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        "Complete",
+                        &format!(
+                            "Confirmed {} blocks. Broadcast complete.",
+                            confirmations_required
+                        ),
+                    ));
+
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                     break;
                 }
 
@@ -233,19 +247,43 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         if retry_count > 0 {
                             continue;
                         }
-                        return Err(Diagnostic::error_from_string(format!(
+                        let diag = Diagnostic::error_from_string(format!(
                             "Failed to broadcast stacks transaction: {e}"
-                        )));
+                        ));
+                        status_update.update_status(&ProgressBarStatus::new_err(
+                            "Failure",
+                            "Failed to broadcast stacks transaction.",
+                            &diag,
+                        ));
+
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        return Err(diag);
                     }
                 };
 
                 if node_info.stacks_tip_height == block_height {
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        "Pending",
+                        &format!("{}", txid.clone()),
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                     // no new block
                     sleep_ms(backoff_ms);
                     continue;
                 }
 
                 block_height = node_info.stacks_tip_height;
+
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    "Pending",
+                    &format!("{}", txid.clone()),
+                ));
+
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
                 if !confirmed_blocks_ids.is_empty() {
                     confirmed_blocks_ids.push_back(block_height);
@@ -267,15 +305,23 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 let tx_result_bytes =
                     txtx_addon_kit::hex::decode(&tx_details.tx_result.hex[2..]).unwrap();
+
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    "Pending",
+                    &format!(
+                        "Transaction included in block. Transaction result: {}",
+                        tx_details.tx_result.repr
+                    ),
+                ));
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                 result.outputs.insert(
                     "result".into(),
                     Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
                 );
                 confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
-
-            progress_bar.visible = false;
-            let _ = progress_tx.send(BlockEvent::ProgressBar(progress_bar));
 
             Ok(result)
         };
