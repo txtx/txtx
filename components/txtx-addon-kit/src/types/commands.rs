@@ -28,10 +28,7 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{
-        return_synchronous_actions, WalletActionsFutureResult, WalletInstance,
-        WalletSignFutureResult, WalletsState,
-    },
+    wallets::{WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState},
     ConstructUuid, PackageUuid, ValueStore,
 };
 

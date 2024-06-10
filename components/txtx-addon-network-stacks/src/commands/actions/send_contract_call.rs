@@ -9,7 +9,7 @@ use txtx_addon_kit::{
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::{Actions, BlockEvent},
+        frontend::BlockEvent,
         types::Type,
         wallets::{WalletInstance, WalletSignFutureResult, WalletsState},
         ConstructUuid, ValueStore,
@@ -77,12 +77,6 @@ lazy_static! {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
-              },
-              description: {
-                  documentation: "Description of the transaction",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
               }
           ],
           outputs: [

@@ -183,7 +183,7 @@ pub async fn run_wallets_evaluation(
                                     Some(Err(diag)) => {
                                         pass_result.diagnostics.push((*diag).clone());
                                         continue;
-                                    },
+                                    }
                                     Some(Ok(_)) => {}
                                 }
                             }
@@ -229,7 +229,7 @@ pub async fn run_wallets_evaluation(
             Err(mut diags) => {
                 pass_result.diagnostics.append(&mut diags);
                 continue;
-            },
+            }
         };
 
         let wallet = runbook.wallets_instances.get(&construct_uuid).unwrap();
@@ -294,9 +294,9 @@ pub async fn run_wallets_evaluation(
         let (mut result, wallets_state) = match res {
             Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
             Err((wallets_state, diag)) => {
-                pass_result.diagnostics.push(diag);   
+                pass_result.diagnostics.push(diag);
                 (None, Some(wallets_state))
-            },
+            }
         };
         runbook.wallets_state = wallets_state;
         let Some(result) = result.take() else {

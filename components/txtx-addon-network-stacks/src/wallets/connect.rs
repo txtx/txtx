@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::future;
 
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;

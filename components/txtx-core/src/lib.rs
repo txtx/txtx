@@ -170,7 +170,8 @@ pub async fn start_runbook_runloop(
         &mut action_item_requests,
         &action_item_responses,
         &tx,
-    ).await;
+    )
+    .await;
 
     assert!(!pass_result.actions.has_pending_actions());
     if !pass_result.diagnostics.is_empty() {
@@ -547,8 +548,9 @@ pub async fn start_interactive_runbook_runloop(
                         println!("- {}", diag);
                     }
                 }
-            
-                let updated_actions = pass_result.actions
+
+                let updated_actions = pass_result
+                    .actions
                     .compile_actions_to_item_updates()
                     .into_iter()
                     .map(|u| u.normalize(&action_item_requests))

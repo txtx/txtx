@@ -24,11 +24,15 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
-use txtx_addon_kit::{types::frontend::{ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest}, uuid::Uuid};
+use txtx_addon_kit::{
+    types::frontend::{
+        ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
+    },
+    uuid::Uuid,
+};
 
 use crate::constants::ACTION_ITEM_CHECK_ADDRESS;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
-
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::CLARITY_BUFFER;
@@ -107,17 +111,17 @@ impl WalletImplementation for StacksMnemonic {
 
         if wallet_state.get_value(PUBLIC_KEYS).is_some() {
             wallets.push_wallet_state(wallet_state);
-            return return_synchronous_actions(Ok((wallets, actions)))
-        }        
+            return return_synchronous_actions(Ok((wallets, actions)));
+        }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
         let derivation_path = match args.get_value("derivation_path") {
             Some(v) => v.clone(),
-            None => Value::string(DEFAULT_DERIVATION_PATH.into())
+            None => Value::string(DEFAULT_DERIVATION_PATH.into()),
         };
         let is_encrypted = match args.get_value("is_encrypted") {
             Some(v) => v.clone(),
-            None => Value::bool(false)
+            None => Value::bool(false),
         };
         let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
         let version = match network_id.as_str() {
@@ -130,11 +134,12 @@ impl WalletImplementation for StacksMnemonic {
         wallet_state.insert("hash_flag", Value::uint(version.into()));
         wallet_state.insert("multi_sig", Value::bool(false));
 
-        let (_, public_key, expected_address) = match compute_keypair(args, defaults, &wallet_state) {
+        let (_, public_key, expected_address) = match compute_keypair(args, defaults, &wallet_state)
+        {
             Ok(value) => value,
             Err(diag) => return Err((wallets, diag)),
         };
-        wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));        
+        wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
 
         if execution_context.review_input_values {
             actions.push_sub_group(vec![ActionItemRequest::new(
@@ -238,7 +243,6 @@ pub fn compute_keypair(
     defaults: &AddonDefaults,
     wallet_state: &ValueStore,
 ) -> Result<(Value, Value, StacksAddress), Diagnostic> {
-
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let mnemonic = wallet_state.get_expected_string("mnemonic")?;
     let derivation_path = wallet_state

@@ -17,10 +17,13 @@ use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
+    ReviewInputRequest,
+};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_ok,
-    WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+    return_synchronous_ok, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+    WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -192,7 +195,7 @@ impl CommandImplementation for SignStacksTransaction {
                             value: Value::uint(transaction.get_tx_fee()),
                         }),
                         "check fee",
-                    )
+                    ),
                 ])
             }
             wallet_state.insert_scoped_value(
