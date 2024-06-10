@@ -151,8 +151,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     Ok(res) => break res,
                     Err(e) => {
                         retry_count -= 1;
-                        sleep_ms(backoff_ms);
                         if retry_count > 0 {
+                            sleep_ms(backoff_ms);
                             continue;
                         }
 
