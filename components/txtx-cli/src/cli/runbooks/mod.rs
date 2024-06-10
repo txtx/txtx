@@ -20,6 +20,8 @@ use crate::{
     web_ui,
 };
 
+const DEFAULT_PORT_TXTX: u16 = 8488;
+
 use super::{CheckRunbooks, Context, RunRunbook};
 
 pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
@@ -90,8 +92,8 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     // - build checklist, wait for its completion
     //   - listen to checklist_action_events_rx
     //   - update graph
-
-    let is_execution_interactive = cmd.web_console || cmd.term_console;
+    let start_web_ui = cmd.web_console || cmd.port.is_some();
+    let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
     let moved_block_tx = block_tx.clone();
     // Start runloop
@@ -127,7 +129,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
 
-    let web_ui_handle = if cmd.web_console {
+    let web_ui_handle = if start_web_ui {
         // start web ui server
         let gql_context = GqlContext {
             protocol_name: runbook_name.clone(),
@@ -138,7 +140,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             action_item_events_tx: action_item_events_tx.clone(),
         };
 
-        let port = 8488;
+        let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),
