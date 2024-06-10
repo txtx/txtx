@@ -176,6 +176,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         Ok(Box::pin(future))
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn build_background_task(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
@@ -195,7 +196,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let progress_tx = progress_tx.clone();
-        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
@@ -279,9 +279,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 }

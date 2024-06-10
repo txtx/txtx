@@ -119,6 +119,7 @@ impl CommandImplementation for SignStacksTransaction {
         unimplemented!()
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn check_signed_executability(
         uuid: &ConstructUuid,
         instance_name: &str,
