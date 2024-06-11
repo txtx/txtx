@@ -137,8 +137,22 @@ pub struct PostTransactionResponseError {
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct GetTransactionResponse {
     pub tx_id: String,
-    pub tx_status: String,
+    pub tx_status: TransactionStatus,
     pub tx_result: GetTransactionResult,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum TransactionStatus {
+    Success,
+    AbortByResponse,
+    AbortByPostCondition,
+}
+
+impl Default for TransactionStatus {
+    fn default() -> Self {
+        TransactionStatus::Success
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
