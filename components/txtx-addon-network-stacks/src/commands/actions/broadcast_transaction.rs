@@ -187,6 +187,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
     ) -> CommandExecutionFutureResult {
+        use crate::rpc::TransactionStatus;
+
         let args = args.clone();
         let uuid = uuid.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
@@ -302,24 +304,46 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     sleep_ms(backoff_ms);
                     continue;
                 };
-
                 let tx_result_bytes =
                     txtx_addon_kit::hex::decode(&tx_details.tx_result.hex[2..]).unwrap();
 
-                status_update.update_status(&ProgressBarStatus::new_msg(
-                    "Pending",
-                    &format!(
-                        "Transaction included in block. Transaction result: {}",
+                match tx_details.tx_status {
+                    TransactionStatus::Success => {
+                        status_update.update_status(&ProgressBarStatus::new_msg(
+                            "Pending",
+                            &format!(
+                                "Transaction included in block. Transaction result: {}",
+                                tx_details.tx_result.repr
+                            ),
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        result.outputs.insert(
+                            "result".into(),
+                            Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
+                        );
+                    }
+                    TransactionStatus::AbortByResponse => {
+                        let msg = &format!(
+                          "The transaction did not succeed because it was aborted during its execution: {}",
+                          tx_details.tx_result.repr
+                        );
+                        status_update.update_status(&ProgressBarStatus::new_msg("Failed", &msg));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        return Err(diagnosed_error!("{}", msg));
+                    }
+                    TransactionStatus::AbortByPostCondition => {
+                        let msg = &format!(
+                        "This transaction would have succeeded, but was rolled back by a supplied post-condition: {}",
                         tx_details.tx_result.repr
-                    ),
-                ));
-                let _ =
-                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-
-                result.outputs.insert(
-                    "result".into(),
-                    Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
-                );
+                      );
+                        status_update.update_status(&ProgressBarStatus::new_msg("Failed", &msg));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        return Err(diagnosed_error!("{}", msg));
+                    }
+                };
                 confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
 
