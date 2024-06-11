@@ -31,6 +31,7 @@ use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
 use kit::types::frontend::Block;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::ErrorPanelData;
 use kit::types::frontend::NormalizedActionItemRequestUpdate;
 use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
@@ -346,7 +347,10 @@ pub async fn start_interactive_runbook_runloop(
                             action_type: None,
                         },
                     ]));
-
+                    println!(
+                        "creating progress bar with uuid: {}",
+                        &background_tasks_handle_uuid.to_string()
+                    );
                     let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
                         &background_tasks_handle_uuid,
                         Panel::ProgressBar(vec![]),
@@ -363,11 +367,22 @@ pub async fn start_interactive_runbook_runloop(
                                     .insert(construct_uuid, result);
                             }
                             Err(diag) => {
-                                println!("{}", diag);
+                                let diags = vec![diag];
+                                let _ = block_tx.send(BlockEvent::Error(Block {
+                                    uuid: Uuid::new_v4(),
+                                    visible: true,
+                                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
+                                        &diags,
+                                    )),
+                                }));
                             }
                         }
                     }
 
+                    println!(
+                        "setting visibility for progress bar: {}",
+                        &background_tasks_handle_uuid.to_string()
+                    );
                     let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
                         ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
                     ));
@@ -376,6 +391,10 @@ pub async fn start_interactive_runbook_runloop(
                 }
 
                 background_tasks_handle_uuid = Uuid::new_v4();
+                println!(
+                    "new bg task uuid: {}",
+                    &background_tasks_handle_uuid.to_string()
+                );
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
@@ -394,7 +413,10 @@ pub async fn start_interactive_runbook_runloop(
                 .await;
 
                 let block_uuid = Uuid::new_v4();
-                if !pass_results.actions.has_pending_actions()
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                    return Err(pass_results.diagnostics);
+                } else if !pass_results.actions.has_pending_actions()
                     && background_tasks_contructs_uuids.is_empty()
                 {
                     runbook_completed = true;
@@ -429,29 +451,25 @@ pub async fn start_interactive_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                 }
 
-                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
-                    let _ = block_tx.send(BlockEvent::Error(error_event));
-                } else {
-                    let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                        .set_status(ActionItemStatus::Success(None));
-                    pass_results.actions.push_action_item_update(update);
-                    for new_request in pass_results
-                        .actions
-                        .get_new_action_item_requests()
-                        .into_iter()
-                    {
-                        action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
-                    }
-                    let block_events = pass_results
-                        .actions
-                        .compile_actions_to_block_events(&action_item_requests);
+                let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                    .set_status(ActionItemStatus::Success(None));
+                pass_results.actions.push_action_item_update(update);
+                for new_request in pass_results
+                    .actions
+                    .get_new_action_item_requests()
+                    .into_iter()
+                {
+                    action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
+                }
+                let block_events = pass_results
+                    .actions
+                    .compile_actions_to_block_events(&action_item_requests);
 
-                    for event in block_events.into_iter() {
-                        let _ = block_tx.send(event);
-                    }
-                    if runbook_completed {
-                        let _ = block_tx.send(BlockEvent::RunbookCompleted);
-                    }
+                for event in block_events.into_iter() {
+                    let _ = block_tx.send(event);
+                }
+                if runbook_completed {
+                    let _ = block_tx.send(BlockEvent::RunbookCompleted);
                 }
             }
             ActionItemResponseType::PickInputOption(_response) => {
