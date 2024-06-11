@@ -76,6 +76,12 @@ lazy_static! {
             documentation: "Stacks signed transaction",
         }
     };
+    pub static ref STACKS_SIGNATURE: TypeSpecification = define_addon_type! {
+        StacksSignature => {
+            name: "stacks_signature",
+            documentation: "Stacks signature",
+        }
+    };
     pub static ref STACKS_CONTRACT_CALL: TypeSpecification = define_addon_type! {
         StacksContractCall => {
             name: "stacks_contract_call",
@@ -139,6 +145,13 @@ impl TypeImplementation for ClarityValue {
 
 pub struct StacksSignedTransaction;
 impl TypeImplementation for StacksSignedTransaction {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksSignature;
+impl TypeImplementation for StacksSignature {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }

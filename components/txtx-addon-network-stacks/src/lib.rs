@@ -15,6 +15,7 @@ mod stacks_helpers;
 mod typing;
 mod utils;
 mod wallets;
+pub mod codec;
 
 use txtx_addon_kit::{
     types::{

@@ -1,9 +1,7 @@
-use clarity::address::public_keys_to_address_hash;
 use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
 use clarity::util::secp256k1::MessageSignature;
 use clarity_repl::codec::{
-    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionPostConditionMode, TransactionPublicKeyEncoding,
+    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition, TransactionPostConditionMode, TransactionPublicKeyEncoding
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -32,7 +30,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::{hex, AddonDefaults};
+use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
     NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
@@ -333,13 +331,7 @@ async fn build_unsigned_transaction(
     let stacks_public_keys: Vec<StacksPublicKey> = public_keys
         .iter()
         .map(|v| {
-            let bytes = hex::decode(v.expect_string()).map_err(|e| {
-                Diagnostic::error_from_string(format!(
-                    "Error parsing public key {}: {}",
-                    v.expect_string(),
-                    e.to_string()
-                ))
-            })?;
+            let bytes = v.expect_buffer_bytes();
             StacksPublicKey::from_slice(&bytes[..])
                 .map_err(|e| Diagnostic::error_from_string(e.to_string()))
         })
@@ -349,13 +341,10 @@ async fn build_unsigned_transaction(
         .get_expected_uint("hash_flag")?
         .try_into()
         .unwrap();
-    let hash_flag = AddressHashMode::from_version(version);
+    let hash_mode = AddressHashMode::from_version(version);
 
-    let signer =
-        public_keys_to_address_hash(&hash_flag, stacks_public_keys.len(), &stacks_public_keys);
-
-    let address = StacksAddress::new(version, signer.clone());
-
+    let address = StacksAddress::from_public_keys(version, &hash_mode, stacks_public_keys.len(), &stacks_public_keys).unwrap();
+    
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
@@ -367,13 +356,13 @@ async fn build_unsigned_transaction(
             nonce
         }
     };
-
+    
     let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
 
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
             hash_mode: MultisigHashMode::P2SH,
-            signer,
+            signer: address.bytes,
             nonce,
             tx_fee: fee,
             fields: vec![],
@@ -381,7 +370,7 @@ async fn build_unsigned_transaction(
         }),
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
-            signer,
+            signer: address.bytes,
             nonce,
             tx_fee: fee,
             key_encoding: TransactionPublicKeyEncoding::Compressed,

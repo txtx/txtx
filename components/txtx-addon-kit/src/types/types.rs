@@ -98,6 +98,10 @@ impl Value {
                 };
                 bytes
             }
+            Value::Array(values) => values
+                .iter()
+                .flat_map(|v| v.expect_buffer_bytes())
+                .collect(),
             _ => unreachable!(),
         }
     }
