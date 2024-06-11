@@ -278,6 +278,38 @@ fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                 actions = actions.push_map(|action| insert_data_from_spec(&action_spec, action));
             }
             actions
+        })
+        .insert_vec("wallets", |wallets_builder| {
+            let mut wallets = wallets_builder;
+            for wallet_spec in addon.get_wallets().iter() {
+                wallets = wallets.push_map(|function| {
+                    function
+                        .insert_str("name", &wallet_spec.name)
+                        .insert_str("documentation", &wallet_spec.documentation)
+                        .insert_str("example", &wallet_spec.example)
+                        .insert_vec("inputs", |inputs_builder| {
+                            let mut inputs = inputs_builder;
+                            for input_spec in wallet_spec.inputs.iter() {
+                                inputs = inputs.push_map(|input| {
+                                    input
+                                        .insert_str("name", &input_spec.name)
+                                        .insert_str("documentation", &input_spec.documentation)
+                                        .insert_str("type", format!("{:?}", input_spec.typing))
+                                });
+                            }
+                            inputs
+                        })
+                        .insert_vec("outputs", |mut outputs_builder| {
+                            for output_spec in wallet_spec.outputs.iter() {
+                                outputs_builder = outputs_builder.push_map(|output_builder| {
+                                    insert_outputs_from_spec(&output_spec, output_builder)
+                                });
+                            }
+                            outputs_builder
+                        })
+                });
+            }
+            wallets
         });
     let data = doc_builder.build();
     data
