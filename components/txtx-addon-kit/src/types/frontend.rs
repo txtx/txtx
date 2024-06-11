@@ -16,7 +16,10 @@ pub enum BlockEvent {
     RunbookCompleted,
     Exit,
     ProgressBar(Block),
+    UpdateProgressBarStatus(ProgressBarStatusUpdate),
+    UpdateProgressBarVisibility(ProgressBarVisibilityUpdate),
     Modal(Block),
+    Error(Block),
 }
 
 impl BlockEvent {
@@ -79,9 +82,9 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(uuid: Uuid, panel: Panel) -> Self {
+    pub fn new(uuid: &Uuid, panel: Panel) -> Self {
         Block {
-            uuid,
+            uuid: uuid.clone(),
             panel,
             visible: true,
         }
@@ -102,6 +105,18 @@ impl Block {
                 return None;
             }
             Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter() {
+                    for sub_group in group.sub_groups.iter() {
+                        for action in sub_group.action_items.iter() {
+                            if action.uuid == uuid {
+                                return Some(action.clone());
+                            }
+                        }
+                    }
+                }
+                return None;
+            }
+            Panel::ErrorPanel(panel) => {
                 for group in panel.groups.iter() {
                     for sub_group in group.sub_groups.iter() {
                         for action in sub_group.action_items.iter() {
@@ -139,6 +154,31 @@ impl Block {
                             }
                         }
                     }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn update_progress_bar_status(
+        &mut self,
+        construct_uuid: &Uuid,
+        new_status: &ProgressBarStatus,
+    ) {
+        match self.panel.borrow_mut() {
+            Panel::ProgressBar(progress_bar) => {
+                let mut construct_status_found = false;
+                for construct_statuses in progress_bar.iter_mut() {
+                    if &construct_statuses.construct_uuid == construct_uuid {
+                        construct_statuses.push_status(new_status);
+                        construct_status_found = true;
+                    }
+                }
+                if !construct_status_found {
+                    progress_bar.push(ConstructProgressBarStatuses {
+                        construct_uuid: construct_uuid.clone(),
+                        statuses: vec![new_status.clone()],
+                    })
                 }
             }
             _ => {}
@@ -312,7 +352,8 @@ impl Display for Block {
 pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
-    ProgressBar(ProgressBarStatus),
+    ProgressBar(Vec<ConstructProgressBarStatuses>),
+    ErrorPanel(ErrorPanelData),
 }
 
 impl Panel {
@@ -378,10 +419,86 @@ pub struct ActionPanelData {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ConstructProgressBarStatuses {
+    pub construct_uuid: Uuid,
+    pub statuses: Vec<ProgressBarStatus>,
+}
+
+impl ConstructProgressBarStatuses {
+    pub fn new(construct_uuid: &Uuid) -> Self {
+        ConstructProgressBarStatuses {
+            construct_uuid: construct_uuid.clone(),
+            statuses: vec![],
+        }
+    }
+    pub fn push_status(&mut self, new_status: &ProgressBarStatus) {
+        self.statuses.push(new_status.clone());
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatus {
     pub status: String,
     pub message: String,
     pub diagnostic: Option<Diagnostic>,
+}
+
+impl ProgressBarStatus {
+    pub fn new_msg(status: &str, message: &str) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            message: message.to_string(),
+            diagnostic: None,
+        }
+    }
+    pub fn new_err(status: &str, message: &str, diag: &Diagnostic) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            message: message.to_string(),
+            diagnostic: Some(diag.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatusUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub construct_uuid: Uuid,
+    pub new_status: ProgressBarStatus,
+}
+
+impl ProgressBarStatusUpdate {
+    pub fn new(
+        progress_bar_uuid: &Uuid,
+        &construct_uuid: &Uuid,
+        new_status: &ProgressBarStatus,
+    ) -> Self {
+        ProgressBarStatusUpdate {
+            progress_bar_uuid: progress_bar_uuid.clone(),
+            construct_uuid: construct_uuid.clone(),
+            new_status: new_status.clone(),
+        }
+    }
+    pub fn update_status(&mut self, new_status: &ProgressBarStatus) {
+        self.new_status = new_status.clone();
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarVisibilityUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub visible: bool,
+}
+impl ProgressBarVisibilityUpdate {
+    pub fn new(progress_bar_uuid: &Uuid, visible: bool) -> Self {
+        ProgressBarVisibilityUpdate {
+            progress_bar_uuid: progress_bar_uuid.clone(),
+            visible,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -391,6 +508,46 @@ pub struct ModalPanelData {
     pub description: String,
     pub groups: Vec<ActionGroup>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErrorPanelData {
+    pub title: String,
+    pub description: String,
+    pub groups: Vec<ActionGroup>,
+}
+
+impl ErrorPanelData {
+    pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
+        let mut diag_actions = vec![];
+        for (i, diag) in diagnostics.iter().enumerate() {
+            diag_actions.push(ActionItemRequest {
+                uuid: Uuid::new_v4(),
+                construct_uuid: None,
+                index: i as u16,
+                title: "".into(),
+                description: None,
+                action_status: ActionItemStatus::Error(diag.clone()),
+                action_type: ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+                    diagnostic: diag.clone(),
+                }),
+                internal_key: "diagnostic".to_string(),
+            });
+        }
+        ErrorPanelData {
+            title: "EXECUTION ERROR".into(),
+            description: "Review the following execution errors and restart the runbook.".into(),
+            groups: vec![ActionGroup {
+                title: "".into(),
+                sub_groups: vec![ActionSubGroup {
+                    action_items: diag_actions,
+                    allow_batch_completion: false,
+                }],
+            }],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionGroup {
@@ -903,6 +1060,7 @@ pub enum ActionItemRequestType {
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
+    DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
     ValidateBlock,
     ValidateModal,
@@ -938,6 +1096,12 @@ pub struct DisplayOutputRequest {
     pub name: String,
     pub description: Option<String>,
     pub value: Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayErrorLogRequest {
+    pub diagnostic: Diagnostic,
 }
 
 #[derive(Debug, Clone, Serialize)]

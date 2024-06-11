@@ -31,10 +31,11 @@ use kit::types::frontend::ActionItemResponseType;
 use kit::types::frontend::Actions;
 use kit::types::frontend::Block;
 use kit::types::frontend::BlockEvent;
+use kit::types::frontend::ErrorPanelData;
 use kit::types::frontend::NormalizedActionItemRequestUpdate;
 use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
-use kit::types::frontend::ProgressBarStatus;
+use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
@@ -346,18 +347,14 @@ pub async fn start_interactive_runbook_runloop(
                             action_type: None,
                         },
                     ]));
-
-                    let mut block = Block {
-                        uuid: background_tasks_handle_uuid,
-                        visible: true,
-                        panel: Panel::ProgressBar(ProgressBarStatus {
-                            status: "Broadcasting".to_string(),
-                            message: format!("Broadcasting transaction to the Stacks network",),
-                            diagnostic: None,
-                        }),
-                    };
-
-                    let _ = block_tx.send(BlockEvent::ProgressBar(block.clone()));
+                    println!(
+                        "creating progress bar with uuid: {}",
+                        &background_tasks_handle_uuid.to_string()
+                    );
+                    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
+                        &background_tasks_handle_uuid,
+                        Panel::ProgressBar(vec![]),
+                    )));
 
                     let results = kit::futures::future::join_all(background_tasks_futures).await;
                     for (construct_uuid, result) in
@@ -370,18 +367,34 @@ pub async fn start_interactive_runbook_runloop(
                                     .insert(construct_uuid, result);
                             }
                             Err(diag) => {
-                                println!("{}", diag);
+                                let diags = vec![diag];
+                                let _ = block_tx.send(BlockEvent::Error(Block {
+                                    uuid: Uuid::new_v4(),
+                                    visible: true,
+                                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
+                                        &diags,
+                                    )),
+                                }));
                             }
                         }
                     }
 
-                    block.visible = false;
-                    let _ = block_tx.send(BlockEvent::ProgressBar(block));
+                    println!(
+                        "setting visibility for progress bar: {}",
+                        &background_tasks_handle_uuid.to_string()
+                    );
+                    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+                        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+                    ));
                     background_tasks_futures = vec![];
                     background_tasks_contructs_uuids = vec![];
                 }
 
                 background_tasks_handle_uuid = Uuid::new_v4();
+                println!(
+                    "new bg task uuid: {}",
+                    &background_tasks_handle_uuid.to_string()
+                );
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
@@ -400,7 +413,10 @@ pub async fn start_interactive_runbook_runloop(
                 .await;
 
                 let block_uuid = Uuid::new_v4();
-                if !pass_results.actions.has_pending_actions()
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                    return Err(pass_results.diagnostics);
+                } else if !pass_results.actions.has_pending_actions()
                     && background_tasks_contructs_uuids.is_empty()
                 {
                     runbook_completed = true;
@@ -485,24 +501,28 @@ pub async fn start_interactive_runbook_runloop(
                 )
                 .await;
 
-                let mut updated_actions = vec![];
-                for action in pass_results
-                    .actions
-                    .compile_actions_to_item_updates()
-                    .into_iter()
-                {
-                    updated_actions.push(action.normalize(&action_item_requests))
-                }
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                } else {
+                    let mut updated_actions = vec![];
+                    for action in pass_results
+                        .actions
+                        .compile_actions_to_item_updates()
+                        .into_iter()
+                    {
+                        updated_actions.push(action.normalize(&action_item_requests))
+                    }
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
-                if !pass_results
-                    .pending_background_tasks_constructs_uuids
-                    .is_empty()
-                {
-                    background_tasks_futures
-                        .append(&mut pass_results.pending_background_tasks_futures);
-                    background_tasks_contructs_uuids
-                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    if !pass_results
+                        .pending_background_tasks_constructs_uuids
+                        .is_empty()
+                    {
+                        background_tasks_futures
+                            .append(&mut pass_results.pending_background_tasks_futures);
+                        background_tasks_contructs_uuids
+                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    }
                 }
             }
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
@@ -542,20 +562,17 @@ pub async fn start_interactive_runbook_runloop(
                 )
                 .await;
 
-                if !pass_result.diagnostics.is_empty() {
-                    println!("Errors / warning");
-                    for diag in pass_result.diagnostics.iter() {
-                        println!("- {}", diag);
-                    }
+                if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
+                } else {
+                    let updated_actions = pass_result
+                        .actions
+                        .compile_actions_to_item_updates()
+                        .into_iter()
+                        .map(|u| u.normalize(&action_item_requests))
+                        .collect();
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
                 }
-
-                let updated_actions = pass_result
-                    .actions
-                    .compile_actions_to_item_updates()
-                    .into_iter()
-                    .map(|u| u.normalize(&action_item_requests))
-                    .collect();
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
             }
             ActionItemResponseType::ProvideSignedTransaction(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
@@ -600,6 +617,9 @@ pub async fn start_interactive_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_uuids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
+                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    let _ = block_tx.send(BlockEvent::Error(error_event));
                 }
             }
         };

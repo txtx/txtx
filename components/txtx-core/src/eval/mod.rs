@@ -3,7 +3,8 @@ use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
-    ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
+    ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
+    BlockEvent, ErrorPanelData, Panel,
 };
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -481,6 +482,17 @@ impl EvaluationPassResult {
             background_tasks_uuid: background_tasks_uuid.clone(),
         }
     }
+
+    pub fn compile_diagnostics_to_block(&self) -> Option<Block> {
+        if self.diagnostics.is_empty() {
+            return None;
+        };
+        Some(Block {
+            uuid: Uuid::new_v4(),
+            visible: true,
+            panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&self.diagnostics)),
+        })
+    }
 }
 
 impl Display for EvaluationPassResult {
@@ -740,6 +752,9 @@ pub async fn run_constructs_evaluation(
                 }
                 Err((updated_wallets, diag)) => {
                     runbook.wallets_state = Some(updated_wallets);
+                    for descendant in get_descendants_of_node(node, g.clone()) {
+                        unexecutable_nodes.insert(descendant);
+                    }
                     Err(diag)
                 }
             };
@@ -802,7 +817,12 @@ pub async fn run_constructs_evaluation(
                     }
                     Ok(result)
                 }
-                Err(e) => Err(e),
+                Err(e) => {
+                    for descendant in get_descendants_of_node(node, g.clone()) {
+                        unexecutable_nodes.insert(descendant);
+                    }
+                    Err(e)
+                }
             };
             execution_result
         };

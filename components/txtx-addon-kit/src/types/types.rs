@@ -478,12 +478,12 @@ impl Type {
 impl From<String> for Type {
     fn from(value: String) -> Self {
         match value.as_str() {
-            "string" => Type::string(),
-            "uint" => Type::uint(),
-            "int" => Type::int(),
-            "float" => Type::float(),
-            "boolean" => Type::bool(),
-            "null" => Type::null(),
+            "String" => Type::string(),
+            "UInt" => Type::uint(),
+            "Int" => Type::int(),
+            "Float" => Type::float(),
+            "Boolean" => Type::bool(),
+            "Null" => Type::null(),
             _ => unimplemented!("Type from str not implemented"),
         }
     }
@@ -510,14 +510,14 @@ impl Serialize for Type {
         S: Serializer,
     {
         match self {
-            Type::Primitive(PrimitiveType::String) => serializer.serialize_str("string"),
-            Type::Primitive(PrimitiveType::UnsignedInteger) => serializer.serialize_str("uint"),
-            Type::Primitive(PrimitiveType::SignedInteger) => serializer.serialize_str("int"),
-            Type::Primitive(PrimitiveType::Float) => serializer.serialize_str("float"),
-            Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("boolean"),
-            Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("null"),
-            Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("buffer"),
-            Type::Object(_) => serializer.serialize_str("object"),
+            Type::Primitive(PrimitiveType::String) => serializer.serialize_str("String"),
+            Type::Primitive(PrimitiveType::UnsignedInteger) => serializer.serialize_str("UInt"),
+            Type::Primitive(PrimitiveType::SignedInteger) => serializer.serialize_str("Int"),
+            Type::Primitive(PrimitiveType::Float) => serializer.serialize_str("Float"),
+            Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("Boolean"),
+            Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("Null"),
+            Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("Buffer"),
+            Type::Object(_) => serializer.serialize_str("Object"),
             Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
             Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
         }
