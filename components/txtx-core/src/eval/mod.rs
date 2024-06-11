@@ -706,7 +706,8 @@ pub async fn run_constructs_evaluation(
                 }
                 Err((updated_wallets, diag)) => {
                     pass_result.diagnostics.push(diag);
-                    updated_wallets
+                    runbook.wallets_state = Some(updated_wallets);
+                    continue;
                 }
             };
 

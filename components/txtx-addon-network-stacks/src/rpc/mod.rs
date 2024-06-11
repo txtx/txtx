@@ -181,19 +181,30 @@ impl StacksRpc {
     ) -> Result<u64, RpcError> {
         let tx = transaction_payload.serialize_to_vec();
         let payload = json!({ "transaction_payload": to_hex(&tx) });
+        println!("{}", payload.to_string());
         let path = format!("{}/v2/fees/transaction", self.url);
-        let res: FeeEstimationReport = self
+        let res = self
             .client
             .post(path)
             .json(&payload)
             .send()
             .await
-            .map_err(|e| RpcError::Message(e.to_string()))?
+            .map_err(|e| RpcError::Message(e.to_string()))?;
+
+        if !res.status().is_success() {
+            let err = match res.text().await {
+                Ok(message) => RpcError::Message(message),
+                Err(e) => RpcError::Message(e.to_string()),
+            };
+            return Err(err);
+        }
+
+        let fee_report: FeeEstimationReport = res
             .json()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?;
 
-        Ok(res.estimations[priority].fee)
+        Ok(fee_report.estimations[priority].fee)
     }
 
     pub async fn post_transaction(
@@ -229,16 +240,26 @@ impl StacksRpc {
     pub async fn get_nonce(&self, address: &str) -> Result<u64, RpcError> {
         let request_url = format!("{}/v2/accounts/{addr}", self.url, addr = address,);
 
-        let res: Balance = self
+        let res = self
             .client
             .get(request_url)
             .send()
             .await
-            .map_err(|e| RpcError::Message(e.to_string()))?
+            .map_err(|e| RpcError::Message(e.to_string()))?;
+
+        if !res.status().is_success() {
+            let err = match res.text().await {
+                Ok(message) => RpcError::Message(message),
+                Err(e) => RpcError::Message(e.to_string()),
+            };
+            return Err(err);
+        }
+
+        let balance: Balance = res
             .json()
             .await
             .map_err(|e| RpcError::Message(e.to_string()))?;
-        let nonce = res.nonce;
+        let nonce = balance.nonce;
         Ok(nonce)
     }
 

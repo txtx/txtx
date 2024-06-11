@@ -315,7 +315,9 @@ async fn build_unsigned_transaction(
             let fee = rpc
                 .estimate_transaction_fee(&transaction_payload, 1)
                 .await
-                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+                .map_err(|e| {
+                    diagnosed_error!("failure fetching fee estimation: {}", e.to_string())
+                })?;
             fee
         }
     };

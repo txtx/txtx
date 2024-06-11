@@ -113,7 +113,7 @@ impl WalletImplementation for StacksConnect {
         let do_request_address_check = expected_address.is_some() && !requested_startup_data;
         let do_request_public_key = is_public_key_required;
         // only request public key if we haven't already created that action
-            
+
         let _is_nonce_required = true;
         let do_request_balance = is_balance_check_required && !requested_startup_data;
 
