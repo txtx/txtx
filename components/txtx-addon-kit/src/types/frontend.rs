@@ -517,6 +517,37 @@ pub struct ErrorPanelData {
     pub groups: Vec<ActionGroup>,
 }
 
+impl ErrorPanelData {
+    pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
+        let mut diag_actions = vec![];
+        for (i, diag) in diagnostics.iter().enumerate() {
+            diag_actions.push(ActionItemRequest {
+                uuid: Uuid::new_v4(),
+                construct_uuid: None,
+                index: i as u16,
+                title: "".into(),
+                description: None,
+                action_status: ActionItemStatus::Error(diag.clone()),
+                action_type: ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+                    diagnostic: diag.clone(),
+                }),
+                internal_key: "diagnostic".to_string(),
+            });
+        }
+        ErrorPanelData {
+            title: "EXECUTION ERROR".into(),
+            description: "Review the following execution errors and restart the runbook.".into(),
+            groups: vec![ActionGroup {
+                title: "".into(),
+                sub_groups: vec![ActionSubGroup {
+                    action_items: diag_actions,
+                    allow_batch_completion: false,
+                }],
+            }],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionGroup {
