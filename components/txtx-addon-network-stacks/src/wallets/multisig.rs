@@ -4,17 +4,26 @@ use std::str::FromStr;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
+use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandSpecification,
+};
+
+use crate::{
+    codec::codec::{
+        StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
+        TransactionPublicKeyEncoding, TransactionSpendingCondition, Txid,
+    },
+    constants::{MESSAGE_BYTES, SIGNATURE_BYTES},
+    typing::STACKS_SIGNATURE,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
     BlockEvent, OpenModalData, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    WalletActionsFutureResult, WalletActivateFutureResult,
-    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
-    WalletsState,
+    WalletActionsFutureResult, WalletActivateFutureResult, WalletImplementation, WalletInstance,
+    WalletSignFutureResult, WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
@@ -163,7 +172,6 @@ impl WalletImplementation for StacksConnect {
             // Modal configuration
             let mut checked_public_keys = HashMap::new();
             for (wallet_uuid, wallet_instance) in signers.iter() {
-                consolidated_actions.push_group(&wallet_instance.name, vec![]);
                 let signer_wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
                 let future = (wallet_instance.specification.check_activability)(
                     &wallet_uuid,
@@ -269,9 +277,9 @@ impl WalletImplementation for StacksConnect {
                 );
                 consolidated_actions.push_group("", vec![validate_modal_action]);
             }
-
+            // Todo
             wallets.push_wallet_state(wallet_state);
-            Ok((wallets, Actions::none()))
+            Ok((wallets, consolidated_actions))
         };
         Ok(Box::pin(future))
     }
@@ -443,7 +451,7 @@ impl WalletImplementation for StacksConnect {
 
     #[cfg(not(feature = "wasm"))]
     fn sign(
-        origin_uuid: &ConstructUuid,
+        _origin_uuid: &ConstructUuid,
         _title: &str,
         payload: &Value,
         _spec: &WalletSpecification,
@@ -453,10 +461,6 @@ impl WalletImplementation for StacksConnect {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
-        use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
-
-        use crate::{codec::codec::{StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags, TransactionPublicKeyEncoding, TransactionSpendingCondition, Txid}, constants::{MESSAGE_BYTES, SIGNATURE_BYTES}, typing::{CLARITY_BUFFER, STACKS_SIGNATURE}};
-
         let signers = get_signers(&wallet_state, wallets_instances);
         let args = args.clone();
         let wallets_instances = wallets_instances.clone();
@@ -468,18 +472,25 @@ impl WalletImplementation for StacksConnect {
             let mut result = CommandExecutionResult::new();
 
             let transaction_payload_bytes = payload.expect_buffer_bytes();
-            let mut transaction = StacksTransaction::consensus_deserialize(&mut &transaction_payload_bytes[..]).unwrap();
+            let mut transaction =
+                StacksTransaction::consensus_deserialize(&mut &transaction_payload_bytes[..])
+                    .unwrap();
             let mut presign_input = transaction.sign_begin();
 
             for (wallet_uuid, wallet_instance) in signers.into_iter() {
                 let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
-                let payload = Value::buffer(TransactionSpendingCondition::make_sighash_presign(
-                    &presign_input,
-                    &TransactionAuthFlags::AuthStandard,
-                    transaction.get_tx_fee(),
-                    transaction.get_origin_nonce(),
-                ).to_bytes().to_vec(), STACKS_SIGNATURE.clone()) ;
+                let payload = Value::buffer(
+                    TransactionSpendingCondition::make_sighash_presign(
+                        &presign_input,
+                        &TransactionAuthFlags::AuthStandard,
+                        transaction.get_tx_fee(),
+                        transaction.get_origin_nonce(),
+                    )
+                    .to_bytes()
+                    .to_vec(),
+                    STACKS_SIGNATURE.clone(),
+                );
 
                 let future = (wallet_instance.specification.sign)(
                     &wallet_uuid,
@@ -495,11 +506,7 @@ impl WalletImplementation for StacksConnect {
                 .unwrap();
                 let (updated_wallets, updated_results) = future.await.unwrap();
                 wallets = updated_wallets;
-                let updated_message = updated_results
-                    .outputs
-                    .get(MESSAGE_BYTES)
-                    .unwrap()
-                    .clone();
+                let updated_message = updated_results.outputs.get(MESSAGE_BYTES).unwrap().clone();
                 let signature = updated_results
                     .outputs
                     .get(SIGNATURE_BYTES)
@@ -507,14 +514,19 @@ impl WalletImplementation for StacksConnect {
                     .clone();
 
                 match transaction.auth {
-                    TransactionAuth::Standard(ref mut spending_condition) => match spending_condition {
-                        TransactionSpendingCondition::Multisig(data) => {
-                            let signature = MessageSignature::from_vec(&signature.expect_buffer_bytes()).unwrap();
-                            let key_encoding = TransactionPublicKeyEncoding::Compressed;
-                            data.fields.push(TransactionAuthField::Signature(key_encoding, signature));
+                    TransactionAuth::Standard(ref mut spending_condition) => {
+                        match spending_condition {
+                            TransactionSpendingCondition::Multisig(data) => {
+                                let signature =
+                                    MessageSignature::from_vec(&signature.expect_buffer_bytes())
+                                        .unwrap();
+                                let key_encoding = TransactionPublicKeyEncoding::Compressed;
+                                data.fields
+                                    .push(TransactionAuthField::Signature(key_encoding, signature));
+                            }
+                            _ => unreachable!(),
                         }
-                        _ => unreachable!(),
-                    },
+                    }
                     _ => unreachable!(),
                 }
                 presign_input = Txid::from_bytes(&updated_message.expect_buffer_bytes()).unwrap();
@@ -529,7 +541,9 @@ impl WalletImplementation for StacksConnect {
 
             wallets.push_wallet_state(wallet_state);
 
-            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), transaction_bytes);
+            result
+                .outputs
+                .insert(SIGNED_TRANSACTION_BYTES.into(), transaction_bytes);
 
             Ok((wallets, result))
         };

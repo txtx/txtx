@@ -8,26 +8,24 @@ use txtx_addon_kit::{
 };
 
 lazy_static! {
-    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
-        define_function! {
-            Secp256k1Recover => {
-                name: "secp256k1_recover",
-                documentation: "Coming soon",
-                example: indoc!{r#"
-              "#},
-                inputs: [
-                    value: {
-                        documentation: "Coming soon",
-                        typing: vec![Type::buffer(), Type::array(Type::buffer())]
-                    }
-                ],
-                output: {
-                    documentation: "",
-                    typing: Type::string()
-                },
-            }
+    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
+        Secp256k1Recover => {
+            name: "secp256k1_recover",
+            documentation: "Coming soon",
+            example: indoc!{r#"
+          "#},
+            inputs: [
+                value: {
+                    documentation: "Coming soon",
+                    typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                }
+            ],
+            output: {
+                documentation: "",
+                typing: Type::string()
+            },
         }
-    ];
+    }];
 }
 
 pub struct Secp256k1Recover;
@@ -38,11 +36,11 @@ impl FunctionImplementation for Secp256k1Recover {
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
-    
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        use libsecp256k1::{Message, RecoveryId, Signature, recover};
 
-        let (Some(message), Some(signature))= (args.get(0), args.get(1)) else {
+    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        use libsecp256k1::{recover, Message, RecoveryId, Signature};
+
+        let (Some(message), Some(signature)) = (args.get(0), args.get(1)) else {
             return Err(diagnosed_error!("{}: expected 2 arguments", ctx.name));
         };
 

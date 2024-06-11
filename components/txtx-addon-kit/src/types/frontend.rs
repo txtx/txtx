@@ -27,6 +27,13 @@ impl BlockEvent {
         }
     }
 
+    pub fn as_modal(&self) -> Option<&Block> {
+        match &self {
+            BlockEvent::Modal(ref block) => Some(block),
+            _ => None,
+        }
+    }
+
     pub fn expect_block(&self) -> &Block {
         match &self {
             BlockEvent::Action(ref block) => block,

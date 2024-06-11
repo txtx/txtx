@@ -1,7 +1,8 @@
 use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
 use clarity::util::secp256k1::MessageSignature;
 use clarity_repl::codec::{
-    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition, TransactionPostConditionMode, TransactionPublicKeyEncoding
+    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
+    TransactionPostConditionMode, TransactionPublicKeyEncoding,
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -131,6 +132,8 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
+        use crate::typing::STACKS_SIGNED_TRANSACTION;
+
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
         let uuid = uuid.clone();
@@ -165,8 +168,7 @@ impl CommandImplementation for SignStacksTransaction {
 
             let mut bytes = vec![];
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-            let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
-            let payload = Value::string(hex_str);
+            let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
 
             if execution_context.review_input_values {
                 actions.push_sub_group(vec![
@@ -343,8 +345,14 @@ async fn build_unsigned_transaction(
         .unwrap();
     let hash_mode = AddressHashMode::from_version(version);
 
-    let address = StacksAddress::from_public_keys(version, &hash_mode, stacks_public_keys.len(), &stacks_public_keys).unwrap();
-    
+    let address = StacksAddress::from_public_keys(
+        version,
+        &hash_mode,
+        stacks_public_keys.len(),
+        &stacks_public_keys,
+    )
+    .unwrap();
+
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
@@ -356,7 +364,7 @@ async fn build_unsigned_transaction(
             nonce
         }
     };
-    
+
     let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
 
     let spending_condition = match is_multisig {

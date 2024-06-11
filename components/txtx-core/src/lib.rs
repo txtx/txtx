@@ -173,8 +173,6 @@ pub async fn start_runbook_runloop(
     )
     .await;
 
-    println!("{:?}", pass_result.actions);
-
     assert!(!pass_result.actions.has_pending_actions());
     if !pass_result.diagnostics.is_empty() {
         println!("Errors / warning");
@@ -660,8 +658,6 @@ pub async fn reset_runbook_execution(
             payload
         );
     };
-
-    println!("==> {:?}", environments);
 
     if environments.get(environment_key.as_str()).is_none() {
         unreachable!("Invalid environment variable was sent",);

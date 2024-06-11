@@ -475,7 +475,6 @@ impl MultisigSpendingCondition {
         initial_sighash: &Txid,
         cond_code: &TransactionAuthFlags,
     ) -> Result<Txid, CodecError> {
-        
         let mut pubkeys = vec![];
         let mut cur_sighash = *initial_sighash;
         let mut num_sigs: u16 = 0;
