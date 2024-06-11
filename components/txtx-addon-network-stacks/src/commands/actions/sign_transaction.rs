@@ -1,8 +1,9 @@
 use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
+use clarity::types::Address;
 use clarity::util::secp256k1::MessageSignature;
+use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::codec::{
-    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionPostConditionMode, TransactionPublicKeyEncoding,
+    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition, TransactionContractCall, TransactionPostConditionMode, TransactionPublicKeyEncoding
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -306,6 +307,23 @@ async fn build_unsigned_transaction(
             )
         }
     };
+    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+    let default_payload = {
+        let boot_address = match network_id.as_str() {
+            "mainnet" => "SP000000000000000000002Q6VF78",
+            "testnet" => "ST000000000000000000002AMW42H",
+            _ => unimplemented!("invalid network_id, return diagnostic"),
+        };
+        TransactionPayload::ContractCall(TransactionContractCall {
+            address: StacksAddress::from_string(
+                boot_address
+            )
+            .unwrap(),
+            contract_name: ContractName::from("bns"),
+            function_name: ClarityName::from("name-preorder"),
+            function_args: vec![],
+        })  
+    };
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let fee = match fee {
@@ -313,7 +331,7 @@ async fn build_unsigned_transaction(
         None => {
             let rpc = StacksRpc::new(&rpc_api_url);
             let fee = rpc
-                .estimate_transaction_fee(&transaction_payload, 1)
+                .estimate_transaction_fee(&transaction_payload, 1, &default_payload)
                 .await
                 .map_err(|e| {
                     diagnosed_error!("failure fetching fee estimation: {}", e.to_string())

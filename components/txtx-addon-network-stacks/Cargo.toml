@@ -20,6 +20,7 @@ serde_json = "1.0.113"
 serde = "1"
 serde_derive = "1"
 wsts = { version = "8.1.0", default-features = false }
+async-recursion = "1"
 
 [features]
 default = ["clarity-repl/sdk", "clarity-vm/default", "clarinet-deployments/default", "txtx-addon-kit/default"]
