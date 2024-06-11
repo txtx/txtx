@@ -1,6 +1,6 @@
 use crate::{
     types::{
-        block::{GqlActionBlock, GqlModalBlock, GqlProgressBlock},
+        block::{GqlActionBlock, GqlErrorBlock, GqlModalBlock, GqlProgressBlock},
         runbook::RunbookDescription,
     },
     Context,
@@ -47,6 +47,22 @@ impl Query {
                 }
             })
             .map(GqlModalBlock::new)
+            .collect()
+    }
+
+    async fn error_blocks(context: &Context) -> Vec<GqlErrorBlock> {
+        let block_store = context.block_store.read().await;
+        block_store
+            .values()
+            .cloned()
+            .filter(|b| {
+                if let Panel::ErrorPanel(_) = b.panel {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(GqlErrorBlock::new)
             .collect()
     }
 

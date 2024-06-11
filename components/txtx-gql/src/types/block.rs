@@ -1,8 +1,10 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
 use txtx_core::kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block, ModalPanelData,
-    NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus,
+    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
+    ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
+    NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
+    ProgressBarVisibilityUpdate,
 };
 
 #[derive(Clone)]
@@ -123,6 +125,42 @@ impl GqlModalBlock {
 }
 
 #[derive(Clone)]
+pub struct GqlErrorBlock {
+    block: Block,
+}
+impl GqlErrorBlock {
+    pub fn new(block: Block) -> Self {
+        GqlErrorBlock { block }
+    }
+}
+
+#[graphql_object(context = Context)]
+impl GqlErrorBlock {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        match &self.block.panel {
+            Panel::ErrorPanel(_) => "ErrorPanel".into(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn uuid(&self) -> String {
+        self.block.uuid.to_string()
+    }
+
+    pub fn visible(&self) -> bool {
+        self.block.visible
+    }
+
+    pub fn panel(&self) -> GqlErrorPanelData {
+        match &self.block.panel {
+            Panel::ErrorPanel(panel_data) => GqlErrorPanelData::new(panel_data.clone()),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct GqlProgressBlock {
     block: Block,
 }
@@ -150,9 +188,12 @@ impl GqlProgressBlock {
         self.block.visible
     }
 
-    pub fn panel(&self) -> GqlProgressBarStatus {
-        match &self.block.panel {
-            Panel::ProgressBar(panel_data) => GqlProgressBarStatus::new(panel_data.clone()),
+    pub fn panel(&self) -> Vec<GqlConstructProgressBarStatuses> {
+        match self.block.panel.clone() {
+            Panel::ProgressBar(panel_data) => panel_data
+                .into_iter()
+                .map(GqlConstructProgressBarStatuses::new)
+                .collect(),
             _ => unreachable!(),
         }
     }
@@ -214,6 +255,56 @@ impl GqlModalPanelData {
     }
 }
 
+pub struct GqlErrorPanelData {
+    data: ErrorPanelData,
+}
+impl GqlErrorPanelData {
+    pub fn new(data: ErrorPanelData) -> Self {
+        GqlErrorPanelData { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlErrorPanelData {
+    pub fn title(&self) -> String {
+        self.data.title.clone()
+    }
+
+    pub fn description(&self) -> String {
+        self.data.description.clone()
+    }
+
+    pub fn groups(&self) -> Vec<GqlActionGroup> {
+        self.data
+            .groups
+            .clone()
+            .into_iter()
+            .map(GqlActionGroup::new)
+            .collect()
+    }
+}
+pub struct GqlConstructProgressBarStatuses {
+    data: ConstructProgressBarStatuses,
+}
+impl GqlConstructProgressBarStatuses {
+    pub fn new(data: ConstructProgressBarStatuses) -> Self {
+        GqlConstructProgressBarStatuses { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlConstructProgressBarStatuses {
+    pub fn construct_uuid(&self) -> String {
+        self.data.construct_uuid.to_string()
+    }
+    pub fn statuses(&self) -> Vec<GqlProgressBarStatus> {
+        self.data
+            .statuses
+            .clone()
+            .into_iter()
+            .map(GqlProgressBarStatus::new)
+            .collect()
+    }
+}
+
 pub struct GqlProgressBarStatus {
     data: ProgressBarStatus,
 }
@@ -237,6 +328,45 @@ impl GqlProgressBarStatus {
             Some(diag) => Some(serde_json::to_string(&diag).unwrap()),
             None => None,
         }
+    }
+}
+
+pub struct GqlProgressBarStatusUpdate {
+    data: ProgressBarStatusUpdate,
+}
+impl GqlProgressBarStatusUpdate {
+    pub fn new(data: ProgressBarStatusUpdate) -> Self {
+        GqlProgressBarStatusUpdate { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlProgressBarStatusUpdate {
+    pub fn progress_bar_uuid(&self) -> String {
+        self.data.progress_bar_uuid.to_string()
+    }
+    pub fn construct_uuid(&self) -> String {
+        self.data.construct_uuid.to_string()
+    }
+    pub fn new_status(&self) -> GqlProgressBarStatus {
+        GqlProgressBarStatus::new(self.data.new_status.clone())
+    }
+}
+
+pub struct GqlProgressBarVisibilityUpdate {
+    data: ProgressBarVisibilityUpdate,
+}
+impl GqlProgressBarVisibilityUpdate {
+    pub fn new(data: ProgressBarVisibilityUpdate) -> Self {
+        GqlProgressBarVisibilityUpdate { data }
+    }
+}
+#[graphql_object(context = Context)]
+impl GqlProgressBarVisibilityUpdate {
+    pub fn progress_bar_uuid(&self) -> String {
+        self.data.progress_bar_uuid.to_string()
+    }
+    pub fn visible(&self) -> bool {
+        self.data.visible
     }
 }
 
