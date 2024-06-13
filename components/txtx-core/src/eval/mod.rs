@@ -6,6 +6,7 @@ use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
+use kit::types::wallets::WalletsState;
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
@@ -229,7 +230,7 @@ pub async fn run_wallets_evaluation(
             },
             Err(mut diags) => {
                 pass_result.diagnostics.append(&mut diags);
-                continue;
+                return pass_result;
             }
         };
 
@@ -273,7 +274,7 @@ pub async fn run_wallets_evaluation(
                     }
                 }
                 pass_result.diagnostics.push(diag.clone());
-                continue;
+                return pass_result;
             }
         };
 
@@ -296,7 +297,7 @@ pub async fn run_wallets_evaluation(
             Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
             Err((wallets_state, diag)) => {
                 pass_result.diagnostics.push(diag);
-                (None, Some(wallets_state))
+                return pass_result;
             }
         };
         runbook.wallets_state = wallets_state;
@@ -707,7 +708,7 @@ pub async fn run_constructs_evaluation(
                 Err((updated_wallets, diag)) => {
                     pass_result.diagnostics.push(diag);
                     runbook.wallets_state = Some(updated_wallets);
-                    continue;
+                    return pass_result;
                 }
             };
 
@@ -761,7 +762,7 @@ pub async fn run_constructs_evaluation(
             };
             execution_result
         } else {
-            if let Ok(mut new_actions) = command_instance.check_executability(
+            match command_instance.check_executability(
                 &construct_uuid,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
@@ -769,14 +770,20 @@ pub async fn run_constructs_evaluation(
                 &action_item_responses.get(&construct_uuid.value()),
                 execution_context,
             ) {
-                if new_actions.has_pending_actions() {
-                    pass_result.actions.append(&mut new_actions);
-                    for descendant in get_descendants_of_node(node, g.clone()) {
-                        unexecutable_nodes.insert(descendant);
+                Ok(mut new_actions) => {
+                    if new_actions.has_pending_actions() {
+                        pass_result.actions.append(&mut new_actions);
+                        for descendant in get_descendants_of_node(node, g.clone()) {
+                            unexecutable_nodes.insert(descendant);
+                        }
+                        continue;
                     }
-                    continue;
+                    pass_result.actions.append(&mut new_actions);
                 }
-                pass_result.actions.append(&mut new_actions);
+                Err(diag) => {
+                    pass_result.diagnostics.push(diag);
+                    return pass_result;
+                }
             }
 
             runbook
