@@ -260,18 +260,18 @@ impl ActionItemRequestUpdate {
     pub fn normalize(
         &self,
         action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
-    ) -> NormalizedActionItemRequestUpdate {
+    ) -> Option<NormalizedActionItemRequestUpdate> {
         for (_, action) in action_item_requests.iter() {
             match &self.id {
                 ActionItemRequestUpdateIdentifier::Uuid(uuid) => {
                     if action.uuid.eq(uuid) {
-                        return NormalizedActionItemRequestUpdate {
+                        return Some(NormalizedActionItemRequestUpdate {
                             uuid: uuid.clone(),
                             title: self.title.clone(),
                             description: self.description.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
-                        };
+                        });
                     }
                 }
                 ActionItemRequestUpdateIdentifier::ConstructUuidWithKey((
@@ -284,21 +284,18 @@ impl ActionItemRequestUpdate {
                     if action_construct_uuid.eq(construct_uuid)
                         && action.internal_key.eq(internal_key)
                     {
-                        return NormalizedActionItemRequestUpdate {
+                        return Some(NormalizedActionItemRequestUpdate {
                             uuid: action.uuid,
                             title: self.title.clone(),
                             description: self.description.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
-                        };
+                        });
                     }
                 }
             }
         }
-        panic!(
-            "Action item update was created for non-existent action item: {:?}",
-            self
-        )
+        None
     }
 }
 
@@ -1028,7 +1025,9 @@ impl Actions {
                     current_modal = Some(data.clone());
                 }
                 ActionType::UpdateActionItemRequest(data) => {
-                    updates.push(data.normalize(&action_item_requests));
+                    if let Some(update) = data.normalize(&action_item_requests) {
+                        updates.push(update);
+                    }
                 }
             }
         }

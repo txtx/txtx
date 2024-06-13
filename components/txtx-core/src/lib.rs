@@ -510,7 +510,9 @@ pub async fn start_interactive_runbook_runloop(
                         .compile_actions_to_item_updates()
                         .into_iter()
                     {
-                        updated_actions.push(action.normalize(&action_item_requests))
+                        if let Some(update) = action.normalize(&action_item_requests) {
+                            updated_actions.push(update);
+                        }
                     }
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
@@ -535,7 +537,8 @@ pub async fn start_interactive_runbook_runloop(
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
                     ActionItemRequestUpdate::from_uuid(&action_item_uuid)
                         .set_status(new_status)
-                        .normalize(&action_item_requests),
+                        .normalize(&action_item_requests)
+                        .unwrap(),
                 ]));
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
@@ -569,7 +572,7 @@ pub async fn start_interactive_runbook_runloop(
                         .actions
                         .compile_actions_to_item_updates()
                         .into_iter()
-                        .map(|u| u.normalize(&action_item_requests))
+                        .map(|u| u.normalize(&action_item_requests).unwrap())
                         .collect();
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
                 }
@@ -605,7 +608,7 @@ pub async fn start_interactive_runbook_runloop(
                     .compile_actions_to_item_updates()
                     .into_iter()
                 {
-                    updated_actions.push(action.normalize(&action_item_requests))
+                    updated_actions.push(action.normalize(&action_item_requests).unwrap())
                 }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
