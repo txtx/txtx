@@ -689,6 +689,12 @@ impl CommandInstance {
                             Value::string(bytes.signed_transaction_bytes.clone()),
                         );
                     }
+                    ActionItemResponseType::ProvideSignedMessage(response) => {
+                        values.insert(
+                            "signed_message_bytes",
+                            Value::string(response.signed_message_bytes.clone()),
+                        );
+                    }
                     _ => {}
                 },
             ),
@@ -767,6 +773,11 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                ActionItemRequestType::ProvideSignedMessage(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
                 _ => unreachable!(),
             }
         }
@@ -818,7 +829,13 @@ impl CommandInstance {
                                 .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
-                    ActionItemResponseType::ProvideSignedTransaction(_bytes) => {
+                    ActionItemResponseType::ProvideSignedTransaction(_) => {
+                        let action_item_update =
+                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                                .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    ActionItemResponseType::ProvideSignedMessage(_response) => {
                         let action_item_update =
                             ActionItemRequestUpdate::from_uuid(&action_item_uuid)
                                 .set_status(ActionItemStatus::Success(None));
@@ -890,6 +907,11 @@ impl CommandInstance {
                     }
                 }
                 ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::ProvideSignedMessage(_) => {
                     if success {
                         request.action_status = status.clone();
                     }

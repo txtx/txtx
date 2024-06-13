@@ -1065,6 +1065,7 @@ pub enum ActionItemRequestType {
     PickInputOption(PickInputOptionRequest),
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
+    ProvideSignedMessage(ProvideSignedMessageRequest),
     DisplayOutput(DisplayOutputRequest),
     DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
@@ -1143,6 +1144,16 @@ pub struct ProvideSignedTransactionRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProvideSignedMessageRequest {
+    pub check_expectation_action_uuid: Option<Uuid>,
+    pub signer_uuid: Uuid,
+    pub message: Value,
+    pub namespace: String,
+    pub network_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActionItemResponse {
     pub action_item_uuid: Uuid,
     #[serde(flatten)]
@@ -1156,6 +1167,7 @@ pub enum ActionItemResponseType {
     ProvideInput(ProvidedInputResponse),
     PickInputOption(String),
     ProvidePublicKey(ProvidePublicKeyResponse),
+    ProvideSignedMessage(ProvideSignedMessageResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
     ValidateBlock,
     ValidateModal,
@@ -1188,6 +1200,13 @@ pub struct ProvidedInputResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ProvidePublicKeyResponse {
     pub public_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvideSignedMessageResponse {
+    pub signed_message_bytes: String,
+    pub signer_uuid: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

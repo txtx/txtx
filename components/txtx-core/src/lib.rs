@@ -577,7 +577,8 @@ pub async fn start_interactive_runbook_runloop(
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
                 }
             }
-            ActionItemResponseType::ProvideSignedTransaction(_response) => {
+            ActionItemResponseType::ProvideSignedTransaction(_)
+            | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((signing_action_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
