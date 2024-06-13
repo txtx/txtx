@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
-use clarity::util::secp256k1::Secp256k1PublicKey;
+use clarity::util::secp256k1::{MessageSignature, Secp256k1PublicKey};
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
-    BlockEvent, ProvideSignedTransactionRequest,
+    BlockEvent, ProvideSignedMessageRequest, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, WalletActionErr,
@@ -22,13 +22,15 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
+use crate::codec::codec::{TransactionSpendingCondition, Txid};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
-    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, MESSAGE_BYTES,
+    NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_MESSAGE_BYTES,
+    SIGNED_TRANSACTION_BYTES,
 };
-use crate::typing::CLARITY_BUFFER;
+use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_SIGNED_TRANSACTION};
 
 use super::get_addition_actions_for_address;
 
@@ -259,20 +261,89 @@ impl WalletImplementation for StacksConnect {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
-            // signed_transaction_bytes
-            wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
-            wallets.push_wallet_state(wallet_state);
-            return Ok((wallets, Actions::none()));
-        }
+    ) -> Result<CheckSignabilityOk, WalletActionErr> {
+        let payload_buffer = payload.expect_buffer_data();
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, wallet_state, diag)),
         };
+        if payload_buffer.typing.eq(&STACKS_SIGNED_TRANSACTION) {
+            if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES)
+            {
+                // signed_transaction_bytes
+                wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
+                return Ok((wallets, wallet_state, Actions::none()));
+            }
 
+            let request = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(uuid.value()),
+                title,
+                description.clone(),
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
+                    check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
+                    payload: payload.clone(),
+                    namespace: "stacks".to_string(),
+                    network_id,
+                }),
+                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+            );
+            Ok((
+                wallets,
+                wallet_state,
+                Actions::append_item(
+                    request,
+                    Some("Review and sign the transactions from the list below"),
+                    Some("Transactions Signing"),
+                ),
+            ))
+        } else {
+            println!("the wallet state {:?}", wallet_state);
+            if let Some(signed_message_bytes) =
+                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_MESSAGE_BYTES)
+            {
+                let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
+                    Ok(value) => Secp256k1PublicKey::from_hex(value.expect_string()).unwrap(),
+                    Err(diag) => return Err((wallets, wallet_state, diag)),
+                };
+
+                let signed_message_bytes = signed_message_bytes.clone();
+                let signature =
+                    MessageSignature::from_bytes(&signed_message_bytes.expect_buffer_bytes()[..])
+                        .unwrap();
+                let cur_sighash = Txid::from_bytes(&payload_buffer.bytes).unwrap();
+                let next_sighash = TransactionSpendingCondition::make_sighash_postsign(
+                    &cur_sighash,
+                    &public_key,
+                    &signature,
+                );
+                let message =
+                    Value::buffer(next_sighash.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
+                wallet_state.insert(&MESSAGE_BYTES, message.clone());
+                wallet_state.insert(&SIGNED_MESSAGE_BYTES, signed_message_bytes.clone());
+                return Ok((wallets, wallet_state, Actions::none()));
+            }
+            let request = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(uuid.value()),
+                title,
+                description.clone(),
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ProvideSignedMessage(ProvideSignedMessageRequest {
+                    check_expectation_action_uuid: Some(uuid.value()),
+                    signer_uuid: wallet_state.uuid,
+                    message: payload.clone(),
+                    namespace: "stacks".to_string(),
+                    network_id,
+                }),
+                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+            );
+            let mut actions = Actions::none();
+            actions.push_sub_group(vec![request]);
             Ok((wallets, wallet_state, actions))
+        }
     }
 
     fn sign(

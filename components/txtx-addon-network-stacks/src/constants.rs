@@ -12,7 +12,7 @@ pub const PUBLIC_KEYS: &str = "public_keys";
 pub const SIGNED_TRANSACTION_BYTES: &str = "signed_transaction_bytes";
 pub const UNSIGNED_TRANSACTION_BYTES: &str = "unsigned_transaction_bytes";
 pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
-pub const SIGNATURE_BYTES: &str = "signature_bytes";
+pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";
 
 // Defaults keys

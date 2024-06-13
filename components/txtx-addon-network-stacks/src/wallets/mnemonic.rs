@@ -16,7 +16,7 @@ use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActionErr, CheckSignabilityOk, WalletActionsFutureResult,
+    return_synchronous_result, CheckSignabilityOk, WalletActionErr, WalletActionsFutureResult,
     WalletActivateFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
 };
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
@@ -34,7 +34,7 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNATURE_BYTES};
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
@@ -110,7 +110,7 @@ impl WalletImplementation for StacksMnemonic {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        use crate::constants::CHECKED_PUBLIC_KEY;
+        use crate::constants::{ACTION_ITEM_CHECK_BALANCE, CHECKED_PUBLIC_KEY};
 
         let mut actions = Actions::none();
 
