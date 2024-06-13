@@ -28,7 +28,10 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState},
+    wallets::{
+        consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
+        WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+    },
     ConstructUuid, PackageUuid, ValueStore,
 };
 
@@ -837,8 +840,9 @@ impl CommandInstance {
             &execution_context,
             wallet_instances,
             wallets,
-        )?;
-        let (wallet_state, mut actions) = future.await?;
+        );
+        let res = consolidate_wallet_future_result(future).await.unwrap();
+        let (wallet_state, mut actions) = res.unwrap();
         consolidated_actions.append(&mut actions);
         Ok((wallet_state, consolidated_actions))
     }
@@ -860,7 +864,7 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        let res = (spec.run_signed_execution)(
+        let future = (spec.run_signed_execution)(
             &construct_uuid,
             &self.specification,
             &values,
@@ -868,8 +872,8 @@ impl CommandInstance {
             progress_tx,
             wallet_instances,
             wallets,
-        )?
-        .await;
+        );
+        let res = consolidate_wallet_activate_future_result(future).await?;
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {

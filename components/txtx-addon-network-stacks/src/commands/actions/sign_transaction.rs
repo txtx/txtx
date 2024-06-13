@@ -3,7 +3,8 @@ use clarity::types::Address;
 use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::codec::{
-    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition, TransactionContractCall, TransactionPostConditionMode, TransactionPublicKeyEncoding
+    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
+    TransactionContractCall, TransactionPostConditionMode, TransactionPublicKeyEncoding,
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -162,14 +163,20 @@ impl CommandImplementation for SignStacksTransaction {
             {
                 Ok(transaction) => transaction,
                 Err(diag) => {
-                    wallets.push_wallet_state(wallet_state);
-                    return Err((wallets, diag));
+                    return Err((wallets, wallet_state, diag));
                 }
             };
 
             let mut bytes = vec![];
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
             let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+
+            wallet_state.insert_scoped_value(
+                &uuid.value().to_string(),
+                UNSIGNED_TRANSACTION_BYTES,
+                payload.clone(),
+            );
+            wallets.push_wallet_state(wallet_state);
 
             if execution_context.review_input_values {
                 actions.push_sub_group(vec![
@@ -199,36 +206,28 @@ impl CommandImplementation for SignStacksTransaction {
                     ),
                 ])
             }
-            wallet_state.insert_scoped_value(
-                &uuid.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
-            );
 
+            let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
             let description = args
                 .get_expected_string("description")
                 .ok()
                 .and_then(|d| Some(d.to_string()));
-
-            let (wallets, mut wallet_actions) = (wallet.specification.check_signability)(
-                &uuid,
-                &instance_name,
-                &description,
-                &payload,
-                &wallet.specification,
-                &args,
-                wallet_state,
-                wallets,
-                &wallets_instances,
-                &defaults,
-                &execution_context,
-            )?;
-            if wallet_actions.has_pending_actions() {
-                actions.append(&mut wallet_actions);
-            } else {
-                actions = wallet_actions;
-            }
-            Ok((wallets, actions))
+            let (wallets, wallet_state, mut wallet_actions) =
+                (wallet.specification.check_signability)(
+                    &uuid,
+                    &instance_name,
+                    &description,
+                    &payload,
+                    &wallet.specification,
+                    &args,
+                    wallet_state,
+                    wallets,
+                    &wallets_instances,
+                    &defaults,
+                    &execution_context,
+                )?;
+            actions.append(&mut wallet_actions);
+            Ok((wallets, wallet_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -242,18 +241,19 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletSignFutureResult {
+        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
-            return return_synchronous_ok(wallets, result);
+            return return_synchronous_ok(wallets, wallet_state, result);
         }
 
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
-        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
         let payload = wallet_state
             .get_scoped_value(&uuid.value().to_string(), UNSIGNED_TRANSACTION_BYTES)
@@ -315,14 +315,11 @@ async fn build_unsigned_transaction(
             _ => unimplemented!("invalid network_id, return diagnostic"),
         };
         TransactionPayload::ContractCall(TransactionContractCall {
-            address: StacksAddress::from_string(
-                boot_address
-            )
-            .unwrap(),
+            address: StacksAddress::from_string(boot_address).unwrap(),
             contract_name: ContractName::from("bns"),
             function_name: ClarityName::from("name-preorder"),
             function_args: vec![],
-        })  
+        })
     };
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;

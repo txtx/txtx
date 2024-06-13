@@ -16,8 +16,8 @@ use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActionsFutureResult, WalletActivateFutureResult,
-    WalletInstance, WalletSignFutureResult, WalletsState,
+    return_synchronous_result, WalletActionErr, CheckSignabilityOk, WalletActionsFutureResult,
+    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
 };
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
 use txtx_addon_kit::types::{
@@ -115,8 +115,7 @@ impl WalletImplementation for StacksMnemonic {
         let mut actions = Actions::none();
 
         if wallet_state.get_value(PUBLIC_KEYS).is_some() {
-            wallets.push_wallet_state(wallet_state);
-            return return_synchronous_actions(Ok((wallets, actions)));
+            return return_synchronous_actions(Ok((wallets, wallet_state, actions)));
         }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
@@ -142,7 +141,7 @@ impl WalletImplementation for StacksMnemonic {
         let (_, public_key, expected_address) = match compute_keypair(args, defaults, &wallet_state)
         {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
@@ -159,12 +158,9 @@ impl WalletImplementation for StacksMnemonic {
                     value: Value::string(expected_address.to_string()),
                 }),
                 ACTION_ITEM_CHECK_ADDRESS,
-            )])
+            )]);
         }
-        let future = async move {
-            wallets.push_wallet_state(wallet_state);
-            Ok((wallets, actions))
-        };
+        let future = async move { Ok((wallets, wallet_state, actions)) };
         Ok(Box::pin(future))
     }
 
@@ -179,8 +175,7 @@ impl WalletImplementation for StacksMnemonic {
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
         let result = CommandExecutionResult::new();
-        wallets.push_wallet_state(wallet_state);
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 
     fn check_signability(
@@ -195,9 +190,8 @@ impl WalletImplementation for StacksMnemonic {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        wallets.push_wallet_state(wallet_state);
-        Ok((wallets, Actions::none()))
+    ) -> Result<CheckSignabilityOk, WalletActionErr> {
+        Ok((wallets, wallet_state, Actions::none()))
     }
 
     fn sign(
@@ -216,7 +210,7 @@ impl WalletImplementation for StacksMnemonic {
         let (secret_key_value, public_key_value, _) =
             match compute_keypair(args, defaults, &wallet_state) {
                 Ok(value) => value,
-                Err(diag) => return Err((wallets, diag)),
+                Err(diag) => return Err((wallets, wallet_state, diag)),
             };
 
         let payload_buffer = payload.expect_buffer_data();
@@ -251,12 +245,12 @@ impl WalletImplementation for StacksMnemonic {
             let message = Value::buffer(next_sighash.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
             let signature = Value::buffer(signature.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
             result.outputs.insert(MESSAGE_BYTES.into(), message);
-            result.outputs.insert(SIGNATURE_BYTES.into(), signature);
+            result
+                .outputs
+                .insert(SIGNED_MESSAGE_BYTES.into(), signature);
         }
 
-        wallets.push_wallet_state(wallet_state);
-
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 }
 
