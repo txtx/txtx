@@ -247,26 +247,43 @@ impl WalletImplementation for StacksConnect {
                 .map(|address| address.to_string())
                 {
                     let mut actions = Actions::none();
-                    let stacks_rpc = StacksRpc::new(&rpc_api_url);
-                    let status_update = match stacks_rpc.get_balance(&stacks_address).await {
-                        Ok(response) => {
-                            ActionItemStatus::Success(Some(response.get_formatted_balance()))
-                        }
-                        Err(e) => {
-                            let diag = diagnosed_error!(
-                                "unable to retrieve balance {}: {}",
-                                stacks_address,
-                                e.to_string()
-                            );
-                            ActionItemStatus::Error(diag)
-                        }
-                    };
+                    if is_balance_check_required {
+                        let stacks_rpc = StacksRpc::new(&rpc_api_url);
+                        let (status_update, value) =
+                            match stacks_rpc.get_balance(&stacks_address).await {
+                                Ok(response) => (
+                                    ActionItemStatus::Success(None),
+                                    Value::string(response.get_formatted_balance()),
+                                ),
+                                Err(e) => {
+                                    let diag = diagnosed_error!(
+                                        "unable to retrieve balance {}: {}",
+                                        stacks_address,
+                                        e.to_string()
+                                    );
+
+                                    (ActionItemStatus::Error(diag), Value::string("N/A".into()))
+                                }
+                            };
+
+                        actions.push_action_item_update(
+                            ActionItemRequestUpdate::from_context(
+                                &root_uuid,
+                                ACTION_ITEM_CHECK_BALANCE,
+                            )
+                            .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                input_name: "".into(),
+                                value,
+                            }))
+                            .set_status(status_update),
+                        );
+                    }
                     actions.push_action_item_update(
                         ActionItemRequestUpdate::from_context(
                             &root_uuid,
-                            ACTION_ITEM_CHECK_BALANCE,
+                            ACTION_ITEM_PROVIDE_PUBLIC_KEY,
                         )
-                        .set_status(status_update),
+                        .set_status(ActionItemStatus::Success(Some(stacks_address))),
                     );
                     consolidated_actions = actions;
                 } else {

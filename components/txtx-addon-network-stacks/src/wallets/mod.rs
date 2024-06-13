@@ -113,6 +113,22 @@ pub async fn get_addition_actions_for_address(
             );
             action_items.push(check_balance);
         }
+    } else {
+        if do_request_balance {
+            let check_balance = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(wallet_uuid.value()),
+                "Check wallet balance",
+                None,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                    input_name: "".into(), // todo
+                    value: Value::string("N/A".to_string()),
+                }),
+                ACTION_ITEM_CHECK_BALANCE,
+            );
+            action_items.push(check_balance);
+        }
     }
     Ok(action_items)
 }

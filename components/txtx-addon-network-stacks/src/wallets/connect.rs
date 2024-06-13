@@ -99,8 +99,8 @@ impl WalletImplementation for StacksConnect {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let requested_startup_data = wallet_state
+        let checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
+        let _requested_startup_data = wallet_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)
             .ok()
             .unwrap_or(false);
@@ -110,12 +110,12 @@ impl WalletImplementation for StacksConnect {
         let _fetched_balance = wallet_state.get_expected_uint(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
-        let do_request_address_check = expected_address.is_some() && !requested_startup_data;
+        let do_request_address_check = expected_address.is_some();
         let do_request_public_key = is_public_key_required;
         // only request public key if we haven't already created that action
 
         let _is_nonce_required = true;
-        let do_request_balance = is_balance_check_required && !requested_startup_data;
+        let do_request_balance = is_balance_check_required;
 
         let instance_name = instance_name.to_string();
         let wallet_uuid = uuid.clone();
