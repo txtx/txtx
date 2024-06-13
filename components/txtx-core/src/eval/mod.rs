@@ -679,6 +679,11 @@ pub async fn run_constructs_evaluation(
 
         let execution_result = if command_instance.specification.implements_signing_capability {
             let wallets = runbook.wallets_state.take().unwrap();
+            let wallets = update_wallet_instances_from_action_response(
+                wallets,
+                &construct_uuid,
+                &action_item_responses.get(&construct_uuid.value()),
+            );
 
             let res = command_instance
                 .check_signed_executability(
@@ -1228,6 +1233,39 @@ pub fn eval_expression(
 //     value: Value,
 // }
 
+pub fn update_wallet_instances_from_action_response(
+    mut wallets: WalletsState,
+    construct_uuid: &ConstructUuid,
+    action_item_response: &Option<&Vec<ActionItemResponse>>,
+) -> WalletsState {
+    match action_item_response {
+        Some(responses) => responses.into_iter().for_each(
+            |ActionItemResponse {
+                 action_item_uuid: _,
+                 payload,
+             }| match payload {
+                ActionItemResponseType::ProvideSignedMessage(response) => {
+                    println!("inserting input for provide signed message: {:?}", response);
+                    if let Some(mut wallet_state) =
+                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                    {
+                        println!("inserting into wallet");
+                        wallet_state.insert_scoped_value(
+                            &construct_uuid.value().to_string(),
+                            "signed_message_bytes",
+                            Value::string(response.signed_message_bytes.clone()),
+                        );
+                        wallets.push_wallet_state(wallet_state.clone());
+                    }
+                }
+                _ => {}
+            },
+        ),
+        None => {}
+    }
+    wallets
+}
+
 #[derive(Debug)]
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
@@ -1268,6 +1306,12 @@ pub fn perform_inputs_evaluation(
                     results.insert(
                         "signed_transaction_bytes",
                         Value::string(bytes.signed_transaction_bytes.clone()),
+                    );
+                }
+                ActionItemResponseType::ProvideSignedMessage(response) => {
+                    results.insert(
+                        "signed_message_bytes",
+                        Value::string(response.signed_message_bytes.clone()),
                     );
                 }
                 _ => {}
