@@ -402,20 +402,9 @@ impl WalletImplementation for StacksConnect {
 
         let mut i = 1;
 
-        let payload = match payload {
-            Value::Primitive(PrimitiveValue::Buffer(buff)) => {
-                Value::buffer(buff.bytes.clone(), buff.typing.clone())
-            }
-            Value::Primitive(PrimitiveValue::String(bytes)) => {
-                let bytes = if bytes.starts_with("0x") {
-                    crate::txtx_addon_kit::hex::decode(&bytes[2..]).unwrap()
-                } else {
-                    crate::txtx_addon_kit::hex::decode(&bytes).unwrap()
-                };
-                Value::buffer(bytes, STACKS_SIGNATURE.clone())
-            }
-            _ => unreachable!(),
-        };
+        let payload_bytes = payload.expect_buffer_bytes();
+        let payload = Value::buffer(payload_bytes, STACKS_SIGNATURE.clone());
+
         for (signer_uuid, signer_wallet_instance) in signers.into_iter() {
             println!("starting loop {}", i.to_string());
             i = i + 1;
