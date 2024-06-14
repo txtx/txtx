@@ -134,7 +134,7 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
-        use crate::typing::STACKS_SIGNED_TRANSACTION;
+        use crate::typing::STACKS_TRANSACTION;
 
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
@@ -175,7 +175,7 @@ impl CommandImplementation for SignStacksTransaction {
 
             let mut bytes = vec![];
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-            let payload = Value::buffer(bytes, STACKS_SIGNED_TRANSACTION.clone());
+            let payload = Value::buffer(bytes, STACKS_TRANSACTION.clone());
 
             wallet_state.insert_scoped_value(
                 &uuid.value().to_string(),

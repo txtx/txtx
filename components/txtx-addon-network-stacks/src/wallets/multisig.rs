@@ -10,7 +10,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::types::PrimitiveValue;
 
-use crate::typing::STACKS_SIGNED_TRANSACTION;
+use crate::typing::STACKS_TRANSACTION;
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
@@ -402,9 +402,6 @@ impl WalletImplementation for StacksConnect {
 
         let mut i = 1;
 
-        let payload_bytes = payload.expect_buffer_bytes();
-        let payload = Value::buffer(payload_bytes, STACKS_SIGNATURE.clone());
-
         for (signer_uuid, signer_wallet_instance) in signers.into_iter() {
             println!("starting loop {}", i.to_string());
             i = i + 1;
@@ -440,7 +437,7 @@ impl WalletImplementation for StacksConnect {
         }
         println!("finished loop");
         let signed_buff = args
-            .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_SIGNED_TRANSACTION)
+            .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_TRANSACTION)
             .unwrap();
         let transaction =
             StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();

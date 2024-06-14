@@ -30,7 +30,7 @@ use crate::constants::{
     NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_MESSAGE_BYTES,
     SIGNED_TRANSACTION_BYTES,
 };
-use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_SIGNED_TRANSACTION};
+use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
 
 use super::get_addition_actions_for_address;
 
@@ -262,70 +262,41 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        let payload_buffer = payload.expect_buffer_data();
+        if let Some(_) =
+            wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+        {
+            return Ok((wallets, wallet_state, Actions::none()));
+        }
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, wallet_state, diag)),
         };
-        if payload_buffer.typing.eq(&STACKS_SIGNED_TRANSACTION) {
-            if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES)
-            {
-                // signed_transaction_bytes
-                wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
-                return Ok((wallets, wallet_state, Actions::none()));
-            }
 
-            let request = ActionItemRequest::new(
-                &Uuid::new_v4(),
-                &Some(uuid.value()),
-                title,
-                description.clone(),
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                    check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
-                    signer_uuid: wallet_state.uuid,
-                    payload: payload.clone(),
-                    namespace: "stacks".to_string(),
-                    network_id,
-                }),
-                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-            );
-            Ok((
-                wallets,
-                wallet_state,
-                Actions::append_item(
-                    request,
-                    Some("Review and sign the transactions from the list below"),
-                    Some("Transactions Signing"),
-                ),
-            ))
-        } else {
-            println!("the wallet state {:?}", wallet_state);
-            if let Some(_) =
-                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
-            {
-                return Ok((wallets, wallet_state, Actions::none()));
-            }
-            let request = ActionItemRequest::new(
-                &Uuid::new_v4(),
-                &Some(uuid.value()),
-                title,
-                description.clone(),
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                    check_expectation_action_uuid: Some(uuid.value()),
-                    signer_uuid: wallet_state.uuid,
-                    payload: payload.clone(),
-                    namespace: "stacks".to_string(),
-                    network_id,
-                }),
-                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-            );
-            let mut actions = Actions::none();
-            actions.push_sub_group(vec![request]);
-            Ok((wallets, wallet_state, actions))
-        }
+        let request = ActionItemRequest::new(
+            &Uuid::new_v4(),
+            &Some(uuid.value()),
+            title,
+            description.clone(),
+            ActionItemStatus::Todo,
+            ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
+                check_expectation_action_uuid: Some(uuid.value()),
+                signer_uuid: wallet_state.uuid,
+                payload: payload.clone(),
+                namespace: "stacks".to_string(),
+                network_id,
+            }),
+            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+        );
+        Ok((
+            wallets,
+            wallet_state,
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transactions Signing"),
+            ),
+        ))
     }
 
     fn sign(

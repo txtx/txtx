@@ -38,7 +38,7 @@ use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
-use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_SIGNED_TRANSACTION};
+use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
 
 use super::DEFAULT_DERIVATION_PATH;
 
@@ -215,7 +215,7 @@ impl WalletImplementation for StacksMnemonic {
 
         let payload_buffer = payload.expect_buffer_data();
 
-        if payload_buffer.typing.eq(&STACKS_SIGNED_TRANSACTION) {
+        if payload_buffer.typing.eq(&STACKS_TRANSACTION) {
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &payload_buffer.bytes[..]).unwrap();
             let mut tx_signer = StacksTransactionSigner::new(&transaction);
@@ -228,7 +228,7 @@ impl WalletImplementation for StacksMnemonic {
                 .unwrap(); // todo
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
-                Value::buffer(signed_transaction_bytes, STACKS_SIGNED_TRANSACTION.clone()),
+                Value::buffer(signed_transaction_bytes, STACKS_TRANSACTION.clone()),
             );
         } else {
             let secret_key =

@@ -70,10 +70,11 @@ lazy_static! {
     //         documentation: "Clarity sequence",
     //     }
     // };
-    pub static ref STACKS_SIGNED_TRANSACTION: TypeSpecification = define_addon_type! {
-        StacksSignedTransaction => {
-            name: "stacks_signed_transaction",
-            documentation: "Stacks signed transaction",
+
+    pub static ref STACKS_TRANSACTION: TypeSpecification = define_addon_type! {
+        StacksTransaction => {
+            name: "stacks_transaction",
+            documentation: "Stacks transaction",
         }
     };
     pub static ref STACKS_SIGNATURE: TypeSpecification = define_addon_type! {
@@ -142,9 +143,8 @@ impl TypeImplementation for ClarityValue {
         unimplemented!()
     }
 }
-
-pub struct StacksSignedTransaction;
-impl TypeImplementation for StacksSignedTransaction {
+pub struct StacksTransaction;
+impl TypeImplementation for StacksTransaction {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }
