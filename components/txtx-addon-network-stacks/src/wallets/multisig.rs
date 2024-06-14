@@ -457,7 +457,8 @@ impl WalletImplementation for StacksConnect {
             StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();
         transaction.verify().unwrap();
 
-        wallet_state.insert(
+        wallet_state.insert_scoped_value(
+            &origin_uuid.value().to_string(),
             SIGNED_TRANSACTION_BYTES,
             Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
         );

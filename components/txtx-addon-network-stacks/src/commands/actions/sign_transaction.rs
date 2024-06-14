@@ -149,7 +149,9 @@ impl CommandImplementation for SignStacksTransaction {
         let future = async move {
             let mut actions = Actions::none();
             let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
-            if let Some(_) = wallet_state.get_value(SIGNED_TRANSACTION_BYTES) {
+            if let Some(_) =
+                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            {
                 return Ok((wallets, wallet_state, Actions::none()));
             }
 
