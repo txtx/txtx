@@ -103,14 +103,14 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        use crate::constants::{ACTION_ITEM_CHECK_BALANCE, CHECKED_PUBLIC_KEY};
+        use crate::constants::CHECKED_PUBLIC_KEY;
 
         let mut actions = Actions::none();
 
@@ -169,7 +169,7 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
@@ -186,7 +186,7 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
@@ -201,7 +201,7 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {

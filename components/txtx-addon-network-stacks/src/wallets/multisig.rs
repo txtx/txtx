@@ -8,7 +8,6 @@ use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandSpecification,
 };
-use txtx_addon_kit::types::types::PrimitiveValue;
 
 use crate::typing::STACKS_TRANSACTION;
 use crate::{
@@ -21,7 +20,7 @@ use crate::{
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
-    BlockEvent, OpenModalData, ProvideSignedTransactionRequest,
+    BlockEvent, OpenModalData,
 };
 use txtx_addon_kit::types::wallets::{
     consolidate_wallet_activate_result, consolidate_wallet_result, CheckSignabilityOk,
@@ -37,9 +36,8 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS,
-    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, CHECKED_PUBLIC_KEY, NETWORK_ID,
+    PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
 
@@ -115,9 +113,7 @@ impl WalletImplementation for StacksConnect {
         is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        use txtx_addon_kit::types::{
-            frontend::ReviewInputRequest, wallets::consolidate_wallet_future_result,
-        };
+        use txtx_addon_kit::types::frontend::ReviewInputRequest;
 
         let root_uuid = uuid.clone();
         let signers = get_signers(args, wallets_instances);

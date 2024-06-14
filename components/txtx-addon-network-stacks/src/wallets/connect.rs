@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
-use clarity::util::secp256k1::{MessageSignature, Secp256k1PublicKey};
+use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
-    BlockEvent, ProvideSignedMessageRequest, ProvideSignedTransactionRequest,
+    BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, WalletActionErr,
@@ -22,15 +22,13 @@ use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::codec::codec::{TransactionSpendingCondition, Txid};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, MESSAGE_BYTES,
-    NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_MESSAGE_BYTES,
-    SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
+    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
-use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
+use crate::typing::CLARITY_BUFFER;
 
 use super::get_addition_actions_for_address;
 
@@ -94,7 +92,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
@@ -220,7 +218,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
@@ -256,7 +254,7 @@ impl WalletImplementation for StacksConnect {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut wallet_state: ValueStore,
+        wallet_state: ValueStore,
         wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
@@ -306,7 +304,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
