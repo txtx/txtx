@@ -1031,7 +1031,9 @@ impl Actions {
                 }
             }
         }
-        blocks.push(BlockEvent::UpdateActionItems(updates));
+        if !updates.is_empty() {
+            blocks.push(BlockEvent::UpdateActionItems(updates));
+        }
         blocks.push(BlockEvent::Action(Block {
             uuid: Uuid::new_v4(),
             panel: Panel::ActionPanel(current_panel_data.clone()),
