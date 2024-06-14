@@ -257,7 +257,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
@@ -302,28 +302,9 @@ impl WalletImplementation for StacksConnect {
             ))
         } else {
             println!("the wallet state {:?}", wallet_state);
-            if let Some(signed_message_bytes) =
-                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_MESSAGE_BYTES)
+            if let Some(_) =
+                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
-                    Ok(value) => Secp256k1PublicKey::from_hex(value.expect_string()).unwrap(),
-                    Err(diag) => return Err((wallets, wallet_state, diag)),
-                };
-
-                let signed_message_bytes = signed_message_bytes.clone();
-                let signature =
-                    MessageSignature::from_bytes(&signed_message_bytes.expect_buffer_bytes()[..])
-                        .unwrap();
-                let cur_sighash = Txid::from_bytes(&payload_buffer.bytes).unwrap();
-                let next_sighash = TransactionSpendingCondition::make_sighash_postsign(
-                    &cur_sighash,
-                    &public_key,
-                    &signature,
-                );
-                let message =
-                    Value::buffer(next_sighash.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
-                wallet_state.insert(&MESSAGE_BYTES, message.clone());
-                wallet_state.insert(&SIGNED_MESSAGE_BYTES, signed_message_bytes.clone());
                 return Ok((wallets, wallet_state, Actions::none()));
             }
             let request = ActionItemRequest::new(
@@ -332,10 +313,10 @@ impl WalletImplementation for StacksConnect {
                 title,
                 description.clone(),
                 ActionItemStatus::Todo,
-                ActionItemRequestType::ProvideSignedMessage(ProvideSignedMessageRequest {
+                ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                     check_expectation_action_uuid: Some(uuid.value()),
                     signer_uuid: wallet_state.uuid,
-                    message: payload.clone(),
+                    payload: payload.clone(),
                     namespace: "stacks".to_string(),
                     network_id,
                 }),
