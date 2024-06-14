@@ -134,7 +134,10 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
-        use crate::typing::STACKS_TRANSACTION;
+        use crate::{
+            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+            typing::STACKS_TRANSACTION,
+        };
 
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
@@ -184,34 +187,37 @@ impl CommandImplementation for SignStacksTransaction {
             );
             wallets.push_wallet_state(wallet_state);
 
-            if execution_context.review_input_values {
-                actions.push_sub_group(vec![
-                    ActionItemRequest::new(
-                        &Uuid::new_v4(),
-                        &Some(uuid.value()),
-                        "".into(),
-                        Some(format!("Check account nonce")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::uint(transaction.get_origin_nonce()),
-                        }),
-                        "check nonce",
-                    ),
-                    ActionItemRequest::new(
-                        &Uuid::new_v4(),
-                        &Some(uuid.value()),
-                        "µSTX".into(),
-                        Some(format!("Check transaction fee")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::uint(transaction.get_tx_fee()),
-                        }),
-                        "check fee",
-                    ),
-                ])
-            }
+            // todo: currently, this gets called repeatedly and is preventing the graph from properly
+            // progressing. removing for now
+            // if execution_context.review_input_values {
+            //     println!(" ===> pushing nonce/fee actions");
+            //     actions.push_sub_group(vec![
+            //         ActionItemRequest::new(
+            //             &Uuid::new_v4(),
+            //             &Some(uuid.value()),
+            //             "".into(),
+            //             Some(format!("Check account nonce")),
+            //             ActionItemStatus::Todo,
+            //             ActionItemRequestType::ReviewInput(ReviewInputRequest {
+            //                 input_name: "".into(),
+            //                 value: Value::uint(transaction.get_origin_nonce()),
+            //             }),
+            //             ACTION_ITEM_CHECK_NONCE,
+            //         ),
+            //         ActionItemRequest::new(
+            //             &Uuid::new_v4(),
+            //             &Some(uuid.value()),
+            //             "µSTX".into(),
+            //             Some(format!("Check transaction fee")),
+            //             ActionItemStatus::Todo,
+            //             ActionItemRequestType::ReviewInput(ReviewInputRequest {
+            //                 input_name: "".into(),
+            //                 value: Value::uint(transaction.get_tx_fee()),
+            //             }),
+            //             ACTION_ITEM_CHECK_FEE,
+            //         ),
+            //     ])
+            // }
 
             let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
             let description = args
