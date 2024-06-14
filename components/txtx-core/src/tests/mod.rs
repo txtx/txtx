@@ -24,7 +24,7 @@ use crate::{
 
 #[test]
 fn test_ab_c_runbook_no_env() {
-    // Load Runbook abc.tx
+    // Load Runbook ab_c.tx
     let abc_tx = include_str!("./fixtures/ab_c.tx");
 
     let mut source_tree = SourceTree::new();
@@ -81,6 +81,7 @@ fn test_ab_c_runbook_no_env() {
             action_panel_data.groups[0].sub_groups[0].action_items.len(),
             1
         );
+        let validate_button = &action_panel_data.groups[0].sub_groups[0].action_items[0];
 
         let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
         // assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
@@ -91,6 +92,15 @@ fn test_ab_c_runbook_no_env() {
             action_item_uuid: start_runbook.uuid.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         });
+
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+
+        let updates = event.expect_updated_action_items();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].uuid, validate_button.uuid);
     }
     // Review inputs assertions
     {
@@ -160,26 +170,6 @@ fn test_ab_c_runbook_no_env() {
         let BlockEvent::UpdateActionItems(updates) = event else {
             panic!("Sending ProvidedInputResponse did not trigger update")
         };
-        println!("updates after providing input {:?}", updates);
-        assert_eq!(updates.len(), 1);
-        assert_eq!(&updates[0].uuid, &input_b_action.uuid);
-
-        let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: input_b_action.uuid.clone(),
-            payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                value_checked: true,
-                input_name: "default".into(),
-            }),
-        });
-
-        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-            assert!(false, "unable to receive input block");
-            panic!()
-        };
-
-        let BlockEvent::UpdateActionItems(updates) = event else {
-            panic!("Sending ReviewedInputResponse did not trigger update")
-        };
         assert_eq!(updates.len(), 1);
         assert_eq!(&updates[0].uuid, &input_b_action.uuid);
 
@@ -187,6 +177,16 @@ fn test_ab_c_runbook_no_env() {
             action_item_uuid: Uuid::new_v4(),
             payload: ActionItemResponseType::ValidateBlock,
         });
+
+        // our validate block button yields another action item update for input b because of this issue:
+        // https://github.com/txtx/txtx/issues/89
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+        let update = event.expect_updated_action_items();
+        assert_eq!(update.len(), 1);
+        assert_eq!(update[0].uuid, input_b_action.uuid);
     }
 
     // assert output review
@@ -352,6 +352,8 @@ fn test_wallet_runbook_no_env() {
         payload: ActionItemResponseType::ProvideSignedTransaction(
             ProvideSignedTransactionResponse {
                 signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                // I don't think we have access to this data in this context, but is shouldn't be needed for this test
+                signer_uuid: Uuid::new_v4(),
             },
         ),
     });
@@ -593,6 +595,8 @@ fn test_multisig_runbook_no_env() {
         payload: ActionItemResponseType::ProvideSignedTransaction(
             ProvideSignedTransactionResponse {
                 signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                // I don't think we have access to this data in this context, but is shouldn't be needed for this test
+                signer_uuid: Uuid::new_v4(),
             },
         ),
     });
