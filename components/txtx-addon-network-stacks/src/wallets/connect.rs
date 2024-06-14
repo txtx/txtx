@@ -284,6 +284,7 @@ impl WalletImplementation for StacksConnect {
                 ActionItemStatus::Todo,
                 ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                     check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
+                    signer_uuid: wallet_state.uuid,
                     payload: payload.clone(),
                     namespace: "stacks".to_string(),
                     network_id,

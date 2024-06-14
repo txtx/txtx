@@ -1137,6 +1137,7 @@ pub struct ProvidePublicKeyRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
+    pub signer_uuid: Uuid,
     pub payload: Value,
     pub namespace: String,
     pub network_id: String,
@@ -1213,4 +1214,5 @@ pub struct ProvideSignedMessageResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: String,
+    pub signer_uuid: Uuid,
 }

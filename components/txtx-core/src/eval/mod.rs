@@ -1244,6 +1244,18 @@ pub fn update_wallet_instances_from_action_response(
                  action_item_uuid: _,
                  payload,
              }| match payload {
+                ActionItemResponseType::ProvideSignedTransaction(response) => {
+                    if let Some(mut wallet_state) =
+                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                    {
+                        wallet_state.insert_scoped_value(
+                            &construct_uuid.value().to_string(),
+                            "signed_transaction_bytes",
+                            Value::string(response.signed_transaction_bytes.clone()),
+                        );
+                        wallets.push_wallet_state(wallet_state.clone());
+                    }
+                }
                 ActionItemResponseType::ProvideSignedMessage(response) => {
                     println!("inserting input for provide signed message: {:?}", response);
                     if let Some(mut wallet_state) =
