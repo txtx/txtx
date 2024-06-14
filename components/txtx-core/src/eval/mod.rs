@@ -1257,11 +1257,9 @@ pub fn update_wallet_instances_from_action_response(
                     }
                 }
                 ActionItemResponseType::ProvideSignedMessage(response) => {
-                    println!("inserting input for provide signed message: {:?}", response);
                     if let Some(mut wallet_state) =
                         wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
                     {
-                        println!("inserting into wallet");
                         wallet_state.insert_scoped_value(
                             &construct_uuid.value().to_string(),
                             "signed_message_bytes",
