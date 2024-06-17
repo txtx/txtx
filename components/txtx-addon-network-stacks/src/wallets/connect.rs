@@ -270,13 +270,18 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, wallet_state, diag)),
         };
+        let (status, payload) = if let Some(()) = payload.as_null() {
+            (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
+        } else {
+            (ActionItemStatus::Todo, payload.clone())
+        };
 
         let request = ActionItemRequest::new(
             &Uuid::new_v4(),
             &Some(uuid.value()),
             title,
             description.clone(),
-            ActionItemStatus::Todo,
+            status,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
                 check_expectation_action_uuid: Some(uuid.value()),
                 signer_uuid: wallet_state.uuid,

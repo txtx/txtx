@@ -189,35 +189,35 @@ impl CommandImplementation for SignStacksTransaction {
 
             // todo: currently, this gets called repeatedly and is preventing the graph from properly
             // progressing. removing for now
-            // if execution_context.review_input_values {
-            //     println!(" ===> pushing nonce/fee actions");
-            //     actions.push_sub_group(vec![
-            //         ActionItemRequest::new(
-            //             &Uuid::new_v4(),
-            //             &Some(uuid.value()),
-            //             "".into(),
-            //             Some(format!("Check account nonce")),
-            //             ActionItemStatus::Todo,
-            //             ActionItemRequestType::ReviewInput(ReviewInputRequest {
-            //                 input_name: "".into(),
-            //                 value: Value::uint(transaction.get_origin_nonce()),
-            //             }),
-            //             ACTION_ITEM_CHECK_NONCE,
-            //         ),
-            //         ActionItemRequest::new(
-            //             &Uuid::new_v4(),
-            //             &Some(uuid.value()),
-            //             "µSTX".into(),
-            //             Some(format!("Check transaction fee")),
-            //             ActionItemStatus::Todo,
-            //             ActionItemRequestType::ReviewInput(ReviewInputRequest {
-            //                 input_name: "".into(),
-            //                 value: Value::uint(transaction.get_tx_fee()),
-            //             }),
-            //             ACTION_ITEM_CHECK_FEE,
-            //         ),
-            //     ])
-            // }
+            if execution_context.review_input_values {
+                println!(" ===> pushing nonce/fee actions");
+                actions.push_sub_group(vec![
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        "".into(),
+                        Some(format!("Check account nonce")),
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "".into(),
+                            value: Value::uint(transaction.get_origin_nonce()),
+                        }),
+                        ACTION_ITEM_CHECK_NONCE,
+                    ),
+                    ActionItemRequest::new(
+                        &Uuid::new_v4(),
+                        &Some(uuid.value()),
+                        "µSTX".into(),
+                        Some(format!("Check transaction fee")),
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                            input_name: "".into(),
+                            value: Value::uint(transaction.get_tx_fee()),
+                        }),
+                        ACTION_ITEM_CHECK_FEE,
+                    ),
+                ])
+            }
 
             let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
             let description = args

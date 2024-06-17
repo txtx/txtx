@@ -648,6 +648,7 @@ pub enum ChecklistActionResultProvider {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(tag = "status", content = "data")]
 pub enum ActionItemStatus {
+    Blocked,
     Todo,
     Success(Option<String>),
     InProgress(String),

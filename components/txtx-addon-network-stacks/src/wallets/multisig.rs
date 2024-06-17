@@ -36,8 +36,9 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, CHECKED_PUBLIC_KEY, NETWORK_ID,
-    PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS,
+    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
 
@@ -396,18 +397,36 @@ impl WalletImplementation for StacksConnect {
         // let (tx_cursor_key, mut cursor) = get_current_tx_cursor_key(origin_uuid, &wallet_state);
         let mut consolidated_actions = Actions::none();
 
-        let mut i = 1;
+        // Set up modal
+        {
+            let modal = BlockEvent::new_modal("Stacks Multisig Signing Assistant", "", vec![]);
+            let open_modal_action = vec![ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(origin_uuid.value()),
+                "Sign Multisig Transaction",
+                Some("All parties of the multisig must sign the transaction.".into()),
+                ActionItemStatus::Todo,
+                ActionItemRequestType::OpenModal(OpenModalData {
+                    modal_uuid: modal.uuid.clone(),
+                    title: "OPEN ASSISTANT".into(),
+                }),
+                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+            )];
+            consolidated_actions.push_sub_group(open_modal_action);
+            consolidated_actions.push_modal(modal);
+        }
 
+        let mut i = 1;
+        let mut payload = args
+            .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_SIGNATURE)
+            .ok()
+            .and_then(|buff| Some(Value::buffer(buff.bytes, buff.typing)))
+            .unwrap_or(payload.clone());
+        let mut all_signed = true;
         for (signer_uuid, signer_wallet_instance) in signers.into_iter() {
             println!("starting loop {}", i.to_string());
             i = i + 1;
             let signer_wallet_state = wallets.pop_wallet_state(&signer_uuid).unwrap();
-
-            let payload = args
-                .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_SIGNATURE)
-                .ok()
-                .and_then(|buff| Some(Value::buffer(buff.bytes, buff.typing)))
-                .unwrap_or(payload.clone());
 
             let (mut updated_wallets, signer_wallet_state, mut actions) =
                 (signer_wallet_instance.specification.check_signability)(
@@ -425,25 +444,38 @@ impl WalletImplementation for StacksConnect {
                 )?;
             updated_wallets.push_wallet_state(signer_wallet_state.clone());
             if actions.has_pending_actions() {
-                consolidated_actions.append(&mut actions);
-                return Ok((updated_wallets, wallet_state, consolidated_actions));
+                payload = Value::null();
+                all_signed = false;
             }
             consolidated_actions.append(&mut actions);
             wallets = updated_wallets;
         }
-        println!("finished loop");
-        let signed_buff = args
-            .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_TRANSACTION)
-            .unwrap();
-        let transaction =
-            StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();
-        transaction.verify().unwrap();
 
-        wallet_state.insert_scoped_value(
-            &origin_uuid.value().to_string(),
-            SIGNED_TRANSACTION_BYTES,
-            Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
-        );
+        if all_signed {
+            let signed_buff = args
+                .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_TRANSACTION)
+                .unwrap();
+            let transaction =
+                StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();
+            transaction.verify().unwrap();
+
+            wallet_state.insert_scoped_value(
+                &origin_uuid.value().to_string(),
+                SIGNED_TRANSACTION_BYTES,
+                Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
+            );
+        } else {
+            let validate_modal_action = ActionItemRequest::new(
+                &Uuid::new_v4(),
+                &Some(origin_uuid.value()),
+                "CONFIRM",
+                None,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ValidateModal,
+                "modal",
+            );
+            consolidated_actions.push_group("", vec![validate_modal_action]);
+        }
 
         Ok((wallets, wallet_state, consolidated_actions))
     }
