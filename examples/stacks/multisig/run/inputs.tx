@@ -1,0 +1,19 @@
+input "namespace" {
+  description = "TLD / Namespace"
+  default = "btc"
+}
+
+input "name" {
+  description = "Domain name to order"
+  default = "micaiah"
+}
+
+input "salt" {
+  description = "Random salt to use for preventing front-running"
+  default = "00000000000000"
+}
+
+input "zonefile" {
+  description = "Zonefile to attach to the new domain"
+  default = "0000000000"
+}
