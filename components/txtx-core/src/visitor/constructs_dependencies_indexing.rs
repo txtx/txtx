@@ -136,6 +136,9 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
+        // this is the most idiomatic way I could find to get unique values from a hash set
+        let mut seen_wallets = HashSet::new();
+        wallets.retain(|w| seen_wallets.insert(w.clone()));
         runbook.instantiated_wallet_instances = wallets;
     }
 
