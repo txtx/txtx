@@ -45,7 +45,7 @@ action "send_name_preorder" "stacks::send_contract_call" {
   confirmations = 1
 }
 
-action "send_name_regiser" "stacks::send_contract_call" {
+action "send_name_register" "stacks::send_contract_call" {
   description = "Register name"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "name-register"
