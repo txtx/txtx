@@ -4,7 +4,7 @@ use query::Query;
 use std::{collections::BTreeMap, sync::Arc};
 use subscription::Subscription;
 use tokio::sync::RwLock;
-use txtx_core::kit::{
+use txtx_addon_kit::{
     channel::Sender,
     types::frontend::{ActionItemResponse, Block, BlockEvent},
 };

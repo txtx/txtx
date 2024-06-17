@@ -1,0 +1,103 @@
+action "default" "stacks::set_default_network" {
+  network_id = "testnet"
+  rpc_api_url = "https://api.testnet.hiro.so"
+}
+
+wallet "alice" "stacks::connect" {
+  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+input "token_a" {
+  description = "Address of Token A"
+  default = "ST3D8PX7ABNZ1DPP9MRRCYQKVTAC16WXJ7VCN3Z97.roo"
+}
+
+input "token_b" {
+  description = "Address of Token B"
+  default = "ST3D8PX7ABNZ1DPP9MRRCYQKVTAC16WXJ7VCN3Z97.nyc"
+}
+
+input "fees" {
+  description = "Fee"
+  default = "ST3D8PX7ABNZ1DPP9MRRCYQKVTAC16WXJ7VCN3Z97.ft-fees-v6"
+}
+
+action "add_ft_contract" "stacks::send_contract_call" {
+  description = "Register new pair"
+  contract_id = "ST3D8PX7ABNZ1DPP9MRRCYQKVTAC16WXJ7VCN3Z97.ft-ft-match-v6"
+  function_name = "add-ft-contract"
+  function_args = [
+      stacks::cv_principal(input.token_a),
+      stacks::cv_principal(input.token_b), 
+      stacks::cv_principal(input.fees), 
+  ]
+  signer = wallet.alice
+  confirmations = 1
+}
+
+output "token_a" {
+  value = add_ft_contract.tx_id
+}
+
+
+
+
+// input "namespace" {
+//   description = "TLD / Namespace"
+//   default = "btc"
+// }
+
+// input "name" {
+//   description = "Domain name to order"
+//   default = "ludovic"
+// }
+
+// input "salt" {
+//   description = "Random salt to use for preventing front-running"
+//   default = "00000000000000"
+// }
+
+// input "zonefile" {
+//   description = "Zonefile to attach to the new domain"
+//   default = "0000000000"
+// }
+
+// action "get_name_price" "stacks::call_readonly_fn" {
+//   description = "Preorder name"
+//   contract_id = "ST000000000000000000002AMW42H.bns"
+//   function_name = "get-name-price"
+//   function_args = [
+//       stacks::cv_buff(encode_hex(input.namespace)),
+//       stacks::cv_buff(encode_hex(input.name))
+//   ]
+//   sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+// }
+
+// action "send_name_preorder" "stacks::send_contract_call" {
+//   description = "Send Preorder ${input.name}.${input.namespace} transaction"
+//   contract_id = "ST000000000000000000002AMW42H.bns"
+//   function_name = "name-preorder"
+//   function_args = [
+//       stacks::cv_buff(
+//         ripemd160(sha256(
+//           [
+//             encode_hex("${input.name}.${input.namespace}"),
+//             encode_hex(input.salt)
+//           ]
+//         ))
+//       ),
+//       stacks::cv_uint(action.get_name_price.value), 
+//   ]
+//   signer = wallet.alice_and_bob
+//   confirmations = 1
+// }
+
+// output "encoded_salt" {
+//   value = stacks::cv_buff(encode_hex(input.salt))
+// }
+
+// output "recovery" {
+//   value = secp256k1_recover("0x6a2ce4b8aab1ef79aa1aa617cf6b72d7146857b83055e203b67c5177faef212c", "0x0165a85a1e64d7157d678d177bc8a9e6bfb8d750458d52a31c34abe1e56475b5eb62f183a5e6ddbced38fca93a8ff1c73b4ce66231e39392572af916b5303fbe12")
+// }
+
+// Introspecting bob: Multisig(MultisigSpendingCondition { hash_mode: P2SH, signer: 8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f, nonce: 0, tx_fee: 3944, fields: [PublicKey(Secp256k1PublicKey { key: PublicKey(33bf08e724ac8346ae38ba04bc640344001cc4cb0d97ed33e67ba271cbeab5c46819adab1d1b222ef5b49ff62f401b5e34f7402e1096e721e09e5e5cadb99148), compressed: true }), Signature(Compressed, 005b36397030ad4c50960c5b5bbe5bc346c6b13d31cf5153c8319d0816c45a172930af3b281e16bce753adc5da88633758f4f0d06c94735ae44517a27ff0591def), Signature(Compressed, 0178b7b0172312fb61db98c46b7fc69401ff00f27510a3c50fd00d7f64d667135563f3791a57cc84bcd2da7ea1674b22df409c086e14b7339f3f6edd522438ec4f)], signatures_required: 2 })

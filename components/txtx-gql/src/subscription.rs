@@ -9,7 +9,7 @@ use crate::{
 };
 use futures::Stream;
 use juniper::{graphql_subscription, FieldError};
-use txtx_core::kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::frontend::BlockEvent;
 
 pub struct Subscription;
 

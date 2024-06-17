@@ -6,7 +6,7 @@ use crate::{
     Context,
 };
 use juniper_codegen::graphql_object;
-use txtx_core::kit::types::frontend::Panel;
+use txtx_addon_kit::types::frontend::Panel;
 
 pub struct Query;
 

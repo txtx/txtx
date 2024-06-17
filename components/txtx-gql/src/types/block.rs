@@ -1,6 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_core::kit::types::frontend::{
+use txtx_addon_kit::types::frontend::{
     ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
     ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
     NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
