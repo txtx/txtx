@@ -665,7 +665,7 @@ pub async fn run_constructs_evaluation(
         match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
-                CommandInputEvaluationStatus::NeedsUserInteraction => {}
+                CommandInputEvaluationStatus::NeedsUserInteraction => continue,
                 CommandInputEvaluationStatus::Aborted(mut diags) => {
                     pass_result.diagnostics.append(&mut diags);
                     return pass_result;

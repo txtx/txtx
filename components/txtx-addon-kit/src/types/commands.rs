@@ -713,11 +713,11 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        if self.specification.matcher != "output" {
+        if spec.matcher != "output" {
             let mut actions = (spec.check_executability)(
                 &construct_uuid,
                 &self.name,
-                &self.specification,
+                &spec,
                 &values,
                 &addon_defaults,
                 &execution_context,
