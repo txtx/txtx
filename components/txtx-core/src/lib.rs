@@ -517,7 +517,7 @@ pub async fn start_interactive_runbook_runloop(
                     let mut updated_actions = vec![];
                     for action in pass_results
                         .actions
-                        .compile_actions_to_item_updates()
+                        .compile_actions_to_item_updates(&action_item_requests)
                         .into_iter()
                     {
                         if let Some(update) = action.normalize(&action_item_requests) {
@@ -580,7 +580,7 @@ pub async fn start_interactive_runbook_runloop(
                 } else {
                     let updated_actions = pass_result
                         .actions
-                        .compile_actions_to_item_updates()
+                        .compile_actions_to_item_updates(&action_item_requests)
                         .into_iter()
                         .map(|u| u.normalize(&action_item_requests).unwrap())
                         .collect();
@@ -616,7 +616,7 @@ pub async fn start_interactive_runbook_runloop(
                 let mut updated_actions = vec![];
                 for action in pass_results
                     .actions
-                    .compile_actions_to_item_updates()
+                    .compile_actions_to_item_updates(&action_item_requests)
                     .into_iter()
                 {
                     updated_actions.push(action.normalize(&action_item_requests).unwrap())

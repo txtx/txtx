@@ -160,8 +160,6 @@ pub struct NormalizedActionItemRequestUpdate {
 #[derive(Debug, Clone, Serialize)]
 pub struct ActionItemRequestUpdate {
     pub id: ActionItemRequestUpdateIdentifier,
-    pub title: Option<String>,
-    pub description: Option<Option<String>>,
     pub action_status: Option<ActionItemStatus>,
     pub action_type: Option<ActionItemRequestType>,
 }
@@ -186,11 +184,29 @@ impl ActionItemRequestUpdate {
                 construct_uuid.value(),
                 internal_key.to_string(),
             )),
-            title: None,
-            description: None,
             action_status: None,
             action_type: None,
         }
+    }
+    pub fn from_diff(
+        new_item: &ActionItemRequest,
+        existing_item: &ActionItemRequest,
+    ) -> Option<Self> {
+        let id_match = new_item.id == existing_item.id;
+        let status_match = new_item.action_status == existing_item.action_status;
+        let type_match = new_item.action_type == existing_item.action_type;
+        if !id_match || (status_match && type_match) {
+            return None;
+        }
+        let mut update = ActionItemRequestUpdate::from_id(&new_item.id);
+        if !status_match {
+            update.set_status(new_item.action_status.clone());
+        }
+        if !type_match {
+            update.set_type(new_item.action_type.clone());
+        }
+        println!("=> update from diff: {:?}", update);
+        Some(update)
     }
 
     pub fn set_status(&mut self, new_status: ActionItemStatus) -> Self {
@@ -200,11 +216,6 @@ impl ActionItemRequestUpdate {
 
     pub fn set_type(&mut self, new_type: ActionItemRequestType) -> Self {
         self.action_type = Some(new_type);
-        self.clone()
-    }
-
-    pub fn set_description(&mut self, new_description: Option<String>) -> Self {
-        self.description = Some(new_description);
         self.clone()
     }
 
@@ -366,6 +377,20 @@ pub struct ActionPanelData {
     pub groups: Vec<ActionGroup>,
 }
 
+impl ActionPanelData {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for group in self.groups.iter() {
+            let mut group_updates = group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut group_updates);
+        }
+        updates
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConstructProgressBarStatuses {
@@ -458,6 +483,20 @@ pub struct ModalPanelData {
     pub groups: Vec<ActionGroup>,
 }
 
+impl ModalPanelData {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for group in self.groups.iter() {
+            let mut group_updates = group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut group_updates);
+        }
+        updates
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorPanelData {
@@ -543,6 +582,19 @@ impl ActionGroup {
         }
         did_update
     }
+
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for sub_group in self.sub_groups.iter() {
+            let mut sub_group_updates =
+                sub_group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut sub_group_updates);
+        }
+        updates
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -567,6 +619,21 @@ impl ActionSubGroup {
             }
         }
         false
+    }
+
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for new_item in self.action_items.iter() {
+            if let Some(existing_item) = action_item_requests.get(&new_item.id) {
+                if let Some(update) = ActionItemRequestUpdate::from_diff(new_item, existing_item) {
+                    updates.push(update);
+                };
+            };
+        }
+        updates
     }
 }
 
@@ -1019,15 +1086,51 @@ impl Actions {
         blocks
     }
 
-    pub fn compile_actions_to_item_updates(&self) -> Vec<ActionItemRequestUpdate> {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
         let mut updates = vec![];
 
         for item in self.store.iter() {
             match item {
-                ActionType::AppendSubGroup(_) => {}
-                ActionType::AppendGroup(_) => {}
-                ActionType::AppendItem(_, _, _) => {}
-                ActionType::NewBlock(_) | ActionType::NewModal(_) => {}
+                ActionType::AppendSubGroup(sub_group) => {
+                    let mut sub_group_updates =
+                        sub_group.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut sub_group_updates);
+                }
+                ActionType::AppendGroup(group) => {
+                    let mut group_updates =
+                        group.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut group_updates);
+                }
+                ActionType::AppendItem(new_item, _, _) => {
+                    if let Some(existing_item) = action_item_requests.get(&new_item.id) {
+                        if let Some(update) =
+                            ActionItemRequestUpdate::from_diff(new_item, existing_item)
+                        {
+                            updates.push(update);
+                        };
+                    };
+                }
+                ActionType::NewBlock(action_panel_data) => {
+                    let mut block_updates =
+                        action_panel_data.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut block_updates);
+                }
+                ActionType::NewModal(modal) => match &modal.panel {
+                    Panel::ActionPanel(action_panel_data) => {
+                        let mut block_updates = action_panel_data
+                            .compile_actions_to_item_updates(&action_item_requests);
+                        updates.append(&mut block_updates);
+                    }
+                    Panel::ModalPanel(modal_panel_data) => {
+                        let mut block_updates =
+                            modal_panel_data.compile_actions_to_item_updates(&action_item_requests);
+                        updates.append(&mut block_updates);
+                    }
+                    _ => {}
+                },
                 ActionType::UpdateActionItemRequest(update) => updates.push(update.clone()),
             }
         }
@@ -1036,7 +1139,7 @@ impl Actions {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {
     ReviewInput(ReviewInputRequest),
