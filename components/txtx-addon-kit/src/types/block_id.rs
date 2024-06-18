@@ -4,10 +4,6 @@ lazy_static! {
     static ref SEED: [u64; 4] = [rng().gen(), rng().gen(), rng().gen(), rng().gen()];
 }
 
-pub trait Identifiable {
-    fn id(&mut self) -> BlockId;
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BlockId(String);
 
