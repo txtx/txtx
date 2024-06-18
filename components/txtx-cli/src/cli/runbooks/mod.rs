@@ -158,7 +158,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     let _ = tokio::spawn(async move {
         loop {
-            if let Ok(block_event) = block_rx.recv() {
+            if let Ok(mut block_event) = block_rx.recv() {
                 let mut block_store = block_store.write().await;
                 let mut do_propagate_event = true;
                 match block_event.clone() {
@@ -172,14 +172,17 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     BlockEvent::UpdateActionItems(updates) => {
                         // for action item updates, track if we actually changed anything before propagating the event
                         do_propagate_event = false;
+                        let mut filtered_updates = vec![];
                         for update in updates.iter() {
                             for (_, block) in block_store.iter_mut() {
                                 let did_update = block.update_action_item(update.clone());
                                 if did_update {
                                     do_propagate_event = true;
+                                    filtered_updates.push(update.clone());
                                 }
                             }
                         }
+                        block_event = BlockEvent::UpdateActionItems(filtered_updates);
                     }
                     BlockEvent::Modal(new_block) => {
                         let len = block_store.len();

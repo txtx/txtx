@@ -103,35 +103,17 @@ impl Block {
         match self.panel.borrow_mut() {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter_mut() {
-                    for sub_group in group.sub_groups.iter_mut() {
-                        for action in sub_group.action_items.iter_mut() {
-                            if action.id() == update.id {
-                                if let Some(title) = update.title.clone() {
-                                    if action.title != title {
-                                        action.title = title;
-                                        did_update = true;
-                                    }
-                                }
-                                if let Some(some_description) = update.description.clone() {
-                                    if action.description != some_description {
-                                        action.description = some_description;
-                                        did_update = true;
-                                    }
-                                }
-                                if let Some(action_status) = update.action_status.clone() {
-                                    if action.action_status != action_status {
-                                        action.action_status = action_status;
-                                        did_update = true;
-                                    }
-                                }
-                                if let Some(action_type) = update.action_type.clone() {
-                                    if action.action_type != action_type {
-                                        action.action_type = action_type;
-                                        did_update = true;
-                                    }
-                                }
-                            }
-                        }
+                    let group_did_update = group.update_action_item(&update);
+                    if group_did_update {
+                        did_update = true;
+                    }
+                }
+            }
+            Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter_mut() {
+                    let group_did_update = group.update_action_item(&update);
+                    if group_did_update {
+                        did_update = true;
                     }
                 }
             }
@@ -537,6 +519,30 @@ impl ActionGroup {
         }
         false
     }
+
+    pub fn update_action_item(&mut self, update: &NormalizedActionItemRequestUpdate) -> bool {
+        let mut did_update = false;
+        for sub_group in self.sub_groups.iter_mut() {
+            for action in sub_group.action_items.iter_mut() {
+                if action.id == update.id {
+                    if let Some(action_status) = update.action_status.clone() {
+                        if action.action_status != action_status {
+                            action.action_status = action_status;
+                            did_update = true;
+                        } else {
+                        }
+                    }
+                    if let Some(action_type) = update.action_type.clone() {
+                        if action.action_type != action_type {
+                            action.action_type = action_type;
+                            did_update = true;
+                        }
+                    }
+                }
+            }
+        }
+        did_update
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -634,7 +640,7 @@ pub struct UpdateConstructData {
     pub internal_key: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenModalData {
     pub modal_uuid: Uuid,
@@ -1055,14 +1061,14 @@ impl ActionItemRequestType {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideInputRequest {
     pub default_value: Option<Value>,
@@ -1070,7 +1076,7 @@ pub struct ProvideInputRequest {
     pub typing: Type,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayOutputRequest {
     pub name: String,
@@ -1078,26 +1084,35 @@ pub struct DisplayOutputRequest {
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayErrorLogRequest {
     pub diagnostic: Diagnostic,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PickInputOptionRequest {
     pub options: Vec<InputOption>,
     pub selected: InputOption,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct InputOption {
     pub value: String,
     pub displayed_value: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl InputOption {
+    pub fn default() -> Self {
+        InputOption {
+            value: String::new(),
+            displayed_value: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
@@ -1106,7 +1121,7 @@ pub struct ProvidePublicKeyRequest {
     pub network_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
@@ -1116,7 +1131,7 @@ pub struct ProvideSignedTransactionRequest {
     pub network_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedMessageRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
