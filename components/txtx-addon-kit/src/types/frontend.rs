@@ -515,7 +515,7 @@ impl ErrorPanelData {
     pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
         let mut diag_actions = vec![];
         for (i, diag) in diagnostics.iter().enumerate() {
-            diag_actions.push(ActionItemRequest::new(
+            let mut action = ActionItemRequest::new(
                 &None,
                 "",
                 None,
@@ -524,7 +524,9 @@ impl ErrorPanelData {
                     diagnostic: diag.clone(),
                 }),
                 "diagnostic",
-            ));
+            );
+            action.index = (i + 1) as u16;
+            diag_actions.push(action);
         }
         ErrorPanelData {
             title: "EXECUTION ERROR".into(),
@@ -790,6 +792,14 @@ impl Actions {
     }
     pub fn push_action_item_update(&mut self, update: ActionItemRequestUpdate) {
         self.store.push(ActionType::UpdateActionItemRequest(update))
+    }
+
+    pub fn push_panel(&mut self, title: &str, description: &str) {
+        self.store.push(ActionType::NewBlock(ActionPanelData {
+            title: title.to_string(),
+            description: description.to_string(), //todo, make optional
+            groups: vec![],
+        }))
     }
 
     pub fn new_panel(title: &str, description: &str) -> Actions {
@@ -1318,7 +1328,7 @@ impl ActionItemRequestType {
                     None
                 }
             }
-            ActionItemRequestType::PickInputOption(new) => {
+            ActionItemRequestType::PickInputOption(_) => {
                 let Some(_) = existing_item.as_pick_input() else {
                     unreachable!("cannot change action item request type")
                 };
