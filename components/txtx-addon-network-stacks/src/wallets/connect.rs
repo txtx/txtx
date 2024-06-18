@@ -296,7 +296,7 @@ impl WalletImplementation for StacksConnect {
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
-                Some("Transactions Signing"),
+                Some("Transaction Signing"),
             ),
         ))
     }
