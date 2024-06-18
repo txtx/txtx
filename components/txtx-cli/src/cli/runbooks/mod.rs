@@ -175,7 +175,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                         let mut filtered_updates = vec![];
                         for update in updates.iter() {
                             for (_, block) in block_store.iter_mut() {
-                                let did_update = block.update_action_item(update.clone());
+                                let did_update = block.apply_action_item_updates(update.clone());
                                 if did_update {
                                     do_propagate_event = true;
                                     filtered_updates.push(update.clone());

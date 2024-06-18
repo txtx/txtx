@@ -98,12 +98,12 @@ impl Block {
         }
     }
 
-    pub fn update_action_item(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
+    pub fn apply_action_item_updates(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
         let mut did_update = false;
         match self.panel.borrow_mut() {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter_mut() {
-                    let group_did_update = group.update_action_item(&update);
+                    let group_did_update = group.apply_action_item_updates(&update);
                     if group_did_update {
                         did_update = true;
                     }
@@ -111,7 +111,7 @@ impl Block {
             }
             Panel::ModalPanel(panel) => {
                 for group in panel.groups.iter_mut() {
-                    let group_did_update = group.update_action_item(&update);
+                    let group_did_update = group.apply_action_item_updates(&update);
                     if group_did_update {
                         did_update = true;
                     }
@@ -559,7 +559,10 @@ impl ActionGroup {
         false
     }
 
-    pub fn update_action_item(&mut self, update: &NormalizedActionItemRequestUpdate) -> bool {
+    pub fn apply_action_item_updates(
+        &mut self,
+        update: &NormalizedActionItemRequestUpdate,
+    ) -> bool {
         let mut did_update = false;
         for sub_group in self.sub_groups.iter_mut() {
             for action in sub_group.action_items.iter_mut() {
@@ -568,7 +571,6 @@ impl ActionGroup {
                         if action.action_status != action_status {
                             action.action_status = action_status;
                             did_update = true;
-                        } else {
                         }
                     }
                     if let Some(action_type) = update.action_type.clone() {
