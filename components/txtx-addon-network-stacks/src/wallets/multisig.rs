@@ -36,9 +36,8 @@ use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS,
-    RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
+    CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
 
@@ -398,7 +397,7 @@ impl WalletImplementation for StacksConnect {
         // Set up modal
         {
             let modal = BlockEvent::new_modal("Stacks Multisig Signing Assistant", "", vec![]);
-            let open_modal_action = vec![ActionItemRequest::new(
+            let action = ActionItemRequest::new(
                 &Some(origin_uuid.value()),
                 "Sign Multisig Transaction",
                 Some("All parties of the multisig must sign the transaction.".into()),
@@ -407,13 +406,13 @@ impl WalletImplementation for StacksConnect {
                     modal_uuid: modal.uuid.clone(),
                     title: "OPEN ASSISTANT".into(),
                 }),
-                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-            )];
+                ACTION_OPEN_MODAL,
+            );
+            let open_modal_action = vec![action];
             consolidated_actions.push_sub_group(open_modal_action);
             consolidated_actions.push_modal(modal);
         }
 
-        let mut i = 1;
         let mut payload = args
             .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_SIGNATURE)
             .ok()
@@ -421,8 +420,6 @@ impl WalletImplementation for StacksConnect {
             .unwrap_or(payload.clone());
         let mut all_signed = true;
         for (signer_uuid, signer_wallet_instance) in signers.into_iter() {
-            println!("starting loop {}", i.to_string());
-            i = i + 1;
             let signer_wallet_state = wallets.pop_wallet_state(&signer_uuid).unwrap();
 
             let (mut updated_wallets, signer_wallet_state, mut actions) =
@@ -460,6 +457,12 @@ impl WalletImplementation for StacksConnect {
                 &origin_uuid.value().to_string(),
                 SIGNED_TRANSACTION_BYTES,
                 Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
+            );
+            // update "open modal assistant" button status
+            consolidated_actions.push_action_item_update(
+                ActionItemRequestUpdate::from_context(&origin_uuid, ACTION_OPEN_MODAL).set_status(
+                    ActionItemStatus::Success(Some(format!("All signers participated"))),
+                ),
             );
         } else {
             let validate_modal_action = ActionItemRequest::new(
