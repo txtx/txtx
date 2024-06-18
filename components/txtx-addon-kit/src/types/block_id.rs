@@ -35,13 +35,14 @@ mod tests {
     use crate::types::block_id::BlockId;
 
     #[test]
-    fn test_id() {
-        let data = "test";
-        let block_id = BlockId::new(data.as_bytes());
-        println!("block_id: {:?}", block_id);
-        let block_id = BlockId::new(data.as_bytes());
-        println!("block_id: {:?}", block_id);
-        let block_id = BlockId::new("tesT".as_bytes());
-        println!("block_id: {:?}", block_id);
+    fn it_yields_consistent_ids() {
+        assert_eq!(
+            BlockId::new("test".as_bytes()),
+            BlockId::new("test".as_bytes())
+        );
+        assert_ne!(
+            BlockId::new("test".as_bytes()),
+            BlockId::new("tEsT".as_bytes())
+        );
     }
 }
