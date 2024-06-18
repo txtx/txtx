@@ -148,7 +148,6 @@ impl WalletImplementation for StacksMnemonic {
 
         if execution_context.review_input_values {
             actions.push_sub_group(vec![ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &None,
                 &format!("Check {} expected address", instance_name),
                 None,

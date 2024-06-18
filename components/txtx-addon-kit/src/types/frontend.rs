@@ -1,6 +1,7 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
 use super::{
+    block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
     ConstructUuid,
@@ -97,48 +98,6 @@ impl Block {
         }
     }
 
-    pub fn find_action(&self, uuid: Uuid) -> Option<ActionItemRequest> {
-        match &self.panel {
-            Panel::ActionPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ModalPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ErrorPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ProgressBar(_) => None,
-        }
-    }
-
     pub fn update_action_item(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
         let mut did_update = false;
         match self.panel.borrow_mut() {
@@ -211,9 +170,7 @@ impl Block {
 /// Note: though the `action_status` field is optional, it is required for many functions. I kep it like this
 /// because I like the `.set_status` pattern :-)
 pub struct NormalizedActionItemRequestUpdate {
-    pub uuid: Uuid,
-    pub title: Option<String>,
-    pub description: Option<Option<String>>,
+    pub id: BlockId,
     pub action_status: Option<ActionItemStatus>,
     pub action_type: Option<ActionItemRequestType>,
 }
@@ -229,16 +186,14 @@ pub struct ActionItemRequestUpdate {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ActionItemRequestUpdateIdentifier {
-    Uuid(Uuid),
+    Id(BlockId),
     ConstructUuidWithKey((Uuid, String)),
 }
 
 impl ActionItemRequestUpdate {
-    pub fn from_uuid(uuid: &Uuid) -> Self {
+    pub fn from_id(id: &BlockId) -> Self {
         ActionItemRequestUpdate {
-            id: ActionItemRequestUpdateIdentifier::Uuid(uuid.clone()),
-            title: None,
-            description: None,
+            id: ActionItemRequestUpdateIdentifier::Id(id.clone()),
             action_status: None,
             action_type: None,
         }
@@ -273,16 +228,14 @@ impl ActionItemRequestUpdate {
 
     pub fn normalize(
         &self,
-        action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
     ) -> Option<NormalizedActionItemRequestUpdate> {
         for (_, action) in action_item_requests.iter() {
             match &self.id {
-                ActionItemRequestUpdateIdentifier::Uuid(uuid) => {
-                    if action.uuid.eq(uuid) {
+                ActionItemRequestUpdateIdentifier::Id(id) => {
+                    if action.id.eq(id) {
                         return Some(NormalizedActionItemRequestUpdate {
-                            uuid: uuid.clone(),
-                            title: self.title.clone(),
-                            description: self.description.clone(),
+                            id: id.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
                         });
@@ -299,9 +252,7 @@ impl ActionItemRequestUpdate {
                         && action.internal_key.eq(internal_key)
                     {
                         return Some(NormalizedActionItemRequestUpdate {
-                            uuid: action.uuid,
-                            title: self.title.clone(),
-                            description: self.description.clone(),
+                            id: action.id.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
                         });
@@ -324,7 +275,6 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "      items: {} {{", item.uuid)?;
                             writeln!(f, "          title: {:?}", item.title)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
@@ -344,7 +294,6 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "      items: {} {{", item.uuid)?;
                             writeln!(f, "          title: {:?}", item.title)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
@@ -539,18 +488,16 @@ impl ErrorPanelData {
     pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
         let mut diag_actions = vec![];
         for (i, diag) in diagnostics.iter().enumerate() {
-            diag_actions.push(ActionItemRequest {
-                uuid: Uuid::new_v4(),
-                construct_uuid: None,
-                index: i as u16,
-                title: "".into(),
-                description: None,
-                action_status: ActionItemStatus::Error(diag.clone()),
-                action_type: ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+            diag_actions.push(ActionItemRequest::new(
+                &None,
+                "",
+                None,
+                ActionItemStatus::Error(diag.clone()),
+                ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
                     diagnostic: diag.clone(),
                 }),
-                internal_key: "diagnostic".to_string(),
-            });
+                "diagnostic",
+            ));
         }
         ErrorPanelData {
             title: "EXECUTION ERROR".into(),
@@ -620,7 +567,7 @@ impl ActionSubGroup {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemRequest {
-    pub uuid: Uuid,
+    pub id: BlockId,
     pub construct_uuid: Option<Uuid>,
     pub index: u16,
     pub title: String,
@@ -632,7 +579,6 @@ pub struct ActionItemRequest {
 
 impl ActionItemRequest {
     pub fn new(
-        uuid: &Uuid,
         construct_uuid: &Option<Uuid>,
         title: &str,
         description: Option<String>,
@@ -640,8 +586,18 @@ impl ActionItemRequest {
         action_type: ActionItemRequestType,
         internal_key: &str,
     ) -> Self {
+        let data = format!(
+            "{}{}{}{}",
+            title,
+            description.clone().unwrap_or("".into()),
+            internal_key,
+            construct_uuid
+                .and_then(|u| Some(u.to_string()))
+                .unwrap_or("".into())
+        );
+        let id = BlockId::new(data.as_bytes());
         ActionItemRequest {
-            uuid: uuid.clone(),
+            id,
             construct_uuid: construct_uuid.clone(),
             index: 0,
             title: title.to_string(),
@@ -840,7 +796,7 @@ impl Actions {
 
     pub fn compile_actions_to_block_events(
         &mut self,
-        action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
     ) -> Vec<BlockEvent> {
         let mut blocks = vec![];
         let mut current_panel_data = ActionPanelData {
@@ -1173,7 +1129,7 @@ pub struct ProvideSignedMessageRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemResponse {
-    pub action_item_uuid: Uuid,
+    pub action_item_id: BlockId,
     #[serde(flatten)]
     pub payload: ActionItemResponseType,
 }

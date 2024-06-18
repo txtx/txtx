@@ -268,7 +268,7 @@ pub async fn run_wallets_evaluation(
                 if let Some(requests) = action_item_requests.get_mut(&construct_uuid.value()) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
-                        let update = ActionItemRequestUpdate::from_uuid(&item.uuid)
+                        let update = ActionItemRequestUpdate::from_id(&item.id)
                             .set_status(ActionItemStatus::Error(diag.clone()));
                         pass_result.actions.push_action_item_update(update);
                     }
@@ -920,20 +920,18 @@ pub fn collect_runbook_outputs(
             action_items
                 .entry(command_instance.get_group())
                 .or_insert_with(Vec::new)
-                .push(ActionItemRequest {
-                    uuid: Uuid::new_v4(),
-                    construct_uuid: Some(construct_uuid.value()),
-                    index: 0,
-                    title: command_instance.name.to_string(),
-                    description: None,
-                    action_status: ActionItemStatus::Todo,
-                    action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                .push(ActionItemRequest::new(
+                    &Some(construct_uuid.value()),
+                    &command_instance.name,
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                         name: command_instance.name.to_string(),
                         description: None,
                         value: value.clone(),
                     }),
-                    internal_key: "output".into(),
-                });
+                    "output".into(),
+                ));
         }
     }
 
@@ -1241,7 +1239,7 @@ pub fn update_wallet_instances_from_action_response(
     match action_item_response {
         Some(responses) => responses.into_iter().for_each(
             |ActionItemResponse {
-                 action_item_uuid: _,
+                 action_item_id: _,
                  payload,
              }| match payload {
                 ActionItemResponseType::ProvideSignedTransaction(response) => {
@@ -1303,7 +1301,7 @@ pub fn perform_inputs_evaluation(
     match action_item_response {
         Some(responses) => responses.into_iter().for_each(
             |ActionItemResponse {
-                 action_item_uuid: _,
+                 action_item_id: _,
                  payload,
              }| match payload {
                 ActionItemResponseType::ReviewInput(_update) => {}

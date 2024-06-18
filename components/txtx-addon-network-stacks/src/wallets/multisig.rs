@@ -141,7 +141,6 @@ impl WalletImplementation for StacksConnect {
             let modal =
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
             let mut open_modal_action = vec![ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &Some(root_uuid.value()),
                 "Compute multisig address",
                 Some("Multisig addresses are computed by hashing the public keys of all participants.".into()),
@@ -290,7 +289,6 @@ impl WalletImplementation for StacksConnect {
                 }
             } else {
                 let validate_modal_action = ActionItemRequest::new(
-                    &Uuid::new_v4(),
                     &Some(root_uuid.value()),
                     "CONFIRM",
                     None,
@@ -401,7 +399,6 @@ impl WalletImplementation for StacksConnect {
         {
             let modal = BlockEvent::new_modal("Stacks Multisig Signing Assistant", "", vec![]);
             let open_modal_action = vec![ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &Some(origin_uuid.value()),
                 "Sign Multisig Transaction",
                 Some("All parties of the multisig must sign the transaction.".into()),
@@ -466,7 +463,6 @@ impl WalletImplementation for StacksConnect {
             );
         } else {
             let validate_modal_action = ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &Some(origin_uuid.value()),
                 "CONFIRM",
                 None,

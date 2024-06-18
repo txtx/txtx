@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::AddonDefaults;
 
+pub mod block_id;
 pub mod commands;
 pub mod diagnostics;
 pub mod frontend;

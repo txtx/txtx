@@ -641,7 +641,7 @@ impl CommandInstance {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(
                 |ActionItemResponse {
-                     action_item_uuid,
+                     action_item_id,
                      payload,
                  }| match payload {
                     ActionItemResponseType::ReviewInput(ReviewedInputResponse {
@@ -663,16 +663,13 @@ impl CommandInstance {
                             .inputs
                             .insert(&input_name, updated_value.clone());
 
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_type(ActionItemRequestType::ProvideInput(
-                                    ProvideInputRequest {
-                                        default_value: Some(updated_value.clone()),
-                                        input_name: input_name.clone(),
-                                        typing: updated_value.get_type(),
-                                    },
-                                ))
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                                default_value: Some(updated_value.clone()),
+                                input_name: input_name.clone(),
+                                typing: updated_value.get_type(),
+                            }))
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
 
                         for input in self.specification.inputs.iter_mut() {
@@ -804,7 +801,7 @@ impl CommandInstance {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(
                 |ActionItemResponse {
-                     action_item_uuid,
+                     action_item_id,
                      payload,
                  }| match payload {
                     ActionItemResponseType::ReviewInput(update) => {
@@ -817,28 +814,23 @@ impl CommandInstance {
                         }
                     }
                     ActionItemResponseType::ProvideInput(update) => {
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_type(ActionItemRequestType::ProvideInput(
-                                    ProvideInputRequest {
-                                        default_value: Some(update.updated_value.clone()),
-                                        input_name: update.input_name.clone(),
-                                        typing: update.updated_value.get_type(),
-                                    },
-                                ))
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                                default_value: Some(update.updated_value.clone()),
+                                input_name: update.input_name.clone(),
+                                typing: update.updated_value.get_type(),
+                            }))
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
                     ActionItemResponseType::ProvideSignedTransaction(_) => {
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
                     ActionItemResponseType::ProvideSignedMessage(_response) => {
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
                     _ => {}

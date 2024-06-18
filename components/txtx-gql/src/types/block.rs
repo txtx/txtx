@@ -19,14 +19,8 @@ impl GqlActionItemRequestUpdate {
 
 #[graphql_object(context = Context)]
 impl GqlActionItemRequestUpdate {
-    pub fn uuid(&self) -> String {
-        self.update.uuid.to_string()
-    }
-    pub fn title(&self) -> Option<String> {
-        self.update.title.clone()
-    }
-    pub fn description(&self) -> Option<String> {
-        self.update.description.clone().unwrap_or(None)
+    pub fn id(&self) -> String {
+        self.update.id.to_string()
     }
     pub fn action_status(&self) -> Result<Option<String>, String> {
         match &self.update.action_status {
@@ -430,8 +424,8 @@ impl GqlActionItemRequest {
 }
 #[graphql_object(context = Context)]
 impl GqlActionItemRequest {
-    pub fn uuid(&self) -> String {
-        self.action_item.uuid.to_string()
+    pub fn id(&self) -> String {
+        self.action_item.id.to_string()
     }
 
     pub fn index(&self) -> i32 {

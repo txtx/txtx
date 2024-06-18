@@ -175,7 +175,6 @@ impl CommandImplementation for Input {
             if execution_context.review_input_values {
                 return Ok(Actions::new_sub_group_of_items(vec![
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         &title,
                         description,
@@ -211,7 +210,6 @@ impl CommandImplementation for Input {
         };
 
         let action = ActionItemRequest::new(
-            &Uuid::new_v4(),
             &Some(uuid.value()),
             &title,
             description,
@@ -300,20 +298,18 @@ impl CommandImplementation for Output {
         _execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
-        let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest {
-            uuid: Uuid::new_v4(),
-            construct_uuid: Some(uuid.value()),
-            index: 0,
-            title: instance_name.into(),
-            description: None,
-            action_status: ActionItemStatus::Todo,
-            action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+        let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest::new(
+            &Some(uuid.value()),
+            instance_name,
+            None,
+            ActionItemStatus::Todo,
+            ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                 name: instance_name.into(),
                 description: None,
                 value: value.clone(),
             }),
-            internal_key: "check_output".into(),
-        }]);
+            "check_output",
+        )]);
         Ok(actions)
     }
 

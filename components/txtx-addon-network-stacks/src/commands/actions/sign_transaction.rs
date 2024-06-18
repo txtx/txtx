@@ -193,7 +193,6 @@ impl CommandImplementation for SignStacksTransaction {
                 println!(" ===> pushing nonce/fee actions");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "".into(),
                         Some(format!("Check account nonce")),
@@ -205,7 +204,6 @@ impl CommandImplementation for SignStacksTransaction {
                         ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),
