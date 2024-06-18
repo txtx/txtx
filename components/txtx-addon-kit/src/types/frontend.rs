@@ -139,24 +139,37 @@ impl Block {
         }
     }
 
-    pub fn update_action_item(&mut self, update: NormalizedActionItemRequestUpdate) {
+    pub fn update_action_item(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
+        let mut did_update = false;
         match self.panel.borrow_mut() {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter_mut() {
                     for sub_group in group.sub_groups.iter_mut() {
                         for action in sub_group.action_items.iter_mut() {
-                            if action.uuid == update.uuid {
+                            if action.id() == update.id {
                                 if let Some(title) = update.title.clone() {
-                                    action.title = title;
+                                    if action.title != title {
+                                        action.title = title;
+                                        did_update = true;
+                                    }
                                 }
                                 if let Some(some_description) = update.description.clone() {
-                                    action.description = some_description;
+                                    if action.description != some_description {
+                                        action.description = some_description;
+                                        did_update = true;
+                                    }
                                 }
                                 if let Some(action_status) = update.action_status.clone() {
-                                    action.action_status = action_status;
+                                    if action.action_status != action_status {
+                                        action.action_status = action_status;
+                                        did_update = true;
+                                    }
                                 }
                                 if let Some(action_type) = update.action_type.clone() {
-                                    action.action_type = action_type;
+                                    if action.action_type != action_type {
+                                        action.action_type = action_type;
+                                        did_update = true;
+                                    }
                                 }
                             }
                         }
@@ -164,7 +177,8 @@ impl Block {
                 }
             }
             _ => {}
-        }
+        };
+        did_update
     }
 
     pub fn update_progress_bar_status(
