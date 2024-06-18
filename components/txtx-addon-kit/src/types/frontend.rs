@@ -1160,7 +1160,7 @@ pub enum ActionItemRequestType {
     DisplayOutput(DisplayOutputRequest),
     DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
-    ValidateBlock,
+    ValidateBlock(ValidateBlockData),
     ValidateModal,
 }
 
@@ -1272,7 +1272,9 @@ impl ActionItemRequestType {
             ActionItemRequestType::OpenModal(val) => {
                 format!("OpenModal({}-{})", val.modal_uuid, val.title)
             }
-            ActionItemRequestType::ValidateBlock => format!("ValidateBlock"),
+            ActionItemRequestType::ValidateBlock(val) => {
+                format!("ValidateBlock({})", val.internal_idx.to_string())
+            }
             ActionItemRequestType::ValidateModal => format!("ValidateModal"),
         }
     }
@@ -1392,7 +1394,7 @@ impl ActionItemRequestType {
             ActionItemRequestType::DisplayOutput(_) => None,
             ActionItemRequestType::DisplayErrorLog(_) => None,
             ActionItemRequestType::OpenModal(_) => None,
-            ActionItemRequestType::ValidateBlock => None,
+            ActionItemRequestType::ValidateBlock(_) => None,
             ActionItemRequestType::ValidateModal => None,
         }
     }
@@ -1425,6 +1427,18 @@ pub struct DisplayOutputRequest {
 #[serde(rename_all = "camelCase")]
 pub struct DisplayErrorLogRequest {
     pub diagnostic: Diagnostic,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidateBlockData {
+    /// internal index used to differential one validate block instance from another
+    internal_idx: u8,
+}
+impl ValidateBlockData {
+    pub fn new(internal_idx: u8) -> Self {
+        ValidateBlockData { internal_idx }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

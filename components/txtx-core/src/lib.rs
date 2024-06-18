@@ -38,6 +38,7 @@ use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
+use kit::types::frontend::ValidateBlockData;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -281,7 +282,7 @@ pub async fn start_interactive_runbook_runloop(
     let mut background_tasks_futures = vec![];
     let mut background_tasks_contructs_uuids = vec![];
     let mut background_tasks_handle_uuid = Uuid::new_v4();
-
+    let mut validated_blocks = 0;
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
@@ -439,6 +440,7 @@ pub async fn start_interactive_runbook_runloop(
                     pass_results.actions.append(&mut actions);
                     println!("OUTPUTS: {:?}", actions);
                 } else if !pass_results.actions.store.is_empty() {
+                    validated_blocks = validated_blocks + 1;
                     pass_results
                         .actions
                         .push_sub_group(vec![ActionItemRequest::new(
@@ -446,7 +448,9 @@ pub async fn start_interactive_runbook_runloop(
                             "Validate",
                             None,
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ValidateBlock,
+                            ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
+                                validated_blocks,
+                            )),
                             "validate_block",
                         )]);
                 }
@@ -793,7 +797,7 @@ pub async fn build_genesis_panel(
         "start runbook".into(),
         None,
         ActionItemStatus::Todo,
-        ActionItemRequestType::ValidateBlock,
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
         "genesis".into(),
     );
     actions.push_sub_group(vec![validate_action]);
