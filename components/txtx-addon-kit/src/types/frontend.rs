@@ -662,13 +662,14 @@ impl ActionItemRequest {
         internal_key: &str,
     ) -> Self {
         let data = format!(
-            "{}{}{}{}",
+            "{}-{}-{}-{}-{}",
             title,
             description.clone().unwrap_or("".into()),
             internal_key,
             construct_uuid
                 .and_then(|u| Some(u.to_string()))
-                .unwrap_or("".into())
+                .unwrap_or("".into()),
+            action_type.get_block_id_string()
         );
         let id = BlockId::new(data.as_bytes());
         ActionItemRequest {
@@ -1210,6 +1211,63 @@ impl ActionItemRequestType {
         match &self {
             ActionItemRequestType::OpenModal(value) => Some(value),
             _ => None,
+        }
+    }
+
+    ///
+    /// Serialize the immutable properties of the type to be used for an `ActionItemRequest`'s `BlockId`.
+    ///
+    pub fn get_block_id_string(&self) -> String {
+        match self {
+            ActionItemRequestType::ReviewInput(val) => format!("ReviewInput({})", val.input_name),
+            ActionItemRequestType::ProvideInput(val) => format!(
+                "ProvideInput({}-{})",
+                val.input_name,
+                serde_json::to_string(&val.typing).unwrap() //todo: make to_string prop?
+            ),
+            ActionItemRequestType::PickInputOption(_) => format!("PickInputOption"),
+            ActionItemRequestType::ProvidePublicKey(val) => format!(
+                "ProvidePublicKey({}-{}-{})",
+                val.check_expectation_action_uuid
+                    .and_then(|u| Some(u.to_string()))
+                    .unwrap_or("None".to_string()),
+                val.namespace,
+                val.network_id
+            ),
+            ActionItemRequestType::ProvideSignedTransaction(val) => {
+                format!(
+                    "ProvideSignedTransaction({}-{}-{}-{})",
+                    val.check_expectation_action_uuid
+                        .and_then(|u| Some(u.to_string()))
+                        .unwrap_or("None".to_string()),
+                    val.signer_uuid.to_string(),
+                    val.namespace,
+                    val.network_id
+                )
+            }
+            ActionItemRequestType::ProvideSignedMessage(val) => format!(
+                "ProvideSignedMessage({}-{}-{}-{})",
+                val.check_expectation_action_uuid
+                    .and_then(|u| Some(u.to_string()))
+                    .unwrap_or("None".to_string()),
+                val.signer_uuid.to_string(),
+                val.namespace,
+                val.network_id
+            ),
+            ActionItemRequestType::DisplayOutput(val) => format!(
+                "DisplayOutput({}-{}-{})",
+                val.name,
+                val.description.clone().unwrap_or("None".to_string()),
+                val.value.to_string()
+            ),
+            ActionItemRequestType::DisplayErrorLog(val) => {
+                format!("DisplayErrorLog({})", val.diagnostic.to_string())
+            }
+            ActionItemRequestType::OpenModal(val) => {
+                format!("OpenModal({}-{})", val.modal_uuid, val.title)
+            }
+            ActionItemRequestType::ValidateBlock => format!("ValidateBlock"),
+            ActionItemRequestType::ValidateModal => format!("ValidateModal"),
         }
     }
 
