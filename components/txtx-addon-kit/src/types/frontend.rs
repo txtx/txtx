@@ -1158,12 +1158,61 @@ pub enum ActionItemRequestType {
 }
 
 impl ActionItemRequestType {
+    pub fn as_review_input(&self) -> Option<&ReviewInputRequest> {
+        match &self {
+            ActionItemRequestType::ReviewInput(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_input(&self) -> Option<&ProvideInputRequest> {
+        match &self {
+            ActionItemRequestType::ProvideInput(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_pick_input(&self) -> Option<&PickInputOptionRequest> {
+        match &self {
+            ActionItemRequestType::PickInputOption(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_public_key(&self) -> Option<&ProvidePublicKeyRequest> {
+        match &self {
+            ActionItemRequestType::ProvidePublicKey(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_signed_tx(&self) -> Option<&ProvideSignedTransactionRequest> {
+        match &self {
+            ActionItemRequestType::ProvideSignedTransaction(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_signed_msg(&self) -> Option<&ProvideSignedMessageRequest> {
+        match &self {
+            ActionItemRequestType::ProvideSignedMessage(value) => Some(value),
+            _ => None,
+        }
+    }
     pub fn as_display_output(&self) -> Option<&DisplayOutputRequest> {
         match &self {
             ActionItemRequestType::DisplayOutput(value) => Some(value),
             _ => None,
         }
     }
+    pub fn as_display_err(&self) -> Option<&DisplayErrorLogRequest> {
+        match &self {
+            ActionItemRequestType::DisplayErrorLog(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_open_modal(&self) -> Option<&OpenModalData> {
+        match &self {
+            ActionItemRequestType::OpenModal(value) => Some(value),
+            _ => None,
+        }
+    }
+
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
