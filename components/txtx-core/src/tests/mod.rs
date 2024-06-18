@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, time::Duration};
 
-use kit::types::frontend::ProvideSignedTransactionResponse;
+use kit::types::{block_id::BlockId, frontend::ProvideSignedTransactionResponse};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     types::{
@@ -89,7 +89,7 @@ fn test_ab_c_runbook_no_env() {
 
         // Complete start_runbook action
         let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: start_runbook.uuid.clone(),
+            action_item_id: start_runbook.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         });
 
@@ -100,7 +100,7 @@ fn test_ab_c_runbook_no_env() {
 
         let updates = event.expect_updated_action_items();
         assert_eq!(updates.len(), 1);
-        assert_eq!(updates[0].uuid, validate_button.uuid);
+        assert_eq!(updates[0].id, validate_button.id);
     }
     // Review inputs assertions
     {
@@ -130,7 +130,7 @@ fn test_ab_c_runbook_no_env() {
         assert_eq!(&input_b_action.internal_key, "provide_input");
 
         let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: input_a_action.uuid.clone(),
+            action_item_id: input_a_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 value_checked: true,
                 input_name: "value".into(),
@@ -146,7 +146,7 @@ fn test_ab_c_runbook_no_env() {
             panic!("Sending ReviewedInputResponse did not trigger update")
         };
         assert_eq!(updates.len(), 1);
-        assert_eq!(&updates[0].uuid, &input_a_action.uuid);
+        assert_eq!(&updates[0].id, &input_a_action.id);
 
         // Should be a no-op
         let Err(_) = block_rx.recv_timeout(Duration::from_secs(2)) else {
@@ -155,7 +155,7 @@ fn test_ab_c_runbook_no_env() {
         };
 
         let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: input_b_action.uuid.clone(),
+            action_item_id: input_b_action.id.clone(),
             payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
                 updated_value: Value::uint(5),
                 input_name: "default".into(),
@@ -171,22 +171,22 @@ fn test_ab_c_runbook_no_env() {
             panic!("Sending ProvidedInputResponse did not trigger update")
         };
         assert_eq!(updates.len(), 1);
-        assert_eq!(&updates[0].uuid, &input_b_action.uuid);
+        assert_eq!(&updates[0].id, &input_b_action.id);
 
         let _ = action_item_events_tx.send(ActionItemResponse {
-            action_item_uuid: Uuid::new_v4(),
+            action_item_id: BlockId::new(&vec![]),
             payload: ActionItemResponseType::ValidateBlock,
         });
 
-        // our validate block button yields another action item update for input b because of this issue:
-        // https://github.com/txtx/txtx/issues/89
+        // our validate block button yields another action item update for input b, but it would be filtered
+        // out from being propagated to the frontend... we should probably update tests to check this
         let Ok(event) = block_rx.recv_timeout(Duration::from_secs(2)) else {
             assert!(false, "unable to receive input block");
             panic!()
         };
         let update = event.expect_updated_action_items();
         assert_eq!(update.len(), 1);
-        assert_eq!(update[0].uuid, input_b_action.uuid);
+        assert_eq!(update[0].id, input_b_action.id);
     }
 
     // assert output review
@@ -218,7 +218,7 @@ fn test_ab_c_runbook_no_env() {
 
 #[test]
 fn test_wallet_runbook_no_env() {
-    // Load Runbook abc.tx
+    // Load Runbook wallet.tx
     let wallet_tx = include_str!("./fixtures/wallet.tx");
 
     let mut source_tree = SourceTree::new();
@@ -267,7 +267,6 @@ fn test_wallet_runbook_no_env() {
     };
 
     let block = event.expect_block();
-    println!("PANEL + {}", block);
     let action_panel_data = block.panel.expect_action_panel();
 
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
@@ -300,7 +299,7 @@ fn test_wallet_runbook_no_env() {
 
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: get_public_key.uuid.clone(),
+        action_item_id: get_public_key.id.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
             public_key: "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7".into(),
         }),
@@ -313,7 +312,6 @@ fn test_wallet_runbook_no_env() {
     };
 
     let updates = event.expect_updated_action_items();
-    println!("UPDATES = {:?}", updates);
     assert_eq!(updates.len(), 2);
     assert_eq!(
         updates[0].action_status.as_ref().unwrap(),
@@ -326,7 +324,7 @@ fn test_wallet_runbook_no_env() {
 
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
+        action_item_id: start_runbook.id.clone(),
         payload: ActionItemResponseType::ValidateBlock,
     });
 
@@ -334,28 +332,125 @@ fn test_wallet_runbook_no_env() {
         assert!(false, "unable to receive input block");
         panic!()
     };
+    let updates = event.expect_updated_action_items();
+    assert_eq!(updates.len(), 1);
+    assert_eq!(updates[0].id, start_runbook.id);
+
+    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+        assert!(false, "unable to receive input block");
+        panic!()
+    };
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
+    assert_eq!(
+        &action_panel_data.title.to_uppercase(),
+        "TRANSACTIONS SIGNING"
+    );
+
     // assert_eq!(action_panel_data.title, "Sign Stacks Transaction Review");
     assert_eq!(action_panel_data.groups.len(), 1);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
     assert_eq!(
         action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
+        3
     );
-    let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[0];
-
-    // Validate panel
+    let nonce_action = &action_panel_data.groups[0].sub_groups[0].action_items[0];
+    let fee_action = &action_panel_data.groups[0].sub_groups[0].action_items[1];
+    let provide_signature_action = &action_panel_data.groups[0].sub_groups[0].action_items[2];
+    assert_eq!(
+        Some("Check account nonce".to_string()),
+        nonce_action.description
+    );
+    assert_eq!(
+        Some("Check transaction fee".to_string()),
+        fee_action.description
+    );
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    // sign tx
+    {
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_id: provide_signature_action.id.clone(),
+            payload: ActionItemResponseType::ProvideSignedTransaction(
+                ProvideSignedTransactionResponse {
+                    signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                    signer_uuid: provide_signature_action
+                        .action_type
+                        .as_provide_signed_tx()
+                        .unwrap()
+                        .signer_uuid,
+                },
+            ),
+        });
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+        let updates = event.expect_updated_action_items();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].action_status.as_ref().unwrap(),
+            &ActionItemStatus::Success(None)
+        );
+        assert_eq!(updates[0].id, provide_signature_action.id);
+    }
+    // validate nonce
+    {
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_id: nonce_action.id.clone(),
+            payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                input_name: nonce_action
+                    .action_type
+                    .as_review_input()
+                    .unwrap()
+                    .input_name
+                    .clone(),
+                value_checked: true,
+            }),
+        });
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+        let updates = event.expect_updated_action_items();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].action_status.as_ref().unwrap(),
+            &ActionItemStatus::Success(None)
+        );
+        assert_eq!(updates[0].id, nonce_action.id);
+    }
+    // validate fee
+    {
+        let _ = action_item_events_tx.send(ActionItemResponse {
+            action_item_id: fee_action.id.clone(),
+            payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                input_name: fee_action
+                    .action_type
+                    .as_review_input()
+                    .unwrap()
+                    .input_name
+                    .clone(),
+                value_checked: true,
+            }),
+        });
+        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
+            assert!(false, "unable to receive input block");
+            panic!()
+        };
+        let updates = event.expect_updated_action_items();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].action_status.as_ref().unwrap(),
+            &ActionItemStatus::Success(None)
+        );
+        assert_eq!(updates[0].id, fee_action.id);
+    }
+
+    let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
+
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: action_item_uuid.uuid.clone(),
-        payload: ActionItemResponseType::ProvideSignedTransaction(
-            ProvideSignedTransactionResponse {
-                signed_transaction_bytes: signed_transaction_bytes.to_string(),
-                // I don't think we have access to this data in this context, but is shouldn't be needed for this test
-                signer_uuid: Uuid::new_v4(),
-            },
-        ),
+        action_item_id: validate_signature.id.clone(),
+        payload: ActionItemResponseType::ValidateBlock,
     });
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
@@ -364,18 +459,17 @@ fn test_wallet_runbook_no_env() {
     };
 
     let updates = event.expect_updated_action_items();
-    assert_eq!(updates.len(), 1);
+    assert_eq!(updates.len(), 2);
     assert_eq!(
         updates[0].action_status.as_ref().unwrap(),
         &ActionItemStatus::Success(None)
     );
-
-    let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
-
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: validate_signature.uuid.clone(),
-        payload: ActionItemResponseType::ValidateBlock,
-    });
+    assert_eq!(updates[0].id, provide_signature_action.id);
+    assert_eq!(
+        updates[1].action_status.as_ref().unwrap(),
+        &ActionItemStatus::Success(None)
+    );
+    assert_eq!(updates[1].id, validate_signature.id);
 
     let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
         assert!(false, "unable to receive input block");
@@ -464,7 +558,7 @@ fn test_multisig_runbook_no_env() {
         modal_panel_data.title.to_uppercase(),
         "STACKS MULTISIG CONFIGURATION ASSISTANT"
     );
-    println!("");
+
     assert_eq!(modal_panel_data.groups.len(), 3);
     assert_eq!(modal_panel_data.groups[0].sub_groups.len(), 1);
     assert_eq!(modal_panel_data.groups[1].sub_groups.len(), 1);
@@ -489,7 +583,6 @@ fn test_multisig_runbook_no_env() {
 
     let action_panel_data = event.expect_block().panel.expect_action_panel();
 
-    println!("action_panel_data  {:?}", action_panel_data);
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 1);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 4);
@@ -532,7 +625,7 @@ fn test_multisig_runbook_no_env() {
 
     // Provide Alice public key
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: get_public_key_alice.uuid.clone(),
+        action_item_id: get_public_key_alice.id.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
             public_key: "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33".into(),
         }),
@@ -550,7 +643,7 @@ fn test_multisig_runbook_no_env() {
 
     // Provide Bob public key
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: get_public_key_bob.uuid.clone(),
+        action_item_id: get_public_key_bob.id.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
             public_key: "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e".into(),
         }),
@@ -560,7 +653,7 @@ fn test_multisig_runbook_no_env() {
         panic!()
     };
     let updates = event.expect_updated_action_items();
-    println!("{:?}", updates);
+
     assert_eq!(updates.len(), 2);
     assert_eq!(
         updates[0].action_status.as_ref().unwrap(),
@@ -569,7 +662,7 @@ fn test_multisig_runbook_no_env() {
 
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
+        action_item_id: start_runbook.id.clone(),
         payload: ActionItemResponseType::ValidateBlock,
     });
 
@@ -591,7 +684,7 @@ fn test_multisig_runbook_no_env() {
     // Validate panel
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: action_item_uuid.uuid.clone(),
+        action_item_id: action_item_uuid.id.clone(),
         payload: ActionItemResponseType::ProvideSignedTransaction(
             ProvideSignedTransactionResponse {
                 signed_transaction_bytes: signed_transaction_bytes.to_string(),
@@ -616,7 +709,7 @@ fn test_multisig_runbook_no_env() {
     let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
 
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: validate_signature.uuid.clone(),
+        action_item_id: validate_signature.id.clone(),
         payload: ActionItemResponseType::ValidateBlock,
     });
 
@@ -730,7 +823,7 @@ fn test_bns_runbook_no_env() {
 
     // Complete start_runbook action
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: get_public_key.uuid.clone(),
+        action_item_id: get_public_key.id.clone(),
         payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
             public_key: "038665eaed5fc80bd01a1068f90f2e2de4c9c041f1865868169c848c0e770042e7".into(),
         }),
@@ -755,7 +848,7 @@ fn test_bns_runbook_no_env() {
 
     // Validate panel
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: start_runbook.uuid.clone(),
+        action_item_id: start_runbook.id.clone(),
         payload: ActionItemResponseType::ValidateBlock,
     });
 
@@ -780,7 +873,7 @@ fn test_bns_runbook_no_env() {
 
     let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_uuid: action_item_uuid.uuid.clone(),
+        action_item_id: action_item_uuid.id.clone(),
         payload: ActionItemResponseType::ValidateBlock,
     });
 
