@@ -188,24 +188,30 @@ impl ActionItemRequestUpdate {
             action_type: None,
         }
     }
+    ///
+    /// Compares `new_item` and `existing_item`, returning an `ActionItemRequestUpdate` if
+    /// the ids are the same and either the mutable properties of the type or that status have been updated.
+    ///
     pub fn from_diff(
         new_item: &ActionItemRequest,
         existing_item: &ActionItemRequest,
     ) -> Option<Self> {
         let id_match = new_item.id == existing_item.id;
         let status_match = new_item.action_status == existing_item.action_status;
-        let type_match = new_item.action_type == existing_item.action_type;
-        if !id_match || (status_match && type_match) {
+        let type_diff = ActionItemRequestType::diff_mutable_properties(
+            &new_item.action_type,
+            &existing_item.action_type,
+        );
+        if !id_match || (status_match && type_diff.is_none()) {
             return None;
         }
         let mut update = ActionItemRequestUpdate::from_id(&new_item.id);
         if !status_match {
             update.set_status(new_item.action_status.clone());
         }
-        if !type_match {
-            update.set_type(new_item.action_type.clone());
+        if let Some(new_type) = type_diff {
+            update.set_type(new_type);
         }
-        println!("=> update from diff: {:?}", update);
         Some(update)
     }
 
@@ -1271,6 +1277,125 @@ impl ActionItemRequestType {
         }
     }
 
+    ///
+    /// Compares all properties of `new_type` against `existing_type` to determine if any of the mutable properties
+    /// of the type have been updated. Returns `Some(new_type)` if only mutable properties were updated, returns `None`
+    /// otherwise.
+    ///
+    pub fn diff_mutable_properties(
+        new_type: &ActionItemRequestType,
+        existing_item: &ActionItemRequestType,
+    ) -> Option<ActionItemRequestType> {
+        match new_type {
+            ActionItemRequestType::ReviewInput(new) => {
+                let Some(existing) = existing_item.as_review_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.value != existing.value {
+                    if new.input_name != existing.input_name {
+                        unreachable!("cannot change review input request input_name")
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideInput(new) => {
+                let Some(existing) = existing_item.as_provide_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.default_value != existing.default_value {
+                    if new.input_name != existing.input_name {
+                        unreachable!("cannot change provide input request input_name")
+                    }
+                    if new.typing != existing.typing {
+                        unreachable!("cannot change provide input request typing")
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::PickInputOption(new) => {
+                let Some(_) = existing_item.as_pick_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                Some(new_type.clone())
+            }
+            ActionItemRequestType::ProvidePublicKey(new) => {
+                let Some(existing) = existing_item.as_provide_public_key() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.message != existing.message {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!("cannot change provide public key request check_expectation_action_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide public key request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide public key request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideSignedTransaction(new) => {
+                let Some(existing) = existing_item.as_provide_signed_tx() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.payload != existing.payload {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed tx request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed tx request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed tx request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed tx request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideSignedMessage(new) => {
+                let Some(existing) = existing_item.as_provide_signed_msg() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.message != existing.message {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed msg request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed msg request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed msg request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed msg request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::DisplayOutput(_) => None,
+            ActionItemRequestType::DisplayErrorLog(_) => None,
+            ActionItemRequestType::OpenModal(_) => None,
+            ActionItemRequestType::ValidateBlock => None,
+            ActionItemRequestType::ValidateModal => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
