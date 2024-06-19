@@ -16,7 +16,7 @@ use test_case::test_case;
   ("key2".to_string(), Ok(Value::uint(1))),
   ("error".to_string(), Err(Diagnostic::error_from_string("test".to_string()))),
   ])))]
-fn it_values(value: Value) {
+fn it_serdes_values(value: Value) {
     let ser = serde_json::to_string(&value).unwrap();
     let de: Value = serde_json::from_str(&ser).unwrap();
     assert_eq!(de, value);

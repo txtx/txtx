@@ -158,8 +158,9 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
 
     let _ = tokio::spawn(async move {
         loop {
-            if let Ok(block_event) = block_rx.recv() {
+            if let Ok(mut block_event) = block_rx.recv() {
                 let mut block_store = block_store.write().await;
+                let mut do_propagate_event = true;
                 match block_event.clone() {
                     BlockEvent::Action(new_block) => {
                         let len = block_store.len();
@@ -169,11 +170,19 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                         *block_store = BTreeMap::new();
                     }
                     BlockEvent::UpdateActionItems(updates) => {
+                        // for action item updates, track if we actually changed anything before propagating the event
+                        do_propagate_event = false;
+                        let mut filtered_updates = vec![];
                         for update in updates.iter() {
                             for (_, block) in block_store.iter_mut() {
-                                block.update_action_item(update.clone());
+                                let did_update = block.apply_action_item_updates(update.clone());
+                                if did_update {
+                                    do_propagate_event = true;
+                                    filtered_updates.push(update.clone());
+                                }
                             }
                         }
+                        block_event = BlockEvent::UpdateActionItems(filtered_updates);
                     }
                     BlockEvent::Modal(new_block) => {
                         let len = block_store.len();
@@ -200,7 +209,10 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     }
                     BlockEvent::Exit => break,
                 }
-                let _ = block_broadcaster.send(block_event.clone());
+                // only propagate the event if there are actually changes to the block store
+                if do_propagate_event {
+                    let _ = block_broadcaster.send(block_event.clone());
+                }
             }
         }
     });

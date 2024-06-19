@@ -23,9 +23,11 @@ lazy_static = "1.4.0"
 indoc = "2.0.5"
 crossbeam-channel = "0.5.8"
 futures = "0.3"
+highway = "1.1.0"
+rand = "0.8.5"
+serde_json = "1"
 
 [dev-dependencies]
-serde_json = "1"
 test-case = "*"
 hiro-system-kit = "0.3.4"
 
@@ -34,4 +36,4 @@ default=[]
 wasm = []
 
 [lib]
-crate-type = ["lib", "cdylib"] 
+crate-type = ["lib", "cdylib"]

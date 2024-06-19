@@ -187,13 +187,13 @@ impl CommandImplementation for SignStacksTransaction {
             );
             wallets.push_wallet_state(wallet_state);
 
+            actions.push_panel("Transaction Signing", "");
             // todo: currently, this gets called repeatedly and is preventing the graph from properly
             // progressing. removing for now
             if execution_context.review_input_values {
                 println!(" ===> pushing nonce/fee actions");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "".into(),
                         Some(format!("Check account nonce")),
@@ -205,7 +205,6 @@ impl CommandImplementation for SignStacksTransaction {
                         ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),

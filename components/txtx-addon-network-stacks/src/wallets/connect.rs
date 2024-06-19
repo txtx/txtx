@@ -277,7 +277,6 @@ impl WalletImplementation for StacksConnect {
         };
 
         let request = ActionItemRequest::new(
-            &Uuid::new_v4(),
             &Some(uuid.value()),
             title,
             description.clone(),
@@ -297,7 +296,7 @@ impl WalletImplementation for StacksConnect {
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
-                Some("Transactions Signing"),
+                Some("Transaction Signing"),
             ),
         ))
     }

@@ -1,6 +1,7 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
 use super::{
+    block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
     ConstructUuid,
@@ -97,74 +98,28 @@ impl Block {
         }
     }
 
-    pub fn find_action(&self, uuid: Uuid) -> Option<ActionItemRequest> {
-        match &self.panel {
-            Panel::ActionPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ModalPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ErrorPanel(panel) => {
-                for group in panel.groups.iter() {
-                    for sub_group in group.sub_groups.iter() {
-                        for action in sub_group.action_items.iter() {
-                            if action.uuid == uuid {
-                                return Some(action.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            Panel::ProgressBar(_) => None,
-        }
-    }
-
-    pub fn update_action_item(&mut self, update: NormalizedActionItemRequestUpdate) {
+    pub fn apply_action_item_updates(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
+        let mut did_update = false;
         match self.panel.borrow_mut() {
             Panel::ActionPanel(panel) => {
                 for group in panel.groups.iter_mut() {
-                    for sub_group in group.sub_groups.iter_mut() {
-                        for action in sub_group.action_items.iter_mut() {
-                            if action.uuid == update.uuid {
-                                if let Some(title) = update.title.clone() {
-                                    action.title = title;
-                                }
-                                if let Some(some_description) = update.description.clone() {
-                                    action.description = some_description;
-                                }
-                                if let Some(action_status) = update.action_status.clone() {
-                                    action.action_status = action_status;
-                                }
-                                if let Some(action_type) = update.action_type.clone() {
-                                    action.action_type = action_type;
-                                }
-                            }
-                        }
+                    let group_did_update = group.apply_action_item_updates(&update);
+                    if group_did_update {
+                        did_update = true;
+                    }
+                }
+            }
+            Panel::ModalPanel(panel) => {
+                for group in panel.groups.iter_mut() {
+                    let group_did_update = group.apply_action_item_updates(&update);
+                    if group_did_update {
+                        did_update = true;
                     }
                 }
             }
             _ => {}
-        }
+        };
+        did_update
     }
 
     pub fn update_progress_bar_status(
@@ -197,9 +152,7 @@ impl Block {
 /// Note: though the `action_status` field is optional, it is required for many functions. I kep it like this
 /// because I like the `.set_status` pattern :-)
 pub struct NormalizedActionItemRequestUpdate {
-    pub uuid: Uuid,
-    pub title: Option<String>,
-    pub description: Option<Option<String>>,
+    pub id: BlockId,
     pub action_status: Option<ActionItemStatus>,
     pub action_type: Option<ActionItemRequestType>,
 }
@@ -207,24 +160,20 @@ pub struct NormalizedActionItemRequestUpdate {
 #[derive(Debug, Clone, Serialize)]
 pub struct ActionItemRequestUpdate {
     pub id: ActionItemRequestUpdateIdentifier,
-    pub title: Option<String>,
-    pub description: Option<Option<String>>,
     pub action_status: Option<ActionItemStatus>,
     pub action_type: Option<ActionItemRequestType>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ActionItemRequestUpdateIdentifier {
-    Uuid(Uuid),
+    Id(BlockId),
     ConstructUuidWithKey((Uuid, String)),
 }
 
 impl ActionItemRequestUpdate {
-    pub fn from_uuid(uuid: &Uuid) -> Self {
+    pub fn from_id(id: &BlockId) -> Self {
         ActionItemRequestUpdate {
-            id: ActionItemRequestUpdateIdentifier::Uuid(uuid.clone()),
-            title: None,
-            description: None,
+            id: ActionItemRequestUpdateIdentifier::Id(id.clone()),
             action_status: None,
             action_type: None,
         }
@@ -235,11 +184,35 @@ impl ActionItemRequestUpdate {
                 construct_uuid.value(),
                 internal_key.to_string(),
             )),
-            title: None,
-            description: None,
             action_status: None,
             action_type: None,
         }
+    }
+    ///
+    /// Compares `new_item` and `existing_item`, returning an `ActionItemRequestUpdate` if
+    /// the ids are the same and either the mutable properties of the type or that status have been updated.
+    ///
+    pub fn from_diff(
+        new_item: &ActionItemRequest,
+        existing_item: &ActionItemRequest,
+    ) -> Option<Self> {
+        let id_match = new_item.id == existing_item.id;
+        let status_match = new_item.action_status == existing_item.action_status;
+        let type_diff = ActionItemRequestType::diff_mutable_properties(
+            &new_item.action_type,
+            &existing_item.action_type,
+        );
+        if !id_match || (status_match && type_diff.is_none()) {
+            return None;
+        }
+        let mut update = ActionItemRequestUpdate::from_id(&new_item.id);
+        if !status_match {
+            update.set_status(new_item.action_status.clone());
+        }
+        if let Some(new_type) = type_diff {
+            update.set_type(new_type);
+        }
+        Some(update)
     }
 
     pub fn set_status(&mut self, new_status: ActionItemStatus) -> Self {
@@ -252,23 +225,16 @@ impl ActionItemRequestUpdate {
         self.clone()
     }
 
-    pub fn set_description(&mut self, new_description: Option<String>) -> Self {
-        self.description = Some(new_description);
-        self.clone()
-    }
-
     pub fn normalize(
         &self,
-        action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
     ) -> Option<NormalizedActionItemRequestUpdate> {
         for (_, action) in action_item_requests.iter() {
             match &self.id {
-                ActionItemRequestUpdateIdentifier::Uuid(uuid) => {
-                    if action.uuid.eq(uuid) {
+                ActionItemRequestUpdateIdentifier::Id(id) => {
+                    if action.id.eq(id) {
                         return Some(NormalizedActionItemRequestUpdate {
-                            uuid: uuid.clone(),
-                            title: self.title.clone(),
-                            description: self.description.clone(),
+                            id: id.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
                         });
@@ -285,9 +251,7 @@ impl ActionItemRequestUpdate {
                         && action.internal_key.eq(internal_key)
                     {
                         return Some(NormalizedActionItemRequestUpdate {
-                            uuid: action.uuid,
-                            title: self.title.clone(),
-                            description: self.description.clone(),
+                            id: action.id.clone(),
                             action_status: self.action_status.clone(),
                             action_type: self.action_type.clone(),
                         });
@@ -310,7 +274,6 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "      items: {} {{", item.uuid)?;
                             writeln!(f, "          title: {:?}", item.title)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
@@ -330,7 +293,6 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "      items: {} {{", item.uuid)?;
                             writeln!(f, "          title: {:?}", item.title)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_uuid)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
@@ -419,6 +381,20 @@ pub struct ActionPanelData {
     pub title: String,
     pub description: String,
     pub groups: Vec<ActionGroup>,
+}
+
+impl ActionPanelData {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for group in self.groups.iter() {
+            let mut group_updates = group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut group_updates);
+        }
+        updates
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -513,6 +489,20 @@ pub struct ModalPanelData {
     pub groups: Vec<ActionGroup>,
 }
 
+impl ModalPanelData {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for group in self.groups.iter() {
+            let mut group_updates = group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut group_updates);
+        }
+        updates
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorPanelData {
@@ -525,18 +515,18 @@ impl ErrorPanelData {
     pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
         let mut diag_actions = vec![];
         for (i, diag) in diagnostics.iter().enumerate() {
-            diag_actions.push(ActionItemRequest {
-                uuid: Uuid::new_v4(),
-                construct_uuid: None,
-                index: i as u16,
-                title: "".into(),
-                description: None,
-                action_status: ActionItemStatus::Error(diag.clone()),
-                action_type: ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+            let mut action = ActionItemRequest::new(
+                &None,
+                "",
+                None,
+                ActionItemStatus::Error(diag.clone()),
+                ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
                     diagnostic: diag.clone(),
                 }),
-                internal_key: "diagnostic".to_string(),
-            });
+                "diagnostic",
+            );
+            action.index = (i + 1) as u16;
+            diag_actions.push(action);
         }
         ErrorPanelData {
             title: "EXECUTION ERROR".into(),
@@ -576,6 +566,45 @@ impl ActionGroup {
         }
         false
     }
+
+    pub fn apply_action_item_updates(
+        &mut self,
+        update: &NormalizedActionItemRequestUpdate,
+    ) -> bool {
+        let mut did_update = false;
+        for sub_group in self.sub_groups.iter_mut() {
+            for action in sub_group.action_items.iter_mut() {
+                if action.id == update.id {
+                    if let Some(action_status) = update.action_status.clone() {
+                        if action.action_status != action_status {
+                            action.action_status = action_status;
+                            did_update = true;
+                        }
+                    }
+                    if let Some(action_type) = update.action_type.clone() {
+                        if action.action_type != action_type {
+                            action.action_type = action_type;
+                            did_update = true;
+                        }
+                    }
+                }
+            }
+        }
+        did_update
+    }
+
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for sub_group in self.sub_groups.iter() {
+            let mut sub_group_updates =
+                sub_group.compile_actions_to_item_updates(&action_item_requests);
+            updates.append(&mut sub_group_updates);
+        }
+        updates
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -601,12 +630,27 @@ impl ActionSubGroup {
         }
         false
     }
+
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
+        let mut updates = vec![];
+        for new_item in self.action_items.iter() {
+            if let Some(existing_item) = action_item_requests.get(&new_item.id) {
+                if let Some(update) = ActionItemRequestUpdate::from_diff(new_item, existing_item) {
+                    updates.push(update);
+                };
+            };
+        }
+        updates
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemRequest {
-    pub uuid: Uuid,
+    pub id: BlockId,
     pub construct_uuid: Option<Uuid>,
     pub index: u16,
     pub title: String,
@@ -618,7 +662,6 @@ pub struct ActionItemRequest {
 
 impl ActionItemRequest {
     pub fn new(
-        uuid: &Uuid,
         construct_uuid: &Option<Uuid>,
         title: &str,
         description: Option<String>,
@@ -626,8 +669,19 @@ impl ActionItemRequest {
         action_type: ActionItemRequestType,
         internal_key: &str,
     ) -> Self {
+        let data = format!(
+            "{}-{}-{}-{}-{}",
+            title,
+            description.clone().unwrap_or("".into()),
+            internal_key,
+            construct_uuid
+                .and_then(|u| Some(u.to_string()))
+                .unwrap_or("".into()),
+            action_type.get_block_id_string()
+        );
+        let id = BlockId::new(data.as_bytes());
         ActionItemRequest {
-            uuid: uuid.clone(),
+            id,
             construct_uuid: construct_uuid.clone(),
             index: 0,
             title: title.to_string(),
@@ -664,7 +718,7 @@ pub struct UpdateConstructData {
     pub internal_key: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenModalData {
     pub modal_uuid: Uuid,
@@ -738,6 +792,14 @@ impl Actions {
     }
     pub fn push_action_item_update(&mut self, update: ActionItemRequestUpdate) {
         self.store.push(ActionType::UpdateActionItemRequest(update))
+    }
+
+    pub fn push_panel(&mut self, title: &str, description: &str) {
+        self.store.push(ActionType::NewBlock(ActionPanelData {
+            title: title.to_string(),
+            description: description.to_string(), //todo, make optional
+            groups: vec![],
+        }))
     }
 
     pub fn new_panel(title: &str, description: &str) -> Actions {
@@ -826,7 +888,7 @@ impl Actions {
 
     pub fn compile_actions_to_block_events(
         &mut self,
-        action_item_requests: &BTreeMap<Uuid, ActionItemRequest>,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
     ) -> Vec<BlockEvent> {
         let mut blocks = vec![];
         let mut current_panel_data = ActionPanelData {
@@ -1043,15 +1105,51 @@ impl Actions {
         blocks
     }
 
-    pub fn compile_actions_to_item_updates(&self) -> Vec<ActionItemRequestUpdate> {
+    pub fn compile_actions_to_item_updates(
+        &self,
+        action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
+    ) -> Vec<ActionItemRequestUpdate> {
         let mut updates = vec![];
 
         for item in self.store.iter() {
             match item {
-                ActionType::AppendSubGroup(_) => {}
-                ActionType::AppendGroup(_) => {}
-                ActionType::AppendItem(_, _, _) => {}
-                ActionType::NewBlock(_) | ActionType::NewModal(_) => {}
+                ActionType::AppendSubGroup(sub_group) => {
+                    let mut sub_group_updates =
+                        sub_group.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut sub_group_updates);
+                }
+                ActionType::AppendGroup(group) => {
+                    let mut group_updates =
+                        group.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut group_updates);
+                }
+                ActionType::AppendItem(new_item, _, _) => {
+                    if let Some(existing_item) = action_item_requests.get(&new_item.id) {
+                        if let Some(update) =
+                            ActionItemRequestUpdate::from_diff(new_item, existing_item)
+                        {
+                            updates.push(update);
+                        };
+                    };
+                }
+                ActionType::NewBlock(action_panel_data) => {
+                    let mut block_updates =
+                        action_panel_data.compile_actions_to_item_updates(&action_item_requests);
+                    updates.append(&mut block_updates);
+                }
+                ActionType::NewModal(modal) => match &modal.panel {
+                    Panel::ActionPanel(action_panel_data) => {
+                        let mut block_updates = action_panel_data
+                            .compile_actions_to_item_updates(&action_item_requests);
+                        updates.append(&mut block_updates);
+                    }
+                    Panel::ModalPanel(modal_panel_data) => {
+                        let mut block_updates =
+                            modal_panel_data.compile_actions_to_item_updates(&action_item_requests);
+                        updates.append(&mut block_updates);
+                    }
+                    _ => {}
+                },
                 ActionType::UpdateActionItemRequest(update) => updates.push(update.clone()),
             }
         }
@@ -1060,7 +1158,7 @@ impl Actions {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {
     ReviewInput(ReviewInputRequest),
@@ -1072,27 +1170,254 @@ pub enum ActionItemRequestType {
     DisplayOutput(DisplayOutputRequest),
     DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
-    ValidateBlock,
+    ValidateBlock(ValidateBlockData),
     ValidateModal,
 }
 
 impl ActionItemRequestType {
+    pub fn as_review_input(&self) -> Option<&ReviewInputRequest> {
+        match &self {
+            ActionItemRequestType::ReviewInput(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_input(&self) -> Option<&ProvideInputRequest> {
+        match &self {
+            ActionItemRequestType::ProvideInput(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_pick_input(&self) -> Option<&PickInputOptionRequest> {
+        match &self {
+            ActionItemRequestType::PickInputOption(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_public_key(&self) -> Option<&ProvidePublicKeyRequest> {
+        match &self {
+            ActionItemRequestType::ProvidePublicKey(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_signed_tx(&self) -> Option<&ProvideSignedTransactionRequest> {
+        match &self {
+            ActionItemRequestType::ProvideSignedTransaction(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_provide_signed_msg(&self) -> Option<&ProvideSignedMessageRequest> {
+        match &self {
+            ActionItemRequestType::ProvideSignedMessage(value) => Some(value),
+            _ => None,
+        }
+    }
     pub fn as_display_output(&self) -> Option<&DisplayOutputRequest> {
         match &self {
             ActionItemRequestType::DisplayOutput(value) => Some(value),
             _ => None,
         }
     }
+    pub fn as_display_err(&self) -> Option<&DisplayErrorLogRequest> {
+        match &self {
+            ActionItemRequestType::DisplayErrorLog(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_open_modal(&self) -> Option<&OpenModalData> {
+        match &self {
+            ActionItemRequestType::OpenModal(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    ///
+    /// Serialize the immutable properties of the type to be used for an `ActionItemRequest`'s `BlockId`.
+    ///
+    pub fn get_block_id_string(&self) -> String {
+        match self {
+            ActionItemRequestType::ReviewInput(val) => format!("ReviewInput({})", val.input_name),
+            ActionItemRequestType::ProvideInput(val) => format!(
+                "ProvideInput({}-{})",
+                val.input_name,
+                serde_json::to_string(&val.typing).unwrap() //todo: make to_string prop?
+            ),
+            ActionItemRequestType::PickInputOption(_) => format!("PickInputOption"),
+            ActionItemRequestType::ProvidePublicKey(val) => format!(
+                "ProvidePublicKey({}-{}-{})",
+                val.check_expectation_action_uuid
+                    .and_then(|u| Some(u.to_string()))
+                    .unwrap_or("None".to_string()),
+                val.namespace,
+                val.network_id
+            ),
+            ActionItemRequestType::ProvideSignedTransaction(val) => {
+                format!(
+                    "ProvideSignedTransaction({}-{}-{}-{})",
+                    val.check_expectation_action_uuid
+                        .and_then(|u| Some(u.to_string()))
+                        .unwrap_or("None".to_string()),
+                    val.signer_uuid.to_string(),
+                    val.namespace,
+                    val.network_id
+                )
+            }
+            ActionItemRequestType::ProvideSignedMessage(val) => format!(
+                "ProvideSignedMessage({}-{}-{}-{})",
+                val.check_expectation_action_uuid
+                    .and_then(|u| Some(u.to_string()))
+                    .unwrap_or("None".to_string()),
+                val.signer_uuid.to_string(),
+                val.namespace,
+                val.network_id
+            ),
+            ActionItemRequestType::DisplayOutput(val) => format!(
+                "DisplayOutput({}-{}-{})",
+                val.name,
+                val.description.clone().unwrap_or("None".to_string()),
+                val.value.to_string()
+            ),
+            ActionItemRequestType::DisplayErrorLog(val) => {
+                format!("DisplayErrorLog({})", val.diagnostic.to_string())
+            }
+            ActionItemRequestType::OpenModal(val) => {
+                format!("OpenModal({}-{})", val.modal_uuid, val.title)
+            }
+            ActionItemRequestType::ValidateBlock(val) => {
+                format!("ValidateBlock({})", val.internal_idx.to_string())
+            }
+            ActionItemRequestType::ValidateModal => format!("ValidateModal"),
+        }
+    }
+
+    ///
+    /// Compares all properties of `new_type` against `existing_type` to determine if any of the mutable properties
+    /// of the type have been updated. Returns `Some(new_type)` if only mutable properties were updated, returns `None`
+    /// otherwise.
+    ///
+    pub fn diff_mutable_properties(
+        new_type: &ActionItemRequestType,
+        existing_item: &ActionItemRequestType,
+    ) -> Option<ActionItemRequestType> {
+        match new_type {
+            ActionItemRequestType::ReviewInput(new) => {
+                let Some(existing) = existing_item.as_review_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.value != existing.value {
+                    if new.input_name != existing.input_name {
+                        unreachable!("cannot change review input request input_name")
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideInput(new) => {
+                let Some(existing) = existing_item.as_provide_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.default_value != existing.default_value {
+                    if new.input_name != existing.input_name {
+                        unreachable!("cannot change provide input request input_name")
+                    }
+                    if new.typing != existing.typing {
+                        unreachable!("cannot change provide input request typing")
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::PickInputOption(_) => {
+                let Some(_) = existing_item.as_pick_input() else {
+                    unreachable!("cannot change action item request type")
+                };
+                Some(new_type.clone())
+            }
+            ActionItemRequestType::ProvidePublicKey(new) => {
+                let Some(existing) = existing_item.as_provide_public_key() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.message != existing.message {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!("cannot change provide public key request check_expectation_action_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide public key request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide public key request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideSignedTransaction(new) => {
+                let Some(existing) = existing_item.as_provide_signed_tx() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.payload != existing.payload {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed tx request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed tx request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed tx request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed tx request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::ProvideSignedMessage(new) => {
+                let Some(existing) = existing_item.as_provide_signed_msg() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.message != existing.message {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed msg request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed msg request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed msg request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed msg request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::DisplayOutput(_) => None,
+            ActionItemRequestType::DisplayErrorLog(_) => None,
+            ActionItemRequestType::OpenModal(_) => None,
+            ActionItemRequestType::ValidateBlock(_) => None,
+            ActionItemRequestType::ValidateModal => None,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideInputRequest {
     pub default_value: Option<Value>,
@@ -1100,7 +1425,7 @@ pub struct ProvideInputRequest {
     pub typing: Type,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayOutputRequest {
     pub name: String,
@@ -1108,26 +1433,47 @@ pub struct DisplayOutputRequest {
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayErrorLogRequest {
     pub diagnostic: Diagnostic,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidateBlockData {
+    /// internal index used to differential one validate block instance from another
+    internal_idx: u8,
+}
+impl ValidateBlockData {
+    pub fn new(internal_idx: u8) -> Self {
+        ValidateBlockData { internal_idx }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PickInputOptionRequest {
     pub options: Vec<InputOption>,
     pub selected: InputOption,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct InputOption {
     pub value: String,
     pub displayed_value: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl InputOption {
+    pub fn default() -> Self {
+        InputOption {
+            value: String::new(),
+            displayed_value: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
@@ -1136,7 +1482,7 @@ pub struct ProvidePublicKeyRequest {
     pub network_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
@@ -1146,7 +1492,7 @@ pub struct ProvideSignedTransactionRequest {
     pub network_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedMessageRequest {
     pub check_expectation_action_uuid: Option<Uuid>,
@@ -1159,7 +1505,7 @@ pub struct ProvideSignedMessageRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemResponse {
-    pub action_item_uuid: Uuid,
+    pub action_item_id: BlockId,
     #[serde(flatten)]
     pub payload: ActionItemResponseType,
 }
