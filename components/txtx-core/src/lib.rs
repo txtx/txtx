@@ -4,6 +4,7 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+mod constants;
 pub mod errors;
 pub mod eval;
 pub mod std;
@@ -19,6 +20,8 @@ use ::std::thread::sleep;
 use ::std::time;
 use ::std::time::Duration;
 
+use constants::ACTION_ITEM_ENV;
+use constants::ACTION_ITEM_GENESIS;
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
@@ -158,7 +161,7 @@ lazy_static! {
             options: vec![],
             selected: InputOption::default(),
         }),
-        "env",
+        ACTION_ITEM_ENV,
       );
 }
 
@@ -768,7 +771,7 @@ pub async fn build_genesis_panel(
                 options: input_options,
                 selected: selected_option,
             }),
-            "env",
+            ACTION_ITEM_ENV,
         );
         actions.push_sub_group(vec![action_request]);
     }
@@ -798,7 +801,7 @@ pub async fn build_genesis_panel(
         None,
         ActionItemStatus::Todo,
         ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
-        "genesis".into(),
+        ACTION_ITEM_GENESIS,
     );
     actions.push_sub_group(vec![validate_action]);
 

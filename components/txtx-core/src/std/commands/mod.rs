@@ -6,7 +6,6 @@ use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutio
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
-use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     define_command,
     types::{
@@ -21,6 +20,8 @@ use txtx_addon_kit::{
     },
     AddonDefaults,
 };
+
+use crate::constants::ACTION_ITEM_CHECK_OUTPUT;
 
 pub fn new_module_specification() -> CommandSpecification {
     let command = define_command! {
@@ -308,7 +309,7 @@ impl CommandImplementation for Output {
                 description: None,
                 value: value.clone(),
             }),
-            "check_output",
+            ACTION_ITEM_CHECK_OUTPUT,
         )]);
         Ok(actions)
     }
