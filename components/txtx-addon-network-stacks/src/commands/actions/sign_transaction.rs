@@ -296,6 +296,7 @@ fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
     Ok(wallet_uuid)
 }
 
+#[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transaction(
     wallet_state: &ValueStore,
     _spec: &CommandSpecification,

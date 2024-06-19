@@ -179,6 +179,7 @@ impl StacksRpc {
         }
     }
 
+    #[cfg(not(feature = "wasm"))]
     #[async_recursion]
     pub async fn estimate_transaction_fee(
         &self,

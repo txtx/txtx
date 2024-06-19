@@ -19,7 +19,6 @@ use clarity::util::retry::BoundReader;
 use clarity::util::secp256k1::{
     MessageSignature, Secp256k1PrivateKey, Secp256k1PublicKey, MESSAGE_SIGNATURE_ENCODED_SIZE,
 };
-use clarity::util::vrf::VRFProof;
 use clarity::vm::types::{
     PrincipalData, QualifiedContractIdentifier, StandardPrincipalData, Value,
 };
@@ -37,9 +36,6 @@ use std::io::{Read, Write};
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::str::FromStr;
-use wsts::common::Signature as Secp256k1Signature;
-use wsts::curve::point::{Compressed as Secp256k1Compressed, Point as Secp256k1Point};
-use wsts::curve::scalar::Scalar as Secp256k1Scalar;
 
 pub const MAX_BLOCK_LEN: u32 = 2 * 1024 * 1024;
 pub const MAX_TRANSACTION_LEN: u32 = MAX_BLOCK_LEN;
@@ -1312,35 +1308,6 @@ pub struct TransactionSmartContract {
     pub code_body: StacksString,
 }
 
-/// Schnorr threshold signature using types from `wsts`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ThresholdSignature(pub wsts::common::Signature);
-
-impl StacksMessageCodec for ThresholdSignature {
-    fn consensus_serialize<W: Write>(&self, fd: &mut W) -> Result<(), CodecError> {
-        let compressed = self.0.R.compress();
-        let bytes = compressed.as_bytes();
-        fd.write_all(bytes).map_err(CodecError::WriteError)?;
-        write_next(fd, &self.0.z.to_bytes())?;
-        Ok(())
-    }
-
-    fn consensus_deserialize<R: Read>(fd: &mut R) -> Result<Self, CodecError> {
-        // Read curve point
-        let mut buf = [0u8; 33];
-        fd.read_exact(&mut buf).map_err(CodecError::ReadError)?;
-        let r = Secp256k1Point::try_from(&Secp256k1Compressed::from(buf))
-            .map_err(|_| CodecError::DeserializeError("Failed to read curve point".into()))?;
-
-        // Read scalar
-        let mut buf = [0u8; 32];
-        fd.read_exact(&mut buf).map_err(CodecError::ReadError)?;
-        let z = Secp256k1Scalar::from(buf);
-
-        Ok(Self(Secp256k1Signature { R: r, z }))
-    }
-}
-
 /// Cause of change in mining tenure
 /// Depending on cause, tenure can be ended or extended
 #[repr(u8)]
@@ -1448,7 +1415,7 @@ pub enum TransactionPayload {
     SmartContract(TransactionSmartContract, Option<ClarityVersion>),
     // the previous epoch leader sent two microblocks with the same sequence, and this is proof
     PoisonMicroblock(StacksMicroblockHeader, StacksMicroblockHeader),
-    Coinbase(CoinbasePayload, Option<PrincipalData>, Option<VRFProof>),
+    Coinbase(CoinbasePayload, Option<PrincipalData>, Option<Vec<u8>>),
     TenureChange(TenureChangePayload),
 }
 
@@ -2578,25 +2545,7 @@ impl StacksMessageCodec for TransactionPayload {
 
                 TransactionPayload::Coinbase(payload, Some(recipient), None)
             }
-            x if x == TransactionPayloadID::NakamotoCoinbase as u8 => {
-                let payload: CoinbasePayload = read_next(fd)?;
-                let principal_value_opt: Value = read_next(fd)?;
-                let recipient_opt = if let Value::Optional(optional_data) = principal_value_opt {
-                    if let Some(principal_value) = optional_data.data {
-                        if let Value::Principal(recipient_principal) = *principal_value {
-                            Some(recipient_principal)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    return Err(CodecError::DeserializeError("Failed to parse nakamoto coinbase transaction -- did not receive an optional recipient principal value".to_string()));
-                };
-                let vrf_proof: VRFProof = read_next(fd)?;
-                TransactionPayload::Coinbase(payload, recipient_opt, Some(vrf_proof))
-            }
+            x if x == TransactionPayloadID::NakamotoCoinbase as u8 => unreachable!(),
             x if x == TransactionPayloadID::TenureChange as u8 => {
                 let payload: TenureChangePayload = read_next(fd)?;
                 TransactionPayload::TenureChange(payload)
