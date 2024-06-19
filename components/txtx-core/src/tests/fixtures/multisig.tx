@@ -26,3 +26,7 @@ action "my_ref" "stacks::sign_transaction" {
   signer = wallet.alice_and_bob
   network_id = "testnet"
 }
+
+output "my_output" {
+  value = action.my_ref.signed_transaction_bytes
+}

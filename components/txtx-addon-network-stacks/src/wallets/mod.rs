@@ -54,7 +54,6 @@ pub async fn get_addition_actions_for_address(
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
-            &Uuid::new_v4(),
             &Some(wallet_uuid.value()),
             &format!("Connect wallet {instance_name}"),
             None,
@@ -72,7 +71,6 @@ pub async fn get_addition_actions_for_address(
     if let Some(ref expected_address) = expected_address {
         if do_request_address_check {
             action_items.push(ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
                 &format!("Check {} expected address", instance_name),
                 None,
@@ -100,7 +98,6 @@ pub async fn get_addition_actions_for_address(
                 ),
             };
             let check_balance = ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &Some(wallet_uuid.value()),
                 "Check wallet balance",
                 None,
@@ -108,6 +105,21 @@ pub async fn get_addition_actions_for_address(
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
                     input_name: "".into(), // todo
                     value: value,
+                }),
+                ACTION_ITEM_CHECK_BALANCE,
+            );
+            action_items.push(check_balance);
+        }
+    } else {
+        if do_request_balance {
+            let check_balance = ActionItemRequest::new(
+                &Some(wallet_uuid.value()),
+                "Check wallet balance",
+                None,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                    input_name: "".into(), // todo
+                    value: Value::string("N/A".to_string()),
                 }),
                 ACTION_ITEM_CHECK_BALANCE,
             );

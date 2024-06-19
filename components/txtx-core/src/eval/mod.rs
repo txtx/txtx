@@ -6,6 +6,7 @@ use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
+use kit::types::wallets::WalletsState;
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
@@ -229,7 +230,7 @@ pub async fn run_wallets_evaluation(
             },
             Err(mut diags) => {
                 pass_result.diagnostics.append(&mut diags);
-                continue;
+                return pass_result;
             }
         };
 
@@ -267,13 +268,13 @@ pub async fn run_wallets_evaluation(
                 if let Some(requests) = action_item_requests.get_mut(&construct_uuid.value()) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
-                        let update = ActionItemRequestUpdate::from_uuid(&item.uuid)
+                        let update = ActionItemRequestUpdate::from_id(&item.id)
                             .set_status(ActionItemStatus::Error(diag.clone()));
                         pass_result.actions.push_action_item_update(update);
                     }
                 }
                 pass_result.diagnostics.push(diag.clone());
-                continue;
+                return pass_result;
             }
         };
 
@@ -296,7 +297,7 @@ pub async fn run_wallets_evaluation(
             Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
             Err((wallets_state, diag)) => {
                 pass_result.diagnostics.push(diag);
-                (None, Some(wallets_state))
+                return pass_result;
             }
         };
         runbook.wallets_state = wallets_state;
@@ -664,7 +665,7 @@ pub async fn run_constructs_evaluation(
         match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
-                CommandInputEvaluationStatus::NeedsUserInteraction => {}
+                CommandInputEvaluationStatus::NeedsUserInteraction => continue,
                 CommandInputEvaluationStatus::Aborted(mut diags) => {
                     pass_result.diagnostics.append(&mut diags);
                     return pass_result;
@@ -678,6 +679,11 @@ pub async fn run_constructs_evaluation(
 
         let execution_result = if command_instance.specification.implements_signing_capability {
             let wallets = runbook.wallets_state.take().unwrap();
+            let wallets = update_wallet_instances_from_action_response(
+                wallets,
+                &construct_uuid,
+                &action_item_responses.get(&construct_uuid.value()),
+            );
 
             let res = command_instance
                 .check_signed_executability(
@@ -706,7 +712,8 @@ pub async fn run_constructs_evaluation(
                 }
                 Err((updated_wallets, diag)) => {
                     pass_result.diagnostics.push(diag);
-                    updated_wallets
+                    runbook.wallets_state = Some(updated_wallets);
+                    return pass_result;
                 }
             };
 
@@ -760,7 +767,7 @@ pub async fn run_constructs_evaluation(
             };
             execution_result
         } else {
-            if let Ok(mut new_actions) = command_instance.check_executability(
+            match command_instance.check_executability(
                 &construct_uuid,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
@@ -768,14 +775,20 @@ pub async fn run_constructs_evaluation(
                 &action_item_responses.get(&construct_uuid.value()),
                 execution_context,
             ) {
-                if new_actions.has_pending_actions() {
-                    pass_result.actions.append(&mut new_actions);
-                    for descendant in get_descendants_of_node(node, g.clone()) {
-                        unexecutable_nodes.insert(descendant);
+                Ok(mut new_actions) => {
+                    if new_actions.has_pending_actions() {
+                        pass_result.actions.append(&mut new_actions);
+                        for descendant in get_descendants_of_node(node, g.clone()) {
+                            unexecutable_nodes.insert(descendant);
+                        }
+                        continue;
                     }
-                    continue;
+                    pass_result.actions.append(&mut new_actions);
                 }
-                pass_result.actions.append(&mut new_actions);
+                Err(diag) => {
+                    pass_result.diagnostics.push(diag);
+                    return pass_result;
+                }
             }
 
             runbook
@@ -907,20 +920,18 @@ pub fn collect_runbook_outputs(
             action_items
                 .entry(command_instance.get_group())
                 .or_insert_with(Vec::new)
-                .push(ActionItemRequest {
-                    uuid: Uuid::new_v4(),
-                    construct_uuid: Some(construct_uuid.value()),
-                    index: 0,
-                    title: command_instance.name.to_string(),
-                    description: None,
-                    action_status: ActionItemStatus::Todo,
-                    action_type: ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                .push(ActionItemRequest::new(
+                    &Some(construct_uuid.value()),
+                    &command_instance.name,
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                         name: command_instance.name.to_string(),
                         description: None,
                         value: value.clone(),
                     }),
-                    internal_key: "output".into(),
-                });
+                    "output".into(),
+                ));
         }
     }
 
@@ -1220,6 +1231,49 @@ pub fn eval_expression(
 //     value: Value,
 // }
 
+pub fn update_wallet_instances_from_action_response(
+    mut wallets: WalletsState,
+    construct_uuid: &ConstructUuid,
+    action_item_response: &Option<&Vec<ActionItemResponse>>,
+) -> WalletsState {
+    match action_item_response {
+        Some(responses) => responses.into_iter().for_each(
+            |ActionItemResponse {
+                 action_item_id: _,
+                 payload,
+             }| match payload {
+                ActionItemResponseType::ProvideSignedTransaction(response) => {
+                    if let Some(mut wallet_state) =
+                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                    {
+                        wallet_state.insert_scoped_value(
+                            &construct_uuid.value().to_string(),
+                            "signed_transaction_bytes",
+                            Value::string(response.signed_transaction_bytes.clone()),
+                        );
+                        wallets.push_wallet_state(wallet_state.clone());
+                    }
+                }
+                ActionItemResponseType::ProvideSignedMessage(response) => {
+                    if let Some(mut wallet_state) =
+                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                    {
+                        wallet_state.insert_scoped_value(
+                            &construct_uuid.value().to_string(),
+                            "signed_message_bytes",
+                            Value::string(response.signed_message_bytes.clone()),
+                        );
+                        wallets.push_wallet_state(wallet_state.clone());
+                    }
+                }
+                _ => {}
+            },
+        ),
+        None => {}
+    }
+    wallets
+}
+
 #[derive(Debug)]
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
@@ -1247,7 +1301,7 @@ pub fn perform_inputs_evaluation(
     match action_item_response {
         Some(responses) => responses.into_iter().for_each(
             |ActionItemResponse {
-                 action_item_uuid: _,
+                 action_item_id: _,
                  payload,
              }| match payload {
                 ActionItemResponseType::ReviewInput(_update) => {}
@@ -1260,6 +1314,12 @@ pub fn perform_inputs_evaluation(
                     results.insert(
                         "signed_transaction_bytes",
                         Value::string(bytes.signed_transaction_bytes.clone()),
+                    );
+                }
+                ActionItemResponseType::ProvideSignedMessage(response) => {
+                    results.insert(
+                        "signed_message_bytes",
+                        Value::string(response.signed_message_bytes.clone()),
                     );
                 }
                 _ => {}

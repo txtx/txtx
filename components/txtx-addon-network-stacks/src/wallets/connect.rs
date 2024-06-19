@@ -9,9 +9,9 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_actions, return_synchronous_result, WalletActionsFutureResult,
-    WalletActivateFutureResult, WalletImplementation, WalletInstance, WalletSignFutureResult,
-    WalletSpecification, WalletsState,
+    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, WalletActionErr,
+    WalletActionsFutureResult, WalletActivateFutureResult, WalletImplementation, WalletInstance,
+    WalletSignFutureResult, WalletSpecification, WalletsState,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -92,15 +92,15 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        let _checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let requested_startup_data = wallet_state
+        let checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
+        let _requested_startup_data = wallet_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)
             .ok()
             .unwrap_or(false);
@@ -110,22 +110,22 @@ impl WalletImplementation for StacksConnect {
         let _fetched_balance = wallet_state.get_expected_uint(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
-        let do_request_address_check = expected_address.is_some() && !requested_startup_data;
-        let do_request_public_key = (is_public_key_required || expected_address.is_none())
+        let do_request_address_check = expected_address.is_some();
+        let do_request_public_key = is_public_key_required;
         // only request public key if we haven't already created that action
-            && !requested_startup_data;
+
         let _is_nonce_required = true;
-        let do_request_balance = is_balance_check_required && !requested_startup_data;
+        let do_request_balance = is_balance_check_required;
 
         let instance_name = instance_name.to_string();
         let wallet_uuid = uuid.clone();
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
 
         if let Ok(public_key_buffer) = args.get_expected_buffer("public_key", &CLARITY_BUFFER) {
@@ -178,8 +178,9 @@ impl WalletImplementation for StacksConnect {
                     .set_status(status_update);
             actions.push_action_item_update(update);
 
-            wallets.push_wallet_state(wallet_state);
-            return return_synchronous_actions(Ok((wallets, actions)));
+            return return_synchronous_actions(Ok((wallets, wallet_state, actions)));
+        } else if checked_public_key.is_ok() {
+            return return_synchronous_actions(Ok((wallets, wallet_state, Actions::none())));
         }
 
         let future = async move {
@@ -196,11 +197,10 @@ impl WalletImplementation for StacksConnect {
             )
             .await;
             wallet_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
-            wallets.push_wallet_state(wallet_state);
 
             let action_items = match res {
                 Ok(action_items) => action_items,
-                Err(diag) => return Err((wallets, diag)),
+                Err(diag) => return Err((wallets, wallet_state, diag)),
             };
             if !action_items.is_empty() {
                 actions.push_group(
@@ -208,7 +208,7 @@ impl WalletImplementation for StacksConnect {
                     action_items,
                 );
             }
-            Ok((wallets, actions))
+            Ok((wallets, wallet_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -218,7 +218,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
@@ -226,11 +226,13 @@ impl WalletImplementation for StacksConnect {
         let result = CommandExecutionResult::new();
         let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag));
+            }
         };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
 
@@ -242,8 +244,7 @@ impl WalletImplementation for StacksConnect {
         wallet_state.insert("hash_flag", Value::uint(version.into()));
         wallet_state.insert("multi_sig", Value::bool(false));
 
-        wallets.push_wallet_state(wallet_state);
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 
     fn check_signability(
@@ -253,45 +254,49 @@ impl WalletImplementation for StacksConnect {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallet_state: ValueStore,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
-            // signed_transaction_bytes
-            wallet_state.insert(&uuid.value().to_string(), signed_transaction_bytes.clone());
-            wallets.push_wallet_state(wallet_state);
-            return Ok((wallets, Actions::none()));
+    ) -> Result<CheckSignabilityOk, WalletActionErr> {
+        if let Some(_) =
+            wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+        {
+            return Ok((wallets, wallet_state, Actions::none()));
         }
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let (status, payload) = if let Some(()) = payload.as_null() {
+            (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
+        } else {
+            (ActionItemStatus::Todo, payload.clone())
         };
 
         let request = ActionItemRequest::new(
-            &Uuid::new_v4(),
             &Some(uuid.value()),
             title,
             description.clone(),
-            ActionItemStatus::Todo,
+            status,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(uuid.value()), // todo: this is the wrong uuid
+                check_expectation_action_uuid: Some(uuid.value()),
+                signer_uuid: wallet_state.uuid,
                 payload: payload.clone(),
                 namespace: "stacks".to_string(),
                 network_id,
             }),
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
-        wallets.push_wallet_state(wallet_state);
         Ok((
             wallets,
+            wallet_state,
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
-                Some("Transactions Signing"),
+                Some("Transaction Signing"),
             ),
         ))
     }
@@ -303,7 +308,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
@@ -317,7 +322,6 @@ impl WalletImplementation for StacksConnect {
             .outputs
             .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
 
-        wallets.push_wallet_state(wallet_state);
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 }

@@ -210,7 +210,7 @@ impl CommandImplementation for SendContractCall {
                 &wallets_instances,
                 wallets,
             );
-            let (wallets, mut res_signing) = match run_signing_future {
+            let (wallets, wallet_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -235,13 +235,13 @@ impl CommandImplementation for SendContractCall {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, diag)),
+                    Err(diag) => return Err((wallets, wallet_state, diag)),
                 },
-                Err(data) => return Err((wallets, data)),
+                Err(data) => return Err((wallets, wallet_state, data)),
             };
 
             res_signing.append(&mut res);
-            Ok((wallets, res_signing))
+            Ok((wallets, wallet_state, res_signing))
         };
         Ok(Box::pin(future))
     }

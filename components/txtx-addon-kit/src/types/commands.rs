@@ -28,7 +28,10 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState},
+    wallets::{
+        consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
+        WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+    },
     ConstructUuid, PackageUuid, ValueStore,
 };
 
@@ -638,7 +641,7 @@ impl CommandInstance {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(
                 |ActionItemResponse {
-                     action_item_uuid,
+                     action_item_id,
                      payload,
                  }| match payload {
                     ActionItemResponseType::ReviewInput(ReviewedInputResponse {
@@ -660,16 +663,13 @@ impl CommandInstance {
                             .inputs
                             .insert(&input_name, updated_value.clone());
 
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_type(ActionItemRequestType::ProvideInput(
-                                    ProvideInputRequest {
-                                        default_value: Some(updated_value.clone()),
-                                        input_name: input_name.clone(),
-                                        typing: updated_value.get_type(),
-                                    },
-                                ))
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                                default_value: Some(updated_value.clone()),
+                                input_name: input_name.clone(),
+                                typing: updated_value.get_type(),
+                            }))
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
 
                         for input in self.specification.inputs.iter_mut() {
@@ -684,6 +684,12 @@ impl CommandInstance {
                         values.insert(
                             "signed_transaction_bytes",
                             Value::string(bytes.signed_transaction_bytes.clone()),
+                        );
+                    }
+                    ActionItemResponseType::ProvideSignedMessage(response) => {
+                        values.insert(
+                            "signed_message_bytes",
+                            Value::string(response.signed_message_bytes.clone()),
                         );
                     }
                     _ => {}
@@ -704,11 +710,11 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        if self.specification.matcher != "output" {
+        if spec.matcher != "output" {
             let mut actions = (spec.check_executability)(
                 &construct_uuid,
                 &self.name,
-                &self.specification,
+                &spec,
                 &values,
                 &addon_defaults,
                 &execution_context,
@@ -764,6 +770,11 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                ActionItemRequestType::ProvideSignedMessage(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
                 _ => unreachable!(),
             }
         }
@@ -790,7 +801,7 @@ impl CommandInstance {
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(
                 |ActionItemResponse {
-                     action_item_uuid,
+                     action_item_id,
                      payload,
                  }| match payload {
                     ActionItemResponseType::ReviewInput(update) => {
@@ -803,22 +814,23 @@ impl CommandInstance {
                         }
                     }
                     ActionItemResponseType::ProvideInput(update) => {
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_type(ActionItemRequestType::ProvideInput(
-                                    ProvideInputRequest {
-                                        default_value: Some(update.updated_value.clone()),
-                                        input_name: update.input_name.clone(),
-                                        typing: update.updated_value.get_type(),
-                                    },
-                                ))
-                                .set_status(ActionItemStatus::Success(None));
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                                default_value: Some(update.updated_value.clone()),
+                                input_name: update.input_name.clone(),
+                                typing: update.updated_value.get_type(),
+                            }))
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
-                    ActionItemResponseType::ProvideSignedTransaction(_bytes) => {
-                        let action_item_update =
-                            ActionItemRequestUpdate::from_uuid(&action_item_uuid)
-                                .set_status(ActionItemStatus::Success(None));
+                    ActionItemResponseType::ProvideSignedTransaction(_) => {
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_status(ActionItemStatus::Success(None));
+                        consolidated_actions.push_action_item_update(action_item_update);
+                    }
+                    ActionItemResponseType::ProvideSignedMessage(_response) => {
+                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_status(ActionItemStatus::Success(None));
                         consolidated_actions.push_action_item_update(action_item_update);
                     }
                     _ => {}
@@ -837,8 +849,9 @@ impl CommandInstance {
             &execution_context,
             wallet_instances,
             wallets,
-        )?;
-        let (wallet_state, mut actions) = future.await?;
+        );
+        let res = consolidate_wallet_future_result(future).await.unwrap();
+        let (wallet_state, mut actions) = res.unwrap();
         consolidated_actions.append(&mut actions);
         Ok((wallet_state, consolidated_actions))
     }
@@ -860,7 +873,7 @@ impl CommandInstance {
         }
 
         let spec = &self.specification;
-        let res = (spec.run_signed_execution)(
+        let future = (spec.run_signed_execution)(
             &construct_uuid,
             &self.specification,
             &values,
@@ -868,8 +881,8 @@ impl CommandInstance {
             progress_tx,
             wallet_instances,
             wallets,
-        )?
-        .await;
+        );
+        let res = consolidate_wallet_activate_future_result(future).await?;
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -886,6 +899,11 @@ impl CommandInstance {
                     }
                 }
                 ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::ProvideSignedMessage(_) => {
                     if success {
                         request.action_status = status.clone();
                     }

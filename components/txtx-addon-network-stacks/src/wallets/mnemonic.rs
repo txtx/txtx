@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
+use crate::codec::codec::{
+    StacksTransaction, StacksTransactionSigner, TransactionSpendingCondition, Txid,
+};
 use clarity::address::AddressHashMode;
 use clarity::codec::StacksMessageCodec;
 use clarity::types::chainstate::StacksAddress;
+use clarity::types::PrivateKey;
 use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
-use clarity_repl::codec::{StacksTransaction, StacksTransactionSigner};
 use hmac::Hmac;
 use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
@@ -13,8 +16,8 @@ use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, WalletActionsFutureResult, WalletActivateFutureResult,
-    WalletInstance, WalletSignFutureResult, WalletsState,
+    return_synchronous_result, CheckSignabilityOk, WalletActionErr, WalletActionsFutureResult,
+    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
 };
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
 use txtx_addon_kit::types::{
@@ -31,11 +34,11 @@ use txtx_addon_kit::{
     uuid::Uuid,
 };
 
-use crate::constants::ACTION_ITEM_CHECK_ADDRESS;
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
-use crate::typing::CLARITY_BUFFER;
+use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
 
 use super::DEFAULT_DERIVATION_PATH;
 
@@ -100,18 +103,19 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
+        use crate::constants::CHECKED_PUBLIC_KEY;
+
         let mut actions = Actions::none();
 
         if wallet_state.get_value(PUBLIC_KEYS).is_some() {
-            wallets.push_wallet_state(wallet_state);
-            return return_synchronous_actions(Ok((wallets, actions)));
+            return return_synchronous_actions(Ok((wallets, wallet_state, actions)));
         }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
@@ -137,13 +141,13 @@ impl WalletImplementation for StacksMnemonic {
         let (_, public_key, expected_address) = match compute_keypair(args, defaults, &wallet_state)
         {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if execution_context.review_input_values {
             actions.push_sub_group(vec![ActionItemRequest::new(
-                &Uuid::new_v4(),
                 &None,
                 &format!("Check {} expected address", instance_name),
                 None,
@@ -153,12 +157,9 @@ impl WalletImplementation for StacksMnemonic {
                     value: Value::string(expected_address.to_string()),
                 }),
                 ACTION_ITEM_CHECK_ADDRESS,
-            )])
+            )]);
         }
-        let future = async move {
-            wallets.push_wallet_state(wallet_state);
-            Ok((wallets, actions))
-        };
+        let future = async move { Ok((wallets, wallet_state, actions)) };
         Ok(Box::pin(future))
     }
 
@@ -167,14 +168,13 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
         let result = CommandExecutionResult::new();
-        wallets.push_wallet_state(wallet_state);
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 
     fn check_signability(
@@ -185,13 +185,12 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        wallets.push_wallet_state(wallet_state);
-        Ok((wallets, Actions::none()))
+    ) -> Result<CheckSignabilityOk, WalletActionErr> {
+        Ok((wallets, wallet_state, Actions::none()))
     }
 
     fn sign(
@@ -201,40 +200,56 @@ impl WalletImplementation for StacksMnemonic {
         _spec: &WalletSpecification,
         args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        wallets: WalletsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         let mut result = CommandExecutionResult::new();
 
-        let (secret_key_value, _, _) = match compute_keypair(args, defaults, &wallet_state) {
-            Ok(value) => value,
-            Err(diag) => return Err((wallets, diag)),
-        };
+        let (secret_key_value, public_key_value, _) =
+            match compute_keypair(args, defaults, &wallet_state) {
+                Ok(value) => value,
+                Err(diag) => return Err((wallets, wallet_state, diag)),
+            };
 
-        let transaction_payload_bytes = payload.expect_buffer_bytes();
-        let transaction =
-            StacksTransaction::consensus_deserialize(&mut &transaction_payload_bytes[..]).unwrap();
+        let payload_buffer = payload.expect_buffer_data();
 
-        let mut tx_signer = StacksTransactionSigner::new(&transaction);
-        let secret_key = Secp256k1PrivateKey::from_slice(&secret_key_value.to_bytes()).unwrap();
-        tx_signer.sign_origin(&secret_key).unwrap();
-        let signed_transaction = tx_signer.get_tx().unwrap();
+        if payload_buffer.typing.eq(&STACKS_TRANSACTION) {
+            let transaction =
+                StacksTransaction::consensus_deserialize(&mut &payload_buffer.bytes[..]).unwrap();
+            let mut tx_signer = StacksTransactionSigner::new(&transaction);
+            let secret_key = Secp256k1PrivateKey::from_slice(&secret_key_value.to_bytes()).unwrap();
+            tx_signer.sign_origin(&secret_key).unwrap();
+            let signed_transaction = tx_signer.get_tx_incomplete();
+            let mut signed_transaction_bytes = vec![];
+            signed_transaction
+                .consensus_serialize(&mut signed_transaction_bytes)
+                .unwrap(); // todo
+            result.outputs.insert(
+                SIGNED_TRANSACTION_BYTES.into(),
+                Value::buffer(signed_transaction_bytes, STACKS_TRANSACTION.clone()),
+            );
+        } else {
+            let secret_key =
+                Secp256k1PrivateKey::from_slice(&secret_key_value.expect_buffer_bytes()).unwrap();
+            let public_key =
+                Secp256k1PublicKey::from_slice(&public_key_value.expect_buffer_bytes()).unwrap();
+            let signature = secret_key.sign(&payload_buffer.bytes).unwrap();
+            let cur_sighash = Txid::from_bytes(&payload_buffer.bytes).unwrap();
+            let next_sighash = TransactionSpendingCondition::make_sighash_postsign(
+                &cur_sighash,
+                &public_key,
+                &signature,
+            );
+            let message = Value::buffer(next_sighash.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
+            let signature = Value::buffer(signature.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
+            result.outputs.insert(MESSAGE_BYTES.into(), message);
+            result
+                .outputs
+                .insert(SIGNED_MESSAGE_BYTES.into(), signature);
+        }
 
-        let mut signed_transaction_bytes = vec![];
-        signed_transaction
-            .consensus_serialize(&mut signed_transaction_bytes)
-            .unwrap(); // todo
-        let signed_transaction_bytes_value =
-            Value::buffer(signed_transaction_bytes, CLARITY_BUFFER.clone());
-        result.outputs.insert(
-            SIGNED_TRANSACTION_BYTES.into(),
-            signed_transaction_bytes_value,
-        );
-
-        wallets.push_wallet_state(wallet_state);
-
-        return_synchronous_result(Ok((wallets, result)))
+        return_synchronous_result(Ok((wallets, wallet_state, result)))
     }
 }
 

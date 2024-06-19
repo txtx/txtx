@@ -1,9 +1,10 @@
-use clarity::address::public_keys_to_address_hash;
 use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
+use clarity::types::Address;
 use clarity::util::secp256k1::MessageSignature;
+use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::codec::{
     MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionPostConditionMode, TransactionPublicKeyEncoding,
+    TransactionContractCall, TransactionPostConditionMode, TransactionPublicKeyEncoding,
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -32,7 +33,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::{hex, AddonDefaults};
+use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
     NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
@@ -133,6 +134,11 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
+        use crate::{
+            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+            typing::STACKS_TRANSACTION,
+        };
+
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
         let uuid = uuid.clone();
@@ -146,6 +152,12 @@ impl CommandImplementation for SignStacksTransaction {
         let future = async move {
             let mut actions = Actions::none();
             let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+            if let Some(_) =
+                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            {
+                return Ok((wallets, wallet_state, Actions::none()));
+            }
+
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
             let transaction = match build_unsigned_transaction(
@@ -160,20 +172,28 @@ impl CommandImplementation for SignStacksTransaction {
             {
                 Ok(transaction) => transaction,
                 Err(diag) => {
-                    wallets.push_wallet_state(wallet_state);
-                    return Err((wallets, diag));
+                    return Err((wallets, wallet_state, diag));
                 }
             };
 
             let mut bytes = vec![];
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-            let hex_str = txtx_addon_kit::hex::encode(bytes); // todo
-            let payload = Value::string(hex_str);
+            let payload = Value::buffer(bytes, STACKS_TRANSACTION.clone());
 
+            wallet_state.insert_scoped_value(
+                &uuid.value().to_string(),
+                UNSIGNED_TRANSACTION_BYTES,
+                payload.clone(),
+            );
+            wallets.push_wallet_state(wallet_state);
+
+            actions.push_panel("Transaction Signing", "");
+            // todo: currently, this gets called repeatedly and is preventing the graph from properly
+            // progressing. removing for now
             if execution_context.review_input_values {
+                println!(" ===> pushing nonce/fee actions");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "".into(),
                         Some(format!("Check account nonce")),
@@ -182,10 +202,9 @@ impl CommandImplementation for SignStacksTransaction {
                             input_name: "".into(),
                             value: Value::uint(transaction.get_origin_nonce()),
                         }),
-                        "check nonce",
+                        ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Uuid::new_v4(),
                         &Some(uuid.value()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),
@@ -194,40 +213,32 @@ impl CommandImplementation for SignStacksTransaction {
                             input_name: "".into(),
                             value: Value::uint(transaction.get_tx_fee()),
                         }),
-                        "check fee",
+                        ACTION_ITEM_CHECK_FEE,
                     ),
                 ])
             }
-            wallet_state.insert_scoped_value(
-                &uuid.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
-            );
 
+            let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
             let description = args
                 .get_expected_string("description")
                 .ok()
                 .and_then(|d| Some(d.to_string()));
-
-            let (wallets, mut wallet_actions) = (wallet.specification.check_signability)(
-                &uuid,
-                &instance_name,
-                &description,
-                &payload,
-                &wallet.specification,
-                &args,
-                wallet_state,
-                wallets,
-                &wallets_instances,
-                &defaults,
-                &execution_context,
-            )?;
-            if wallet_actions.has_pending_actions() {
-                actions.append(&mut wallet_actions);
-            } else {
-                actions = wallet_actions;
-            }
-            Ok((wallets, actions))
+            let (wallets, wallet_state, mut wallet_actions) =
+                (wallet.specification.check_signability)(
+                    &uuid,
+                    &instance_name,
+                    &description,
+                    &payload,
+                    &wallet.specification,
+                    &args,
+                    wallet_state,
+                    wallets,
+                    &wallets_instances,
+                    &defaults,
+                    &execution_context,
+                )?;
+            actions.append(&mut wallet_actions);
+            Ok((wallets, wallet_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -241,18 +252,19 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletSignFutureResult {
+        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
-            return return_synchronous_ok(wallets, result);
+            return return_synchronous_ok(wallets, wallet_state, result);
         }
 
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap();
-        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
         let payload = wallet_state
             .get_scoped_value(&uuid.value().to_string(), UNSIGNED_TRANSACTION_BYTES)
@@ -284,6 +296,7 @@ fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
     Ok(wallet_uuid)
 }
 
+#[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transaction(
     wallet_state: &ValueStore,
     _spec: &CommandSpecification,
@@ -306,6 +319,20 @@ async fn build_unsigned_transaction(
             )
         }
     };
+    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+    let default_payload = {
+        let boot_address = match network_id.as_str() {
+            "mainnet" => "SP000000000000000000002Q6VF78",
+            "testnet" => "ST000000000000000000002AMW42H",
+            _ => unimplemented!("invalid network_id, return diagnostic"),
+        };
+        TransactionPayload::ContractCall(TransactionContractCall {
+            address: StacksAddress::from_string(boot_address).unwrap(),
+            contract_name: ContractName::from("bns"),
+            function_name: ClarityName::from("name-preorder"),
+            function_args: vec![],
+        })
+    };
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let fee = match fee {
@@ -313,9 +340,11 @@ async fn build_unsigned_transaction(
         None => {
             let rpc = StacksRpc::new(&rpc_api_url);
             let fee = rpc
-                .estimate_transaction_fee(&transaction_payload, 1)
+                .estimate_transaction_fee(&transaction_payload, 1, &default_payload)
                 .await
-                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+                .map_err(|e| {
+                    diagnosed_error!("failure fetching fee estimation: {}", e.to_string())
+                })?;
             fee
         }
     };
@@ -333,13 +362,7 @@ async fn build_unsigned_transaction(
     let stacks_public_keys: Vec<StacksPublicKey> = public_keys
         .iter()
         .map(|v| {
-            let bytes = hex::decode(v.expect_string()).map_err(|e| {
-                Diagnostic::error_from_string(format!(
-                    "Error parsing public key {}: {}",
-                    v.expect_string(),
-                    e.to_string()
-                ))
-            })?;
+            let bytes = v.expect_buffer_bytes();
             StacksPublicKey::from_slice(&bytes[..])
                 .map_err(|e| Diagnostic::error_from_string(e.to_string()))
         })
@@ -349,12 +372,15 @@ async fn build_unsigned_transaction(
         .get_expected_uint("hash_flag")?
         .try_into()
         .unwrap();
-    let hash_flag = AddressHashMode::from_version(version);
+    let hash_mode = AddressHashMode::from_version(version);
 
-    let signer =
-        public_keys_to_address_hash(&hash_flag, stacks_public_keys.len(), &stacks_public_keys);
-
-    let address = StacksAddress::new(version, signer.clone());
+    let address = StacksAddress::from_public_keys(
+        version,
+        &hash_mode,
+        stacks_public_keys.len(),
+        &stacks_public_keys,
+    )
+    .unwrap();
 
     let nonce = match nonce {
         Some(nonce) => nonce,
@@ -373,7 +399,7 @@ async fn build_unsigned_transaction(
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
             hash_mode: MultisigHashMode::P2SH,
-            signer,
+            signer: address.bytes,
             nonce,
             tx_fee: fee,
             fields: vec![],
@@ -381,7 +407,7 @@ async fn build_unsigned_transaction(
         }),
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
-            signer,
+            signer: address.bytes,
             nonce,
             tx_fee: fee,
             key_encoding: TransactionPublicKeyEncoding::Compressed,

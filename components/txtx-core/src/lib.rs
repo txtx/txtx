@@ -4,6 +4,7 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+mod constants;
 pub mod errors;
 pub mod eval;
 pub mod std;
@@ -19,10 +20,13 @@ use ::std::thread::sleep;
 use ::std::time;
 use ::std::time::Duration;
 
+use constants::ACTION_ITEM_ENV;
+use constants::ACTION_ITEM_GENESIS;
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
 use kit::channel;
+use kit::types::block_id::BlockId;
 use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
@@ -37,6 +41,7 @@ use kit::types::frontend::Panel;
 use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
+use kit::types::frontend::ValidateBlockData;
 use kit::types::wallets::WalletInstance;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -146,7 +151,18 @@ impl AddonsContext {
 }
 
 lazy_static! {
-    pub static ref SET_ENV_UUID: Uuid = Uuid::new_v4();
+    // create this action so we can reference its `id` property, which is built from the immutable data
+     pub static ref SET_ENV_ACTION: ActionItemRequest = ActionItemRequest ::new(
+        &None,
+        "Select the environment to target",
+        None,
+        ActionItemStatus::Success(None),
+        ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+            options: vec![],
+            selected: InputOption::default(),
+        }),
+        ACTION_ITEM_ENV,
+      );
 }
 
 pub async fn start_runbook_runloop(
@@ -261,15 +277,15 @@ pub async fn start_interactive_runbook_runloop(
     // Compute number of steps
     // A step is
 
-    // store of action_item_uuids and the associated action_item_request
-    let mut action_item_requests: BTreeMap<Uuid, ActionItemRequest> = BTreeMap::new();
+    // store of action_item_ids and the associated action_item_request
+    let mut action_item_requests: BTreeMap<BlockId, ActionItemRequest> = BTreeMap::new();
     // store of construct_uuids and its associated action_item_response_types
     let mut action_item_responses = BTreeMap::new();
 
     let mut background_tasks_futures = vec![];
     let mut background_tasks_contructs_uuids = vec![];
     let mut background_tasks_handle_uuid = Uuid::new_v4();
-
+    let mut validated_blocks = 0;
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
@@ -302,11 +318,11 @@ pub async fn start_interactive_runbook_runloop(
             continue;
         };
         let ActionItemResponse {
-            action_item_uuid,
+            action_item_id,
             payload,
         } = action_item_response.clone();
 
-        if action_item_uuid == SET_ENV_UUID.clone() {
+        if action_item_id == SET_ENV_ACTION.id {
             reset_runbook_execution(
                 &payload,
                 runbook,
@@ -322,7 +338,7 @@ pub async fn start_interactive_runbook_runloop(
             continue;
         }
 
-        if let Some(action_item) = action_item_requests.get(&action_item_uuid) {
+        if let Some(action_item) = action_item_requests.get(&action_item_id) {
             let action_item = action_item.clone();
             if let Some(construct_uuid) = action_item.construct_uuid {
                 if let Some(responses) = action_item_responses.get_mut(&construct_uuid) {
@@ -340,9 +356,7 @@ pub async fn start_interactive_runbook_runloop(
                 if !background_tasks_futures.is_empty() {
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
                         NormalizedActionItemRequestUpdate {
-                            uuid: action_item_uuid.clone(),
-                            title: None,
-                            description: None,
+                            id: action_item_id.clone(),
                             action_status: Some(ActionItemStatus::Success(None)),
                             action_type: None,
                         },
@@ -429,16 +443,19 @@ pub async fn start_interactive_runbook_runloop(
                     pass_results.actions.append(&mut actions);
                     println!("OUTPUTS: {:?}", actions);
                 } else if !pass_results.actions.store.is_empty() {
-                    pass_results.actions.push_sub_group(vec![ActionItemRequest {
-                        uuid: Uuid::new_v4(),
-                        construct_uuid: None,
-                        index: 0,
-                        title: "Validate".into(),
-                        description: None,
-                        action_status: ActionItemStatus::Todo,
-                        action_type: ActionItemRequestType::ValidateBlock,
-                        internal_key: "validate_block".into(),
-                    }]);
+                    validated_blocks = validated_blocks + 1;
+                    pass_results
+                        .actions
+                        .push_sub_group(vec![ActionItemRequest::new(
+                            &None,
+                            "Validate",
+                            None,
+                            ActionItemStatus::Todo,
+                            ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
+                                validated_blocks,
+                            )),
+                            "validate_block",
+                        )]);
                 }
 
                 if !pass_results
@@ -451,7 +468,7 @@ pub async fn start_interactive_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                 }
 
-                let update = ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                let update = ActionItemRequestUpdate::from_id(&action_item_id)
                     .set_status(ActionItemStatus::Success(None));
                 pass_results.actions.push_action_item_update(update);
                 for new_request in pass_results
@@ -459,7 +476,7 @@ pub async fn start_interactive_runbook_runloop(
                     .get_new_action_item_requests()
                     .into_iter()
                 {
-                    action_item_requests.insert(new_request.uuid.clone(), new_request.clone());
+                    action_item_requests.insert(new_request.id.clone(), new_request.clone());
                 }
                 let block_events = pass_results
                     .actions
@@ -478,7 +495,7 @@ pub async fn start_interactive_runbook_runloop(
             ActionItemResponseType::ProvideInput(_) => {
                 let Some((provide_input_action_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
-                        &action_item_uuid,
+                        &action_item_id,
                         &mut action_item_requests,
                     )
                 else {
@@ -507,10 +524,12 @@ pub async fn start_interactive_runbook_runloop(
                     let mut updated_actions = vec![];
                     for action in pass_results
                         .actions
-                        .compile_actions_to_item_updates()
+                        .compile_actions_to_item_updates(&action_item_requests)
                         .into_iter()
                     {
-                        updated_actions.push(action.normalize(&action_item_requests))
+                        if let Some(update) = action.normalize(&action_item_requests) {
+                            updated_actions.push(update);
+                        }
                     }
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
@@ -533,16 +552,17 @@ pub async fn start_interactive_runbook_runloop(
                     false => ActionItemStatus::Todo,
                 };
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                    ActionItemRequestUpdate::from_uuid(&action_item_uuid)
+                    ActionItemRequestUpdate::from_id(&action_item_id)
                         .set_status(new_status)
-                        .normalize(&action_item_requests),
+                        .normalize(&action_item_requests)
+                        .unwrap(),
                 ]));
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((wallet_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
-                        &action_item_uuid,
+                        &action_item_id,
                         &mut action_item_requests,
                     )
                 else {
@@ -567,18 +587,19 @@ pub async fn start_interactive_runbook_runloop(
                 } else {
                     let updated_actions = pass_result
                         .actions
-                        .compile_actions_to_item_updates()
+                        .compile_actions_to_item_updates(&action_item_requests)
                         .into_iter()
-                        .map(|u| u.normalize(&action_item_requests))
+                        .map(|u| u.normalize(&action_item_requests).unwrap())
                         .collect();
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
                 }
             }
-            ActionItemResponseType::ProvideSignedTransaction(_response) => {
+            ActionItemResponseType::ProvideSignedTransaction(_)
+            | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((signing_action_construct_uuid, scoped_requests)) =
                     retrieve_related_action_items_requests(
-                        &action_item_uuid,
+                        &action_item_id,
                         &mut action_item_requests,
                     )
                 else {
@@ -602,10 +623,10 @@ pub async fn start_interactive_runbook_runloop(
                 let mut updated_actions = vec![];
                 for action in pass_results
                     .actions
-                    .compile_actions_to_item_updates()
+                    .compile_actions_to_item_updates(&action_item_requests)
                     .into_iter()
                 {
-                    updated_actions.push(action.normalize(&action_item_requests))
+                    updated_actions.push(action.normalize(&action_item_requests).unwrap())
                 }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
@@ -628,22 +649,22 @@ pub async fn start_interactive_runbook_runloop(
 
 pub fn register_action_items_from_actions(
     actions: &Actions,
-    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
 ) {
     for action in actions.get_new_action_item_requests().into_iter() {
-        action_item_requests.insert(action.uuid.clone(), action.clone());
+        action_item_requests.insert(action.id.clone(), action.clone());
     }
 }
 
 pub fn retrieve_related_action_items_requests<'a>(
-    action_item_uuid: &Uuid,
-    action_item_requests: &'a mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_id: &BlockId,
+    action_item_requests: &'a mut BTreeMap<BlockId, ActionItemRequest>,
 ) -> Option<(Uuid, Vec<&'a mut ActionItemRequest>)> {
     let Some(wallet_construct_uuid) = action_item_requests
-        .get(&action_item_uuid)
+        .get(&action_item_id)
         .and_then(|a| a.construct_uuid)
     else {
-        eprintln!("unable to retrieve {}", action_item_uuid);
+        eprintln!("unable to retrieve {}", action_item_id);
         // todo: log error
         return None;
     };
@@ -668,7 +689,7 @@ pub async fn reset_runbook_execution(
     block_tx: &Sender<BlockEvent>,
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     execution_context: &CommandExecutionContext,
-    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -678,8 +699,6 @@ pub async fn reset_runbook_execution(
             payload
         );
     };
-
-    println!("==> {:?}", environments);
 
     if environments.get(environment_key.as_str()).is_none() {
         unreachable!("Invalid environment variable was sent",);
@@ -714,7 +733,7 @@ pub async fn build_genesis_panel(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
-    action_item_requests: &mut BTreeMap<Uuid, ActionItemRequest>,
+    action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
@@ -743,19 +762,17 @@ pub async fn build_genesis_panel(
                     displayed_value: k.clone(),
                 }
             });
-        let action_request = ActionItemRequest {
-            uuid: SET_ENV_UUID.clone(),
-            construct_uuid: None,
-            index: 0,
-            title: "Select the environment to target".into(),
-            description: None,
-            action_status: ActionItemStatus::Success(None),
-            action_type: ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+        let action_request = ActionItemRequest::new(
+            &None,
+            "Select the environment to target",
+            None,
+            ActionItemStatus::Success(None),
+            ActionItemRequestType::PickInputOption(PickInputOptionRequest {
                 options: input_options,
                 selected: selected_option,
             }),
-            internal_key: "env".into(),
-        };
+            ACTION_ITEM_ENV,
+        );
         actions.push_sub_group(vec![action_request]);
     }
 
@@ -778,16 +795,14 @@ pub async fn build_genesis_panel(
 
     actions.append(&mut pass_result.actions);
 
-    let validate_action = ActionItemRequest {
-        uuid: Uuid::new_v4(),
-        construct_uuid: None,
-        index: 0,
-        title: "start runbook".into(),
-        description: None,
-        action_status: ActionItemStatus::Todo,
-        action_type: ActionItemRequestType::ValidateBlock,
-        internal_key: "genesis".into(),
-    };
+    let validate_action = ActionItemRequest::new(
+        &None,
+        "start runbook".into(),
+        None,
+        ActionItemStatus::Todo,
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
+        ACTION_ITEM_GENESIS,
+    );
     actions.push_sub_group(vec![validate_action]);
 
     register_action_items_from_actions(&actions, action_item_requests);

@@ -77,20 +77,41 @@ impl WalletsState {
         }
     }
 }
-
+pub type WalletActionOk = (WalletsState, ValueStore, CommandExecutionResult);
+pub type WalletActionErr = (WalletsState, ValueStore, Diagnostic);
 pub type WalletActivateFutureResult = Result<
-    Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        (WalletsState, CommandExecutionResult),
-                        (WalletsState, Diagnostic),
-                    >,
-                > + Send,
-        >,
-    >,
-    (WalletsState, Diagnostic),
+    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
+    WalletActionErr,
 >;
+
+pub fn consolidate_wallet_activate_result(
+    res: Result<WalletActionOk, WalletActionErr>,
+) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
+    match res {
+        Ok((mut wallets, wallet_state, result)) => {
+            wallets.push_wallet_state(wallet_state);
+            Ok((wallets, result))
+        }
+        Err((mut wallets, wallet_state, diag)) => {
+            wallets.push_wallet_state(wallet_state);
+            Err((wallets, diag))
+        }
+    }
+}
+pub async fn consolidate_wallet_activate_future_result(
+    future: WalletActivateFutureResult,
+) -> Result<
+    Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)>,
+    (WalletsState, Diagnostic),
+> {
+    match future {
+        Ok(res) => Ok(consolidate_wallet_activate_result(res.await)),
+        Err((mut wallets, wallet_state, diag)) => {
+            wallets.push_wallet_state(wallet_state);
+            Err((wallets, diag))
+        }
+    }
+}
 
 pub type WalletActivateClosure = Box<
     fn(
@@ -106,17 +127,8 @@ pub type WalletActivateClosure = Box<
 >;
 
 pub type WalletSignFutureResult = Result<
-    Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        (WalletsState, CommandExecutionResult),
-                        (WalletsState, Diagnostic),
-                    >,
-                > + Send,
-        >,
-    >,
-    (WalletsState, Diagnostic),
+    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
+    WalletActionErr,
 >;
 
 pub type WalletSignClosure = Box<
@@ -148,70 +160,87 @@ pub type WalletCheckActivabilityClosure = fn(
 ) -> WalletActionsFutureResult;
 
 pub type WalletActionsFutureResult = Result<
-    Pin<
-        Box<
-            dyn Future<Output = Result<(WalletsState, Actions), (WalletsState, Diagnostic)>> + Send,
-        >,
-    >,
-    (WalletsState, Diagnostic),
+    Pin<Box<dyn Future<Output = Result<CheckSignabilityOk, WalletActionErr>> + Send>>,
+    WalletActionErr,
 >;
 
 pub type WalletCheckInstantiabilityClosure =
     fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 
-pub type WalletCheckSignabilityClosure =
-    fn(
-        &ConstructUuid,
-        &str,
-        &Option<String>,
-        &Value,
-        &WalletSpecification,
-        &ValueStore,
-        ValueStore,
-        WalletsState,
-        &HashMap<ConstructUuid, WalletInstance>,
-        &AddonDefaults,
-        &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)>;
+pub type CheckSignabilityOk = (WalletsState, ValueStore, Actions);
+
+pub type WalletCheckSignabilityClosure = fn(
+    &ConstructUuid,
+    &str,
+    &Option<String>,
+    &Value,
+    &WalletSpecification,
+    &ValueStore,
+    ValueStore,
+    WalletsState,
+    &HashMap<ConstructUuid, WalletInstance>,
+    &AddonDefaults,
+    &CommandExecutionContext,
+) -> Result<CheckSignabilityOk, WalletActionErr>;
 
 pub type WalletOperationFutureResult = Result<
-    Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        (WalletsState, CommandExecutionResult),
-                        (WalletsState, Diagnostic),
-                    >,
-                > + Send,
-        >,
-    >,
-    (WalletsState, Diagnostic),
+    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
+    WalletActionErr,
 >;
 
 pub fn return_synchronous_actions(
-    res: Result<(WalletsState, Actions), (WalletsState, Diagnostic)>,
+    res: Result<CheckSignabilityOk, WalletActionErr>,
 ) -> WalletActionsFutureResult {
     Ok(Box::pin(future::ready(res)))
 }
 
 pub fn return_synchronous_result(
-    res: Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)>,
+    res: Result<WalletActionOk, WalletActionErr>,
 ) -> WalletOperationFutureResult {
     Ok(Box::pin(future::ready(res)))
 }
 
 pub fn return_synchronous_ok(
-    wallets_state: WalletsState,
+    wallets: WalletsState,
+    wallet_state: ValueStore,
     res: CommandExecutionResult,
 ) -> WalletOperationFutureResult {
-    return_synchronous_result(Ok((wallets_state, res)))
+    return_synchronous_result(Ok((wallets, wallet_state, res)))
 }
 
 pub fn return_synchronous_err(
-    wallets_state: WalletsState,
+    wallets: WalletsState,
+    wallet_state: ValueStore,
     diag: Diagnostic,
 ) -> WalletOperationFutureResult {
-    return_synchronous_result(Err((wallets_state, diag)))
+    return_synchronous_result(Err((wallets, wallet_state, diag)))
+}
+
+pub fn consolidate_wallet_result(
+    res: Result<CheckSignabilityOk, WalletActionErr>,
+) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    match res {
+        Ok((mut wallets, wallet_state, actions)) => {
+            wallets.push_wallet_state(wallet_state);
+            Ok((wallets, actions))
+        }
+        Err((mut wallets, wallet_state, diag)) => {
+            wallets.push_wallet_state(wallet_state);
+            Err((wallets, diag))
+        }
+    }
+}
+pub async fn consolidate_wallet_future_result(
+    future: WalletActionsFutureResult,
+) -> Result<Result<(WalletsState, Actions), (WalletsState, Diagnostic)>, (WalletsState, Diagnostic)>
+{
+    match future {
+        Ok(res) => Ok(consolidate_wallet_result(res.await)),
+        Err((mut wallets, wallet_state, diag)) => {
+            wallets.push_wallet_state(wallet_state);
+            Err((wallets, diag))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -414,8 +443,8 @@ impl WalletInstance {
                                 &execution_context,
                                 is_balance_check_required,
                                 is_public_key_required,
-                            )?
-                            .await;
+                            );
+                            return consolidate_wallet_future_result(res).await?;
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {
@@ -438,7 +467,6 @@ impl WalletInstance {
                             // }
 
                             // for request in action_item_requests.iter() {}
-                            return res;
                         }
                         _ => {}
                     }
@@ -462,10 +490,9 @@ impl WalletInstance {
             &execution_context,
             is_balance_check_required,
             is_public_key_required,
-        )?
-        .await;
+        );
 
-        res
+        consolidate_wallet_future_result(res).await?
     }
 
     pub async fn perform_activation(
@@ -484,8 +511,7 @@ impl WalletInstance {
         }
 
         let wallet_state = wallets.pop_wallet_state(construct_uuid).unwrap();
-
-        let res = (&self.specification.activate)(
+        let future = (&self.specification.activate)(
             &construct_uuid,
             &self.specification,
             &values,
@@ -494,8 +520,8 @@ impl WalletInstance {
             wallets_instances,
             &addon_defaults,
             progress_tx,
-        )?
-        .await;
+        );
+        let res = consolidate_wallet_activate_future_result(future).await?;
 
         res
     }
@@ -577,7 +603,7 @@ pub trait WalletImplementation {
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    ) -> Result<CheckSignabilityOk, WalletActionErr> {
         unimplemented!()
     }
 

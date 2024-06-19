@@ -372,6 +372,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
 
 [[package]]
+name = "async-recursion"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.58",
+]
+
+[[package]]
 name = "async-stream"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1732,6 +1743,12 @@ name = "hifijson"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18ae468bcb4dfecf0e4949ee28abbc99076b6a0077f51ddbc94dbfff8e6a870c"
+
+[[package]]
+name = "highway"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ba82c000837f4e74df01a5520f0dc48735d4aed955a99eae4428bab7cf3acd"
 
 [[package]]
 name = "hiro-system-kit"
@@ -4407,10 +4424,12 @@ dependencies = [
  "getrandom 0.2.13",
  "hcl-edit",
  "hex",
+ "highway",
  "hiro-system-kit 0.3.4",
  "indoc",
  "jaq-interpret",
  "lazy_static",
+ "rand 0.8.5",
  "reqwest 0.12.3",
  "rust-fsm",
  "serde",
@@ -4441,6 +4460,7 @@ dependencies = [
 name = "txtx-addon-network-stacks"
 version = "0.1.0"
 dependencies = [
+ "async-recursion",
  "clarinet-deployments",
  "clarity-repl 2.0.0",
  "clarity-vm",
@@ -4503,6 +4523,7 @@ dependencies = [
  "jaq-interpret",
  "jaq-parse",
  "lazy_static",
+ "libsecp256k1 0.7.1",
  "petgraph",
  "ripemd",
  "serde_json",
@@ -4524,7 +4545,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tokio",
- "txtx-core",
+ "txtx-addon-kit",
  "uuid",
 ]
 
