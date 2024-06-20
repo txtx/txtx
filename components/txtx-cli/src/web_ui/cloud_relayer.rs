@@ -9,12 +9,13 @@ use txtx_core::kit::reqwest;
 const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(rename = "runbook")]
+#[serde(rename = "runbook", rename_all = "camelCase")]
 pub struct OpenChannelRequest {
     pub name: String,
     pub description: String,
 }
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenChannelResponse {
     pub totp: String,
     pub http_endpoint_url: String,
