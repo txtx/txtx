@@ -15,9 +15,10 @@ pub struct OpenChannelRequest {
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct OpenChannelResponse {
-    pub totp_token: String,
+    pub totp: String,
     pub http_endpoint_url: String,
     pub ws_endpoint_url: String,
+    pub slug: String,
 }
 
 #[actix_web::post("/relayer/channels")]
