@@ -14,6 +14,7 @@ use std::time::Duration;
 use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
+use super::cloud_relayer::open_channel;
 use super::Asset;
 
 pub async fn start_server(
@@ -44,6 +45,7 @@ pub async fn start_server(
             .service(web::resource("/playground").route(web::get().to(playground)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
             .service(dist)
+            .service(open_channel)
     })
     .workers(5)
     .bind(&format!("127.0.0.1:{port}"))?
