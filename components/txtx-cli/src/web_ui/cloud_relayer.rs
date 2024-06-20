@@ -3,9 +3,10 @@ use actix_web::http::StatusCode;
 use actix_web::web::Json;
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
+use dotenvy_macro::dotenv;
 use txtx_core::kit::reqwest;
 
-const URL: &str = "";
+const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename = "runbook")]
@@ -32,7 +33,7 @@ pub async fn open_channel(
 
     let token = cookie.value();
     let client = reqwest::Client::new();
-    let path = format!("{}/api/v1/channels", URL);
+    let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
 
     let res = client
         .post(path)

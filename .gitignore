@@ -3,3 +3,4 @@
 .btcdeb_history
 components/txtx-web-ui/node_modules
 components/txtx-web-ui/.parcel-cache
+.env
