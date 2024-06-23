@@ -7,7 +7,10 @@ use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
 use tokio::sync::RwLock;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 use txtx_core::kit::channel::Sender;
+use txtx_core::kit::futures::{SinkExt, StreamExt};
 use txtx_core::kit::reqwest;
 use txtx_core::kit::types::frontend::{ActionItemResponse, BlockEvent};
 
@@ -101,4 +104,55 @@ pub async fn forward_block_event(token: String, payload: BlockEvent) -> Result<(
         .map_err(|e| format!("received error response from relayer: {}", e.to_string()))?;
 
     Ok(())
+}
+
+pub async fn get_opened_channel_data(
+    relayer_channel: Arc<RwLock<Option<ChannelData>>>,
+) -> ChannelData {
+    let channel = loop {
+        if let Some(channel) = relayer_channel.read().await.clone() {
+            break channel;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    };
+    channel
+}
+
+pub async fn process_relayer_ws_events(
+    channel: ChannelData,
+    action_item_events_tx: Sender<ActionItemResponse>,
+) {
+    let (ws_stream, _) = connect_async(&channel.ws_endpoint_url)
+        .await
+        .expect("Failed to connect");
+
+    let (mut write, mut read) = ws_stream.split();
+
+    while let Some(message) = read.next().await {
+        match message {
+            Ok(msg) => match msg {
+                Message::Text(text) => {
+                    let Ok(response) = serde_json::from_str::<ActionItemResponse>(&text) else {
+                        continue;
+                    };
+                    let _ = action_item_events_tx.send(response);
+                }
+                Message::Binary(_) => todo!(),
+                Message::Ping(ping) => {
+                    println!("Received ping: {:?}", ping);
+                    // Respond with pong message to keep the connection alive
+                    write
+                        .send(Message::Pong(ping))
+                        .await
+                        .expect("Failed to send pong");
+                }
+                Message::Pong(_) => todo!(),
+                Message::Close(_) => {
+                    break;
+                }
+                Message::Frame(_) => todo!(),
+            },
+            Err(e) => panic!("{}", e.to_string()), //return Err(format!("relayer ws channel failed: {}", e)),
+        }
+    }
 }
