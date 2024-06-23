@@ -85,3 +85,20 @@ pub async fn open_channel(
 
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(body))
 }
+
+pub async fn forward_block_event(token: String, payload: BlockEvent) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let path = format!("{}/gql/v1/mutations", RELAYER_BASE_URL);
+
+    let _ = client
+        .post(path)
+        .bearer_auth(token)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("error forwarding block event to relayer: {}", e.to_string()))?
+        .error_for_status()
+        .map_err(|e| format!("received error response from relayer: {}", e.to_string()))?;
+
+    Ok(())
+}

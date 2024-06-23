@@ -220,6 +220,11 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                 // only propagate the event if there are actually changes to the block store
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
+                    if let Some(channel) = moved_relayer_channel.read().await.clone() {
+                        // todo: handle error
+                        let _ =
+                            forward_block_event(channel.operator_token, block_event.clone()).await;
+                    }
                 }
             }
         }
