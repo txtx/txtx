@@ -1,12 +1,42 @@
+use std::sync::Arc;
+
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
-use actix_web::web::Json;
+use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
+use tokio::sync::RwLock;
+use txtx_core::kit::channel::Sender;
 use txtx_core::kit::reqwest;
+use txtx_core::kit::types::frontend::{ActionItemResponse, BlockEvent};
 
 const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
+
+#[derive(Clone, Debug)]
+pub struct RelayerContext {
+    pub channel: Arc<RwLock<Option<ChannelData>>>,
+    pub action_item_events_tx: Sender<ActionItemResponse>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ChannelData {
+    pub operator_token: String,
+    pub totp: String,
+    pub http_endpoint_url: String,
+    pub ws_endpoint_url: String,
+    pub slug: String,
+}
+impl ChannelData {
+    pub fn new(operator_token: String, open_channel_response: OpenChannelResponse) -> Self {
+        ChannelData {
+            operator_token,
+            totp: open_channel_response.totp,
+            http_endpoint_url: open_channel_response.http_endpoint_url,
+            ws_endpoint_url: open_channel_response.ws_endpoint_url,
+            slug: open_channel_response.slug,
+        }
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename = "runbook", rename_all = "camelCase")]
@@ -14,7 +44,7 @@ pub struct OpenChannelRequest {
     pub name: String,
     pub description: String,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenChannelResponse {
     pub totp: String,
@@ -27,6 +57,7 @@ pub struct OpenChannelResponse {
 pub async fn open_channel(
     req: HttpRequest,
     payload: Json<OpenChannelRequest>,
+    relayer_context: Data<RelayerContext>,
 ) -> actix_web::Result<HttpResponse> {
     let Some(cookie) = req.cookie("hanko") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
@@ -48,5 +79,9 @@ pub async fn open_channel(
         .json::<OpenChannelResponse>()
         .await
         .map_err(ErrorInternalServerError)?;
+
+    let mut channel = relayer_context.channel.write().await;
+    *channel = Some(ChannelData::new(token.to_string(), body.clone()));
+
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(body))
 }

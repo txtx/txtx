@@ -2,7 +2,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
-        channel::{self},
+        channel,
+        futures::{SinkExt, StreamExt},
         helpers::fs::FileLocation,
         types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
     },
@@ -10,15 +11,16 @@ use txtx_core::{
     types::{Runbook, RuntimeContext},
 };
 
-use txtx_gql::Context as GqlContext;
-
 use crate::{
     manifest::{
         read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest,
         ProtocolManifest,
     },
-    web_ui,
+    web_ui::{self, cloud_relayer::forward_block_event},
 };
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use txtx_gql::Context as GqlContext;
+use web_ui::cloud_relayer::RelayerContext;
 
 const DEFAULT_PORT_TXTX: u16 = 8488;
 
@@ -128,6 +130,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
+    let relayer_channel = Arc::new(RwLock::new(None));
 
     let web_ui_handle = if start_web_ui {
         // start web ui server
@@ -139,15 +142,19 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             block_broadcaster: block_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         };
+        let relayer_context = RelayerContext {
+            channel: relayer_channel.clone(),
+            action_item_events_tx: action_item_events_tx.clone(),
+        };
 
         let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),
-            green!(format!("http://127.0.0.1:{}", port))
+            green!(format!("http://localhost:{}", port))
         );
 
-        let handle = web_ui::http::start_server(gql_context, port, ctx)
+        let handle = web_ui::http::start_server(gql_context, relayer_context, port, ctx)
             .await
             .map_err(|e| format!("Failed to start web ui: {e}"))?;
 
@@ -156,6 +163,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         None
     };
 
+    let moved_relayer_channel = relayer_channel.clone();
     let _ = tokio::spawn(async move {
         loop {
             if let Ok(mut block_event) = block_rx.recv() {
@@ -217,6 +225,54 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         }
     });
 
+    let relayer_channel = relayer_channel.clone();
+    let handle1 = tokio::spawn(async move {
+        let channel = loop {
+            if let Some(channel) = relayer_channel.read().await.clone() {
+                break channel;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        };
+        println!(
+            "Initiating WebSocket connection at {}",
+            &channel.ws_endpoint_url
+        );
+        let (ws_stream, _) = connect_async(&channel.ws_endpoint_url)
+            .await
+            .expect("Failed to connect");
+
+        let (mut write, mut read) = ws_stream.split();
+
+        let relayer_action_item_events_tx = action_item_events_tx.clone();
+        while let Some(message) = read.next().await {
+            match message {
+                Ok(msg) => match msg {
+                    Message::Text(text) => {
+                        let Ok(response) = serde_json::from_str::<ActionItemResponse>(&text) else {
+                            continue;
+                        };
+                        let _ = relayer_action_item_events_tx.send(response);
+                    }
+                    Message::Binary(_) => todo!(),
+                    Message::Ping(ping) => {
+                        println!("Received ping: {:?}", ping);
+                        // Respond with pong message to keep the connection alive
+                        write
+                            .send(Message::Pong(ping))
+                            .await
+                            .expect("Failed to send pong");
+                    }
+                    Message::Pong(_) => todo!(),
+                    Message::Close(_) => {
+                        break;
+                    }
+                    Message::Frame(_) => todo!(),
+                },
+                Err(e) => panic!("{}", e.to_string()), //return Err(format!("relayer ws channel failed: {}", e)),
+            }
+        }
+    });
+    handle1.await.unwrap();
     let _ = tokio::spawn(async move {
         match kill_loops_rx.recv() {
             Ok(_) => {

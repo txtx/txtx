@@ -14,20 +14,23 @@ use std::time::Duration;
 use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
-use super::cloud_relayer::open_channel;
+use super::cloud_relayer::{open_channel, RelayerContext};
 use super::Asset;
 
 pub async fn start_server(
     gql_context: GraphContext,
+    relayer_context: RelayerContext,
     port: u16,
     _ctx: &Context,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
     let gql_context = Data::new(gql_context);
+    let relayer_context = Data::new(relayer_context);
 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(new_graphql_schema()))
             .app_data(gql_context.clone())
+            .app_data(relayer_context.clone())
             .wrap(
                 Cors::default()
                     .allow_any_origin()
