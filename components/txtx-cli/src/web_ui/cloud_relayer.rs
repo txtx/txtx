@@ -1,17 +1,17 @@
-use std::sync::Arc;
-
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::handshake::client::Request;
 use tokio_tungstenite::tungstenite::Message;
 use txtx_core::kit::channel::Sender;
 use txtx_core::kit::futures::{SinkExt, StreamExt};
-use txtx_core::kit::reqwest;
+use txtx_core::kit::reqwest::{self};
 use txtx_core::kit::types::frontend::{ActionItemResponse, BlockEvent};
 
 const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
@@ -121,10 +121,24 @@ pub async fn get_opened_channel_data(
 pub async fn process_relayer_ws_events(
     channel: ChannelData,
     action_item_events_tx: Sender<ActionItemResponse>,
-) {
-    let (ws_stream, _) = connect_async(&channel.ws_endpoint_url)
+) -> Result<(), String> {
+    let req = Request::builder()
+        .method("GET")
+        .uri(&channel.ws_endpoint_url)
+        .header(
+            "authorization",
+            format!("Bearer {}", &channel.operator_token),
+        )
+        .header("sec-websocket-key", channel.slug)
+        .header("host", format!("{}", RELAYER_BASE_URL))
+        .header("upgrade", "websocket")
+        .header("connection", "upgrade")
+        .header("sec-websocket-version", 13)
+        .body(())
+        .map_err(|e| format!("failed to create relayer ws connection: {}", e))?;
+    let (ws_stream, _) = connect_async(req)
         .await
-        .expect("Failed to connect");
+        .map_err(|e| format!("failed to connect to relayer ws channel: {}", e))?;
 
     let (mut write, mut read) = ws_stream.split();
 
@@ -144,7 +158,7 @@ pub async fn process_relayer_ws_events(
                     write
                         .send(Message::Pong(ping))
                         .await
-                        .expect("Failed to send pong");
+                        .map_err(|e| format!("failed to send ws pong: {}", e))?;
                 }
                 Message::Pong(_) => todo!(),
                 Message::Close(_) => {
@@ -152,7 +166,8 @@ pub async fn process_relayer_ws_events(
                 }
                 Message::Frame(_) => todo!(),
             },
-            Err(e) => panic!("{}", e.to_string()), //return Err(format!("relayer ws channel failed: {}", e)),
+            Err(e) => return Err(format!("error parsing ws message: {}", e)),
         }
     }
+    Ok(())
 }

@@ -238,7 +238,10 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             "Initiating WebSocket connection at {}",
             &channel.ws_endpoint_url
         );
-        process_relayer_ws_events(channel, action_item_events_tx.clone()).await;
+        // todo: handle error
+        let _ = process_relayer_ws_events(channel, action_item_events_tx.clone())
+            .await
+            .unwrap();
     });
     handle1.await.unwrap();
     let _ = tokio::spawn(async move {
