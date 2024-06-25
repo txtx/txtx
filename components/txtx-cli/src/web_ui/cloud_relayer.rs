@@ -185,8 +185,15 @@ pub async fn process_relayer_ws_events(
             Ok(msg) => match msg {
                 Message::Text(text) => {
                     println!("Operator received WS ActionItemResponse");
-                    let Ok(response) = serde_json::from_str::<ActionItemResponse>(&text) else {
-                        continue;
+                    let response = match serde_json::from_str::<ActionItemResponse>(&text) {
+                        Ok(response) => response,
+                        Err(e) => {
+                            println!(
+                                "error deserializing action item response: {}",
+                                e.to_string()
+                            );
+                            continue;
+                        }
                     };
                     let _ = action_item_events_tx.send(response);
                 }

@@ -9,7 +9,6 @@ use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler, subscriptions};
 use juniper_graphql_ws::ConnectionConfig;
 use mime_guess::from_path;
-use serde_json::json;
 use std::error::Error as StdError;
 use std::time::Duration;
 use txtx_core::kit::types::frontend::DiscoveryResponse;
