@@ -1571,3 +1571,15 @@ pub struct ProvideSignedTransactionResponse {
 pub struct DiscoveryResponse {
     pub needs_credentials: bool,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelParticipantAuthRequest {
+    pub otp_code: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelParticipantAuthResponse {
+    pub auth_token: String,
+}
