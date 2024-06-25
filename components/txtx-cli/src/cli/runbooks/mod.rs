@@ -213,21 +213,6 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
             .unwrap()
     );
 
-    // let mut doc_file = File::create(addon_path).expect("creation failed");
-    // // let doc_data = build_addon_doc_data(&addon);
-    // let template = mustache::compile_str(include_str!("../readme.md.mst"))
-    //     .expect("Failed to compile template");
-    // template
-    //     .render_data(&mut doc_file, &doc_data)
-    //     .expect("Failed to render template");
-
-    // let mut runbook_location = FileLocation::from_path(runbook_file_path);
-    // println!("\n{} {}", green!("Created directory"), runbook_location.get_relative_path_from_base(&root_location).unwrap());
-
-    // runbook_location.append_path(&runbook_name).unwrap();
-    // runbook_location.write_content("Hello world".as_bytes()).expect("unable to write file");
-    // println!("{} {}", green!("Created runbook"), runbook_location.get_relative_path_from_base(&root_location).unwrap());
-
     Ok(())
 }
 
