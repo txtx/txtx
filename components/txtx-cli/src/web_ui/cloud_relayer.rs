@@ -56,12 +56,12 @@ pub struct OpenChannelResponse {
     pub slug: String,
 }
 
-#[actix_web::post("/relayer/channels")]
 pub async fn open_channel(
     req: HttpRequest,
     payload: Json<OpenChannelRequest>,
     relayer_context: Data<RelayerContext>,
 ) -> actix_web::Result<HttpResponse> {
+    println!("POST /api/v1/channels");
     let Some(cookie) = req.cookie("hanko") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
     };

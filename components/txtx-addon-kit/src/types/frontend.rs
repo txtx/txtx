@@ -1565,3 +1565,9 @@ pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: String,
     pub signer_uuid: Uuid,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveryResponse {
+    pub needs_credentials: bool,
+}
