@@ -1583,3 +1583,30 @@ pub struct ChannelParticipantAuthRequest {
 pub struct ChannelParticipantAuthResponse {
     pub auth_token: String,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename = "runbook", rename_all = "camelCase")]
+pub struct OpenChannelRequest {
+    pub runbook_name: String,
+    pub runbook_description: Option<String>,
+    pub block_store: BTreeMap<usize, Block>,
+    pub uuid: Uuid,
+    pub slug: String,
+    pub operating_token: String,
+    pub totp: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenChannelResponse {
+    pub http_endpoint_url: String,
+    pub ws_endpoint_url: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenChannelResponseBrowser {
+    pub totp: String,
+    pub http_endpoint_url: String,
+    pub ws_endpoint_url: String,
+    pub slug: String,
+}

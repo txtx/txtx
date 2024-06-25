@@ -95,6 +95,7 @@ async fn dist(path: web::Path<String>) -> impl Responder {
 }
 
 async fn needs_credentials() -> impl Responder {
+    println!("GET /api/v1/discovery");
     HttpResponse::Ok().json(DiscoveryResponse {
         needs_credentials: false,
     })

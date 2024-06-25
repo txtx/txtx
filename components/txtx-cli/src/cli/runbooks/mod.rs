@@ -221,10 +221,16 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                 // only propagate the event if there are actually changes to the block store
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
+                    println!("propagating block event");
                     if let Some(channel) = moved_relayer_channel.read().await.clone() {
                         // todo: handle error
-                        let _ =
-                            forward_block_event(channel.operator_token, block_event.clone()).await;
+                        println!("forwarding block event to relayer");
+                        let _ = forward_block_event(
+                            channel.operator_token,
+                            channel.slug,
+                            block_event.clone(),
+                        )
+                        .await;
                     }
                 }
             }
@@ -243,7 +249,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             .await
             .unwrap();
     });
-
+    let relayer_channel_abort_handle = relayer_channel_handle.abort_handle();
     let _ = tokio::spawn(async move {
         match kill_loops_rx.recv() {
             Ok(_) => {
@@ -251,7 +257,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     let _ = handle.stop(true).await;
                 }
                 let _ = block_tx.send(BlockEvent::Exit);
-                relayer_channel_handle.abort();
+                relayer_channel_abort_handle.abort();
             }
             Err(_) => {}
         };
@@ -262,7 +268,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             .expect("Could not send signal on channel to kill web ui.")
     })
     .expect("Error setting Ctrl-C handler");
-
+    relayer_channel_handle.await.unwrap();
     Ok(())
 }
 

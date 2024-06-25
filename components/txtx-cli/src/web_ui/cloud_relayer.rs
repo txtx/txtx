@@ -1,18 +1,25 @@
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
-use actix_web::web::{Data, Json};
+use actix_web::web::Data;
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::handshake::client::Request;
 use tokio_tungstenite::tungstenite::Message;
+use totp_rs::{Algorithm, TOTP};
 use txtx_core::kit::channel::Sender;
 use txtx_core::kit::futures::{SinkExt, StreamExt};
 use txtx_core::kit::reqwest::{self};
-use txtx_core::kit::types::frontend::{ActionItemResponse, BlockEvent};
+use txtx_core::kit::types::frontend::{
+    ActionItemResponse, BlockEvent, OpenChannelRequest, OpenChannelResponse,
+    OpenChannelResponseBrowser,
+};
+use txtx_core::kit::uuid::Uuid;
+use txtx_gql::Context as GraphContext;
 
 const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
 
@@ -30,36 +37,26 @@ pub struct ChannelData {
     pub slug: String,
 }
 impl ChannelData {
-    pub fn new(operator_token: String, open_channel_response: OpenChannelResponse) -> Self {
+    pub fn new(
+        operator_token: String,
+        totp: String,
+        slug: String,
+        open_channel_response: OpenChannelResponse,
+    ) -> Self {
         ChannelData {
             operator_token,
-            totp: open_channel_response.totp,
+            totp: totp,
             http_endpoint_url: open_channel_response.http_endpoint_url,
             ws_endpoint_url: open_channel_response.ws_endpoint_url,
-            slug: open_channel_response.slug,
+            slug: slug,
         }
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename = "runbook", rename_all = "camelCase")]
-pub struct OpenChannelRequest {
-    pub name: String,
-    pub description: String,
-}
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenChannelResponse {
-    pub totp: String,
-    pub http_endpoint_url: String,
-    pub ws_endpoint_url: String,
-    pub slug: String,
-}
-
 pub async fn open_channel(
     req: HttpRequest,
-    payload: Json<OpenChannelRequest>,
     relayer_context: Data<RelayerContext>,
+    graph_context: Data<GraphContext>,
 ) -> actix_web::Result<HttpResponse> {
     println!("POST /api/v1/channels");
     let Some(cookie) = req.cookie("hanko") else {
@@ -69,6 +66,23 @@ pub async fn open_channel(
     let token = cookie.value();
     let client = reqwest::Client::new();
     let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
+
+    let totp = auth_token_to_totp(token).get_secret_base32();
+    let uuid = Uuid::new_v4();
+
+    use base58::ToBase58;
+    let slug = uuid.as_bytes().to_base58()[0..8].to_string();
+
+    let block_store = graph_context.block_store.read().await.clone();
+    let payload = OpenChannelRequest {
+        runbook_name: graph_context.runbook_name.clone(),
+        runbook_description: graph_context.runbook_description.clone(),
+        block_store: block_store.clone(),
+        uuid: uuid.clone(),
+        slug: slug.clone(),
+        operating_token: token.to_string(),
+        totp: totp.clone(),
+    };
 
     let res = client
         .post(path)
@@ -84,14 +98,36 @@ pub async fn open_channel(
         .map_err(ErrorInternalServerError)?;
 
     let mut channel = relayer_context.channel.write().await;
-    *channel = Some(ChannelData::new(token.to_string(), body.clone()));
+    *channel = Some(ChannelData::new(
+        token.to_string(),
+        totp.clone(),
+        slug.clone(),
+        body.clone(),
+    ));
 
-    Ok(HttpResponseBuilder::new(StatusCode::OK).json(body))
+    let response = OpenChannelResponseBrowser {
+        totp: totp.clone(),
+        http_endpoint_url: body.http_endpoint_url,
+        ws_endpoint_url: body.ws_endpoint_url,
+        slug: slug.clone(),
+    };
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
 }
 
-pub async fn forward_block_event(token: String, payload: BlockEvent) -> Result<(), String> {
+fn auth_token_to_totp(token: &str) -> TOTP {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let hashed_auth_token = hasher.finalize();
+    TOTP::new(Algorithm::SHA256, 6, 1, 60, hashed_auth_token.to_vec()).unwrap()
+}
+
+pub async fn forward_block_event(
+    token: String,
+    slug: String,
+    payload: BlockEvent,
+) -> Result<(), String> {
     let client = reqwest::Client::new();
-    let path = format!("{}/gql/v1/mutations", RELAYER_BASE_URL);
+    let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
 
     let _ = client
         .post(path)
@@ -99,9 +135,11 @@ pub async fn forward_block_event(token: String, payload: BlockEvent) -> Result<(
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("error forwarding block event to relayer: {}", e.to_string()))?
+        .map_err(|e| format!("error forwarding block event to relayer: {}", e.to_string()))
+        .unwrap()
         .error_for_status()
-        .map_err(|e| format!("received error response from relayer: {}", e.to_string()))?;
+        .map_err(|e| format!("received error response from relayer: {}", e.to_string()))
+        .unwrap();
 
     Ok(())
 }
@@ -146,6 +184,7 @@ pub async fn process_relayer_ws_events(
         match message {
             Ok(msg) => match msg {
                 Message::Text(text) => {
+                    println!("Operator received WS ActionItemResponse");
                     let Ok(response) = serde_json::from_str::<ActionItemResponse>(&text) else {
                         continue;
                     };

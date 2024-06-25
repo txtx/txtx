@@ -36,6 +36,9 @@ mime_guess = "2.0.4"
 serde_yml = "0.0.10"
 dotenvy_macro = "0.15.7"
 tokio-tungstenite = "0.23.1"
+totp-rs = "^5.0"
+sha2 = "0.10.8"
+base58 = "0.2.0"
 
 [features]
 default = ["cli"]
