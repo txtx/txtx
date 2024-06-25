@@ -232,7 +232,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
     });
 
     let relayer_channel = relayer_channel.clone();
-    let handle1 = tokio::spawn(async move {
+    let relayer_channel_handle = tokio::spawn(async move {
         let channel = get_opened_channel_data(relayer_channel).await;
         println!(
             "Initiating WebSocket connection at {}",
@@ -243,7 +243,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             .await
             .unwrap();
     });
-    handle1.await.unwrap();
+
     let _ = tokio::spawn(async move {
         match kill_loops_rx.recv() {
             Ok(_) => {
@@ -251,6 +251,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     let _ = handle.stop(true).await;
                 }
                 let _ = block_tx.send(BlockEvent::Exit);
+                relayer_channel_handle.abort();
             }
             Err(_) => {}
         };
