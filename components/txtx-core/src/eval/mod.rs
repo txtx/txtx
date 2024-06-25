@@ -148,7 +148,9 @@ pub async fn run_wallets_evaluation(
     let wallets_instances = &runbook.wallets_instances;
     let instantiated_wallets = runbook.instantiated_wallet_instances.clone();
     for (construct_uuid, instantiated) in instantiated_wallets.into_iter() {
-        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+        let Some((package_uuid, _)) = constructs_locations.get(&construct_uuid) else {
+            continue;
+        };
 
         let (evaluated_inputs_res, _group, addon_defaults) =
             match runbook.wallets_instances.get(&construct_uuid) {
