@@ -110,6 +110,9 @@ pub struct ExecuteRunbook {
     /// Choose environment variable set
     #[clap(long = "env")]
     pub environment: Option<String>,
+    /// Choose environment variable set
+    #[clap(long = "input")]
+    pub inputs: Vec<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]

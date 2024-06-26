@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use txtx_addon_network_stacks::StacksNetworkAddon;
-use txtx_core::kit::helpers::fs::get_manifest_location;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::std::StdAddon;
 use txtx_core::types::ProtocolManifest;

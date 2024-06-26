@@ -171,13 +171,13 @@ lazy_static! {
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let execution_context = CommandExecutionContext {
         review_input_default_values: false,
         review_input_values: false,
     };
 
-    let (tx, _rx) = channel::unbounded();
     let mut action_item_requests = BTreeMap::new();
     let action_item_responses = BTreeMap::new();
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
@@ -188,7 +188,7 @@ pub async fn start_runbook_runloop(
         &execution_context,
         &mut action_item_requests,
         &action_item_responses,
-        &tx,
+        &progress_tx,
     )
     .await;
 
@@ -219,7 +219,7 @@ pub async fn start_runbook_runloop(
             &execution_context,
             &mut action_item_requests,
             &action_item_responses,
-            &tx,
+            &progress_tx,
         )
         .await;
 
@@ -254,14 +254,35 @@ pub async fn start_runbook_runloop(
                 .append(&mut pass_results.pending_background_tasks_constructs_uuids);
         }
 
-        sleep(time::Duration::from_secs(3));
-        uuid = Uuid::new_v4();
+        if background_tasks_futures.is_empty() {
+            sleep(time::Duration::from_secs(3));
+        } else {
+            let results = kit::futures::future::join_all(background_tasks_futures).await;
+            for (construct_uuid, result) in
+                background_tasks_contructs_uuids.into_iter().zip(results)
+            {
+                match result {
+                    Ok(result) => {
+                        runbook
+                            .constructs_execution_results
+                            .insert(construct_uuid, result);
+                    }
+                    Err(diag) => {
+                        let diags = vec![diag];
+                        return Err(diags);
+                    }
+                }
+            }
+            background_tasks_futures = vec![];
+            background_tasks_contructs_uuids = vec![];
+        }
 
+        uuid = Uuid::new_v4();
         if runbook_completed {
             break;
         }
     }
-
+    println!("Terminating runbook");
     Ok(())
 }
 

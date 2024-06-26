@@ -603,16 +603,12 @@ pub async fn run_constructs_evaluation(
         // however, if there was a start_node provided, this evaluation was initiated from a user interaction
         // that is stored in the input evaluation results, and we want to keep that data to evaluate that
         // commands dependents
-        let input_evaluation_results = if let Some(start_node) = start_node {
-            if start_node == node {
-                runbook
-                    .command_inputs_evaluation_results
-                    .get(&construct_uuid.clone())
-            } else {
-                None
-            }
-        } else {
+        let input_evaluation_results = if execution_context.review_input_default_values {
             None
+        } else {
+            runbook
+                .command_inputs_evaluation_results
+                .get(&construct_uuid.clone())
         };
 
         let mut cached_dependency_execution_results: HashMap<

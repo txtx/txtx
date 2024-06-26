@@ -2,18 +2,18 @@ use console::Style;
 use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
-    collections::{BTreeMap, HashMap},
-    env,
-    fs::{self, File},
-    path::PathBuf,
-    sync::Arc,
+    collections::{BTreeMap, HashMap, HashSet}, env, fmt::format, fs::{self, File}, path::PathBuf, sync::Arc
 };
 use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
         channel,
         helpers::fs::FileLocation,
-        types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+        types::{
+            commands::CommandInputsEvaluationResult,
+            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+            types::Value,
+        },
     },
     pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
     types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
@@ -250,6 +250,38 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         runtime_context.set_active_environment(selected_env.clone())?;
     }
 
+    let mut batch_inputs = vec![];
+
+    for input in cmd.inputs.iter() {
+        let (input_name, input_value) = input.split_once("=").unwrap();
+        for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
+            if command_instance.specification.matcher.eq("input")
+                && input_name.eq(&command_instance.name)
+            {
+                let mut result = CommandInputsEvaluationResult::new(input_name);
+
+                if input_value.starts_with("[") {
+                    batch_inputs = input_value[1..(input_value.len() - 2)]
+                        .split(",")
+                        .map(|v| Value::uint(v.parse::<u64>().unwrap()))
+                        .collect::<Vec<Value>>();
+                    let v = batch_inputs.remove(0);
+                    result.inputs.insert("value", v);
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                } else {
+                    result
+                        .inputs
+                        .insert("value", Value::uint(input_value.parse::<u64>().unwrap()));
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                }
+            }
+        }
+    }
+
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
@@ -280,10 +312,28 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
     let moved_block_tx = block_tx.clone();
+    let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
     // Start runloop
 
+    // should not be generating actions
     if !is_execution_interactive {
-        let res = start_runbook_runloop(&mut runbook, &mut runtime_context).await;
+        let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            while let Ok(msg) = progress_rx.recv() {
+                match msg {
+                    BlockEvent::UpdateProgressBarStatus(update) => {
+                        if update.new_status.message.len() == 64 {
+                            // Hacky - update message in place
+                            print!("\r{} 0x{}", yellow!(format!("{}", update.new_status.status)), update.new_status.message);
+                        } else {
+                            println!("{}", update.new_status.message)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);

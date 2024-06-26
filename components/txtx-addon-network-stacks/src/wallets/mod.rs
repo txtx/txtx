@@ -1,15 +1,12 @@
-use txtx_addon_kit::{
-    types::{
-        diagnostics::Diagnostic,
-        frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
-            ReviewInputRequest,
-        },
-        types::Value,
-        wallets::WalletSpecification,
-        ConstructUuid,
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    frontend::{
+        ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
+        ReviewInputRequest,
     },
-    uuid::Uuid,
+    types::Value,
+    wallets::WalletSpecification,
+    ConstructUuid,
 };
 
 mod connect;

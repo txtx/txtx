@@ -407,7 +407,11 @@ impl StacksRpc {
             result: String,
         }
 
-        let response: ReadOnlyCallResult = res.json().await.unwrap();
+        let response: ReadOnlyCallResult = res
+            .json()
+            .await
+            .map_err(|e| RpcError::Message(e.to_string()))?;
+
         if response.okay {
             // Removing the 0x prefix
             let raw_value = match response.result.strip_prefix("0x") {

@@ -226,7 +226,13 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let mut confirmed_blocks_ids = VecDeque::new();
             let backoff_ms = 5000;
 
+            // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
+            let progress_symbol = ["|", "\\", "-", "/", "|", "\\", "-", "/"];
+            let mut progress = 0;
+
             loop {
+                progress = (progress + 1) % progress_symbol.len();
+
                 if confirmed_blocks_ids.len() >= confirmations_required {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         "Complete",
@@ -266,7 +272,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 if node_info.stacks_tip_height == block_height {
                     status_update.update_status(&ProgressBarStatus::new_msg(
-                        "Pending",
+                        &format!("Pending {}", progress_symbol[progress]),
                         &format!("{}", txid.clone()),
                     ));
                     let _ = progress_tx
@@ -280,7 +286,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 block_height = node_info.stacks_tip_height;
 
                 status_update.update_status(&ProgressBarStatus::new_msg(
-                    "Pending",
+                    &format!("Pending {}", progress_symbol[progress]),
                     &format!("{}", txid.clone()),
                 ));
 
@@ -310,7 +316,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 match tx_details.tx_status {
                     TransactionStatus::Success => {
                         status_update.update_status(&ProgressBarStatus::new_msg(
-                            "Pending",
+                            &format!("Pending {}", progress_symbol[progress]),
                             &format!(
                                 "Transaction included in block. Transaction result: {}",
                                 tx_details.tx_result.repr
