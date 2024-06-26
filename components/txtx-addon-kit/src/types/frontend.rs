@@ -314,7 +314,7 @@ impl Display for Block {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "panel")]
 pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
