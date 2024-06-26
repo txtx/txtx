@@ -19,7 +19,7 @@ pub const MESSAGE_BYTES: &str = "message_bytes";
 pub const NETWORK_ID: &str = "network_id";
 pub const RPC_API_URL: &str = "rpc_api_url";
 
-pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 3;
+pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
 

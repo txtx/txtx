@@ -224,7 +224,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
-            let backoff_ms = 5000;
+            let backoff_ms = 500;
 
             // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
             let progress_symbol = ["|", "\\", "-", "/", "|", "\\", "-", "/"];

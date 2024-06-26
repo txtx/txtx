@@ -2,7 +2,12 @@ use console::Style;
 use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet}, env, fmt::format, fs::{self, File}, path::PathBuf, sync::Arc
+    collections::{BTreeMap, HashMap, HashSet},
+    env,
+    fmt::format,
+    fs::{self, File},
+    path::PathBuf,
+    sync::Arc,
 };
 use tokio::sync::RwLock;
 use txtx_core::{
@@ -233,6 +238,102 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(), String> {
+    let start_web_ui = cmd.web_console || cmd.port.is_some();
+    let is_execution_interactive = start_web_ui || cmd.term_console;
+    let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
+
+    if !is_execution_interactive {
+        let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            while let Ok(msg) = progress_rx.recv() {
+                match msg {
+                    BlockEvent::UpdateProgressBarStatus(update) => {
+                        if update.new_status.message.len() == 64 {
+                            // Hacky - update message in place
+                            print!(
+                                "\r{} 0x{}",
+                                yellow!(format!("{}", update.new_status.status)),
+                                update.new_status.message
+                            );
+                        } else {
+                            println!("{}", update.new_status.message)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let mut batch_inputs = vec![];
+
+        for input in cmd.inputs.iter() {
+            let (input_name, input_value) = input.split_once("=").unwrap();
+            if input_value.starts_with("[") {
+                batch_inputs = input_value[1..(input_value.len() - 2)]
+                    .split(",")
+                    .map(|v| {
+                        (
+                            input_name.to_string(),
+                            Value::uint(v.parse::<u64>().unwrap()),
+                        )
+                    })
+                    .collect::<Vec<(String, Value)>>();
+            } else {
+                batch_inputs.push((
+                    input_name.to_string(),
+                    Value::uint(input_value.parse::<u64>().unwrap()),
+                ));
+            }
+        }
+
+        loop {
+            let res = match &cmd.manifest_path {
+                Some(manifest_path) => {
+                    load_runbook_from_manifest(&manifest_path, &cmd.runbook).await
+                }
+                None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
+            };
+            let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
+                Ok((m, a, b, c)) => (a, b, c, m.environments),
+                Err(_) => {
+                    let (runbook_name, runbook, runtime_context) =
+                        load_runbook_from_file_path(&cmd.runbook).await?;
+                    (runbook_name, runbook, runtime_context, BTreeMap::new())
+                }
+            };
+
+            if let Some(ref selected_env) = cmd.environment {
+                runtime_context.set_active_environment(selected_env.clone())?;
+            }
+
+            if batch_inputs.len() == 0 {
+                return Ok(())
+            }
+
+            let (input_name, input_value) = batch_inputs.remove(0);
+
+            for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
+                if command_instance.specification.matcher.eq("input")
+                    && input_name.eq(&command_instance.name)
+                {
+                    let mut result = CommandInputsEvaluationResult::new(&input_name);
+                    result.inputs.insert("value", input_value.clone());
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                }
+            }
+
+            println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
+
+            let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
+            if let Err(diags) = res {
+                for diag in diags.iter() {
+                    println!("{} {}", red!("x"), diag);
+                }
+            }
+        }
+    }
+
     let res = match &cmd.manifest_path {
         Some(manifest_path) => load_runbook_from_manifest(&manifest_path, &cmd.runbook).await,
         None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
@@ -308,11 +409,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // - build checklist, wait for its completion
     //   - listen to checklist_action_events_rx
     //   - update graph
-    let start_web_ui = cmd.web_console || cmd.port.is_some();
-    let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
     let moved_block_tx = block_tx.clone();
-    let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
     // Start runloop
 
     // should not be generating actions
@@ -323,7 +421,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     BlockEvent::UpdateProgressBarStatus(update) => {
                         if update.new_status.message.len() == 64 {
                             // Hacky - update message in place
-                            print!("\r{} 0x{}", yellow!(format!("{}", update.new_status.status)), update.new_status.message);
+                            print!(
+                                "\r{} 0x{}",
+                                yellow!(format!("{}", update.new_status.status)),
+                                update.new_status.message
+                            );
                         } else {
                             println!("{}", update.new_status.message)
                         }
