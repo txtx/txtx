@@ -50,7 +50,6 @@ impl FunctionImplementation for Secp256k1Recover {
         let signature = Signature::parse_standard_slice(&signature_bytes[1..]).unwrap();
         let public_key = recover(&message, &signature, &recovery_id).unwrap();
         let public_key_hex = txtx_addon_kit::hex::encode(public_key.serialize_compressed());
-        println!("==> {}", public_key_hex);
 
         Ok(Value::string(format!("0x{}", public_key_hex)))
     }

@@ -1,4 +1,4 @@
-use crate::manifest::ProtocolManifest;
+use txtx_core::types::ProtocolManifest;
 
 pub fn build_manifest_data(manifest: &ProtocolManifest) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()

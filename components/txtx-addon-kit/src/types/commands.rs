@@ -272,7 +272,7 @@ impl CommandSpecification {
                 check_required: false,
             },
             CommandInput {
-                name: "redacted".into(),
+                name: "sensitive".into(),
                 documentation: "Never include value in logs".into(),
                 typing: Type::array(Type::string()),
                 optional: true,

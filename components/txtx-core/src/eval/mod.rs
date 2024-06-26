@@ -912,7 +912,9 @@ pub fn collect_runbook_outputs(
         {
             let Some(execution_result) = runbook.constructs_execution_results.get(&construct_uuid)
             else {
-                unreachable!()
+                println!("runtime error");
+                return action_items;
+                // unreachable!()
             };
 
             let Some(value) = execution_result.outputs.get("value") else {

@@ -203,7 +203,11 @@ impl StacksRpc {
                 Ok(message) => {
                     if message.contains("NoEstimateAvailable") {
                         return self
-                            .estimate_transaction_fee(&default_to_transaction_payload, priority, &default_to_transaction_payload)
+                            .estimate_transaction_fee(
+                                &default_to_transaction_payload,
+                                priority,
+                                &default_to_transaction_payload,
+                            )
                             .await;
                     } else {
                         RpcError::Message(message)

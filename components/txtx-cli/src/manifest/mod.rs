@@ -2,36 +2,16 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_core::kit::helpers::fs::get_manifest_location;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::std::StdAddon;
+use txtx_core::types::ProtocolManifest;
+use txtx_core::types::RunbookMetadata;
 use txtx_core::types::RuntimeContext;
 use txtx_core::types::{Runbook, SourceTree};
 use txtx_core::AddonsContext;
 
 pub mod generator;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProtocolManifest {
-    pub name: String,
-    pub runbooks: Vec<RunbookMetadata>,
-    pub environments: BTreeMap<String, BTreeMap<String, String>>,
-    #[serde(skip_serializing, skip_deserializing)]
-    pub location: Option<FileLocation>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RunbookMetadata {
-    pub location: String,
-    pub name: String,
-    pub description: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EnvironmentMetadata {
-    location: String,
-    name: String,
-    description: Option<String>,
-}
 
 pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifest, String> {
     let location = FileLocation::from_path_string(manifest_file_path)?;

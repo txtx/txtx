@@ -11,12 +11,12 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
-        channel::{self},
+        channel,
         helpers::fs::FileLocation,
         types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
     },
     pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
-    types::{Runbook, RuntimeContext},
+    types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
 };
 
 use txtx_gql::Context as GqlContext;
@@ -25,7 +25,6 @@ use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     manifest::{
         read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest,
-        ProtocolManifest, RunbookMetadata,
     },
     web_ui,
 };
@@ -327,7 +326,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),
-            green!(format!("http://127.0.0.1:{}", port))
+            green!(format!("http://localhost:{}", port))
         );
 
         let handle = web_ui::http::start_server(gql_context, port, ctx)
@@ -385,7 +384,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         .iter_mut()
                         .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
                         .for_each(|(_, b)| b.visible = update.visible),
-                    BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
+                    BlockEvent::RunbookCompleted => {
+                        println!("Runbook completed!")
+                    },
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
@@ -412,9 +413,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         };
     });
     ctrlc::set_handler(move || {
-        kill_loops_tx
-            .send(true)
-            .expect("Could not send signal on channel to kill web ui.")
+        if let Err(_e) = kill_loops_tx.send(true) {
+            std::process::exit(1);
+        }
     })
     .expect("Error setting Ctrl-C handler");
 
@@ -438,7 +439,7 @@ pub async fn load_runbooks_from_manifest(
         }
 
         println!(
-            "{} Runbook '{}' successfully checked and loaded",
+            "{} '{}' successfully checked",
             green!("✓"),
             runbook_name
         );
@@ -483,7 +484,7 @@ pub async fn load_runbook_from_file_path(
     }
 
     println!(
-        "{} Runbook '{}' successfully checked and loaded",
+        "{} '{}' successfully checked",
         green!("✓"),
         runbook_name
     );

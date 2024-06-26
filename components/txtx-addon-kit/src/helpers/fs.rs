@@ -326,7 +326,7 @@ pub fn get_manifest_location(path: Option<String>) -> Option<FileLocation> {
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         loop {
-            current_dir.push("Clarinet.toml");
+            current_dir.push("txtx.yml");
 
             if current_dir.exists() {
                 return Some(FileLocation::from_path(current_dir));

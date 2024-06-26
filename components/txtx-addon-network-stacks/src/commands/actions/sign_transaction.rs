@@ -191,7 +191,6 @@ impl CommandImplementation for SignStacksTransaction {
             // todo: currently, this gets called repeatedly and is preventing the graph from properly
             // progressing. removing for now
             if execution_context.review_input_values {
-                println!(" ===> pushing nonce/fee actions");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
                         &Some(uuid.value()),

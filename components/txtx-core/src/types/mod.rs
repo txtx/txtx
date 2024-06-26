@@ -3,6 +3,8 @@ mod package;
 mod runbook;
 
 pub use construct::PreConstructData;
+use kit::helpers::fs::FileLocation;
+use kit::serde::{Deserialize, Serialize};
 pub use package::Package;
 pub use runbook::{Runbook, SourceTree};
 use std::collections::{BTreeMap, HashMap};
@@ -15,6 +17,29 @@ use txtx_addon_kit::types::types::Value;
 pub use txtx_addon_kit::types::ConstructUuid;
 
 use crate::AddonsContext;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProtocolManifest {
+    pub name: String,
+    pub runbooks: Vec<RunbookMetadata>,
+    pub environments: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub location: Option<FileLocation>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RunbookMetadata {
+    pub location: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnvironmentMetadata {
+    location: String,
+    name: String,
+    description: Option<String>,
+}
 
 pub struct RuntimeContext {
     pub functions: HashMap<String, FunctionSpecification>,
