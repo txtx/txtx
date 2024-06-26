@@ -391,7 +391,7 @@ impl StacksRpc {
             }))
             .send()
             .await
-            .unwrap();
+            .map_err(|e| RpcError::Message(e.to_string()))?;
 
         if !res.status().is_success() {
             let error = match res.text().await {

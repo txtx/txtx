@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::types::{PreConstructData, ProtocolManifest, Runbook, RuntimeContext};
+use crate::types::{PreConstructData, Runbook, RuntimeContext};
 use txtx_addon_kit::{
     hcl::structure::Block,
     types::{

@@ -109,11 +109,14 @@ impl RuntimeContext {
         (function.runner)(function, args)
     }
 
-    pub fn set_active_environment(&mut self, new_env: String) {
-        match self.environments.get(&new_env) {
-            Some(_) => self.selected_env = Some(new_env),
-            None => {}
+    pub fn set_active_environment(&mut self, selected_env: String) -> Result<(), String> {
+        match self.environments.get(&selected_env) {
+            Some(_) => self.selected_env = Some(selected_env),
+            None => {
+                return Err(format!("environment with key {} unknown", selected_env));
+            }
         }
+        Ok(())
     }
 
     pub fn get_active_environment_variables(&self) -> BTreeMap<String, String> {

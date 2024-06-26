@@ -23,9 +23,7 @@ use txtx_gql::Context as GqlContext;
 
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
-    manifest::{
-        read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest,
-    },
+    manifest::{read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest},
     web_ui,
 };
 
@@ -248,6 +246,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     };
 
+    if let Some(ref selected_env) = cmd.environment {
+        runtime_context.set_active_environment(selected_env.clone())?;
+    }
+
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
@@ -281,7 +283,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // Start runloop
 
     if !is_execution_interactive {
-        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, environments).await;
+        let res = start_runbook_runloop(&mut runbook, &mut runtime_context).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
@@ -386,7 +388,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("Runbook completed!")
-                    },
+                    }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
@@ -438,11 +440,7 @@ pub async fn load_runbooks_from_manifest(
             std::process::exit(1);
         }
 
-        println!(
-            "{} '{}' successfully checked",
-            green!("✓"),
-            runbook_name
-        );
+        println!("{} '{}' successfully checked", green!("✓"), runbook_name);
     }
     Ok((manifest, runbooks))
 }
@@ -483,11 +481,7 @@ pub async fn load_runbook_from_file_path(
         std::process::exit(1);
     }
 
-    println!(
-        "{} '{}' successfully checked",
-        green!("✓"),
-        runbook_name
-    );
+    println!("{} '{}' successfully checked", green!("✓"), runbook_name);
 
     // Select first runbook by default
     Ok((runbook_name, runbook, runtime_context))

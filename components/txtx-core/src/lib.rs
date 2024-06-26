@@ -171,7 +171,6 @@ lazy_static! {
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
-    _environments: BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<(), Vec<Diagnostic>> {
     let execution_context = CommandExecutionContext {
         review_input_default_values: false,
@@ -200,7 +199,7 @@ pub async fn start_runbook_runloop(
     }
 
     if !pass_result.diagnostics.is_empty() {
-        println!("Errors / warning");
+        println!("Diagnostics");
         for diag in pass_result.diagnostics.iter() {
             println!("- {}", diag);
         }
@@ -225,7 +224,7 @@ pub async fn start_runbook_runloop(
         .await;
 
         if !pass_results.diagnostics.is_empty() {
-            println!("Errors / warning");
+            println!("Diagnostics");
             for diag in pass_results.diagnostics.iter() {
                 println!("- {}", diag);
             }
@@ -369,10 +368,6 @@ pub async fn start_interactive_runbook_runloop(
                             action_type: None,
                         },
                     ]));
-                    println!(
-                        "creating progress bar with uuid: {}",
-                        &background_tasks_handle_uuid.to_string()
-                    );
                     let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
                         &background_tasks_handle_uuid,
                         Panel::ProgressBar(vec![]),
@@ -413,10 +408,6 @@ pub async fn start_interactive_runbook_runloop(
                 }
 
                 background_tasks_handle_uuid = Uuid::new_v4();
-                println!(
-                    "new bg task uuid: {}",
-                    &background_tasks_handle_uuid.to_string()
-                );
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
@@ -449,7 +440,6 @@ pub async fn start_interactive_runbook_runloop(
                         actions.push_group(key.as_str(), action_items);
                     }
                     pass_results.actions.append(&mut actions);
-                    println!("OUTPUTS: {:?}", actions);
                 } else if !pass_results.actions.store.is_empty() {
                     validated_blocks = validated_blocks + 1;
                     pass_results
@@ -714,7 +704,9 @@ pub async fn reset_runbook_execution(
 
     let _ = block_tx.send(BlockEvent::Clear);
 
-    runtime_context.set_active_environment(environment_key.into());
+    runtime_context
+        .set_active_environment(environment_key.into())
+        .unwrap();
 
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
 
@@ -795,7 +787,7 @@ pub async fn build_genesis_panel(
     .await;
 
     if !pass_result.diagnostics.is_empty() {
-        println!("Errors / warning");
+        println!("Diagnostics");
         for diag in pass_result.diagnostics.iter() {
             println!("- {}", diag);
         }

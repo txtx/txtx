@@ -35,7 +35,7 @@ pub fn run_constructs_dependencies_indexing(
                     dep,
                     &runtime_ctx,
                 );
-                if let Ok(Some((resolved_construct_uuid, _))) = result {
+                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
@@ -54,7 +54,7 @@ pub fn run_constructs_dependencies_indexing(
                     dep,
                     &runtime_ctx,
                 );
-                if let Ok(Some((resolved_construct_uuid, _))) = result {
+                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
@@ -73,7 +73,7 @@ pub fn run_constructs_dependencies_indexing(
                     dep,
                     &runtime_ctx,
                 );
-                if let Ok(Some((resolved_construct_uuid, _))) = result {
+                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
                     constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
                 } else {
                     diags.push(diagnosed_error!(
@@ -94,7 +94,7 @@ pub fn run_constructs_dependencies_indexing(
                     dep,
                     runtime_ctx,
                 );
-                if let Ok(Some((resolved_construct_uuid, _))) = result {
+                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
                     if let Some(_) = runbook.wallets_instances.get(&resolved_construct_uuid) {
                         wallets.push_front((resolved_construct_uuid.clone(), true));
                         instantiated_wallets.insert(resolved_construct_uuid.clone());
@@ -118,7 +118,7 @@ pub fn run_constructs_dependencies_indexing(
                     dep,
                     runtime_ctx,
                 );
-                if let Ok(Some((resolved_construct_uuid, _))) = result {
+                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
                     if !instantiated_wallets.contains(&resolved_construct_uuid) {
                         wallets.push_front((resolved_construct_uuid.clone(), false))
                     }

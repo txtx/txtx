@@ -323,8 +323,8 @@ impl FunctionImplementation for EncodeClarityValueUint {
                 })?;
                 as_u64
             }
-            Some(any) => unreachable!("expected uint, got {:?}", any),
-            None => unreachable!("expected uint, got none :("),
+            Some(any) => return Err(diagnosed_error!("'cv_uint' function: expected uint, got {:?}", any)),
+            None => return Err(diagnosed_error!("'cv_uint' function: expected uint, got none :(")),
         };
         let clarity_value = ClarityValue::UInt(u128::from(entry));
         let bytes = clarity_value.serialize_to_vec();

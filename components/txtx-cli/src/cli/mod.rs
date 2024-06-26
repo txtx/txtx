@@ -107,6 +107,9 @@ pub struct ExecuteRunbook {
     /// Start Terminal Console
     #[clap(long = "port", short = 'p')]
     pub port: Option<u16>,
+    /// Choose environment variable set
+    #[clap(long = "env")]
+    pub environment: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
