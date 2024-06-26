@@ -24,6 +24,7 @@ use txtx_core::kit::uuid::Uuid;
 use txtx_gql::Context as GraphContext;
 
 const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
+const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
 
 #[derive(Clone, Debug)]
 pub struct RelayerContext {
@@ -201,7 +202,7 @@ pub async fn process_relayer_ws_events(
             format!("Bearer {}", &channel.operator_token),
         )
         .header("sec-websocket-key", generate_key())
-        .header("host", format!("{}", "txtx.link"))
+        .header("host", RELAYER_HOST)
         .header("upgrade", "websocket")
         .header("connection", "upgrade")
         .header("sec-websocket-version", 13)
