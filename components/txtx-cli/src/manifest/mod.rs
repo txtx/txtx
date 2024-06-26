@@ -13,17 +13,17 @@ pub mod generator;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProtocolManifest {
     pub name: String,
-    runbooks: Vec<RunbookMetadata>,
+    pub runbooks: Vec<RunbookMetadata>,
     pub environments: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(skip_serializing, skip_deserializing)]
-    location: Option<FileLocation>,
+    pub location: Option<FileLocation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunbookMetadata {
-    location: String,
-    name: String,
-    description: Option<String>,
+    pub location: String,
+    pub name: String,
+    pub description: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

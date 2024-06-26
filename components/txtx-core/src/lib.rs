@@ -190,7 +190,12 @@ pub async fn start_runbook_runloop(
     )
     .await;
 
-    assert!(!pass_result.actions.has_pending_actions());
+    if pass_result.actions.has_pending_actions() {
+        return Err(vec![diagnosed_error!(
+            "error: non interactive executions should not be generating actions"
+        )]);
+    }
+
     if !pass_result.diagnostics.is_empty() {
         println!("Errors / warning");
         for diag in pass_result.diagnostics.iter() {
