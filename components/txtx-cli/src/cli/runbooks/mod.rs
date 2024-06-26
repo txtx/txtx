@@ -164,10 +164,11 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
         None
     };
 
+    let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_relayer_channel = relayer_channel.clone();
-    let _ = tokio::spawn(async move {
+    let block_store_handle = tokio::spawn(async move {
         loop {
-            if let Ok(mut block_event) = block_rx.recv() {
+            if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
                 let mut do_propagate_event = true;
                 match block_event.clone() {
@@ -198,6 +199,7 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::ProgressBar(new_block) => {
+                        println!("==> inserting progress bar to block store");
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
@@ -225,15 +227,25 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
                     if let Some(channel) = moved_relayer_channel.read().await.clone() {
                         // todo: handle error
                         println!("forwarding block event to relayer");
-                        let _ = forward_block_event(
+                        match forward_block_event(
                             channel.operator_token,
                             channel.slug,
                             block_event.clone(),
                         )
-                        .await;
+                        .await
+                        {
+                            Err(e) => {
+                                println!("{}", e);
+                                let _ = moved_kill_loops_tx.clone().send(true);
+                            }
+                            Ok(_) => {}
+                        };
                     }
                 }
             }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            // println!("waiting for next block event");
         }
     });
 
@@ -244,13 +256,11 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             "Initiating WebSocket connection at {}",
             &channel.ws_endpoint_url
         );
-        // todo: handle error
-        let _ = process_relayer_ws_events(channel, action_item_events_tx.clone())
-            .await
-            .unwrap();
+        process_relayer_ws_events(channel, action_item_events_tx.clone()).await
     });
     let relayer_channel_abort_handle = relayer_channel_handle.abort_handle();
-    let _ = tokio::spawn(async move {
+
+    let kill_loops_handle = tokio::spawn(async move {
         match kill_loops_rx.recv() {
             Ok(_) => {
                 if let Some(handle) = web_ui_handle {
@@ -268,7 +278,11 @@ pub async fn handle_run_command(cmd: &RunRunbook, ctx: &Context) -> Result<(), S
             .expect("Could not send signal on channel to kill web ui.")
     })
     .expect("Error setting Ctrl-C handler");
-    relayer_channel_handle.await.unwrap();
+    let _ = tokio::join!(
+        relayer_channel_handle,
+        block_store_handle,
+        kill_loops_handle
+    );
     Ok(())
 }
 

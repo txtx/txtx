@@ -4,11 +4,13 @@ use actix_web::web::Data;
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
+use native_tls::TlsConnector;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::handshake::client::Request;
+use tokio::sync::{mpsc, RwLock};
+use tokio_tungstenite::connect_async_tls_with_config;
+use tokio_tungstenite::tungstenite::handshake::client::{generate_key, Request};
 use tokio_tungstenite::tungstenite::Message;
 use totp_rs::{Algorithm, TOTP};
 use txtx_core::kit::channel::Sender;
@@ -126,22 +128,53 @@ pub async fn forward_block_event(
     slug: String,
     payload: BlockEvent,
 ) -> Result<(), String> {
-    let client = reqwest::Client::new();
     let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
 
-    let _ = client
-        .post(path)
-        .bearer_auth(token)
-        .json(&payload)
-        .send()
+    let _ = request_with_retry(&path, &token, &payload)
         .await
-        .map_err(|e| format!("error forwarding block event to relayer: {}", e.to_string()))
-        .unwrap()
-        .error_for_status()
-        .map_err(|e| format!("received error response from relayer: {}", e.to_string()))
-        .unwrap();
+        .map_err(|e| format!("failed to forward block event to relayer: {}", e))?;
 
     Ok(())
+}
+
+async fn request_with_retry<T>(
+    path: &String,
+    auth_token: &String,
+    payload: &T,
+) -> Result<(), String>
+where
+    T: Serialize + ?Sized,
+{
+    let max_attempts = 3;
+    let mut attempts = 0;
+    let client = reqwest::Client::new();
+    loop {
+        match client
+            .post(path)
+            .bearer_auth(&auth_token)
+            .json(payload)
+            .send()
+            .await
+        {
+            Ok(req) => match req.error_for_status() {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    attempts = attempts + 1;
+                    println!("retry attempt {}", attempts);
+                    if max_attempts == 3 {
+                        return Err(format!("failed to make request {} times: {}", attempts, e));
+                    }
+                }
+            },
+            Err(e) => {
+                attempts = attempts + 1;
+                println!("retry attempt {}", attempts);
+                if max_attempts == 3 {
+                    return Err(format!("failed to make request {} times: {}", attempts, e));
+                }
+            }
+        };
+    }
 }
 
 pub async fn get_opened_channel_data(
@@ -167,53 +200,79 @@ pub async fn process_relayer_ws_events(
             "authorization",
             format!("Bearer {}", &channel.operator_token),
         )
-        .header("sec-websocket-key", channel.slug)
-        .header("host", format!("{}", RELAYER_BASE_URL))
+        .header("sec-websocket-key", generate_key())
+        .header("host", format!("{}", "txtx.link"))
         .header("upgrade", "websocket")
         .header("connection", "upgrade")
         .header("sec-websocket-version", 13)
         .body(())
-        .map_err(|e| format!("failed to create relayer ws connection: {}", e))?;
-    let (ws_stream, _) = connect_async(req)
-        .await
-        .map_err(|e| format!("failed to connect to relayer ws channel: {}", e))?;
+        .map_err(|e| format!("failed to create relayer ws connection: {}", e))
+        .unwrap();
 
-    let (mut write, mut read) = ws_stream.split();
+    let (ws_stream, _) = connect_async_tls_with_config(
+        req,
+        None,
+        false,
+        Some(tokio_tungstenite::Connector::NativeTls(
+            TlsConnector::new().unwrap(),
+        )),
+    )
+    .await
+    .map_err(|e| format!("failed to connect to relayer ws channel: {}", e))
+    .unwrap();
 
-    while let Some(message) = read.next().await {
-        match message {
-            Ok(msg) => match msg {
-                Message::Text(text) => {
-                    println!("Operator received WS ActionItemResponse");
-                    let response = match serde_json::from_str::<ActionItemResponse>(&text) {
-                        Ok(response) => response,
-                        Err(e) => {
-                            println!(
-                                "error deserializing action item response: {}",
-                                e.to_string()
-                            );
-                            continue;
-                        }
-                    };
-                    let _ = action_item_events_tx.send(response);
-                }
-                Message::Binary(_) => todo!(),
-                Message::Ping(ping) => {
-                    println!("Received ping: {:?}", ping);
-                    // Respond with pong message to keep the connection alive
-                    write
-                        .send(Message::Pong(ping))
-                        .await
-                        .map_err(|e| format!("failed to send ws pong: {}", e))?;
-                }
-                Message::Pong(_) => todo!(),
-                Message::Close(_) => {
-                    break;
-                }
-                Message::Frame(_) => todo!(),
-            },
-            Err(e) => return Err(format!("error parsing ws message: {}", e)),
+    let (write, mut read) = ws_stream.split();
+
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let write_task = tokio::spawn(async move {
+        let mut write = write;
+        while let Some(message) = rx.recv().await {
+            if let Err(e) = write.send(message).await {
+                println!("Error sending message: {}", e);
+            }
         }
-    }
+    });
+
+    let read_task = tokio::spawn(async move {
+        while let Some(message) = read.next().await {
+            match message {
+                Ok(msg) => match msg {
+                    Message::Text(text) => {
+                        println!("Operator received WS ActionItemResponse");
+                        let response = match serde_json::from_str::<ActionItemResponse>(&text) {
+                            Ok(response) => response,
+                            Err(e) => {
+                                println!(
+                                    "error deserializing action item response: {}",
+                                    e.to_string()
+                                );
+                                continue;
+                            }
+                        };
+                        let _ = action_item_events_tx.try_send(response);
+                    }
+                    Message::Binary(_) => todo!(),
+                    Message::Ping(ping) => {
+                        println!("Received ping: {:?}", ping);
+                        // Respond with pong message to keep the connection alive
+                        match tx.send(Message::Pong(ping)) {
+                            Err(e) => {
+                                println!("Failed to queue pong message: {}", e);
+                            }
+                            Ok(_) => {}
+                        }
+                    }
+                    Message::Pong(_) => todo!(),
+                    Message::Close(_) => {
+                        break;
+                    }
+                    Message::Frame(_) => todo!(),
+                },
+                Err(e) => return Err(format!("error parsing ws message: {}", e)),
+            }
+        }
+        Ok(())
+    });
+    let _ = tokio::join!(write_task, read_task);
     Ok(())
 }
