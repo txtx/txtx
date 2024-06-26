@@ -3,7 +3,9 @@ use super::{Package, PreConstructData};
 use crate::std::commands;
 use daggy::{Dag, NodeIndex};
 use kit::types::diagnostics::Diagnostic;
+use kit::types::types::Value;
 use kit::types::wallets::WalletsState;
+use sha2::digest::typenum::Exp;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
@@ -230,12 +232,13 @@ impl Runbook {
     /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the runbook's `packages`.
     /// Iterates over the operators of `expression` to see if any of the blocks it references are cached as a
     /// `module`, `output`, `input`, `action`, or `prompt` in the package.
+    ///
     pub fn try_resolve_construct_reference_in_expression(
         &self,
         package_uuid_source: &PackageUuid,
         expression: &Expression,
         _runtime_context: &RuntimeContext,
-    ) -> Result<Option<(ConstructUuid, VecDeque<String>)>, String> {
+    ) -> Result<Option<(ConstructUuid, VecDeque<String>, VecDeque<Value>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
@@ -247,12 +250,29 @@ impl Runbook {
         let Some(root) = traversal.expr.as_variable() else {
             return Ok(None);
         };
+
+        let mut subpath = VecDeque::new();
+
         let mut components = VecDeque::new();
         components.push_front(root.to_string());
 
         for op in traversal.operators.iter() {
             if let TraversalOperator::GetAttr(value) = op.value() {
                 components.push_back(value.to_string());
+            }
+            if let TraversalOperator::Index(expr) = op.value() {
+                match expr {
+                    Expression::Number(value) => {
+                        subpath.push_back(Value::int(value.as_i64().unwrap()));
+                    }
+                    Expression::String(value) => {
+                        subpath.push_back(Value::string(value.to_string()));
+                    }
+                    Expression::Bool(value) => {
+                        subpath.push_back(Value::bool(**value));
+                    }
+                    _ => unimplemented!(),
+                }
             }
         }
 
@@ -269,7 +289,7 @@ impl Runbook {
                     if let Some(construct_uuid) =
                         current_package.modules_uuids_lookup.get(&module_name)
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
 
@@ -282,7 +302,7 @@ impl Runbook {
                     if let Some(construct_uuid) =
                         current_package.outputs_uuids_lookup.get(&output_name)
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
 
@@ -295,7 +315,7 @@ impl Runbook {
                     if let Some(construct_uuid) =
                         current_package.inputs_uuids_lookup.get(&input_name)
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
 
@@ -309,7 +329,7 @@ impl Runbook {
                         .addons_uuids_lookup
                         .get(&CommandId::Action(action_name).to_string())
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
 
@@ -322,7 +342,7 @@ impl Runbook {
                     if let Some(construct_uuid) =
                         current_package.wallets_uuids_lookup.get(&wallet_name)
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
 
@@ -336,7 +356,7 @@ impl Runbook {
                         .environment_variables_uuid_lookup
                         .get(&env_variable_name)
                     {
-                        return Ok(Some((construct_uuid.clone(), components)));
+                        return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
                 }
             }

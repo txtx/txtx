@@ -197,7 +197,10 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
             });
             Ok(Value::Object(map))
         }
-        ClarityValue::Optional(_) => todo!(),
+        ClarityValue::Optional(value) => match value.data {
+            Some(value) => clarity_value_to_value(*value),
+            None => Ok(Value::null()),
+        },
         ClarityValue::Response(ResponseData { data, .. }) => clarity_value_to_value(*data),
         ClarityValue::CallableContract(val) => {
             Ok(Value::Primitive(PrimitiveValue::String(val.to_string())))

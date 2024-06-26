@@ -2,8 +2,9 @@ use console::Style;
 use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
+    fmt::format,
     fs::{self, File},
     path::PathBuf,
     sync::Arc,
@@ -11,22 +12,23 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_core::{
     kit::{
-        channel::{self},
+        channel,
         helpers::fs::FileLocation,
-        types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+        types::{
+            commands::CommandInputsEvaluationResult,
+            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+            types::Value,
+        },
     },
     pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
-    types::{Runbook, RuntimeContext},
+    types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
 };
 
 use txtx_gql::Context as GqlContext;
 
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
-    manifest::{
-        read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest,
-        ProtocolManifest, RunbookMetadata,
-    },
+    manifest::{read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest},
     web_ui,
 };
 
@@ -236,6 +238,102 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(), String> {
+    let start_web_ui = cmd.web_console || cmd.port.is_some();
+    let is_execution_interactive = start_web_ui || cmd.term_console;
+    let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
+
+    if !is_execution_interactive {
+        let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            while let Ok(msg) = progress_rx.recv() {
+                match msg {
+                    BlockEvent::UpdateProgressBarStatus(update) => {
+                        if update.new_status.message.len() == 64 {
+                            // Hacky - update message in place
+                            print!(
+                                "\r{} 0x{}",
+                                yellow!(format!("{}", update.new_status.status)),
+                                update.new_status.message
+                            );
+                        } else {
+                            println!("{}", update.new_status.message)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let mut batch_inputs = vec![];
+
+        for input in cmd.inputs.iter() {
+            let (input_name, input_value) = input.split_once("=").unwrap();
+            if input_value.starts_with("[") {
+                batch_inputs = input_value[1..(input_value.len() - 2)]
+                    .split(",")
+                    .map(|v| {
+                        (
+                            input_name.to_string(),
+                            Value::uint(v.parse::<u64>().unwrap()),
+                        )
+                    })
+                    .collect::<Vec<(String, Value)>>();
+            } else {
+                batch_inputs.push((
+                    input_name.to_string(),
+                    Value::uint(input_value.parse::<u64>().unwrap()),
+                ));
+            }
+        }
+
+        loop {
+            let res = match &cmd.manifest_path {
+                Some(manifest_path) => {
+                    load_runbook_from_manifest(&manifest_path, &cmd.runbook).await
+                }
+                None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
+            };
+            let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
+                Ok((m, a, b, c)) => (a, b, c, m.environments),
+                Err(_) => {
+                    let (runbook_name, runbook, runtime_context) =
+                        load_runbook_from_file_path(&cmd.runbook).await?;
+                    (runbook_name, runbook, runtime_context, BTreeMap::new())
+                }
+            };
+
+            if let Some(ref selected_env) = cmd.environment {
+                runtime_context.set_active_environment(selected_env.clone())?;
+            }
+
+            if batch_inputs.len() == 0 {
+                return Ok(())
+            }
+
+            let (input_name, input_value) = batch_inputs.remove(0);
+
+            for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
+                if command_instance.specification.matcher.eq("input")
+                    && input_name.eq(&command_instance.name)
+                {
+                    let mut result = CommandInputsEvaluationResult::new(&input_name);
+                    result.inputs.insert("value", input_value.clone());
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                }
+            }
+
+            println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
+
+            let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
+            if let Err(diags) = res {
+                for diag in diags.iter() {
+                    println!("{} {}", red!("x"), diag);
+                }
+            }
+        }
+    }
+
     let res = match &cmd.manifest_path {
         Some(manifest_path) => load_runbook_from_manifest(&manifest_path, &cmd.runbook).await,
         None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
@@ -248,6 +346,42 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             (runbook_name, runbook, runtime_context, BTreeMap::new())
         }
     };
+
+    if let Some(ref selected_env) = cmd.environment {
+        runtime_context.set_active_environment(selected_env.clone())?;
+    }
+
+    let mut batch_inputs = vec![];
+
+    for input in cmd.inputs.iter() {
+        let (input_name, input_value) = input.split_once("=").unwrap();
+        for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
+            if command_instance.specification.matcher.eq("input")
+                && input_name.eq(&command_instance.name)
+            {
+                let mut result = CommandInputsEvaluationResult::new(input_name);
+
+                if input_value.starts_with("[") {
+                    batch_inputs = input_value[1..(input_value.len() - 2)]
+                        .split(",")
+                        .map(|v| Value::uint(v.parse::<u64>().unwrap()))
+                        .collect::<Vec<Value>>();
+                    let v = batch_inputs.remove(0);
+                    result.inputs.insert("value", v);
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                } else {
+                    result
+                        .inputs
+                        .insert("value", Value::uint(input_value.parse::<u64>().unwrap()));
+                    runbook
+                        .command_inputs_evaluation_results
+                        .insert(construct_uuid.clone(), result);
+                }
+            }
+        }
+    }
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
@@ -275,14 +409,33 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // - build checklist, wait for its completion
     //   - listen to checklist_action_events_rx
     //   - update graph
-    let start_web_ui = cmd.web_console || cmd.port.is_some();
-    let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
     let moved_block_tx = block_tx.clone();
     // Start runloop
 
+    // should not be generating actions
     if !is_execution_interactive {
-        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, environments).await;
+        let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            while let Ok(msg) = progress_rx.recv() {
+                match msg {
+                    BlockEvent::UpdateProgressBarStatus(update) => {
+                        if update.new_status.message.len() == 64 {
+                            // Hacky - update message in place
+                            print!(
+                                "\r{} 0x{}",
+                                yellow!(format!("{}", update.new_status.status)),
+                                update.new_status.message
+                            );
+                        } else {
+                            println!("{}", update.new_status.message)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
@@ -327,7 +480,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),
-            green!(format!("http://127.0.0.1:{}", port))
+            green!(format!("http://localhost:{}", port))
         );
 
         let handle = web_ui::http::start_server(gql_context, port, ctx)
@@ -385,7 +538,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         .iter_mut()
                         .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
                         .for_each(|(_, b)| b.visible = update.visible),
-                    BlockEvent::RunbookCompleted => unimplemented!("Runbook completed!"),
+                    BlockEvent::RunbookCompleted => {
+                        println!("Runbook completed!")
+                    }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
@@ -412,9 +567,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         };
     });
     ctrlc::set_handler(move || {
-        kill_loops_tx
-            .send(true)
-            .expect("Could not send signal on channel to kill web ui.")
+        if let Err(_e) = kill_loops_tx.send(true) {
+            std::process::exit(1);
+        }
     })
     .expect("Error setting Ctrl-C handler");
 
@@ -437,11 +592,7 @@ pub async fn load_runbooks_from_manifest(
             std::process::exit(1);
         }
 
-        println!(
-            "{} Runbook '{}' successfully checked and loaded",
-            green!("✓"),
-            runbook_name
-        );
+        println!("{} '{}' successfully checked", green!("✓"), runbook_name);
     }
     Ok((manifest, runbooks))
 }
@@ -482,11 +633,7 @@ pub async fn load_runbook_from_file_path(
         std::process::exit(1);
     }
 
-    println!(
-        "{} Runbook '{}' successfully checked and loaded",
-        green!("✓"),
-        runbook_name
-    );
+    println!("{} '{}' successfully checked", green!("✓"), runbook_name);
 
     // Select first runbook by default
     Ok((runbook_name, runbook, runtime_context))
