@@ -260,24 +260,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
 
-    // Frontend:
-    // - block_rx
-    // - checklist_action_updates_rx
-    // - checklist_action_events_tx
-    // Responsibility:
-    // - listen to block_rx, checklist_action_updates_rx
-    // - display UI elements
-    // - dispatch `ChecklistActionEvent`
-
-    // Backend:
-    // - block_tx
-    // - checklist_action_updates_tx
-    // - checklist_action_events_rx
-    // Responsibility:
-    // - execute the graph
-    // - build checklist, wait for its completion
-    //   - listen to checklist_action_events_rx
-    //   - update graph
     let start_web_ui = cmd.web_console || cmd.port.is_some();
     let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
