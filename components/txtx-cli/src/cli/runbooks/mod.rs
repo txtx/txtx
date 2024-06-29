@@ -296,7 +296,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
-    let channel_data = Arc::new(RwLock::new(None));
     let (relayer_channel_tx, relayer_channel_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let web_ui_handle = if start_web_ui {
@@ -325,7 +324,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             .await
             .map_err(|e| format!("Failed to start web ui: {e}"))?;
 
-        let moved_channel_data = channel_data.clone();
         let moved_relayer_channel_tx = relayer_channel_tx.clone();
         let moved_kill_loops_tx = kill_loops_tx.clone();
         let moved_action_item_events_tx = action_item_events_tx.clone();
@@ -333,7 +331,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             let future = start_relayer_event_runloop(
                 relayer_channel_rx,
                 moved_relayer_channel_tx,
-                moved_channel_data,
                 moved_action_item_events_tx,
                 moved_kill_loops_tx,
             );
