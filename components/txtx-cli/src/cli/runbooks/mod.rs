@@ -296,7 +296,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (relayer_channel_tx, relayer_channel_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
     let web_ui_handle = if start_web_ui {
         // start web ui server
