@@ -27,7 +27,7 @@ use crate::{
     },
     web_ui::{
         self,
-        cloud_relayer::{forward_block_event, relayer_event_loop, RelayerChannelEvent},
+        cloud_relayer::{relayer_event_loop, RelayerChannelEvent},
     },
 };
 use txtx_gql::Context as GqlContext;
@@ -327,12 +327,15 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
         let moved_channel_data = channel_data.clone();
         let moved_relayer_channel_tx = relayer_channel_tx.clone();
+        let moved_kill_loops_tx = kill_loops_tx.clone();
+        let moved_action_item_events_tx = action_item_events_tx.clone();
         let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
             let future = relayer_event_loop(
                 relayer_channel_rx,
                 moved_relayer_channel_tx,
                 moved_channel_data,
-                action_item_events_tx.clone(),
+                moved_action_item_events_tx,
+                moved_kill_loops_tx,
             );
             hiro_system_kit::nestable_block_on(future)
         });
@@ -342,8 +345,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         None
     };
 
-    let moved_kill_loops_tx = kill_loops_tx.clone();
-    let moved_relayer_channel_data = channel_data.clone();
+    let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
@@ -399,38 +401,13 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     }
                     BlockEvent::Exit => break,
                 }
-                //inserting new block event
-                // propagating block event
-                // finished inserting block into store
-                // DELETE /api/v1/channels
-                // POST /api/v1/channels
-                // => relayer event loop received OpenChannel event
-                // Received ping: []
-                // => runloop received action item response
-                // inserting new block event
-                // propagating block event
-                // Received ping: []
-                // only propagate the event if there are actually changes to the block store
+
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
                     println!("propagating block event");
-                    if let Some(channel) = moved_relayer_channel_data.read().await.clone() {
-                        // todo: handle error
-                        println!("forwarding block event to relayer");
-                        match forward_block_event(
-                            channel.operator_token,
-                            channel.slug,
-                            block_event.clone(),
-                        )
-                        .await
-                        {
-                            Err(e) => {
-                                println!("{}", e);
-                                let _ = moved_kill_loops_tx.clone().send(true);
-                            }
-                            Ok(_) => {}
-                        };
-                    }
+                    let _ = moved_relayer_channel_tx.send(
+                        RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()),
+                    );
                 }
                 println!("finished inserting block into store");
             }

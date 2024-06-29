@@ -33,6 +33,7 @@ const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
 pub enum RelayerChannelEvent {
     OpenChannel(ChannelData),
     DeleteChannel,
+    ForwardEventToRelayer(BlockEvent),
     Exit,
 }
 
@@ -229,6 +230,7 @@ pub async fn relayer_event_loop(
     relayer_channel_tx: UnboundedSender<RelayerChannelEvent>,
     channel_data: Arc<RwLock<Option<ChannelData>>>,
     action_item_events_tx: Sender<ActionItemResponse>,
+    kill_loops_tx: std::sync::mpsc::Sender<bool>,
 ) -> Result<(), String> {
     let mut current_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
 
@@ -267,6 +269,23 @@ pub async fn relayer_event_loop(
                           *channel_writer = Some(new_channel);
                       }
                       println!("=> relayer event loop completed OpenChannel event");
+                  }
+                  RelayerChannelEvent::ForwardEventToRelayer(block_event) => {
+                    if let Some(channel) = channel_data.read().await.clone() {
+                      match forward_block_event(
+                          channel.operator_token,
+                          channel.slug,
+                          block_event,
+                      )
+                      .await
+                      {
+                          Err(e) => {
+                              println!("{}", e);
+                              let _ = kill_loops_tx.clone().send(true);
+                          }
+                          Ok(_) => {}
+                      };
+                    }
                   }
                   RelayerChannelEvent::DeleteChannel => {
                     println!("=> relayer event loop received DeletedChannel event");
