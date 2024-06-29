@@ -1595,6 +1595,13 @@ pub struct OpenChannelRequest {
     pub operating_token: String,
     pub totp: String,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename = "runbook", rename_all = "camelCase")]
+pub struct DeleteChannelRequest {
+    pub slug: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenChannelResponse {
