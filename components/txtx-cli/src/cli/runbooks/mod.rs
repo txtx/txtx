@@ -254,16 +254,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_updates_tx, _action_item_updates_rx) =
-        channel::unbounded::<ActionItemRequest>();
-    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
-
     let start_web_ui = cmd.web_console || cmd.port.is_some();
     let is_execution_interactive = start_web_ui || cmd.term_console;
     let runbook_description = runbook.description.clone();
-    let moved_block_tx = block_tx.clone();
     // Start runloop
 
     if !is_execution_interactive {
@@ -276,6 +269,16 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         return Ok(());
     }
 
+    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (action_item_updates_tx, _action_item_updates_rx) =
+        channel::unbounded::<ActionItemRequest>();
+    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
+    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
+
+    let moved_block_tx = block_tx.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
@@ -292,11 +295,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
         std::process::exit(1);
     });
-
-    // Start runloop
-    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
-    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
     let web_ui_handle = if start_web_ui {
         // start web ui server
