@@ -1,6 +1,6 @@
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::StatusCode;
-use actix_web::web::Data;
+use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
@@ -8,16 +8,19 @@ use native_tls::TlsConnector;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::RwLock;
 use tokio_tungstenite::connect_async_tls_with_config;
 use tokio_tungstenite::tungstenite::handshake::client::{generate_key, Request};
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use totp_rs::{Algorithm, TOTP};
 use txtx_core::kit::channel::Sender;
 use txtx_core::kit::futures::{SinkExt, StreamExt};
 use txtx_core::kit::reqwest::{self};
 use txtx_core::kit::types::frontend::{
-    ActionItemResponse, BlockEvent, OpenChannelRequest, OpenChannelResponse,
+    ActionItemResponse, BlockEvent, DeleteChannelRequest, OpenChannelRequest, OpenChannelResponse,
     OpenChannelResponseBrowser,
 };
 use txtx_core::kit::uuid::Uuid;
@@ -27,17 +30,24 @@ const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
 const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
 
 #[derive(Clone, Debug)]
-pub struct RelayerContext {
-    pub channel: Arc<RwLock<Option<ChannelData>>>,
-    pub action_item_events_tx: Sender<ActionItemResponse>,
+pub enum RelayerChannelEvent {
+    OpenChannel(ChannelData),
+    DeleteChannel,
+    Exit,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+
+#[derive(Clone, Debug)]
+pub struct RelayerContext {
+    pub relayer_channel_tx: tokio::sync::mpsc::UnboundedSender<RelayerChannelEvent>,
+}
+#[derive(Clone, Debug)]
 pub struct ChannelData {
     pub operator_token: String,
     pub totp: String,
     pub http_endpoint_url: String,
     pub ws_endpoint_url: String,
     pub slug: String,
+    // pub ws_channel_handle: RelayerWebSocketChannel,
 }
 impl ChannelData {
     pub fn new(
@@ -45,13 +55,20 @@ impl ChannelData {
         totp: String,
         slug: String,
         open_channel_response: OpenChannelResponse,
+        // action_item_events_tx: &Sender<ActionItemResponse>,
     ) -> Self {
+        // let ws_channel_handle = RelayerWebSocketChannel::new(
+        //     &open_channel_response.ws_endpoint_url,
+        //     &operator_token,
+        //     action_item_events_tx,
+        // );
         ChannelData {
             operator_token,
             totp: totp,
             http_endpoint_url: open_channel_response.http_endpoint_url,
             ws_endpoint_url: open_channel_response.ws_endpoint_url,
             slug: slug,
+            // ws_channel_handle,
         }
     }
 }
@@ -100,13 +117,15 @@ pub async fn open_channel(
         .await
         .map_err(ErrorInternalServerError)?;
 
-    let mut channel = relayer_context.channel.write().await;
-    *channel = Some(ChannelData::new(
-        token.to_string(),
-        totp.clone(),
-        slug.clone(),
-        body.clone(),
-    ));
+    let _ = relayer_context
+        .relayer_channel_tx
+        .send(RelayerChannelEvent::OpenChannel(ChannelData::new(
+            token.to_string(),
+            totp.clone(),
+            slug.clone(),
+            body.clone(),
+            // &graph_context.action_item_events_tx,
+        )));
 
     let response = OpenChannelResponseBrowser {
         totp: totp.clone(),
@@ -115,6 +134,32 @@ pub async fn open_channel(
         slug: slug.clone(),
     };
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+}
+
+pub async fn delete_channel(
+    req: HttpRequest,
+    payload: Json<DeleteChannelRequest>,
+) -> actix_web::Result<HttpResponse> {
+    println!("DELETE /api/v1/channels");
+    let Some(cookie) = req.cookie("hanko") else {
+        return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
+    };
+
+    let token = cookie.value();
+    let client = reqwest::Client::new();
+    let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
+
+    let res = client
+        .delete(path)
+        .bearer_auth(token)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(ErrorInternalServerError)?;
+
+    let _ = res.error_for_status().map_err(ErrorInternalServerError)?;
+
+    Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
 }
 
 fn auth_token_to_totp(token: &str) -> TOTP {
@@ -129,12 +174,13 @@ pub async fn forward_block_event(
     slug: String,
     payload: BlockEvent,
 ) -> Result<(), String> {
+    println!("forwarding block event to relayer");
     let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
 
     let _ = request_with_retry(&path, &token, &payload)
         .await
         .map_err(|e| format!("failed to forward block event to relayer: {}", e))?;
-
+    println!("finished forwarding block event to relayer");
     Ok(())
 }
 
@@ -178,102 +224,202 @@ where
     }
 }
 
-pub async fn get_opened_channel_data(
-    relayer_channel: Arc<RwLock<Option<ChannelData>>>,
-) -> ChannelData {
-    let channel = loop {
-        if let Some(channel) = relayer_channel.read().await.clone() {
-            break channel;
-        }
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    };
-    channel
-}
-
-pub async fn process_relayer_ws_events(
-    channel: ChannelData,
+pub async fn relayer_event_loop(
+    mut relayer_channel_rx: UnboundedReceiver<RelayerChannelEvent>,
+    relayer_channel_tx: UnboundedSender<RelayerChannelEvent>,
+    channel_data: Arc<RwLock<Option<ChannelData>>>,
     action_item_events_tx: Sender<ActionItemResponse>,
 ) -> Result<(), String> {
-    let req = Request::builder()
-        .method("GET")
-        .uri(&channel.ws_endpoint_url)
-        .header(
-            "authorization",
-            format!("Bearer {}", &channel.operator_token),
+    let mut current_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
+
+    loop {
+        tokio::select! {
+          Some(relayer_channel_event) = relayer_channel_rx.recv() => {
+              match relayer_channel_event {
+                  RelayerChannelEvent::OpenChannel(new_channel) => {
+                      println!("=> relayer event loop received OpenChannel event");
+                      let mut channel_writer = channel_data.write().await;
+
+                      if channel_writer.is_none() {
+                          let ws_endpoint_url = new_channel.ws_endpoint_url.clone();
+                          let operator_token = new_channel.operator_token.clone();
+                          let moved_action_item_events_tx = action_item_events_tx.clone();
+
+                          let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                          current_writer_tx = Some(tx.clone());
+                          let moved_relayer_channel_tx = relayer_channel_tx.clone();
+
+                          let _ = hiro_system_kit::thread_named("Runbook Runloop")
+                              .spawn(move || {
+                                  let mut ws_channel = RelayerWebSocketChannel::new(
+                                      &ws_endpoint_url,
+                                      &operator_token,
+                                      &moved_action_item_events_tx.clone(),
+                                  );
+                                  let future = ws_channel.start(tx.clone(), rx, moved_relayer_channel_tx);
+                                  if let Err(e) = hiro_system_kit::nestable_block_on(future) {
+                                      eprintln!("WebSocket channel error: {:?}", e);
+                                  }
+                              })
+                              .unwrap();
+
+
+                          *channel_writer = Some(new_channel);
+                      }
+                      println!("=> relayer event loop completed OpenChannel event");
+                  }
+                  RelayerChannelEvent::DeleteChannel => {
+                    println!("=> relayer event loop received DeletedChannel event");
+                    let mut channel_writer = channel_data.write().await;
+                    *channel_writer = None;
+                    println!("dropped writer");
+                    println!("=> relayer event loop completed DeletedChannel event");
+                  }
+                  // todo: on channel exit, we don't currently delete things relayer side to clean up
+                  RelayerChannelEvent::Exit => {
+                      println!("=> relayer event loop received Exit event");
+
+                      if let Some(tx) = current_writer_tx.clone() {
+                          let _ = RelayerWebSocketChannel::close(tx.clone());
+                      }
+
+                      // wait for the channel data to be deleted, so we know the channel has properly closed
+                      loop {
+                          if let Some(_) = channel_data.read().await.clone() {} else {
+                            break;
+                          };
+                          tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                      }
+
+
+                      println!("=> relayer event loop completed Exit event");
+                      break;
+                  }
+              }
+          }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug)]
+pub struct RelayerWebSocketChannel {
+    ws_endpoint_url: String,
+    operator_token: String,
+    action_item_events_tx: Sender<ActionItemResponse>,
+}
+impl RelayerWebSocketChannel {
+    pub fn new(
+        ws_endpoint_url: &String,
+        operator_token: &String,
+        action_item_events_tx: &Sender<ActionItemResponse>,
+    ) -> Self {
+        RelayerWebSocketChannel {
+            ws_endpoint_url: ws_endpoint_url.clone(),
+            operator_token: operator_token.clone(),
+            action_item_events_tx: action_item_events_tx.clone(),
+        }
+    }
+
+    pub fn close(writer_tx: tokio::sync::mpsc::UnboundedSender<Message>) {
+        println!("sending close signal");
+        let _ = writer_tx.send(Message::Close(Some(CloseFrame {
+            code: CloseCode::Normal,
+            reason: std::borrow::Cow::Borrowed("Closed by user."),
+        })));
+        println!("sent close signal");
+    }
+
+    pub async fn start(
+        &mut self,
+        writer_tx: tokio::sync::mpsc::UnboundedSender<Message>,
+        mut writer_rx: tokio::sync::mpsc::UnboundedReceiver<Message>,
+        relayer_channel_tx: UnboundedSender<RelayerChannelEvent>,
+    ) -> Result<(), String> {
+        let req = Request::builder()
+            .method("GET")
+            .uri(&self.ws_endpoint_url)
+            .header("authorization", format!("Bearer {}", &self.operator_token))
+            .header("sec-websocket-key", generate_key())
+            .header("host", RELAYER_HOST)
+            .header("upgrade", "websocket")
+            .header("connection", "upgrade")
+            .header("sec-websocket-version", 13)
+            .body(())
+            .map_err(|e| format!("failed to create relayer ws connection: {}", e))
+            .unwrap();
+
+        let (ws_stream, _) = connect_async_tls_with_config(
+            req,
+            None,
+            false,
+            Some(tokio_tungstenite::Connector::NativeTls(
+                TlsConnector::new().unwrap(),
+            )),
         )
-        .header("sec-websocket-key", generate_key())
-        .header("host", RELAYER_HOST)
-        .header("upgrade", "websocket")
-        .header("connection", "upgrade")
-        .header("sec-websocket-version", 13)
-        .body(())
-        .map_err(|e| format!("failed to create relayer ws connection: {}", e))
+        .await
+        .map_err(|e| format!("relayer ws channel failed: {}", e))
         .unwrap();
 
-    let (ws_stream, _) = connect_async_tls_with_config(
-        req,
-        None,
-        false,
-        Some(tokio_tungstenite::Connector::NativeTls(
-            TlsConnector::new().unwrap(),
-        )),
-    )
-    .await
-    .map_err(|e| format!("failed to connect to relayer ws channel: {}", e))
-    .unwrap();
+        let (write, mut read) = ws_stream.split();
 
-    let (write, mut read) = ws_stream.split();
-
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let write_task = tokio::spawn(async move {
-        let mut write = write;
-        while let Some(message) = rx.recv().await {
-            if let Err(e) = write.send(message).await {
-                println!("Error sending message: {}", e);
+        let write_task = tokio::spawn(async move {
+            let mut write = write;
+            while let Some(message) = writer_rx.recv().await {
+                println!("sending ws message: {:?}", message);
+                if let Err(e) = write.send(message.clone()).await {
+                    println!("Error sending message: {}", e);
+                }
+                if let Message::Close(_) = message {
+                    break;
+                }
             }
-        }
-    });
+        });
 
-    let read_task = tokio::spawn(async move {
-        while let Some(message) = read.next().await {
-            match message {
-                Ok(msg) => match msg {
-                    Message::Text(text) => {
-                        println!("Operator received WS ActionItemResponse");
-                        let response = match serde_json::from_str::<ActionItemResponse>(&text) {
-                            Ok(response) => response,
-                            Err(e) => {
-                                println!(
-                                    "error deserializing action item response: {}",
-                                    e.to_string()
-                                );
-                                continue;
-                            }
-                        };
-                        let _ = action_item_events_tx.try_send(response);
-                    }
-                    Message::Binary(_) => todo!(),
-                    Message::Ping(ping) => {
-                        println!("Received ping: {:?}", ping);
-                        // Respond with pong message to keep the connection alive
-                        match tx.send(Message::Pong(ping)) {
-                            Err(e) => {
-                                println!("Failed to queue pong message: {}", e);
-                            }
-                            Ok(_) => {}
+        let action_item_events_tx = self.action_item_events_tx.clone();
+        let read_task = tokio::spawn(async move {
+            while let Some(message) = read.next().await {
+                match message {
+                    Ok(msg) => match msg {
+                        Message::Text(text) => {
+                            println!("Operator received WS ActionItemResponse");
+                            let response = match serde_json::from_str::<ActionItemResponse>(&text) {
+                                Ok(response) => response,
+                                Err(e) => {
+                                    println!(
+                                        "error deserializing action item response: {}",
+                                        e.to_string()
+                                    );
+                                    continue;
+                                }
+                            };
+                            let _ = action_item_events_tx.try_send(response);
                         }
-                    }
-                    Message::Pong(_) => todo!(),
-                    Message::Close(_) => {
-                        break;
-                    }
-                    Message::Frame(_) => todo!(),
-                },
-                Err(e) => return Err(format!("error parsing ws message: {}", e)),
+                        Message::Binary(_) => todo!(),
+                        Message::Ping(ping) => {
+                            println!("Received ping: {:?}", ping);
+                            // Respond with pong message to keep the connection alive
+                            match writer_tx.send(Message::Pong(ping)) {
+                                Err(e) => {
+                                    println!("Failed to queue pong message: {}", e);
+                                }
+                                Ok(_) => {}
+                            }
+                        }
+                        Message::Pong(_) => todo!(),
+                        Message::Close(_) => {
+                            println!("received close event from relayer");
+                            let _ = relayer_channel_tx.send(RelayerChannelEvent::DeleteChannel);
+                            break;
+                        }
+                        Message::Frame(_) => todo!(),
+                    },
+                    Err(e) => return Err(format!("error parsing ws message: {}", e)),
+                }
             }
-        }
+            Ok(())
+        });
+        let _ = tokio::join!(write_task, read_task);
         Ok(())
-    });
-    let _ = tokio::join!(write_task, read_task);
-    Ok(())
+    }
 }

@@ -27,7 +27,7 @@ use crate::{
     },
     web_ui::{
         self,
-        cloud_relayer::{forward_block_event, get_opened_channel_data, process_relayer_ws_events},
+        cloud_relayer::{forward_block_event, relayer_event_loop, RelayerChannelEvent},
     },
 };
 use txtx_gql::Context as GqlContext;
@@ -296,7 +296,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     // Start runloop
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
-    let relayer_channel = Arc::new(RwLock::new(None));
+    let channel_data = Arc::new(RwLock::new(None));
+    let (relayer_channel_tx, relayer_channel_rx) = tokio::sync::mpsc::unbounded_channel();
 
     let web_ui_handle = if start_web_ui {
         // start web ui server
@@ -308,9 +309,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             block_broadcaster: block_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         };
+
         let relayer_context = RelayerContext {
-            channel: relayer_channel.clone(),
-            action_item_events_tx: action_item_events_tx.clone(),
+            relayer_channel_tx: relayer_channel_tx.clone(),
         };
 
         let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
@@ -324,18 +325,31 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             .await
             .map_err(|e| format!("Failed to start web ui: {e}"))?;
 
+        let moved_channel_data = channel_data.clone();
+        let moved_relayer_channel_tx = relayer_channel_tx.clone();
+        let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
+            let future = relayer_event_loop(
+                relayer_channel_rx,
+                moved_relayer_channel_tx,
+                moved_channel_data,
+                action_item_events_tx.clone(),
+            );
+            hiro_system_kit::nestable_block_on(future)
+        });
+
         Some(handle)
     } else {
         None
     };
 
     let moved_kill_loops_tx = kill_loops_tx.clone();
-    let moved_relayer_channel = relayer_channel.clone();
+    let moved_relayer_channel_data = channel_data.clone();
     let block_store_handle = tokio::spawn(async move {
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
                 let mut do_propagate_event = true;
+                println!("inserting new block event");
                 match block_event.clone() {
                     BlockEvent::Action(new_block) => {
                         let len = block_store.len();
@@ -385,11 +399,22 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     }
                     BlockEvent::Exit => break,
                 }
+                //inserting new block event
+                // propagating block event
+                // finished inserting block into store
+                // DELETE /api/v1/channels
+                // POST /api/v1/channels
+                // => relayer event loop received OpenChannel event
+                // Received ping: []
+                // => runloop received action item response
+                // inserting new block event
+                // propagating block event
+                // Received ping: []
                 // only propagate the event if there are actually changes to the block store
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
                     println!("propagating block event");
-                    if let Some(channel) = moved_relayer_channel.read().await.clone() {
+                    if let Some(channel) = moved_relayer_channel_data.read().await.clone() {
                         // todo: handle error
                         println!("forwarding block event to relayer");
                         match forward_block_event(
@@ -407,6 +432,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         };
                     }
                 }
+                println!("finished inserting block into store");
             }
 
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -414,25 +440,14 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     });
 
-    let relayer_channel = relayer_channel.clone();
-    let relayer_channel_handle = tokio::spawn(async move {
-        let channel = get_opened_channel_data(relayer_channel).await;
-        println!(
-            "Initiating WebSocket connection at {}",
-            &channel.ws_endpoint_url
-        );
-        process_relayer_ws_events(channel, action_item_events_tx.clone()).await
-    });
-    let relayer_channel_abort_handle = relayer_channel_handle.abort_handle();
-
     let kill_loops_handle = tokio::spawn(async move {
         match kill_loops_rx.recv() {
             Ok(_) => {
                 if let Some(handle) = web_ui_handle {
                     let _ = handle.stop(true).await;
                 }
+                let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
                 let _ = block_tx.send(BlockEvent::Exit);
-                relayer_channel_abort_handle.abort();
             }
             Err(_) => {}
         };
@@ -443,11 +458,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             .expect("Could not send signal on channel to kill web ui.")
     })
     .expect("Error setting Ctrl-C handler");
-    let _ = tokio::join!(
-        relayer_channel_handle,
-        block_store_handle,
-        kill_loops_handle
-    );
+    let _ = tokio::join!(block_store_handle, kill_loops_handle);
     Ok(())
 }
 
@@ -480,16 +491,19 @@ pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
 ) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
+    println!("manifest path {}", manifest_path);
+    println!("name {}", desired_runbook_name);
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
     for (runbook_name, (runbook, runtime_context)) in runbooks.into_iter() {
+        println!("{}", runbook_name);
         if runbook_name.eq(desired_runbook_name) {
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
     }
 
     Err(format!(
-        "unable to retrieve runbook '{}' in manifst",
+        "unable to retrieve runbook '{}' in manifest",
         desired_runbook_name
     ))
 }
