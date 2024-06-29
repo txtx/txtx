@@ -225,7 +225,7 @@ where
     }
 }
 
-pub async fn relayer_event_loop(
+pub async fn start_relayer_event_runloop(
     mut relayer_channel_rx: UnboundedReceiver<RelayerChannelEvent>,
     relayer_channel_tx: UnboundedSender<RelayerChannelEvent>,
     channel_data: Arc<RwLock<Option<ChannelData>>>,

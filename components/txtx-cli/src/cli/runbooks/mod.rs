@@ -27,7 +27,7 @@ use crate::{
     },
     web_ui::{
         self,
-        cloud_relayer::{relayer_event_loop, RelayerChannelEvent},
+        cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
     },
 };
 use txtx_gql::Context as GqlContext;
@@ -330,7 +330,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         let moved_kill_loops_tx = kill_loops_tx.clone();
         let moved_action_item_events_tx = action_item_events_tx.clone();
         let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
-            let future = relayer_event_loop(
+            let future = start_relayer_event_runloop(
                 relayer_channel_rx,
                 moved_relayer_channel_tx,
                 moved_channel_data,
