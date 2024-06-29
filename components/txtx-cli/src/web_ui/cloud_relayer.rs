@@ -229,7 +229,7 @@ pub async fn start_relayer_event_runloop(
     mut relayer_channel_rx: UnboundedReceiver<RelayerChannelEvent>,
     relayer_channel_tx: UnboundedSender<RelayerChannelEvent>,
     action_item_events_tx: Sender<ActionItemResponse>,
-    kill_loops_tx: std::sync::mpsc::Sender<bool>,
+    kill_loops_tx: txtx_core::kit::channel::Sender<bool>,
 ) -> Result<(), String> {
     let mut current_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
     let channel_data = Arc::new(RwLock::new(None));
