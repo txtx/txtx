@@ -291,6 +291,7 @@ pub async fn start_relayer_event_runloop(
                       println!("=> relayer event loop received DeletedChannel event");
                       let mut channel_writer = channel_data.write().await;
                       *channel_writer = None;
+                      current_writer_tx = None;
                       println!("dropped writer");
                       println!("=> relayer event loop completed DeletedChannel event");
                     }
