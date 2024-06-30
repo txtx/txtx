@@ -230,7 +230,8 @@ pub async fn start_relayer_event_runloop(
     action_item_events_tx: Sender<ActionItemResponse>,
     kill_loops_tx: Sender<bool>,
 ) -> Result<(), String> {
-    let mut current_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
+    // cache the tx that is used to send websocket messages. this will allow us to send a close signal
+    let mut ws_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
     let channel_data = Arc::new(RwLock::new(None));
 
     loop {
@@ -239,16 +240,15 @@ pub async fn start_relayer_event_runloop(
                 Err(e) => return Err(format!("relayer channel error: {}", e)),
                 Ok(relayer_channel_event) => match relayer_channel_event {
                     RelayerChannelEvent::OpenChannel(new_channel) => {
-                        println!("=> relayer event loop received OpenChannel event");
-                        let mut channel_writer = channel_data.write().await;
+                        let mut channel_data_rw = channel_data.write().await;
 
-                        if channel_writer.is_none() {
+                        if channel_data_rw.is_none() {
                             let ws_endpoint_url = new_channel.ws_endpoint_url.clone();
                             let operator_token = new_channel.operator_token.clone();
                             let moved_action_item_events_tx = action_item_events_tx.clone();
 
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                            current_writer_tx = Some(tx.clone());
+                            ws_writer_tx = Some(tx.clone());
                             let moved_relayer_channel_tx = relayer_channel_tx.clone();
 
                             let _ = hiro_system_kit::thread_named("Runbook Runloop")
@@ -266,15 +266,14 @@ pub async fn start_relayer_event_runloop(
                                 .unwrap();
 
 
-                            *channel_writer = Some(new_channel);
+                            *channel_data_rw = Some(new_channel);
                         }
-                        println!("=> relayer event loop completed OpenChannel event");
                     }
                     RelayerChannelEvent::ForwardEventToRelayer(block_event) => {
-                      if let Some(channel) = channel_data.read().await.clone() {
+                      if let Some(channel_data_r) = channel_data.read().await.clone() {
                         match forward_block_event(
-                            channel.operator_token,
-                            channel.slug,
+                            channel_data_r.operator_token,
+                            channel_data_r.slug,
                             block_event,
                         )
                         .await
@@ -288,18 +287,15 @@ pub async fn start_relayer_event_runloop(
                       }
                     }
                     RelayerChannelEvent::DeleteChannel => {
-                      println!("=> relayer event loop received DeletedChannel event");
-                      let mut channel_writer = channel_data.write().await;
-                      *channel_writer = None;
-                      current_writer_tx = None;
+                      let mut channel_data_rw = channel_data.write().await;
+                      *channel_data_rw = None;
+                      ws_writer_tx = None;
                       println!("dropped writer");
-                      println!("=> relayer event loop completed DeletedChannel event");
                     }
                     // todo: on channel exit, we don't currently delete things relayer side to clean up
                     RelayerChannelEvent::Exit => {
-                        println!("=> relayer event loop received Exit event");
 
-                        if let Some(tx) = current_writer_tx.clone() {
+                        if let Some(tx) = ws_writer_tx.clone() {
                             let _ = RelayerWebSocketChannel::close(tx.clone());
                         }
 
@@ -312,7 +308,6 @@ pub async fn start_relayer_event_runloop(
                         }
 
 
-                        println!("=> relayer event loop completed Exit event");
                         break;
                     }
                 }
@@ -387,7 +382,6 @@ impl RelayerWebSocketChannel {
         let write_task = tokio::spawn(async move {
             let mut write = write;
             while let Some(message) = writer_rx.recv().await {
-                println!("sending ws message: {:?}", message);
                 if let Err(e) = write.send(message.clone()).await {
                     println!("Error sending message: {}", e);
                 }
@@ -418,7 +412,6 @@ impl RelayerWebSocketChannel {
                         }
                         Message::Binary(_) => todo!(),
                         Message::Ping(ping) => {
-                            println!("Received ping: {:?}", ping);
                             // Respond with pong message to keep the connection alive
                             match writer_tx.send(Message::Pong(ping)) {
                                 Err(e) => {
