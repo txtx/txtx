@@ -412,25 +412,32 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     });
 
-    let kill_loops_handle = tokio::spawn(async move {
-        match kill_loops_rx.recv() {
-            Ok(_) => {
-                if let Some(handle) = web_ui_handle {
-                    let _ = handle.stop(true).await;
-                }
-                let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
-                let _ = block_tx.send(BlockEvent::Exit);
-            }
-            Err(_) => {}
-        };
-    });
+    let _ = hiro_system_kit::thread_named("Kill Runloops Thread")
+        .spawn(move || {
+            let future = async {
+                match kill_loops_rx.recv() {
+                    Ok(_) => {
+                        if let Some(handle) = web_ui_handle {
+                            let _ = handle.stop(true).await;
+                        }
+                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
+                        let _ = block_tx.send(BlockEvent::Exit);
+                    }
+                    Err(_) => {}
+                };
+            };
+
+            hiro_system_kit::nestable_block_on(future)
+        })
+        .unwrap();
+
     ctrlc::set_handler(move || {
         kill_loops_tx
             .send(true)
             .expect("Could not send signal on channel to kill web ui.")
     })
     .expect("Error setting Ctrl-C handler");
-    let _ = tokio::join!(block_store_handle, kill_loops_handle);
+    let _ = tokio::join!(block_store_handle);
     Ok(())
 }
 
