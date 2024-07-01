@@ -81,7 +81,15 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
         Some(content) => HttpResponse::Ok()
             .content_type(from_path(path).first_or_octet_stream().as_ref())
             .body(content.data.into_owned()),
-        None => HttpResponse::NotFound().body("404 Not Found"),
+        None => {
+            if let Some(index_content) = Asset::get("index.html") {
+                HttpResponse::Ok()
+                    .content_type("text/html")
+                    .body(index_content.data.into_owned())
+            } else {
+                HttpResponse::NotFound().body("404 Not Found")
+            }
+        }
     }
 }
 
