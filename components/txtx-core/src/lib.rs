@@ -345,6 +345,7 @@ pub async fn start_interactive_runbook_runloop(
             sleep(Duration::from_millis(50));
             continue;
         };
+        println!("=> runloop received action item response");
         let ActionItemResponse {
             action_item_id,
             payload,

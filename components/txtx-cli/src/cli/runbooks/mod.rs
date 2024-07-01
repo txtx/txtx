@@ -2,9 +2,8 @@ use console::Style;
 use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     env,
-    fmt::format,
     fs::{self, File},
     path::PathBuf,
     sync::Arc,
@@ -24,13 +23,16 @@ use txtx_core::{
     types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
 };
 
-use txtx_gql::Context as GqlContext;
-
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     manifest::{read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest},
-    web_ui,
+    web_ui::{
+        self,
+        cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
+    },
 };
+use txtx_gql::Context as GqlContext;
+use web_ui::cloud_relayer::RelayerContext;
 
 const DEFAULT_PORT_TXTX: u16 = 8488;
 
@@ -306,7 +308,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
 
             if batch_inputs.len() == 0 {
-                return Ok(())
+                return Ok(());
             }
 
             let (input_name, input_value) = batch_inputs.remove(0);
@@ -351,7 +353,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         runtime_context.set_active_environment(selected_env.clone())?;
     }
 
-    let mut batch_inputs = vec![];
+    let mut batch_inputs;
 
     for input in cmd.inputs.iter() {
         let (input_name, input_value) = input.split_once("=").unwrap();
@@ -385,33 +387,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_updates_tx, _action_item_updates_rx) =
-        channel::unbounded::<ActionItemRequest>();
-    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
-
-    // Frontend:
-    // - block_rx
-    // - checklist_action_updates_rx
-    // - checklist_action_events_tx
-    // Responsibility:
-    // - listen to block_rx, checklist_action_updates_rx
-    // - display UI elements
-    // - dispatch `ChecklistActionEvent`
-
-    // Backend:
-    // - block_tx
-    // - checklist_action_updates_tx
-    // - checklist_action_events_rx
-    // Responsibility:
-    // - execute the graph
-    // - build checklist, wait for its completion
-    //   - listen to checklist_action_events_rx
-    //   - update graph
     let runbook_description = runbook.description.clone();
-    let moved_block_tx = block_tx.clone();
-    // Start runloop
 
     // should not be generating actions
     if !is_execution_interactive {
@@ -444,6 +420,16 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         return Ok(());
     }
 
+    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (action_item_updates_tx, _action_item_updates_rx) =
+        channel::unbounded::<ActionItemRequest>();
+    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
+    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
+
+    let moved_block_tx = block_tx.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
@@ -461,10 +447,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         std::process::exit(1);
     });
 
-    // Start runloop
-    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
-    let (kill_loops_tx, kill_loops_rx) = std::sync::mpsc::channel();
-
     let web_ui_handle = if start_web_ui {
         // start web ui server
         let gql_context = GqlContext {
@@ -476,6 +458,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             action_item_events_tx: action_item_events_tx.clone(),
         };
 
+        let relayer_context = RelayerContext {
+            relayer_channel_tx: relayer_channel_tx.clone(),
+        };
+
         let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
         println!(
             "\n{} Running Web console\n{}",
@@ -483,20 +469,35 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             green!(format!("http://localhost:{}", port))
         );
 
-        let handle = web_ui::http::start_server(gql_context, port, ctx)
+        let handle = web_ui::http::start_server(gql_context, relayer_context, port, ctx)
             .await
             .map_err(|e| format!("Failed to start web ui: {e}"))?;
+
+        let moved_relayer_channel_tx = relayer_channel_tx.clone();
+        let moved_kill_loops_tx = kill_loops_tx.clone();
+        let moved_action_item_events_tx = action_item_events_tx.clone();
+        let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
+            let future = start_relayer_event_runloop(
+                relayer_channel_rx,
+                moved_relayer_channel_tx,
+                moved_action_item_events_tx,
+                moved_kill_loops_tx,
+            );
+            hiro_system_kit::nestable_block_on(future)
+        });
 
         Some(handle)
     } else {
         None
     };
 
-    let _ = tokio::spawn(async move {
+    let moved_relayer_channel_tx = relayer_channel_tx.clone();
+    let block_store_handle = tokio::spawn(async move {
         loop {
-            if let Ok(mut block_event) = block_rx.recv() {
+            if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
                 let mut do_propagate_event = true;
+                println!("inserting new block event");
                 match block_event.clone() {
                     BlockEvent::Action(new_block) => {
                         let len = block_store.len();
@@ -525,6 +526,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::ProgressBar(new_block) => {
+                        println!("==> inserting progress bar to block store");
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
@@ -547,32 +549,48 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     }
                     BlockEvent::Exit => break,
                 }
-                // only propagate the event if there are actually changes to the block store
+
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
+                    println!("propagating block event");
+                    let _ = moved_relayer_channel_tx.send(
+                        RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()),
+                    );
                 }
+                println!("finished inserting block into store");
             }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            // println!("waiting for next block event");
         }
     });
 
-    let _ = tokio::spawn(async move {
-        match kill_loops_rx.recv() {
-            Ok(_) => {
-                if let Some(handle) = web_ui_handle {
-                    let _ = handle.stop(true).await;
-                }
-                let _ = block_tx.send(BlockEvent::Exit);
-            }
-            Err(_) => {}
-        };
-    });
+    let _ = hiro_system_kit::thread_named("Kill Runloops Thread")
+        .spawn(move || {
+            let future = async {
+                match kill_loops_rx.recv() {
+                    Ok(_) => {
+                        if let Some(handle) = web_ui_handle {
+                            let _ = handle.stop(true).await;
+                        }
+                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
+                        let _ = block_tx.send(BlockEvent::Exit);
+                    }
+                    Err(_) => {}
+                };
+            };
+
+            hiro_system_kit::nestable_block_on(future)
+        })
+        .unwrap();
+
     ctrlc::set_handler(move || {
         if let Err(_e) = kill_loops_tx.send(true) {
             std::process::exit(1);
         }
     })
     .expect("Error setting Ctrl-C handler");
-
+    let _ = tokio::join!(block_store_handle);
     Ok(())
 }
 
@@ -601,16 +619,19 @@ pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
 ) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
+    println!("manifest path {}", manifest_path);
+    println!("name {}", desired_runbook_name);
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
     for (runbook_name, (runbook, runtime_context)) in runbooks.into_iter() {
+        println!("{}", runbook_name);
         if runbook_name.eq(desired_runbook_name) {
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
     }
 
     Err(format!(
-        "unable to retrieve runbook '{}' in manifst",
+        "unable to retrieve runbook '{}' in manifest",
         desired_runbook_name
     ))
 }

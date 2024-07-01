@@ -56,6 +56,12 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
+                },
+                block_height: {
+                    documentation: "Coming soon.",
+                    typing: Type::uint(),
+                    optional: true,
+                    interpolable: true
                 }
             ],
             outputs: [
@@ -134,6 +140,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
             let call_result = loop {
+                // if block_height provided, retrieve and provide block hash in the subsequent request
+
                 match client
                     .call_readonly_fn_fn(
                         &contract_id.issuer.to_address(),
