@@ -1,6 +1,7 @@
 use jaq_interpret::Val;
 use serde::de::Error;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::json;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
@@ -290,7 +291,7 @@ impl Value {
             Value::Primitive(PrimitiveValue::Buffer(val)) => {
                 format!("0x{}", hex::encode(&val.bytes))
             }
-            Value::Object(_) => todo!(),
+            Value::Object(obj) => json!(obj).to_string(),
             Value::Array(_) => todo!(),
             Value::Addon(_) => todo!(),
         }

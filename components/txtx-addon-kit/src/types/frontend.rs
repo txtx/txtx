@@ -750,8 +750,8 @@ impl Actions {
             match item {
                 ActionType::AppendSubGroup(_)
                 | ActionType::AppendGroup(_)
-                | ActionType::AppendItem(_, _, _)
-                | ActionType::NewBlock(_) => return true,
+                | ActionType::AppendItem(_, _, _) => return true,
+                ActionType::NewBlock(_) => return true,
                 ActionType::NewModal(_) => return true,
                 ActionType::UpdateActionItemRequest(data) => {
                     match data.action_status.clone().unwrap() {

@@ -14,6 +14,9 @@ use pbkdf2::pbkdf2;
 use sha2::Sha512;
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
+};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, CheckSignabilityOk, WalletActionErr, WalletActionsFutureResult,
@@ -27,12 +30,6 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
-use txtx_addon_kit::{
-    types::frontend::{
-        ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
-    },
-    uuid::Uuid,
-};
 
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
 use txtx_addon_kit::types::wallets::return_synchronous_actions;

@@ -174,7 +174,7 @@ pub async fn run_wallets_evaluation(
                             )
                             .unwrap();
 
-                        if let Some((dependency, _)) = res {
+                        if let Some((dependency, _, _)) = res {
                             let evaluation_result_opt =
                                 runbook.constructs_execution_results.get(&dependency);
 
@@ -364,7 +364,7 @@ pub async fn run_commands_updating_defaults(
                     )
                     .unwrap();
 
-                if let Some((dependency, _)) = res {
+                if let Some((dependency, _, _)) = res {
                     let evaluation_result_opt =
                         runbook.constructs_execution_results.get(&dependency);
 
@@ -603,16 +603,12 @@ pub async fn run_constructs_evaluation(
         // however, if there was a start_node provided, this evaluation was initiated from a user interaction
         // that is stored in the input evaluation results, and we want to keep that data to evaluate that
         // commands dependents
-        let input_evaluation_results = if let Some(start_node) = start_node {
-            if start_node == node {
-                runbook
-                    .command_inputs_evaluation_results
-                    .get(&construct_uuid.clone())
-            } else {
-                None
-            }
-        } else {
+        let input_evaluation_results = if execution_context.review_input_default_values {
             None
+        } else {
+            runbook
+                .command_inputs_evaluation_results
+                .get(&construct_uuid.clone())
         };
 
         let mut cached_dependency_execution_results: HashMap<
@@ -631,7 +627,7 @@ pub async fn run_constructs_evaluation(
                 .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
                 .unwrap();
 
-            if let Some((dependency, _)) = res {
+            if let Some((dependency, _, _)) = res {
                 let evaluation_result_opt = runbook.constructs_execution_results.get(&dependency);
 
                 if let Some(evaluation_result) = evaluation_result_opt {
@@ -912,7 +908,7 @@ pub fn collect_runbook_outputs(
         {
             let Some(execution_result) = runbook.constructs_execution_results.get(&construct_uuid)
             else {
-                unreachable!()
+                return action_items;
             };
 
             let Some(value) = execution_result.outputs.get("value") else {
@@ -1130,7 +1126,7 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components))) = runbook
+            let Ok(Some((dependency, mut components, mut subpath))) = runbook
                 .try_resolve_construct_reference_in_expression(package_uuid, expr, runtime_ctx)
             else {
                 todo!("implement diagnostic for unresolvable references")
@@ -1143,9 +1139,28 @@ pub fn eval_expression(
                 },
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             };
+
             let attribute = components.pop_front().unwrap_or("value".into());
+
             match res.outputs.get(&attribute) {
-                Some(output) => output.clone(),
+                Some(output) => {
+                    if let Some(ref object) = output.as_object() {
+                        if let Some(key) = subpath.pop_front() {
+                            object
+                                .get(&key.to_string())
+                                .as_ref()
+                                .clone()
+                                .unwrap()
+                                .as_ref()
+                                .unwrap()
+                                .clone()
+                        } else {
+                            output.clone()
+                        }
+                    } else {
+                        output.clone()
+                    }
+                }
                 None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
             }
         }
@@ -1675,7 +1690,7 @@ pub fn perform_wallet_inputs_evaluation(
                             &expr,
                             runtime_ctx,
                         );
-                        if let Ok(Some((construct_uuid, _))) = result {
+                        if let Ok(Some((construct_uuid, _, _))) = result {
                             references.push(Value::string(construct_uuid.value().to_string()));
                         }
                     }

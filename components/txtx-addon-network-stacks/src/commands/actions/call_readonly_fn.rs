@@ -1,5 +1,6 @@
 use clarity::util::sleep_ms;
 use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::Value;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
@@ -125,6 +126,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
 
+        let sender = args
+            .get_expected_string("sender")
+            .map(|s| s.to_string())
+            .unwrap_or(contract_id.issuer.to_address());
+
         #[cfg(not(feature = "wasm"))]
         let future = async move {
             let mut result = CommandExecutionResult::new();
@@ -142,7 +148,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         &contract_id.name.to_string(),
                         &function_name,
                         function_args.clone(),
-                        &contract_id.issuer.to_address(),
+                        &sender,
                     )
                     .await
                 {
@@ -160,6 +166,23 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     }
                 }
             };
+
+            if let Value::Response(ref response) = call_result {
+                if !response.committed {
+                    let args = function_args
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(diagnosed_error!(
+                        "Contract-call {}::{}({}) failed with error {}.",
+                        contract_id,
+                        function_name,
+                        args,
+                        response.data.to_string()
+                    ));
+                }
+            }
 
             let value = clarity_value_to_value(call_result)?;
             result.outputs.insert("value".into(), value);

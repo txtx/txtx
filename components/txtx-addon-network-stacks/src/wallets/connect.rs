@@ -19,7 +19,6 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructUuid, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{

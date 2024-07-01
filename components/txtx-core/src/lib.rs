@@ -4,6 +4,9 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod constants;
 pub mod errors;
 pub mod eval;
@@ -168,14 +171,13 @@ lazy_static! {
 pub async fn start_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
-    _environments: BTreeMap<String, BTreeMap<String, String>>,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let execution_context = CommandExecutionContext {
         review_input_default_values: false,
         review_input_values: false,
     };
 
-    let (tx, _rx) = channel::unbounded();
     let mut action_item_requests = BTreeMap::new();
     let action_item_responses = BTreeMap::new();
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
@@ -186,7 +188,7 @@ pub async fn start_runbook_runloop(
         &execution_context,
         &mut action_item_requests,
         &action_item_responses,
-        &tx,
+        &progress_tx,
     )
     .await;
 
@@ -197,7 +199,7 @@ pub async fn start_runbook_runloop(
     }
 
     if !pass_result.diagnostics.is_empty() {
-        println!("Errors / warning");
+        println!("Diagnostics");
         for diag in pass_result.diagnostics.iter() {
             println!("- {}", diag);
         }
@@ -217,12 +219,12 @@ pub async fn start_runbook_runloop(
             &execution_context,
             &mut action_item_requests,
             &action_item_responses,
-            &tx,
+            &progress_tx,
         )
         .await;
 
         if !pass_results.diagnostics.is_empty() {
-            println!("Errors / warning");
+            println!("Diagnostics");
             for diag in pass_results.diagnostics.iter() {
                 println!("- {}", diag);
             }
@@ -252,14 +254,35 @@ pub async fn start_runbook_runloop(
                 .append(&mut pass_results.pending_background_tasks_constructs_uuids);
         }
 
-        sleep(time::Duration::from_secs(3));
-        uuid = Uuid::new_v4();
+        if background_tasks_futures.is_empty() {
+            sleep(time::Duration::from_secs(3));
+        } else {
+            let results = kit::futures::future::join_all(background_tasks_futures).await;
+            for (construct_uuid, result) in
+                background_tasks_contructs_uuids.into_iter().zip(results)
+            {
+                match result {
+                    Ok(result) => {
+                        runbook
+                            .constructs_execution_results
+                            .insert(construct_uuid, result);
+                    }
+                    Err(diag) => {
+                        let diags = vec![diag];
+                        return Err(diags);
+                    }
+                }
+            }
+            background_tasks_futures = vec![];
+            background_tasks_contructs_uuids = vec![];
+        }
 
+        uuid = Uuid::new_v4();
         if runbook_completed {
             break;
         }
     }
-
+    println!("Terminating runbook");
     Ok(())
 }
 
@@ -367,10 +390,6 @@ pub async fn start_interactive_runbook_runloop(
                             action_type: None,
                         },
                     ]));
-                    println!(
-                        "creating progress bar with uuid: {}",
-                        &background_tasks_handle_uuid.to_string()
-                    );
                     let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
                         &background_tasks_handle_uuid,
                         Panel::ProgressBar(vec![]),
@@ -411,10 +430,6 @@ pub async fn start_interactive_runbook_runloop(
                 }
 
                 background_tasks_handle_uuid = Uuid::new_v4();
-                println!(
-                    "new bg task uuid: {}",
-                    &background_tasks_handle_uuid.to_string()
-                );
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
@@ -447,7 +462,6 @@ pub async fn start_interactive_runbook_runloop(
                         actions.push_group(key.as_str(), action_items);
                     }
                     pass_results.actions.append(&mut actions);
-                    println!("OUTPUTS: {:?}", actions);
                 } else if !pass_results.actions.store.is_empty() {
                     validated_blocks = validated_blocks + 1;
                     pass_results
@@ -712,7 +726,9 @@ pub async fn reset_runbook_execution(
 
     let _ = block_tx.send(BlockEvent::Clear);
 
-    runtime_context.set_active_environment(environment_key.into());
+    runtime_context
+        .set_active_environment(environment_key.into())
+        .unwrap();
 
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
 
@@ -793,7 +809,7 @@ pub async fn build_genesis_panel(
     .await;
 
     if !pass_result.diagnostics.is_empty() {
-        println!("Errors / warning");
+        println!("Diagnostics");
         for diag in pass_result.diagnostics.iter() {
             println!("- {}", diag);
         }

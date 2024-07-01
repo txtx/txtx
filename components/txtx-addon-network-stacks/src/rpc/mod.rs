@@ -203,7 +203,11 @@ impl StacksRpc {
                 Ok(message) => {
                     if message.contains("NoEstimateAvailable") {
                         return self
-                            .estimate_transaction_fee(&default_to_transaction_payload, priority, &default_to_transaction_payload)
+                            .estimate_transaction_fee(
+                                &default_to_transaction_payload,
+                                priority,
+                                &default_to_transaction_payload,
+                            )
                             .await;
                     } else {
                         RpcError::Message(message)
@@ -387,7 +391,7 @@ impl StacksRpc {
             }))
             .send()
             .await
-            .unwrap();
+            .map_err(|e| RpcError::Message(e.to_string()))?;
 
         if !res.status().is_success() {
             let error = match res.text().await {
@@ -403,7 +407,11 @@ impl StacksRpc {
             result: String,
         }
 
-        let response: ReadOnlyCallResult = res.json().await.unwrap();
+        let response: ReadOnlyCallResult = res
+            .json()
+            .await
+            .map_err(|e| RpcError::Message(e.to_string()))?;
+
         if response.okay {
             // Removing the 0x prefix
             let raw_value = match response.result.strip_prefix("0x") {
