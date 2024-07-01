@@ -1570,6 +1570,13 @@ pub struct ProvideSignedTransactionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveryResponse {
     pub needs_credentials: bool,
+    pub client_type: ClientType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientType {
+    Operator,
+    Participant,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

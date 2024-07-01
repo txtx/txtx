@@ -11,7 +11,7 @@ use juniper_graphql_ws::ConnectionConfig;
 use mime_guess::from_path;
 use std::error::Error as StdError;
 use std::time::Duration;
-use txtx_core::kit::types::frontend::DiscoveryResponse;
+use txtx_core::kit::types::frontend::{ClientType, DiscoveryResponse};
 use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
@@ -47,7 +47,7 @@ pub async fn start_server(
                 web::scope("/api/v1")
                     .route("/channels", web::post().to(open_channel))
                     .route("/channels", web::delete().to(delete_channel))
-                    .route("/discovery", web::get().to(needs_credentials)),
+                    .route("/discovery", web::get().to(discovery)),
             )
             .service(
                 web::scope("/gql/v1")
@@ -102,10 +102,11 @@ async fn dist(path: web::Path<String>) -> impl Responder {
     handle_embedded_file(path_str)
 }
 
-async fn needs_credentials() -> impl Responder {
+async fn discovery() -> impl Responder {
     println!("GET /api/v1/discovery");
     HttpResponse::Ok().json(DiscoveryResponse {
         needs_credentials: false,
+        client_type: ClientType::Operator,
     })
 }
 
