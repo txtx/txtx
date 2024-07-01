@@ -25,8 +25,10 @@ use txtx_core::kit::types::frontend::{
 use txtx_core::kit::uuid::Uuid;
 use txtx_gql::Context as GraphContext;
 
-const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
-const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
+// const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
+// const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
+const RELAYER_BASE_URL: &str = "https://txtx.link";
+const RELAYER_HOST: &str = "txtx.link";
 
 #[derive(Clone, Debug)]
 pub enum RelayerChannelEvent {
