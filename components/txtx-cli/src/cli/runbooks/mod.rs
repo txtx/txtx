@@ -245,26 +245,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
 
     if !is_execution_interactive {
-        let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
-            while let Ok(msg) = progress_rx.recv() {
-                match msg {
-                    BlockEvent::UpdateProgressBarStatus(update) => {
-                        if update.new_status.message.len() == 64 {
-                            // Hacky - update message in place
-                            print!(
-                                "\r{} 0x{}",
-                                yellow!(format!("{}", update.new_status.status)),
-                                update.new_status.message
-                            );
-                        } else {
-                            println!("{}", update.new_status.message)
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
-
         let mut batch_inputs = vec![];
 
         for input in cmd.inputs.iter() {
@@ -430,6 +410,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
     let moved_block_tx = block_tx.clone();
+    let moved_kill_loops_tx = kill_loops_tx.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_interactive_runbook_runloop(
             &mut runbook,
@@ -444,7 +425,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 println!("{} {}", red!("x"), diag);
             }
         }
-        std::process::exit(1);
+        if let Err(_e) = moved_kill_loops_tx.send(true) {
+            std::process::exit(1);
+        }
     });
 
     let web_ui_handle = if start_web_ui {
@@ -497,7 +480,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
                 let mut do_propagate_event = true;
-                println!("inserting new block event");
                 match block_event.clone() {
                     BlockEvent::Action(new_block) => {
                         let len = block_store.len();
@@ -552,12 +534,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
-                    println!("propagating block event");
                     let _ = moved_relayer_channel_tx.send(
                         RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()),
                     );
                 }
-                println!("finished inserting block into store");
             }
 
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
