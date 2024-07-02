@@ -197,15 +197,19 @@ impl CommandImplementation for BroadcastStacksTransaction {
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
+        println!(
+            "building background task for broadcast. confirmations: {:?}",
+            confirmations_required
+        );
         let txid = args.get_expected_string("tx_id").unwrap().to_string();
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-
+        println!("building broadcast future");
         let progress_tx = progress_tx.clone();
         let future = async move {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
-
+            println!("broadcast setting update");
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &uuid.value(),
@@ -227,7 +231,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let backoff_ms = 500;
 
             // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
-            let progress_symbol = ["|", "\\", "-", "/", "|", "\\", "-", "/"];
+            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
             let mut progress = 0;
 
             loop {
@@ -355,6 +359,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
+        println!("returning broadcast future");
         Ok(Box::pin(future))
     }
 }

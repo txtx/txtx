@@ -382,6 +382,10 @@ pub async fn start_interactive_runbook_runloop(
             ActionItemResponseType::ValidateModal => {}
             ActionItemResponseType::ValidateBlock => {
                 // Handle background tasks
+                println!(
+                    "background tasks in ValidateBlock: {:?}",
+                    background_tasks_futures.len()
+                );
                 if !background_tasks_futures.is_empty() {
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
                         NormalizedActionItemRequestUpdate {
@@ -449,6 +453,7 @@ pub async fn start_interactive_runbook_runloop(
 
                 let block_uuid = Uuid::new_v4();
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                    println!("pass results had error");
                     let _ = block_tx.send(BlockEvent::Error(error_event));
                     return Err(pass_results.diagnostics);
                 } else if !pass_results.actions.has_pending_actions()
@@ -478,6 +483,10 @@ pub async fn start_interactive_runbook_runloop(
                         )]);
                 }
 
+                println!(
+                    "after validate bg tasks: {:?}",
+                    pass_results.pending_background_tasks_constructs_uuids
+                );
                 if !pass_results
                     .pending_background_tasks_constructs_uuids
                     .is_empty()
@@ -596,7 +605,10 @@ pub async fn start_interactive_runbook_runloop(
                     updated_actions.push(action.normalize(&action_item_requests).unwrap())
                 }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
-
+                println!(
+                    "background tasks in ProvideSignedTransaction: {:?}",
+                    pass_results.pending_background_tasks_constructs_uuids
+                );
                 if !pass_results
                     .pending_background_tasks_constructs_uuids
                     .is_empty()
