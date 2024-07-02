@@ -11,6 +11,6 @@ environments:
     stacks_network_id: mainnet
     stacks_api_url: https://api.mainnet.hiro.so
 runbooks:
-- name: Register BNS
+- name: register-bns
   description: This runbook pre-orders and registers a user-input BNS name.
   location: "./run"
