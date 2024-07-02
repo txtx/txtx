@@ -509,61 +509,8 @@ pub async fn start_interactive_runbook_runloop(
                     let _ = block_tx.send(BlockEvent::RunbookCompleted);
                 }
             }
-            ActionItemResponseType::PickInputOption(_response) => {
-                // collected_responses.insert(k, v)
-            }
-            ActionItemResponseType::ProvideInput(_) => {
-                let Some((provide_input_action_construct_uuid, scoped_requests)) =
-                    retrieve_related_action_items_requests(
-                        &action_item_id,
-                        &mut action_item_requests,
-                    )
-                else {
-                    continue;
-                };
-                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
-                map.insert(provide_input_action_construct_uuid, scoped_requests);
-
-                // todo: as of now, there won't actually be actions returned here from a pick input option response.
-                // we need to return actions in this loop when the user provides inputs
-                let mut pass_results = run_constructs_evaluation(
-                    &background_tasks_handle_uuid,
-                    runbook,
-                    runtime_context,
-                    None,
-                    &execution_context,
-                    &mut map,
-                    &action_item_responses,
-                    &block_tx.clone(),
-                )
-                .await;
-
-                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
-                    let _ = block_tx.send(BlockEvent::Error(error_event));
-                } else {
-                    let mut updated_actions = vec![];
-                    for action in pass_results
-                        .actions
-                        .compile_actions_to_item_updates(&action_item_requests)
-                        .into_iter()
-                    {
-                        if let Some(update) = action.normalize(&action_item_requests) {
-                            updated_actions.push(update);
-                        }
-                    }
-                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
-
-                    if !pass_results
-                        .pending_background_tasks_constructs_uuids
-                        .is_empty()
-                    {
-                        background_tasks_futures
-                            .append(&mut pass_results.pending_background_tasks_futures);
-                        background_tasks_contructs_uuids
-                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
-                    }
-                }
-            }
+            ActionItemResponseType::PickInputOption(_) => {}
+            ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 value_checked, ..
             }) => {
