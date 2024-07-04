@@ -458,6 +458,9 @@ impl WalletImplementation for StacksConnect {
                 SIGNED_TRANSACTION_BYTES,
                 Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
             );
+            // we know that there are no pending actions because we're in all_signed,
+            // so we don't want to include the actions to open the modal
+            consolidated_actions = Actions::none();
             // update "open modal assistant" button status
             consolidated_actions.push_action_item_update(
                 ActionItemRequestUpdate::from_context(&origin_uuid, ACTION_OPEN_MODAL).set_status(
