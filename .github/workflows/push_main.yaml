@@ -47,6 +47,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: txtx
+          
+      - name: Build .env file
+        run: |
+          touch .env
+          echo RELAYER_BASE_URL="https://txtx.link" >> .env
+          echo RELAYER_HOST="txtx.link" >> .env
+          cat .env
 
       - name: Checkout Web UI
         uses: actions/checkout@v4
