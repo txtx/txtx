@@ -788,6 +788,7 @@ impl CommandInstance {
         addon_defaults: AddonDefaults,
         wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
+        action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         execution_context: &CommandExecutionContext,
     ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
@@ -852,6 +853,7 @@ impl CommandInstance {
         let res = consolidate_wallet_future_result(future).await.unwrap();
         let (wallet_state, mut actions) = res.unwrap();
         consolidated_actions.append(&mut actions);
+        consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((wallet_state, consolidated_actions))
     }
 
@@ -907,7 +909,7 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
-                _ => unreachable!(),
+                _ => {}
             }
         }
         res

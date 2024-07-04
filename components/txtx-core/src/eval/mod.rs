@@ -647,6 +647,7 @@ pub async fn run_constructs_evaluation(
                     addon_defaults.clone(),
                     &mut runbook.wallets_instances,
                     &action_item_responses.get(&construct_uuid.value()),
+                    &action_item_requests.get(&construct_uuid.value()),
                     execution_context,
                 )
                 .await;
