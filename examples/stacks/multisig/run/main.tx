@@ -1,18 +1,6 @@
 action "defaults" "stacks::set_default_network" {
-  network_id = "testnet"
-  rpc_api_url = "https://api.testnet.hiro.so"
-}
-
-wallet "alice" "stacks::connect" {
-  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
-}
-
-wallet "bob" "stacks::connect" {
-  expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
-}
-
-wallet "alice_and_bob" "stacks::multisig" {
-  signers = [wallet.alice, wallet.bob]
+  network_id = env.stacks_network_id
+  rpc_api_url = env.stacks_api_url
 }
 
 action "get_name_price" "stacks::call_readonly_fn" {
@@ -45,7 +33,7 @@ action "send_name_preorder" "stacks::send_contract_call" {
   confirmations = 1
 }
 
-action "send_name_register" "stacks::send_contract_call" {
+action "send_name_regiser" "stacks::send_contract_call" {
   description = "Register name"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "name-register"
