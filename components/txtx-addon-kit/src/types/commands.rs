@@ -850,8 +850,8 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         );
-        let res = consolidate_wallet_future_result(future).await.unwrap();
-        let (wallet_state, mut actions) = res.unwrap();
+        let res = consolidate_wallet_future_result(future).await?;
+        let (wallet_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((wallet_state, consolidated_actions))

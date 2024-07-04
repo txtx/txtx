@@ -313,6 +313,10 @@ impl GqlProgressBarStatus {
         self.data.status.clone()
     }
 
+    pub fn status_color(&self) -> String {
+        self.data.status_color.to_string()
+    }
+
     pub fn message(&self) -> String {
         self.data.message.clone()
     }

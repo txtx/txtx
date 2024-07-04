@@ -207,3 +207,11 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
         }
     }
 }
+
+pub fn txid_display_str(txid: &str) -> String {
+    format!(
+        "{first_six}...{last_six}",
+        first_six = &txid[0..6],
+        last_six = &txid[txid.len() - 6..],
+    )
+}

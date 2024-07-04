@@ -437,14 +437,16 @@ impl ConstructProgressBarStatuses {
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatus {
     pub status: String,
+    pub status_color: ProgressBarStatusColor,
     pub message: String,
     pub diagnostic: Option<Diagnostic>,
 }
 
 impl ProgressBarStatus {
-    pub fn new_msg(status: &str, message: &str) -> Self {
+    pub fn new_msg(status_color: ProgressBarStatusColor, status: &str, message: &str) -> Self {
         ProgressBarStatus {
             status: status.to_string(),
+            status_color,
             message: message.to_string(),
             diagnostic: None,
         }
@@ -452,8 +454,25 @@ impl ProgressBarStatus {
     pub fn new_err(status: &str, message: &str, diag: &Diagnostic) -> Self {
         ProgressBarStatus {
             status: status.to_string(),
+            status_color: ProgressBarStatusColor::Red,
             message: message.to_string(),
             diagnostic: Some(diag.clone()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProgressBarStatusColor {
+    Green,
+    Yellow,
+    Red,
+}
+impl ProgressBarStatusColor {
+    pub fn to_string(&self) -> String {
+        match &self {
+            ProgressBarStatusColor::Green => "Green".into(),
+            ProgressBarStatusColor::Yellow => "Yellow".into(),
+            ProgressBarStatusColor::Red => "Red".into(),
         }
     }
 }
