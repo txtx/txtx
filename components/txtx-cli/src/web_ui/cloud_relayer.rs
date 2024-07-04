@@ -200,13 +200,11 @@ pub async fn forward_block_event(
     slug: String,
     payload: BlockEvent,
 ) -> Result<(), String> {
-    println!("forwarding block event to relayer");
     let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
 
     let _ = request_with_retry(&path, &token, &payload)
         .await
         .map_err(|e| format!("failed to forward block event to relayer: {}", e))?;
-    println!("finished forwarding block event to relayer");
     Ok(())
 }
 
@@ -258,9 +256,7 @@ pub async fn start_relayer_event_runloop(
     kill_loops_tx: Sender<bool>,
 ) -> Result<(), String> {
     // cache the tx that is used to send websocket messages. this will allow us to send a close signal
-    let mut ws_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
-    let channel_data = Arc::new(RwLock::new(None));
-
+    let mut _ws_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
     loop {
         select! {
             recv(relayer_channel_rx) -> rx_result => match rx_result {
@@ -275,7 +271,7 @@ pub async fn start_relayer_event_runloop(
                             let moved_action_item_events_tx = action_item_events_tx.clone();
 
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                            ws_writer_tx = Some(tx.clone());
+                            _ws_writer_tx = Some(tx.clone());
                             let moved_relayer_channel_tx = relayer_channel_tx.clone();
 
                             let _ = hiro_system_kit::thread_named("Runbook Runloop")
@@ -316,7 +312,7 @@ pub async fn start_relayer_event_runloop(
                     RelayerChannelEvent::DeleteChannel => {
                       let mut channel_data_rw = channel_data.write().await;
                       *channel_data_rw = None;
-                      ws_writer_tx = None;
+                      _ws_writer_tx = None;
                       println!("dropped writer");
                     }
                     // todo: on channel exit, we don't currently delete things relayer side to clean up
@@ -357,12 +353,10 @@ impl RelayerWebSocketChannel {
     }
 
     pub fn close(writer_tx: tokio::sync::mpsc::UnboundedSender<Message>) {
-        println!("sending close signal");
         let _ = writer_tx.send(Message::Close(Some(CloseFrame {
             code: CloseCode::Normal,
             reason: std::borrow::Cow::Borrowed("Closed by user."),
         })));
-        println!("sent close signal");
     }
 
     pub async fn start(
