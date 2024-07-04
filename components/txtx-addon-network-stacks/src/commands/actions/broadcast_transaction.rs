@@ -237,10 +237,15 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
-            let backoff_ms = 5000;
-            let mut index = 0;
+            let backoff_ms = 500;
+
+            // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
+            let progress_symbol = ["|", "\\", "-", "/", "|", "\\", "-", "/"];
+            let mut progress = 0;
 
             loop {
+                progress = (progress + 1) % progress_symbol.len();
+
                 if confirmed_blocks_ids.len() >= confirmations_required {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
@@ -277,22 +282,29 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 };
 
                 if node_info.stacks_tip_height == block_height {
-                    if index % 3 == 0 {
-                        status_update.update_status(&ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Yellow,
-                            "Pending",
-                            &wrap_msg(&format!("Transaction 0x{}", &txid)),
-                        ));
-                        let _ = progress_tx
-                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                    }
-                    index = index + 1;
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        ProgressBarStatusColor::Yellow,
+                        &format!("Pending {}", progress_symbol[progress]),
+                        &wrap_msg(&format!("Transaction 0x{}", &txid)),
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                     // no new block
                     sleep_ms(backoff_ms);
                     continue;
                 }
 
                 block_height = node_info.stacks_tip_height;
+
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &wrap_msg(&format!("Transaction 0x{}", &txid)),
+                ));
+
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
                 if !confirmed_blocks_ids.is_empty() {
                     confirmed_blocks_ids.push_back(block_height);
@@ -318,7 +330,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     TransactionStatus::Success => {
                         status_update.update_status(&ProgressBarStatus::new_msg(
                             ProgressBarStatusColor::Yellow,
-                            "Pending",
+                            &format!("Pending {}", progress_symbol[progress]),
                             &wrap_msg("Transaction included in block"),
                         ));
                         let _ = progress_tx

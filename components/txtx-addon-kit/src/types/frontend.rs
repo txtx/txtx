@@ -9,7 +9,7 @@ use super::{
 use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BlockEvent {
     Action(Block),
     Clear,
@@ -80,7 +80,7 @@ pub enum RunbookExecutionState {
     RunbookGlobalsUpdated,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
     pub uuid: Uuid,
@@ -148,7 +148,7 @@ impl Block {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Note: though the `action_status` field is optional, it is required for many functions. I kep it like this
 /// because I like the `.set_status` pattern :-)
 pub struct NormalizedActionItemRequestUpdate {
@@ -313,8 +313,8 @@ impl Display for Block {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "panel")]
 pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
@@ -375,7 +375,7 @@ impl Panel {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionPanelData {
     pub title: String,
@@ -397,7 +397,7 @@ impl ActionPanelData {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConstructProgressBarStatuses {
     pub construct_uuid: Uuid,
@@ -416,7 +416,7 @@ impl ConstructProgressBarStatuses {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatus {
     pub status: String,
@@ -444,7 +444,7 @@ impl ProgressBarStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProgressBarStatusColor {
     Green,
     Yellow,
@@ -460,7 +460,7 @@ impl ProgressBarStatusColor {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatusUpdate {
     pub progress_bar_uuid: Uuid,
@@ -485,7 +485,7 @@ impl ProgressBarStatusUpdate {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarVisibilityUpdate {
     pub progress_bar_uuid: Uuid,
@@ -500,7 +500,7 @@ impl ProgressBarVisibilityUpdate {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModalPanelData {
     pub title: String,
@@ -522,7 +522,7 @@ impl ModalPanelData {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorPanelData {
     pub title: String,
@@ -561,7 +561,7 @@ impl ErrorPanelData {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionGroup {
     pub title: String,
@@ -626,7 +626,7 @@ impl ActionGroup {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionSubGroup {
     pub action_items: Vec<ActionItemRequest>,
@@ -666,7 +666,7 @@ impl ActionSubGroup {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemRequest {
     pub id: BlockId,
@@ -718,7 +718,7 @@ pub enum ChecklistActionResultProvider {
     RemoteWebConsole,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "status", content = "data")]
 pub enum ActionItemStatus {
     Blocked,
@@ -737,7 +737,7 @@ pub struct UpdateConstructData {
     pub internal_key: String,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenModalData {
     pub modal_uuid: Uuid,
@@ -769,8 +769,8 @@ impl Actions {
             match item {
                 ActionType::AppendSubGroup(_)
                 | ActionType::AppendGroup(_)
-                | ActionType::AppendItem(_, _, _)
-                | ActionType::NewBlock(_) => return true,
+                | ActionType::AppendItem(_, _, _) => return true,
+                ActionType::NewBlock(_) => return true,
                 ActionType::NewModal(_) => return true,
                 ActionType::UpdateActionItemRequest(data) => {
                     match data.action_status.clone().unwrap() {
@@ -1177,7 +1177,7 @@ impl Actions {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum ActionItemRequestType {
     ReviewInput(ReviewInputRequest),
@@ -1429,14 +1429,14 @@ impl ActionItemRequestType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideInputRequest {
     pub default_value: Option<Value>,
@@ -1444,7 +1444,7 @@ pub struct ProvideInputRequest {
     pub typing: Type,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayOutputRequest {
     pub name: String,
@@ -1452,13 +1452,13 @@ pub struct DisplayOutputRequest {
     pub value: Value,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayErrorLogRequest {
     pub diagnostic: Diagnostic,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidateBlockData {
     /// internal index used to differential one validate block instance from another
@@ -1470,13 +1470,13 @@ impl ValidateBlockData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PickInputOptionRequest {
     pub options: Vec<InputOption>,
     pub selected: InputOption,
 }
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct InputOption {
     pub value: String,
@@ -1583,4 +1583,63 @@ pub struct ProvideSignedMessageResponse {
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: String,
     pub signer_uuid: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveryResponse {
+    pub needs_credentials: bool,
+    pub client_type: ClientType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ClientType {
+    Operator,
+    Participant,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelParticipantAuthRequest {
+    pub otp_code: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelParticipantAuthResponse {
+    pub auth_token: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename = "runbook", rename_all = "camelCase")]
+pub struct OpenChannelRequest {
+    pub runbook_name: String,
+    pub runbook_description: Option<String>,
+    pub block_store: BTreeMap<usize, Block>,
+    pub uuid: Uuid,
+    pub slug: String,
+    pub operating_token: String,
+    pub totp: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename = "runbook", rename_all = "camelCase")]
+pub struct DeleteChannelRequest {
+    pub slug: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenChannelResponse {
+    pub http_endpoint_url: String,
+    pub ws_endpoint_url: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenChannelResponseBrowser {
+    pub totp: String,
+    pub http_endpoint_url: String,
+    pub ws_endpoint_url: String,
+    pub slug: String,
 }

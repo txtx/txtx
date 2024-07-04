@@ -1,0 +1,50 @@
+# {{ project_name }} Runbooks
+
+[![Txtx](https://img.shields.io/badge/Operated%20with-Txtx-gree?labelColor=gray)](#)
+
+## Runbooks available
+
+{{# runbooks }}
+### {{ name }}
+{{ description }}
+{{/ runbooks }}
+
+## Getting Started
+
+This repository is using [txtx](https://txtx.sh) for handling its on-chain operations.
+
+`txtx` takes its inspiration from a battle tested devops best practice named `infrastructure as code`, that have transformed cloud architectures. 
+
+`txtx` simplifies and streamline Smart Contract Infrastructure management accross blockchains, focusing on robustness, reproducibility and composability.
+
+### Installation
+
+```console
+$ curl -sL https://install.txtx.sh/ | bash
+```
+
+### Scaffold a new runbook
+
+```console
+$ txtx new bns-multisig
+```
+
+Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) to understand the syntax and discover the powerful features of txtx. 
+
+Additionally, the [Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=txtx.txtx) will make writing runbooks easier.
+
+### List runbooks available in this repository
+```console
+$ txtx ls
+bns-multisig     Register a BNS name using a multisig wallet
+```
+
+### Execute an existing runbook
+```console
+$ txtx run bns-multisig
+```
+
+### Update the README documentation
+```console
+$ txtx docs --update 
+```

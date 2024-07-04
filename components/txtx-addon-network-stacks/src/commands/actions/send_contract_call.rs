@@ -72,6 +72,12 @@ lazy_static! {
                 optional: true,
                 interpolable: true
               },
+              fee: {
+                documentation: "Coming soon",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+              },
               depends_on: {
                 documentation: "Coming soon",
                 typing: Type::string(),

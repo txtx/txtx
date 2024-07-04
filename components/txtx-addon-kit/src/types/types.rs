@@ -1,5 +1,7 @@
 use jaq_interpret::Val;
-use serde::{ser::SerializeMap, Deserialize, Serialize, Serializer};
+use serde::de::Error;
+use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::json;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
@@ -289,7 +291,7 @@ impl Value {
             Value::Primitive(PrimitiveValue::Buffer(val)) => {
                 format!("0x{}", hex::encode(&val.bytes))
             }
-            Value::Object(_) => todo!(),
+            Value::Object(obj) => json!(obj).to_string(),
             Value::Array(_) => todo!(),
             Value::Addon(_) => todo!(),
         }
@@ -521,10 +523,33 @@ impl Serialize for Type {
             Type::Primitive(PrimitiveType::Bool) => serializer.serialize_str("Boolean"),
             Type::Primitive(PrimitiveType::Null) => serializer.serialize_str("Null"),
             Type::Primitive(PrimitiveType::Buffer) => serializer.serialize_str("Buffer"),
-            Type::Object(_) => serializer.serialize_str("Object"),
+            Type::Object(_) => serializer.serialize_str("Object"), // todo: add properties
             Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
             Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for Type {
+    fn deserialize<D>(deserializer: D) -> Result<Type, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let type_str: String = serde::Deserialize::deserialize(deserializer)?;
+        let t = match type_str.as_str() {
+            "String" => Type::string(),
+            "UInt" => Type::uint(),
+            "Int" => Type::int(),
+            "Float" => Type::float(),
+            "Boolean" => Type::bool(),
+            "Null" => Type::null(),
+            "Buffer" => Type::buffer(),
+            "Object" => Type::object(vec![]), //todo: add properties
+            "Addon" => todo!(),
+            "Array" => todo!(),
+            _ => return Err(D::Error::custom("unsupported type")),
+        };
+        Ok(t)
     }
 }
 

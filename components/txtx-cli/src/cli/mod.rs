@@ -4,6 +4,7 @@ use std::process;
 
 mod docs;
 mod runbooks;
+mod templates;
 
 #[derive(Clone)]
 pub struct Context {
@@ -46,9 +47,15 @@ enum Command {
     /// Inspect deployment protocol
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbooks),
-    /// Inspect deployment protocol
+    /// New Runbook
+    #[clap(name = "new", bin_name = "new")]
+    New(CreateRunbook),
+    /// List Runbooks
+    #[clap(name = "ls", bin_name = "ls")]
+    List(ListRunbooks),
+    /// Execute Runbook
     #[clap(name = "run", bin_name = "run")]
-    Run(RunRunbook),
+    Run(ExecuteRunbook),
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
@@ -56,7 +63,7 @@ enum Command {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CheckRunbooks {
-    /// Path to manifest (default to ./txtx.json)
+    /// Path to manifest (default to ./txtx.yml)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
 }
@@ -66,7 +73,7 @@ pub struct GetDocumentation;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
-    /// Path to manifest (default to ./txtx.json)
+    /// Path to manifest (default to ./txtx.yml)
     #[clap(long = "manifest-path")]
     pub manifest_path: Option<String>,
     /// Disable Terminal UI
@@ -75,33 +82,22 @@ pub struct InspectRunbook {
     /// Path to runbook root file
     // #[clap(long = "runbook-path", conflicts_with = "runbook")]
     // pub runbook_path: Option<String>,
-    /// Name of runbook as indexed in txtx.json
+    /// Name of runbook as indexed in txtx.yml
     #[clap(long = "runbook")]
     pub runbook: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct RunRunbook {
-    /// Path to runbook file or directory
-    #[clap(
-        long = "runbook-file-path",
-        short = 'f',
-        conflicts_with = "manifest_path"
-    )]
-    pub runbook_path: Option<String>,
-    /// Path to manifest (default to ./txtx.json)
+pub struct ExecuteRunbook {
+    /// Path to manifest (default to ./txtx.yml)
     #[clap(
         long = "manifest-file-path",
         short = 'm',
         conflicts_with = "runbook_path"
     )]
     pub manifest_path: Option<String>,
-    /// Path to runbook root file
-    // #[clap(long = "runbook-path", conflicts_with = "runbook")]
-    // pub runbook_path: Option<String>,
-    /// Name of runbook as indexed in txtx.json
-    #[clap(long = "runbook")]
-    pub runbook: Option<String>,
+    /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
+    pub runbook: String,
     /// Start Web Console
     #[clap(long = "web-console", short = 'w', action=ArgAction::SetTrue)]
     pub web_console: bool,
@@ -111,6 +107,34 @@ pub struct RunRunbook {
     /// Start Terminal Console
     #[clap(long = "port", short = 'p')]
     pub port: Option<u16>,
+    /// Choose environment variable set
+    #[clap(long = "env")]
+    pub environment: Option<String>,
+    /// Choose environment variable set
+    #[clap(long = "input")]
+    pub inputs: Vec<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct CreateRunbook {
+    /// Path to manifest (default to ./txtx.yml)
+    #[clap(
+        long = "manifest-file-path",
+        short = 'm',
+        conflicts_with = "runbook_path"
+    )]
+    pub manifest_path: Option<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct ListRunbooks {
+    /// Path to manifest (default to ./txtx.yml)
+    #[clap(
+        long = "manifest-file-path",
+        short = 'm',
+        conflicts_with = "runbook_path"
+    )]
+    pub manifest_path: Option<String>,
 }
 
 pub fn main() {
@@ -146,6 +170,12 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         }
         Command::Run(cmd) => {
             runbooks::handle_run_command(&cmd, ctx).await?;
+        }
+        Command::List(cmd) => {
+            runbooks::handle_list_command(&cmd, ctx).await?;
+        }
+        Command::New(cmd) => {
+            runbooks::handle_new_command(&cmd, ctx).await?;
         }
         Command::Docs(cmd) => {
             docs::handle_docs_command(&cmd, ctx).await?;
