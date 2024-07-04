@@ -1,3 +1,15 @@
+wallet "alice" "stacks::connect" {
+  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+wallet "bob" "stacks::connect" {
+  expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+}
+
+wallet "alice_and_bob" "stacks::multisig" {
+  signers = [wallet.alice, wallet.bob]
+}
+
 input "namespace" {
   description = "TLD / Namespace"
   default = "btc"

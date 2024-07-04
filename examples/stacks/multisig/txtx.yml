@@ -1,7 +1,7 @@
 ---
 name: Stacks Multisig
 runbooks:
-- name: Stacks Multisig
+- name: multisig
   description: Test stacks multisig
   location: "./run"
 environments:

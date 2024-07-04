@@ -109,23 +109,56 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
     ) -> Result<Actions, Diagnostic> {
-        Ok(Actions::none()) // todo
+        Ok(Actions::none())
     }
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
+        let future = async move {
+            let result = CommandExecutionResult::new();
+            Ok(result)
+        };
+
+        Ok(Box::pin(future))
+    }
+
+    #[cfg(not(feature = "wasm"))]
+    fn build_background_task(
+        uuid: &ConstructUuid,
+        _spec: &CommandSpecification,
+        args: &ValueStore,
+        defaults: &AddonDefaults,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> CommandExecutionFutureResult {
+        use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
+
+        use crate::{constants::NETWORK_ID, rpc::TransactionStatus};
+
         let args = args.clone();
+        let uuid = uuid.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+
+        let confirmations_required = args
+            .get_expected_uint("confirmations")
+            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
+
+        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err(diag),
+        };
+
         let transaction_bytes =
             args.get_expected_buffer(SIGNED_TRANSACTION_BYTES, &CLARITY_BUFFER)?;
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-
+        let progress_tx = progress_tx.clone();
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
@@ -163,64 +196,23 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 }
             };
 
+            let txid = tx_result.txid;
             result
                 .outputs
-                .insert(format!("tx_id"), Value::string(tx_result.txid.clone()));
+                .insert(format!("tx_id"), Value::string(txid.clone()));
 
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                Value::buffer(transaction_bytes.bytes, CLARITY_BUFFER.clone()),
-            );
+            let moved_txid = txid.clone();
+            let moved_network_id = network_id.clone();
+            let wrap_msg = move |msg: &str| {
+                txtx_addon_kit::formatdoc! {
+                    r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}">{}</a>"#,
+                    moved_txid, moved_network_id, msg
+                }
+                .to_string()
+            };
 
-            Ok(result)
-        };
-
-        Ok(Box::pin(future))
-    }
-
-    #[cfg(not(feature = "wasm"))]
-    fn build_background_task(
-        uuid: &ConstructUuid,
-        _spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
-    ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
-
-        use crate::{constants::NETWORK_ID, rpc::TransactionStatus};
-
-        let args = args.clone();
-        let uuid = uuid.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
-
-        let confirmations_required = args
-            .get_expected_uint("confirmations")
-            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
-
-        let txid = args.get_expected_string("tx_id").unwrap().to_string();
-
-        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err(diag),
-        };
-        let moved_txid = txid.clone();
-        let moved_network_id = network_id.clone();
-        let wrap_msg = move |msg: &str| {
-            txtx_addon_kit::formatdoc! {
-                r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}">{}</a>"#,
-                moved_txid, moved_network_id, msg
-            }
-            .to_string()
-        };
-
-        let progress_tx = progress_tx.clone();
-        let future = async move {
-            let client = StacksRpc::new(&rpc_api_url);
+            let progress_tx = progress_tx.clone();
             let mut retry_count = 4;
-
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &uuid.value(),
@@ -233,14 +225,12 @@ impl CommandImplementation for BroadcastStacksTransaction {
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-            let mut result = CommandExecutionResult::new();
-
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
             let backoff_ms = 500;
 
             // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
-            let progress_symbol = ["|", "\\", "-", "/", "|", "\\", "-", "/"];
+            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
             let mut progress = 0;
 
             loop {

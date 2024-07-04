@@ -88,48 +88,6 @@ pub fn is_child_of_node(
         .any(|(_, child)| child == maybe_child)
 }
 
-pub fn log_evaluated_outputs(runbook: &Runbook) {
-    for (_, package) in runbook.packages.iter() {
-        for construct_uuid in package.outputs_uuids.iter() {
-            let _construct = runbook.commands_instances.get(construct_uuid).unwrap();
-            if let Some(result) = runbook.constructs_execution_results.get(construct_uuid) {
-                for (key, value) in result.outputs.iter() {
-                    println!("- {}: {:?}", key, value);
-                }
-            } else {
-                println!(" - (no execution results)")
-            }
-        }
-    }
-}
-pub enum ConstructEvaluationStatus {
-    Complete,
-    NeedsUserInteraction(Vec<NodeIndex>),
-}
-
-/// Prepares for a reevaluation of all of `start_node`'s dependents within the `runbook`.
-/// This involves setting the command instance state to `New` for all commands _except_
-/// the start node. The `New` state indicates to the evaluation loop that the data
-/// should be recomputed, and this should occur for all dependents of the updated
-/// start node, but not the start node itself.
-pub fn prepare_constructs_reevaluation(runbook: &mut Runbook, start_node: NodeIndex) {
-    let g = runbook.constructs_graph.clone();
-    let nodes_to_reevaluate =
-        get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone());
-
-    for node in nodes_to_reevaluate.into_iter() {
-        let uuid = g.node_weight(node).expect("unable to retrieve construct");
-        let construct_uuid = ConstructUuid::Local(uuid.clone());
-
-        let Some(_command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
-            continue;
-        };
-        if node == start_node {
-            continue;
-        }
-    }
-}
-
 // The flow for wallet evaluation should be drastically different
 // Instead of activating all the wallets detected in a graph, we should instead traverse the graph and collecting the wallets
 // being used.
@@ -652,7 +610,6 @@ pub async fn run_constructs_evaluation(
             &runbook,
             runtime_ctx,
         );
-
         let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
@@ -682,7 +639,6 @@ pub async fn run_constructs_evaluation(
                 &construct_uuid,
                 &action_item_responses.get(&construct_uuid.value()),
             );
-
             let res = command_instance
                 .check_signed_executability(
                     &construct_uuid,
@@ -691,6 +647,7 @@ pub async fn run_constructs_evaluation(
                     addon_defaults.clone(),
                     &mut runbook.wallets_instances,
                     &action_item_responses.get(&construct_uuid.value()),
+                    &action_item_requests.get(&construct_uuid.value()),
                     execution_context,
                 )
                 .await;
@@ -865,7 +822,6 @@ pub async fn run_constructs_evaluation(
                     return pass_result;
                 }
             };
-
             pass_result.pending_background_tasks_futures.push(future);
             pass_result
                 .pending_background_tasks_constructs_uuids

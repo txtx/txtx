@@ -395,6 +395,23 @@ impl ActionPanelData {
         }
         updates
     }
+
+    pub fn filter_existing_action_items(
+        &mut self,
+        existing_requests: &Vec<&mut ActionItemRequest>,
+    ) -> &mut Self {
+        let mut group_idx_to_remove = vec![];
+        for (i, group) in self.groups.iter_mut().enumerate() {
+            group.filter_existing_action_items(&existing_requests);
+            if group.sub_groups.is_empty() {
+                group_idx_to_remove.push(i);
+            }
+        }
+        group_idx_to_remove.iter().rev().for_each(|i| {
+            self.groups.remove(*i);
+        });
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -520,6 +537,23 @@ impl ModalPanelData {
         }
         updates
     }
+
+    pub fn filter_existing_action_items(
+        &mut self,
+        existing_requests: &Vec<&mut ActionItemRequest>,
+    ) -> &mut Self {
+        let mut group_idx_to_remove = vec![];
+        for (i, group) in self.groups.iter_mut().enumerate() {
+            group.filter_existing_action_items(&existing_requests);
+            if group.sub_groups.is_empty() {
+                group_idx_to_remove.push(i);
+            }
+        }
+        group_idx_to_remove.iter().rev().for_each(|i| {
+            self.groups.remove(*i);
+        });
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -624,6 +658,23 @@ impl ActionGroup {
         }
         updates
     }
+
+    pub fn filter_existing_action_items(
+        &mut self,
+        existing_requests: &Vec<&mut ActionItemRequest>,
+    ) -> &mut Self {
+        let mut sub_group_idx_to_remove = vec![];
+        for (i, sub_group) in self.sub_groups.iter_mut().enumerate() {
+            sub_group.filter_existing_action_items(&existing_requests);
+            if sub_group.action_items.is_empty() {
+                sub_group_idx_to_remove.push(i);
+            }
+        }
+        sub_group_idx_to_remove.iter().rev().for_each(|i| {
+            self.sub_groups.remove(*i);
+        });
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -663,6 +714,26 @@ impl ActionSubGroup {
             };
         }
         updates
+    }
+
+    pub fn filter_existing_action_items(
+        &mut self,
+        existing_requests: &Vec<&mut ActionItemRequest>,
+    ) -> &mut Self {
+        let mut action_item_idx_to_remove = vec![];
+        for (i, new_item) in self.action_items.iter().enumerate() {
+            for existing_item in existing_requests.iter() {
+                if existing_item.id.eq(&new_item.id) {
+                    if let None = ActionItemRequestUpdate::from_diff(new_item, existing_item) {
+                        action_item_idx_to_remove.push(i);
+                    };
+                }
+            }
+        }
+        action_item_idx_to_remove.iter().rev().for_each(|i| {
+            self.action_items.remove(*i);
+        });
+        self
     }
 }
 
@@ -1174,6 +1245,57 @@ impl Actions {
         }
 
         updates
+    }
+
+    pub fn filter_existing_action_items(
+        &mut self,
+        existing_requests: &Option<&Vec<&mut ActionItemRequest>>,
+    ) -> &mut Self {
+        let Some(existing_requests) = existing_requests else {
+            return self;
+        };
+
+        let mut idx_to_remove = vec![];
+        for (i, item) in self.store.iter_mut().enumerate() {
+            match item {
+                ActionType::UpdateActionItemRequest(_) => {}
+                ActionType::AppendSubGroup(sub_group) => {
+                    sub_group.filter_existing_action_items(&existing_requests);
+                    if sub_group.action_items.is_empty() {
+                        idx_to_remove.push(i);
+                    }
+                }
+                ActionType::AppendGroup(group) => {
+                    group.filter_existing_action_items(&existing_requests);
+                    if group.sub_groups.is_empty() {
+                        idx_to_remove.push(i);
+                    }
+                }
+                ActionType::AppendItem(new_item, _, _) => {
+                    for existing_item in existing_requests.iter() {
+                        if existing_item.id.eq(&new_item.id) {
+                            if let None =
+                                ActionItemRequestUpdate::from_diff(new_item, existing_item)
+                            {
+                                idx_to_remove.push(i);
+                            };
+                        }
+                    }
+                }
+                ActionType::NewBlock(block) => {
+                    block.filter_existing_action_items(&existing_requests);
+                    if block.groups.is_empty() {
+                        idx_to_remove.push(i);
+                    }
+                }
+                ActionType::NewModal(_) => {}
+            }
+        }
+        idx_to_remove.iter().rev().for_each(|i| {
+            self.store.remove(*i);
+        });
+
+        self
     }
 }
 
