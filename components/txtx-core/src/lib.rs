@@ -25,6 +25,7 @@ use ::std::time::Duration;
 
 use constants::ACTION_ITEM_ENV;
 use constants::ACTION_ITEM_GENESIS;
+use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
@@ -469,7 +470,7 @@ pub async fn start_interactive_runbook_runloop(
                             ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
                                 validated_blocks,
                             )),
-                            "validate_block",
+                            ACTION_ITEM_VALIDATE_BLOCK,
                         )]);
                 }
 
