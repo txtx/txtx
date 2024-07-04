@@ -146,6 +146,16 @@ pub async fn delete_channel(
     };
 
     let token = cookie.value();
+    send_delete_channel(token, payload)
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
+}
+
+async fn send_delete_channel(
+    token: &str,
+    payload: Json<DeleteChannelRequest>,
+) -> Result<(), String> {
     let client = reqwest::Client::new();
     let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
 
@@ -155,11 +165,10 @@ pub async fn delete_channel(
         .json(&payload)
         .send()
         .await
-        .map_err(ErrorInternalServerError)?;
+        .map_err(|e| e.to_string())?;
 
-    let _ = res.error_for_status().map_err(ErrorInternalServerError)?;
-
-    Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
+    let _ = res.error_for_status().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn auth_token_to_totp(token: &str) -> TOTP {
@@ -294,18 +303,10 @@ pub async fn start_relayer_event_runloop(
                     }
                     // todo: on channel exit, we don't currently delete things relayer side to clean up
                     RelayerChannelEvent::Exit => {
-
-                        if let Some(tx) = ws_writer_tx.clone() {
-                            let _ = RelayerWebSocketChannel::close(tx.clone());
+                        if let Some(channel_data) = channel_data.read().await.clone() {
+                            let _ = send_delete_channel(&channel_data.operator_token, Json(DeleteChannelRequest { slug: channel_data.slug })).await;
                         }
 
-                        // wait for the channel data to be deleted, so we know the channel has properly closed
-                        loop {
-                            if let Some(_) = channel_data.read().await.clone() {} else {
-                              break;
-                            };
-                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                        }
 
 
                         break;
