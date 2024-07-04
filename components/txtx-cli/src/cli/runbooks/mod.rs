@@ -441,8 +441,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             action_item_events_tx: action_item_events_tx.clone(),
         };
 
+        let channel_data = Arc::new(RwLock::new(None));
         let relayer_context = RelayerContext {
             relayer_channel_tx: relayer_channel_tx.clone(),
+            channel_data: channel_data.clone(),
         };
 
         let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
@@ -461,6 +463,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         let moved_action_item_events_tx = action_item_events_tx.clone();
         let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
             let future = start_relayer_event_runloop(
+                channel_data,
                 relayer_channel_rx,
                 moved_relayer_channel_tx,
                 moved_action_item_events_tx,

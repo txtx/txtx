@@ -39,6 +39,7 @@ pub enum RelayerChannelEvent {
 #[derive(Clone, Debug)]
 pub struct RelayerContext {
     pub relayer_channel_tx: Sender<RelayerChannelEvent>,
+    pub channel_data: Arc<RwLock<Option<ChannelData>>>,
 }
 #[derive(Clone, Debug)]
 pub struct ChannelData {
@@ -132,6 +133,22 @@ pub async fn open_channel(
         http_endpoint_url: body.http_endpoint_url,
         ws_endpoint_url: body.ws_endpoint_url,
         slug: slug.clone(),
+    };
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+}
+
+pub async fn get_channel(relayer_context: Data<RelayerContext>) -> actix_web::Result<HttpResponse> {
+    println!("GET /api/v1/channels");
+
+    let Some(channel_data) = relayer_context.channel_data.read().await.clone() else {
+        return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND).finish());
+    };
+
+    let response = OpenChannelResponseBrowser {
+        totp: channel_data.totp,
+        http_endpoint_url: channel_data.http_endpoint_url,
+        ws_endpoint_url: channel_data.ws_endpoint_url,
+        slug: channel_data.slug,
     };
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
 }
@@ -234,6 +251,7 @@ where
 }
 
 pub async fn start_relayer_event_runloop(
+    channel_data: Arc<RwLock<Option<ChannelData>>>,
     relayer_channel_rx: Receiver<RelayerChannelEvent>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
     action_item_events_tx: Sender<ActionItemResponse>,
