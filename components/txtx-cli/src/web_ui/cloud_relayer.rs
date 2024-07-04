@@ -39,6 +39,7 @@ pub enum RelayerChannelEvent {
 #[derive(Clone, Debug)]
 pub struct RelayerContext {
     pub relayer_channel_tx: Sender<RelayerChannelEvent>,
+    pub channel_data: Arc<RwLock<Option<ChannelData>>>,
 }
 #[derive(Clone, Debug)]
 pub struct ChannelData {
@@ -136,6 +137,22 @@ pub async fn open_channel(
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
 }
 
+pub async fn get_channel(relayer_context: Data<RelayerContext>) -> actix_web::Result<HttpResponse> {
+    println!("GET /api/v1/channels");
+
+    let Some(channel_data) = relayer_context.channel_data.read().await.clone() else {
+        return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND).finish());
+    };
+
+    let response = OpenChannelResponseBrowser {
+        totp: channel_data.totp,
+        http_endpoint_url: channel_data.http_endpoint_url,
+        ws_endpoint_url: channel_data.ws_endpoint_url,
+        slug: channel_data.slug,
+    };
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+}
+
 pub async fn delete_channel(
     req: HttpRequest,
     payload: Json<DeleteChannelRequest>,
@@ -146,6 +163,16 @@ pub async fn delete_channel(
     };
 
     let token = cookie.value();
+    send_delete_channel(token, payload)
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
+}
+
+async fn send_delete_channel(
+    token: &str,
+    payload: Json<DeleteChannelRequest>,
+) -> Result<(), String> {
     let client = reqwest::Client::new();
     let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
 
@@ -155,11 +182,10 @@ pub async fn delete_channel(
         .json(&payload)
         .send()
         .await
-        .map_err(ErrorInternalServerError)?;
+        .map_err(|e| e.to_string())?;
 
-    let _ = res.error_for_status().map_err(ErrorInternalServerError)?;
-
-    Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
+    let _ = res.error_for_status().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn auth_token_to_totp(token: &str) -> TOTP {
@@ -174,13 +200,11 @@ pub async fn forward_block_event(
     slug: String,
     payload: BlockEvent,
 ) -> Result<(), String> {
-    println!("forwarding block event to relayer");
     let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
 
     let _ = request_with_retry(&path, &token, &payload)
         .await
         .map_err(|e| format!("failed to forward block event to relayer: {}", e))?;
-    println!("finished forwarding block event to relayer");
     Ok(())
 }
 
@@ -225,15 +249,14 @@ where
 }
 
 pub async fn start_relayer_event_runloop(
+    channel_data: Arc<RwLock<Option<ChannelData>>>,
     relayer_channel_rx: Receiver<RelayerChannelEvent>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
     action_item_events_tx: Sender<ActionItemResponse>,
     kill_loops_tx: Sender<bool>,
 ) -> Result<(), String> {
     // cache the tx that is used to send websocket messages. this will allow us to send a close signal
-    let mut ws_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
-    let channel_data = Arc::new(RwLock::new(None));
-
+    let mut _ws_writer_tx: Option<tokio::sync::mpsc::UnboundedSender<Message>> = None;
     loop {
         select! {
             recv(relayer_channel_rx) -> rx_result => match rx_result {
@@ -248,7 +271,7 @@ pub async fn start_relayer_event_runloop(
                             let moved_action_item_events_tx = action_item_events_tx.clone();
 
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                            ws_writer_tx = Some(tx.clone());
+                            _ws_writer_tx = Some(tx.clone());
                             let moved_relayer_channel_tx = relayer_channel_tx.clone();
 
                             let _ = hiro_system_kit::thread_named("Runbook Runloop")
@@ -289,23 +312,15 @@ pub async fn start_relayer_event_runloop(
                     RelayerChannelEvent::DeleteChannel => {
                       let mut channel_data_rw = channel_data.write().await;
                       *channel_data_rw = None;
-                      ws_writer_tx = None;
+                      _ws_writer_tx = None;
                       println!("dropped writer");
                     }
                     // todo: on channel exit, we don't currently delete things relayer side to clean up
                     RelayerChannelEvent::Exit => {
-
-                        if let Some(tx) = ws_writer_tx.clone() {
-                            let _ = RelayerWebSocketChannel::close(tx.clone());
+                        if let Some(channel_data) = channel_data.read().await.clone() {
+                            let _ = send_delete_channel(&channel_data.operator_token, Json(DeleteChannelRequest { slug: channel_data.slug })).await;
                         }
 
-                        // wait for the channel data to be deleted, so we know the channel has properly closed
-                        loop {
-                            if let Some(_) = channel_data.read().await.clone() {} else {
-                              break;
-                            };
-                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                        }
 
 
                         break;
@@ -338,12 +353,10 @@ impl RelayerWebSocketChannel {
     }
 
     pub fn close(writer_tx: tokio::sync::mpsc::UnboundedSender<Message>) {
-        println!("sending close signal");
         let _ = writer_tx.send(Message::Close(Some(CloseFrame {
             code: CloseCode::Normal,
             reason: std::borrow::Cow::Borrowed("Closed by user."),
         })));
-        println!("sent close signal");
     }
 
     pub async fn start(

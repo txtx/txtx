@@ -15,7 +15,7 @@ use txtx_core::kit::types::frontend::{ClientType, DiscoveryResponse};
 use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
-use super::cloud_relayer::{delete_channel, open_channel, RelayerContext};
+use super::cloud_relayer::{delete_channel, get_channel, open_channel, RelayerContext};
 use super::Asset;
 
 pub async fn start_server(
@@ -47,6 +47,7 @@ pub async fn start_server(
                 web::scope("/api/v1")
                     .route("/channels", web::post().to(open_channel))
                     .route("/channels", web::delete().to(delete_channel))
+                    .route("/channels", web::get().to(get_channel))
                     .route("/discovery", web::get().to(discovery)),
             )
             .service(
