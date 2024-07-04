@@ -187,8 +187,6 @@ impl CommandImplementation for SignStacksTransaction {
             );
             wallets.push_wallet_state(wallet_state);
 
-            // todo: currently, this gets called repeatedly and is preventing the graph from properly
-            // progressing. removing for now
             if execution_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
                 actions.push_sub_group(vec![
