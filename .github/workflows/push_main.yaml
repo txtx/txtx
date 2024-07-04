@@ -62,6 +62,14 @@ jobs:
           token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
           path: txtx-web-ui 
 
+      - name: Build .env file for Web UI
+        run: |
+          cd txtx-web-ui
+          touch .env
+          echo HANKO_API_URL=${{ secrets.HANKO_API_URL }} >> .env
+          cat .env
+          cd ..
+
       - name: Build Web UI
         run: |
           cd txtx-web-ui
