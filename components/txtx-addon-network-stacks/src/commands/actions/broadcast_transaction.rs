@@ -209,7 +209,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let future = async move {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
-            println!("broadcast setting update");
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &uuid.value(),
@@ -359,7 +358,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             Ok(result)
         };
-        println!("returning broadcast future");
         Ok(Box::pin(future))
     }
 }

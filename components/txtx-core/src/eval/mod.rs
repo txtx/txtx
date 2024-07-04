@@ -141,8 +141,6 @@ pub async fn run_wallets_evaluation(
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
-    println!("");
-    println!("running wallets evaluation");
     let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
     let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
 
@@ -321,8 +319,6 @@ pub async fn run_commands_updating_defaults(
     runtime_ctx: &mut RuntimeContext,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
-    println!("");
-    println!("running command updating defaults");
     // Update environment variables
     let environments_variables = runbook.environment_variables_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -347,13 +343,9 @@ pub async fn run_commands_updating_defaults(
     for construct_uuid in construct_uuids.iter() {
         let evaluated_inputs_res = {
             let command_instance = runbook.commands_instances.get(construct_uuid).unwrap();
-            println!("checking command {}", command_instance.name);
             if !command_instance.specification.update_addon_defaults {
-                println!("{} doesn't update defaults", command_instance.name);
-
                 continue;
             }
-            println!("{} updates defaults", command_instance.name);
 
             let package_uuid = &command_instance.package_uuid;
 
@@ -534,8 +526,6 @@ pub async fn run_constructs_evaluation(
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
-    println!(" ");
-    println!("*running constructs evaluation*");
     let g = runbook.constructs_graph.clone();
 
     let mut pass_result = EvaluationPassResult::new(background_tasks_uuid);
@@ -593,10 +583,8 @@ pub async fn run_constructs_evaluation(
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
-        println!("=> evaluating command {}", command_instance.name);
 
         if let Some(_) = unexecutable_nodes.get(&node) {
-            println!("skipping command {}, unexecutable", command_instance.name);
             continue;
         }
 
@@ -664,10 +652,6 @@ pub async fn run_constructs_evaluation(
             &runbook,
             runtime_ctx,
         );
-        println!(
-            "evaluated input response for command {}: {:?}",
-            command_instance.name, evaluated_inputs_res
-        );
         let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
@@ -680,13 +664,11 @@ pub async fn run_constructs_evaluation(
                 CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
                 CommandInputEvaluationStatus::NeedsUserInteraction => continue,
                 CommandInputEvaluationStatus::Aborted(mut diags) => {
-                    println!("aborted, returning diagnostic");
                     pass_result.diagnostics.append(&mut diags);
                     return pass_result;
                 }
             },
             Err(mut diags) => {
-                println!("error, returning diagnostic");
                 pass_result.diagnostics.append(&mut diags);
                 return pass_result;
             }
@@ -698,10 +680,6 @@ pub async fn run_constructs_evaluation(
                 wallets,
                 &construct_uuid,
                 &action_item_responses.get(&construct_uuid.value()),
-            );
-            println!(
-                "checking signed executability for {}",
-                command_instance.name
             );
             let res = command_instance
                 .check_signed_executability(
@@ -718,7 +696,6 @@ pub async fn run_constructs_evaluation(
             let wallets = match res {
                 Ok((updated_wallets, mut new_actions)) => {
                     if new_actions.has_pending_actions() {
-                        println!("{} has pending actions", command_instance.name);
                         pass_result.actions.append(&mut new_actions);
                         runbook.wallets_state = Some(updated_wallets);
                         for descendant in get_descendants_of_node(node, g.clone()) {
@@ -726,12 +703,10 @@ pub async fn run_constructs_evaluation(
                         }
                         continue;
                     }
-                    println!("{} has no pending actions", command_instance.name);
                     pass_result.actions.append(&mut new_actions);
                     updated_wallets
                 }
                 Err((updated_wallets, diag)) => {
-                    println!("{} has pending errors", command_instance.name);
                     pass_result.diagnostics.push(diag);
                     runbook.wallets_state = Some(updated_wallets);
                     return pass_result;
@@ -748,7 +723,6 @@ pub async fn run_constructs_evaluation(
                 .unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_uuid.value());
 
-            println!("performing signed execution for {}", command_instance.name);
             let execution_result = command_instance
                 .perform_signed_execution(
                     &construct_uuid,
@@ -789,7 +763,6 @@ pub async fn run_constructs_evaluation(
             };
             execution_result
         } else {
-            println!("checking executability for {}", command_instance.name);
             match command_instance.check_executability(
                 &construct_uuid,
                 &mut evaluated_inputs,
@@ -800,18 +773,15 @@ pub async fn run_constructs_evaluation(
             ) {
                 Ok(mut new_actions) => {
                     if new_actions.has_pending_actions() {
-                        println!("{} has pending actions", command_instance.name);
                         pass_result.actions.append(&mut new_actions);
                         for descendant in get_descendants_of_node(node, g.clone()) {
                             unexecutable_nodes.insert(descendant);
                         }
                         continue;
                     }
-                    println!("{} has no pending actions", command_instance.name);
                     pass_result.actions.append(&mut new_actions);
                 }
                 Err(diag) => {
-                    println!("{} has errors", command_instance.name);
                     pass_result.diagnostics.push(diag);
                     return pass_result;
                 }
@@ -827,7 +797,6 @@ pub async fn run_constructs_evaluation(
                 .unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_uuid.value());
 
-            println!("performing execution for {}", command_instance.name);
             let execution_result = {
                 command_instance
                     .perform_execution(
@@ -861,7 +830,6 @@ pub async fn run_constructs_evaluation(
                     for descendant in get_descendants_of_node(node, g.clone()) {
                         unexecutable_nodes.insert(descendant);
                     }
-                    println!("{} has errors", command_instance.name);
                     Err(e)
                 }
             };
@@ -872,7 +840,6 @@ pub async fn run_constructs_evaluation(
             Ok(res) => res,
             Err(diag) => {
                 pass_result.diagnostics.push(diag);
-                println!("pushing error to pass results");
                 continue;
             }
         };
@@ -881,10 +848,6 @@ pub async fn run_constructs_evaluation(
             .specification
             .implements_background_task_capability
         {
-            println!(
-                "command instance {} implements bg capability",
-                command_instance.name
-            );
             let future_res = command_instance.build_background_task(
                 &construct_uuid,
                 &evaluated_inputs,
@@ -896,12 +859,10 @@ pub async fn run_constructs_evaluation(
             let future = match future_res {
                 Ok(future) => future,
                 Err(diag) => {
-                    println!("bg task err");
                     pass_result.diagnostics.push(diag);
                     return pass_result;
                 }
             };
-
             pass_result.pending_background_tasks_futures.push(future);
             pass_result
                 .pending_background_tasks_constructs_uuids

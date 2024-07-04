@@ -103,7 +103,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        println!("!!running execution for readonly fn!!");
         let args = args.clone();
         let contract_id_arg = args.get_expected_string("contract_id")?;
         let contract_id = QualifiedContractIdentifier::parse(contract_id_arg)

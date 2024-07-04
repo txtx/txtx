@@ -636,7 +636,6 @@ impl CommandInstance {
             &construct_uuid.value(),
         );
 
-        // TODO
         let mut consolidated_actions = Actions::none();
         match action_item_response {
             Some(responses) => responses.into_iter().for_each(
@@ -733,7 +732,6 @@ impl CommandInstance {
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        println!("calling perform execution for command: {}", self.name);
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
