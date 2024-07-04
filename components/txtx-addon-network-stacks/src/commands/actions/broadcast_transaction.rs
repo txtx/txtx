@@ -139,7 +139,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
-        use crate::{constants::NETWORK_ID, rpc::TransactionStatus};
+        use crate::{
+            constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
+        };
 
         let args = args.clone();
         let uuid = uuid.clone();
@@ -219,7 +221,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 &ProgressBarStatus {
                     status_color: ProgressBarStatusColor::Yellow,
                     status: "Pending".to_string(),
-                    message: wrap_msg(&format!("Transaction 0x{}", &txid)),
+                    message: wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
                     diagnostic: None,
                 },
             );
@@ -275,7 +277,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
                         &format!("Pending {}", progress_symbol[progress]),
-                        &wrap_msg(&format!("Transaction 0x{}", &txid)),
+                        &wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -290,7 +292,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 status_update.update_status(&ProgressBarStatus::new_msg(
                     ProgressBarStatusColor::Yellow,
                     &format!("Pending {}", progress_symbol[progress]),
-                    &wrap_msg(&format!("Transaction 0x{}", &txid)),
+                    &wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
                 ));
 
                 let _ =
