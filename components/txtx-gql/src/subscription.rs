@@ -27,6 +27,7 @@ type GqlActionItemRequestUpdateStream =
     Pin<Box<dyn Stream<Item = Result<Vec<GqlActionItemRequestUpdate>, FieldError>> + Send>>;
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
+type RunbookCompletedEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
 
 #[graphql_subscription(
   context = Context,
@@ -161,6 +162,22 @@ impl Subscription {
               if let Ok(block_event) = block_rx.recv().await {
                 match block_event {
                   BlockEvent::Clear => yield Ok(true),
+                    _ => {}
+                }
+              }
+            }
+        };
+        Box::pin(stream)
+    }
+
+    async fn runbook_complete_event(context: &Context) -> RunbookCompletedEventStream {
+        let block_tx = context.block_broadcaster.clone();
+        let mut block_rx = block_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(block_event) = block_rx.recv().await {
+                match block_event {
+                  BlockEvent::RunbookCompleted => yield Ok(true),
                     _ => {}
                 }
               }

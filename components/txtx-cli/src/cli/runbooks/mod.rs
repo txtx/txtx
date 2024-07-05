@@ -526,7 +526,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
                         .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
-                        println!("Runbook completed!")
+                        println!("{}", green!("Runbook complete!"));
                     }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();

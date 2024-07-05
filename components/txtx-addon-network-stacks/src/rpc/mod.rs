@@ -283,7 +283,11 @@ impl StacksRpc {
     }
 
     pub async fn get_balance(&self, address: &str) -> Result<Balance, RpcError> {
-        let request_url = format!("{}/v2/accounts/{addr}?unanchored=true", self.url, addr = address,);
+        let request_url = format!(
+            "{}/v2/accounts/{addr}?unanchored=true",
+            self.url,
+            addr = address,
+        );
 
         let mut res: Balance = self
             .client
