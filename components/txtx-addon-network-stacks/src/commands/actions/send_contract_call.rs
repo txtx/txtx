@@ -61,25 +61,31 @@ lazy_static! {
                   interpolable: true
               },
               signer: {
-                  documentation: "Coming soon",
+                  documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                   typing: Type::string(),
                   optional: false,
                   interpolable: true
               },
               confirmations: {
-                documentation: "Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.",
+                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
               },
+              nonce: {
+                  documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                  typing: Type::uint(),
+                  optional: false,
+                  interpolable: true
+              },
               fee: {
-                documentation: "Coming soon",
+                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
               },
               depends_on: {
-                documentation: "Coming soon",
+                documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
                 typing: Type::string(),
                 optional: true,
                 interpolable: true

@@ -42,7 +42,7 @@ lazy_static! {
                   interpolable: true
                 },
                 confirmations: {
-                    documentation: "Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::uint(),
                     optional: true,
                     interpolable: true
