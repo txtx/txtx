@@ -75,7 +75,7 @@ lazy_static! {
               nonce: {
                   documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                   typing: Type::uint(),
-                  optional: false,
+                  optional: true,
                   interpolable: true
               },
               fee: {
