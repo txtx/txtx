@@ -17,6 +17,7 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
+use crate::typing::STACKS_POST_CONDITION;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
     typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
@@ -75,6 +76,12 @@ lazy_static! {
               fee: {
                 documentation: "Coming soon",
                 typing: Type::uint(),
+                optional: true,
+                interpolable: true
+              },
+              post_conditions: {
+                documentation: "The post conditions to include to the transaction.",
+                typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
                 optional: true,
                 interpolable: true
               },
@@ -151,6 +158,8 @@ impl CommandImplementation for SendContractCall {
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
+        let post_conditions_values = args.get_expected_array("post_conditions").unwrap();
+
         let bytes = encode_contract_call(
             spec,
             function_name,
@@ -187,6 +196,8 @@ impl CommandImplementation for SendContractCall {
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
+        let post_conditions_values = args.get_expected_array("post_conditions").unwrap();
+
         let bytes = encode_contract_call(
             spec,
             function_name,

@@ -126,6 +126,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         let contract_id_value = args.get_expected_value("contract_id")?;
         let function_name = args.get_expected_string("function_name")?;
         let function_args_values = args.get_expected_array("function_args")?;
+        let post_conditions_values = args.get_expected_array("post_conditions").unwrap();
 
         let bytes = encode_contract_call(
             spec,
