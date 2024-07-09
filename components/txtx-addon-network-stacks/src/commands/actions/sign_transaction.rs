@@ -70,19 +70,19 @@ lazy_static! {
                 interpolable: true
             },
             signer: {
-                documentation: "Coming soon",
+                documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             nonce: {
-                documentation: "Coming soon",
+                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::uint(),
                 optional: false,
                 interpolable: true
             },
             fee: {
-                documentation: "Coming soon",
+                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::uint(),
                 optional: false,
                 interpolable: true

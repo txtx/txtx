@@ -48,39 +48,44 @@ lazy_static! {
         StacksConnect => {
           name: "Stacks Multisig",
           matcher: "multisig",
-          documentation: "Coming soon",
+          documentation:txtx_addon_kit::indoc! {r#"The `multisig` wallet creates an ordered, `n` of `n` multisig.
+          Each of the specified signers can be any other supported wallet type, and will be prompted to sign in the appropriate order."#},
           inputs: [
             signers: {
-              documentation: "Coming soon",
+              documentation: "A list of signers that make up the multisig.",
                 typing: Type::array(Type::string()),
                 optional: false,
                 interpolable: true
             },
-            exepcted_address: {
-              documentation: "Coming soon",
+            expected_address: {
+              documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this wallet.",
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
-            },
-            exepcted_public_key: {
-                documentation: "Coming soon",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              }
+            }
           ],
           outputs: [
               public_key: {
-                documentation: "Coming soon",
+                documentation: "The public key of the generated multisig wallet.",
                 typing: Type::array(Type::buffer())
               },
               signers: {
-                documentation: "Coming soon",
+                documentation: "The list of signers that make up the multisig.",
                 typing: Type::array(Type::string())
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-        // Coming soon
+            wallet "alice" "stacks::connect" {
+                expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+            }
+
+            wallet "bob" "stacks::connect" {
+                expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+            }
+
+            wallet "alice_and_bob" "stacks::multisig" {
+                signers = [wallet.alice, wallet.bob]
+            }
     "#},
       }
     };

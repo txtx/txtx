@@ -16,17 +16,21 @@ lazy_static! {
         define_function! {
             Ripemd160 => {
                 name: "ripemd160",
-                documentation: "Coming soon",
+                documentation: "`ripemd160` computes the Ripemd160 hash of a value.",
                 example: indoc!{r#"
+                output "hashed_data" {
+                    value = ripemd160(encode_hex("hello, world"))
+                }
+                // > hashed_data: 0XA3201F82FCA034E46D10CD7B27E174976E241DA2
               "#},
                 inputs: [
                     value: {
-                        documentation: "Coming soon",
+                        documentation: "The hex-encoded value to hash.",
                         typing: vec![Type::buffer(), Type::array(Type::buffer())]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The hashed result.",
                     typing: Type::string()
                 },
             }
@@ -34,17 +38,21 @@ lazy_static! {
         define_function! {
             Sha256 => {
                 name: "sha256",
-                documentation: "Coming soon",
+                documentation: "`sha256` computes the sha256 hash of a value.",
                 example: indoc!{r#"
+                output "hashed_data" {
+                    value = sha256(encode_hex("hello, world"))
+                }
+                // > hashed_data: 0x09ca7e4eaa6e8ae9c7d261167129184883644d07dfba7cbfbc4c8a2e08360d5b
               "#},
                 inputs: [
                     value: {
-                        documentation: "Coming soon",
+                        documentation: "The hex-encoded value to hash.",
                         typing: vec![Type::buffer(), Type::array(Type::buffer())]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The hashed result.",
                     typing: Type::string()
                 },
             }

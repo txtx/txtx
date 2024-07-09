@@ -23,24 +23,24 @@ lazy_static! {
         BroadcastStacksTransaction => {
             name: "Call Clarity Read only function",
             matcher: "call_readonly_fn",
-            documentation: "The `call_readonly_fn` action queries public functions.",
+            documentation: "The `call_readonly_fn` action queries a public readonly function.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
             inputs: [
                 contract_id: {
-                    documentation: "Address and identifier of the contract to invoke",
+                    documentation: "The address and identifier of the contract to invoke.",
                     typing: Type::addon(CLARITY_PRINCIPAL.clone()),
                     optional: false,
                     interpolable: true
                 },
                 function_name: {
-                    documentation: "Method to invoke",
+                    documentation: "The contract method to invoke.",
                     typing: Type::string(),
                     optional: false,
                     interpolable: true
                 },
                 function_args: {
-                    documentation: "Args to provide",
+                    documentation: "The function arguments for the contract call.",
                     typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
                     optional: true,
                     interpolable: true
