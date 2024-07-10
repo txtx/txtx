@@ -164,7 +164,7 @@ impl WalletImplementation for StacksConnect {
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
             let mut open_modal_action = vec![ActionItemRequest::new(
                 &Some(root_uuid.value()),
-                "Compute multisig address",
+                "Computed multisig address",
                 Some("Multisig addresses are computed by hashing the public keys of all participants.".into()),
                 ActionItemStatus::Todo,
                 ActionItemRequestType::OpenModal(OpenModalData {
