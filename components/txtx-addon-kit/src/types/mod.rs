@@ -171,6 +171,10 @@ impl ValueStore {
         self.storage.get(key)
     }
 
+    pub fn get_uint(&self, key: &str) -> Option<u64> {
+        self.storage.get(key).and_then(|v| v.as_uint())
+    }
+
     pub fn get_string(&self, key: &str) -> Option<&str> {
         self.storage.get(key).and_then(|v| v.as_string())
     }
