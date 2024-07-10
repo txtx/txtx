@@ -6,6 +6,10 @@ runbooks:
   id: multisig
   description: Test stacks multisig
   location: "./run"
+- name: Register BNS Namespace
+  id: namespace-register
+  description: Register a BNS namespace
+  location: "./namespace-register"
 environments:
   devnet:
     stacks_network_id: testnet
