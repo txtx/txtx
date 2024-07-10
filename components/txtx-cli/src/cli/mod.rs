@@ -88,17 +88,22 @@ pub struct InspectRunbook {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
+#[command(group = clap::ArgGroup::new("execution_mode").multiple(false).args(["unsupervised", "web_console", "term_console"]).required(false))]
 pub struct ExecuteRunbook {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
     /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
     pub runbook: String,
-    /// Start Web Console
-    #[clap(long = "web-console", short = 'w', action=ArgAction::SetTrue)]
+
+    /// Execute the runbook without supervision
+    #[arg(long = "unsupervised", short = 'u', action=ArgAction::SetTrue, group = "execution_mode")]
+    pub unsupervised: bool,
+    /// Execute the runbook with supervision via the browser UI (this is the default execution mode)
+    #[arg(long = "browser", short = 'b', action=ArgAction::SetTrue, group = "execution_mode")]
     pub web_console: bool,
-    /// Start Terminal Console
-    #[clap(long = "term-console")]
+    /// Execute the runbook with supervision via the terminal console (coming soon)
+    #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
     /// Set the port for hosting the web UI
     #[arg(long = "port", short = 'p', default_value = DEFAULT_PORT_TXTX )]

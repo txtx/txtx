@@ -230,11 +230,13 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(), String> {
-    let start_web_ui = cmd.web_console || cmd.port.is_some();
-    let is_execution_interactive = start_web_ui || cmd.term_console;
+    let is_execution_unsupervised = cmd.unsupervised;
+    let do_use_term_console = cmd.term_console;
+    let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
+
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
 
-    if !is_execution_interactive {
+    if is_execution_unsupervised {
         let mut batch_inputs = vec![];
 
         for input in cmd.inputs.iter() {
@@ -352,7 +354,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let runbook_description = runbook.description.clone();
 
     // should not be generating actions
-    if !is_execution_interactive {
+    if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
