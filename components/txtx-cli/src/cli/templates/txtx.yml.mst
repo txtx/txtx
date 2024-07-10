@@ -9,7 +9,7 @@ runbooks:
 environments:
   devnet:
     stacks_network_id: devnet
-    stacks_api_url: https://localhost:3999
+    stacks_api_url: http://localhost:3999
     stacks_operator_address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
   testnet:
     stacks_network_id: testnet
