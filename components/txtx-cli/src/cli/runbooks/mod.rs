@@ -204,12 +204,12 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
     }
-    println!("{:<35}\t{:<35}\t{}", "Name", "ID", yellow!("Description"));
+    println!("{:<35}\t{:<35}\t{}", "ID", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
         println!(
             "{:<35}\t{:<35}\t{}",
-            runbook.name,
             runbook.id,
+            runbook.name,
             yellow!(format!("{}", runbook.description.unwrap_or("".into())))
         );
     }
