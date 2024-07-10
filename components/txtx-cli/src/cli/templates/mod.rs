@@ -8,12 +8,15 @@ pub fn build_manifest_data(manifest: &ProtocolManifest) -> mustache::Data {
         .expect("failed to encode close braces")
         .insert("project_name", &manifest.name)
         .expect("Failed to encode name")
+        .insert("project_id", &manifest.id)
+        .expect("Failed to encode id")
         .insert_vec("runbooks", |functions_builder| {
             let mut runbooks = functions_builder;
             for runbook_spec in manifest.runbooks.iter() {
                 runbooks = runbooks.push_map(|function| {
                     function
                         .insert_str("name", &runbook_spec.name)
+                        .insert_str("id", &runbook_spec.id)
                         .insert_str(
                             "description",
                             &runbook_spec

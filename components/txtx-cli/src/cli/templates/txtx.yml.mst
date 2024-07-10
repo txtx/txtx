@@ -1,8 +1,10 @@
 ---
 name: {{ project_name }}
+id: {{ project_id }}
 runbooks:
 {{# runbooks }}
   - name: {{ name }}
+    id: {{ id }}
     description: {{ description }}
     location: {{ location }}
 {{/ runbooks }}

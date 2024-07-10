@@ -1,5 +1,4 @@
 use console::Style;
-use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -62,12 +61,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
                 .interact_text()
                 .unwrap();
 
-            ProtocolManifest {
-                name,
-                runbooks: vec![],
-                environments: BTreeMap::new(),
-                location: None,
-            }
+            ProtocolManifest::new(name)
         }
     };
 
@@ -75,11 +69,11 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let choices = vec![
         "Maintenance: update settings, authorize new contracts, etc.",
         "Emergencies: pause contracts, authorization rotations, etc.",
-        "Others",
+        "Other",
     ];
     let folders = vec!["maintenance", "emergencies", "other"];
     let choice = Select::with_theme(&theme)
-        .with_prompt("Choose a type of Runbook:")
+        .with_prompt("Choose a Runbook type:")
         .default(0)
         .items(&choices)
         .interact()
@@ -95,23 +89,10 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     }
 
     // Provide a name for the runbook
-    let mut runbook_name: String = Input::with_theme(&theme)
-        .with_prompt("Enter a name for the runbook (e.g., bns-multisig.tx)")
-        .validate_with(|input: &String| {
-            if input.ends_with(".tx") && input.chars().next().unwrap().is_lowercase() {
-                Ok(())
-            } else {
-                Err("Runbook name must be in camelCase and end with .tx")
-            }
-        })
+    let runbook_name: String = Input::with_theme(&theme)
+        .with_prompt("Enter a name for the runbook (e.g., 'BNS Multisig')")
         .interact_text()
         .unwrap();
-
-    // Normalize names
-    runbook_name = runbook_name.to_case(Case::Kebab);
-    if !runbook_name.ends_with(".tx") {
-        runbook_name = format!("{}.tx", runbook_name);
-    }
 
     // Provide a description (optional)
     let runbook_description: String = Input::with_theme(&theme)
@@ -120,14 +101,17 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         .interact_text()
         .unwrap();
 
-    manifest.runbooks.push(RunbookMetadata {
-        location: format!("runbooks/{}/{}", action, runbook_name),
-        name: runbook_name
-            .strip_suffix(".tx")
-            .unwrap()
-            .to_ascii_lowercase(),
-        description: Some(runbook_description),
-    });
+    let runbook = RunbookMetadata::new(
+        &action,
+        &runbook_name,
+        if runbook_description.eq("") {
+            None
+        } else {
+            Some(runbook_description)
+        },
+    );
+    let runbook_id = &runbook.id.clone();
+    manifest.runbooks.push(runbook);
 
     // Initialize root location
     let root_location_path: PathBuf = env::current_dir().expect("Failed to get current directory");
@@ -136,32 +120,33 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
 
-    if manifest.location.is_none() {
-        // Create manifest file
+    let (manifest_location, manifest_name) = if let Some(location) = manifest.location.clone() {
+        (location, manifest.name.clone())
+    } else {
         let manifest_name = "txtx.yml";
         let mut manifest_location = root_location.clone();
         let _ = manifest_location.append_path(manifest_name);
+        (manifest_location, manifest_name.to_string())
+    };
 
-        let mut manifest_file =
-            File::create(manifest_location.to_string()).expect("creation failed");
-        let manifest_file_data = build_manifest_data(&manifest);
-        let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
-            .expect("Failed to compile template");
-        template
-            .render_data(&mut manifest_file, &manifest_file_data)
-            .expect("Failed to render template");
-        println!("{} {}", green!("Created manifest"), manifest_name);
+    let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
+    let manifest_file_data = build_manifest_data(&manifest);
+    let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
+        .expect("Failed to compile template");
+    template
+        .render_data(&mut manifest_file, &manifest_file_data)
+        .expect("Failed to render template");
+    println!("{} {}", green!("Created manifest"), manifest_name);
 
-        // Create runbooks directory
-        fs::create_dir_all(&runbook_file_path).map_err(|e| {
-            format!(
-                "unable to create parent directory {}\n{}",
-                runbook_file_path.display(),
-                e
-            )
-        })?;
-        println!("{} runbooks", green!("Created directory"));
-    }
+    // Create runbooks directory
+    fs::create_dir_all(&runbook_file_path).map_err(|e| {
+        format!(
+            "unable to create parent directory {}\n{}",
+            runbook_file_path.display(),
+            e
+        )
+    })?;
+    println!("{} runbooks", green!("Created directory"));
 
     let mut readme_file_path = runbook_file_path.clone();
     readme_file_path.push("README.md");
@@ -193,7 +178,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     );
 
     // Create runbook
-    runbook_file_path.push(runbook_name.clone());
+    runbook_file_path.push(format!("{}.tx", runbook_id));
     let mut runbook_file = File::create(runbook_file_path.clone()).expect("creation failed");
     let runbook_file_data = build_runbook_data(&runbook_name);
     let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
