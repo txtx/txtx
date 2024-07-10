@@ -1,7 +1,9 @@
 ---
 name: Graph Sorting
+id: graph-sorting
 runbooks:
 - name: Graph Sorting
+  id: graph-sorting
   description: Demo topological sorting of the graph. Changing C should impact E and
     F, but not D/G/H. Updating D should impact G/H, but not C/E/F. Updating A or B
     should impact all children.

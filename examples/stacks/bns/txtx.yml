@@ -1,5 +1,6 @@
 ---
 name: BNS Runbook
+id: bns-runbook
 environments:
   development:
     stacks_network_id: testnet
@@ -11,6 +12,7 @@ environments:
     stacks_network_id: mainnet
     stacks_api_url: https://api.mainnet.hiro.so
 runbooks:
-- name: register-bns
+- name: Register BNS
+  id: register-bns
   description: This runbook pre-orders and registers a user-input BNS name.
   location: "./run"
