@@ -63,9 +63,9 @@ enum Command {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CheckRunbooks {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(long = "manifest-path")]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -73,9 +73,9 @@ pub struct GetDocumentation;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(long = "manifest-path")]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
     /// Disable Terminal UI
     #[clap(long = "no-term-ui")]
     pub no_tui: bool,
@@ -89,9 +89,9 @@ pub struct InspectRunbook {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct ExecuteRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(long = "manifest-file-path", short = 'm')]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
     /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
     pub runbook: String,
     /// Start Web Console
@@ -113,24 +113,16 @@ pub struct ExecuteRunbook {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CreateRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct ListRunbooks {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
 }
 
 pub fn main() {

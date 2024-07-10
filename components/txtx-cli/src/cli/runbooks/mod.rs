@@ -39,21 +39,14 @@ const DEFAULT_PORT_TXTX: u16 = 8488;
 use super::{CheckRunbooks, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
 pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest_file_path = match cmd.manifest_path {
-        Some(ref path) => path.clone(),
-        None => "txtx.yml".to_string(),
-    };
-    let manifest = read_manifest_at_path(&manifest_file_path)?;
+    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
     let _ = read_runbooks_from_manifest(&manifest, None)?;
     // let _ = txtx::check_plan(plan)?;
     Ok(())
 }
 
 pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(), String> {
-    let manifest_res = match &cmd.manifest_path {
-        Some(manifest_path) => read_manifest_at_path(&manifest_path),
-        None => read_manifest_at_path("txtx.yml"),
-    };
+    let manifest_res = read_manifest_at_path(&cmd.manifest_path);
 
     let theme = ColorfulTheme {
         values_style: Style::new().green(),
@@ -221,10 +214,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest = match &cmd.manifest_path {
-        Some(manifest_path) => read_manifest_at_path(&manifest_path)?,
-        None => read_manifest_at_path("txtx.yml")?,
-    };
+    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
     if manifest.runbooks.is_empty() {
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
@@ -268,12 +258,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
 
         loop {
-            let res = match &cmd.manifest_path {
-                Some(manifest_path) => {
-                    load_runbook_from_manifest(&manifest_path, &cmd.runbook).await
-                }
-                None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
-            };
+            let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
             let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
                 Ok((m, a, b, c)) => (a, b, c, m.environments),
                 Err(_) => {
@@ -316,10 +301,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     }
 
-    let res = match &cmd.manifest_path {
-        Some(manifest_path) => load_runbook_from_manifest(&manifest_path, &cmd.runbook).await,
-        None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
-    };
+    let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
     let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
         Ok((m, a, b, c)) => (a, b, c, m.environments),
         Err(_) => {
