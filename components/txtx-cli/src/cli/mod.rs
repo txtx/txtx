@@ -1,5 +1,6 @@
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
+use runbooks::DEFAULT_PORT_TXTX;
 use std::process;
 
 mod docs;
@@ -93,7 +94,7 @@ pub struct ExecuteRunbook {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
-    /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
     pub runbook: String,
 
     /// Execute the runbook without supervision
@@ -105,12 +106,15 @@ pub struct ExecuteRunbook {
     /// Execute the runbook with supervision via the terminal console (coming soon)
     #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
+
     /// Set the port for hosting the web UI
     #[arg(long = "port", short = 'p', default_value = DEFAULT_PORT_TXTX )]
     pub port: u16,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
     pub environment: Option<String>,
-    /// Choose environment variable set
-    #[clap(long = "input")]
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
     pub inputs: Vec<String>,
 }
 
