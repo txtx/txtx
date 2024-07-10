@@ -90,11 +90,7 @@ pub struct InspectRunbook {
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct ExecuteRunbook {
     /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
+    #[clap(long = "manifest-file-path", short = 'm')]
     pub manifest_path: Option<String>,
     /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
     pub runbook: String,
