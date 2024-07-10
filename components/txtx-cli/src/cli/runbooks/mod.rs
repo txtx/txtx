@@ -126,75 +126,102 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         let manifest_name = "txtx.yml";
         let mut manifest_location = root_location.clone();
         let _ = manifest_location.append_path(manifest_name);
+        let manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
+        println!("{} {}", green!("Created manifest"), manifest_name);
         (manifest_location, manifest_name.to_string())
     };
-
     let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
+
     let manifest_file_data = build_manifest_data(&manifest);
     let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
         .expect("Failed to compile template");
     template
         .render_data(&mut manifest_file, &manifest_file_data)
         .expect("Failed to render template");
-    println!("{} {}", green!("Created manifest"), manifest_name);
 
     // Create runbooks directory
-    fs::create_dir_all(&runbook_file_path).map_err(|e| {
-        format!(
-            "unable to create parent directory {}\n{}",
-            runbook_file_path.display(),
-            e
-        )
-    })?;
-    println!("{} runbooks", green!("Created directory"));
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {}
+        false => {
+            fs::create_dir_all(&runbook_file_path).map_err(|e| {
+                format!(
+                    "unable to create parent directory {}\n{}",
+                    runbook_file_path.display(),
+                    e
+                )
+            })?;
+            println!("{} runbooks", green!("Created directory"));
+        }
+    }
 
     let mut readme_file_path = runbook_file_path.clone();
     readme_file_path.push("README.md");
-    let mut readme_file = File::create(readme_file_path).expect("creation failed");
-    let readme_file_data = build_manifest_data(&manifest);
-    let template = mustache::compile_str(include_str!("../templates/readme.md.mst"))
-        .expect("Failed to compile template");
-    template
-        .render_data(&mut readme_file, &readme_file_data)
-        .expect("Failed to render template");
-    println!("{} runbooks/README.md", green!("Created file"));
+    match std::path::Path::exists(&readme_file_path) {
+        true => {}
+        false => {
+            let mut readme_file = File::create(readme_file_path).expect("creation failed");
+            let readme_file_data = build_manifest_data(&manifest);
+            let template = mustache::compile_str(include_str!("../templates/readme.md.mst"))
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut readme_file, &readme_file_data)
+                .expect("Failed to render template");
+            println!("{} runbooks/README.md", green!("Created file"));
+        }
+    }
 
     // Create runbooks subdirectory
     runbook_file_path.push(action);
-    fs::create_dir_all(&runbook_file_path).map_err(|e| {
-        format!(
-            "unable to create parent directory {}\n{}",
-            runbook_file_path.display(),
-            e
-        )
-    })?;
-    let runbook_location = FileLocation::from_path(runbook_file_path.clone());
-    println!(
-        "{} {}",
-        green!("Created directory"),
-        runbook_location
-            .get_relative_path_from_base(&root_location)
-            .unwrap()
-    );
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {}
+        false => {
+            fs::create_dir_all(&runbook_file_path.clone()).map_err(|e| {
+                format!(
+                    "unable to create parent directory {}\n{}",
+                    runbook_file_path.display(),
+                    e
+                )
+            })?;
+            let runbook_location = FileLocation::from_path(runbook_file_path.clone());
+            println!(
+                "{} {}",
+                green!("Created directory"),
+                runbook_location
+                    .get_relative_path_from_base(&root_location)
+                    .unwrap()
+            );
+        }
+    }
 
     // Create runbook
     runbook_file_path.push(format!("{}.tx", runbook_id));
-    let mut runbook_file = File::create(runbook_file_path.clone()).expect("creation failed");
-    let runbook_file_data = build_runbook_data(&runbook_name);
-    let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
-        .expect("Failed to compile template");
-    template
-        .render_data(&mut runbook_file, &runbook_file_data)
-        .expect("Failed to render template");
-    let runbook_location = FileLocation::from_path(runbook_file_path);
-    println!(
-        "{} {}",
-        green!("Created runbook"),
-        runbook_location
-            .get_relative_path_from_base(&root_location)
-            .unwrap()
-    );
 
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {
+            return Err(format!(
+            "file {} already exists. choose a different runbook name, or rename the existing file",
+            runbook_file_path.to_str().unwrap()
+        ))
+        }
+        false => {
+            let mut runbook_file =
+                File::create(runbook_file_path.clone()).expect("creation failed");
+            let runbook_file_data = build_runbook_data(&runbook_name);
+            let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut runbook_file, &runbook_file_data)
+                .expect("Failed to render template");
+            let runbook_location = FileLocation::from_path(runbook_file_path);
+            println!(
+                "{} {}",
+                green!("Created runbook"),
+                runbook_location
+                    .get_relative_path_from_base(&root_location)
+                    .unwrap()
+            );
+        }
+    }
     Ok(())
 }
 
@@ -482,7 +509,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::ProgressBar(new_block) => {
-                        println!("==> inserting progress bar to block store");
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
@@ -582,7 +608,6 @@ pub async fn load_runbook_from_manifest(
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
     for (runbook_id, (runbook, runtime_context, runbook_name)) in runbooks.into_iter() {
-        println!("{}", runbook_name);
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
