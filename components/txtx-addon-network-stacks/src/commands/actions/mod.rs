@@ -88,7 +88,8 @@ pub fn encode_contract_call(
     // validate contract_id against network_id
     let id_str = contract_id.to_string();
     let mainnet_match = id_str.starts_with("SP") && network_id.eq("mainnet");
-    let testnet_match = id_str.starts_with("ST") && network_id.eq("testnet");
+    let testnet_match = id_str.starts_with("ST") && !network_id.eq("mainnet");
+    
     if !mainnet_match && !testnet_match {
         return Err(diagnosed_error!(
             "command {}: contract id {} is not valid for network {}",

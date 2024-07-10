@@ -66,7 +66,7 @@ lazy_static! {
                 interpolable: true
             },
             network_id: {
-                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"testnet"` or `"mainnet"`."#},
+                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`."#},
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
