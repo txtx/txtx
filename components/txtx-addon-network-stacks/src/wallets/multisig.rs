@@ -37,7 +37,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
-    CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT, RPC_API_URL,
+    SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
 
@@ -60,6 +61,12 @@ lazy_static! {
             expected_address: {
               documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this wallet.",
                 typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
+            required_signatures: {
+              documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
+                typing: Type::uint(),
                 optional: true,
                 interpolable: true
             }
@@ -137,6 +144,17 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, wallet_state, diag)),
         };
+
+        let signer_count = signers.len() as u16;
+        let required_signature_count: u16 = args
+            .get_uint("required_signatures")
+            .and_then(|count| Some(count.try_into().unwrap_or(signer_count).max(1)))
+            .unwrap_or(signer_count);
+
+        wallet_state.insert(
+            REQUIRED_SIGNATURE_COUNT,
+            Value::uint(required_signature_count as u64),
+        );
 
         let future = async move {
             let mut consolidated_actions = Actions::none();
@@ -243,7 +261,7 @@ impl WalletImplementation for StacksConnect {
                 if let Some(stacks_address) = StacksAddress::from_public_keys(
                     version,
                     &AddressHashMode::SerializeP2SH,
-                    ordered_parsed_public_keys.len(),
+                    required_signature_count.into(),
                     &ordered_parsed_public_keys,
                 )
                 .map(|address| address.to_string())

@@ -303,6 +303,8 @@ async fn build_unsigned_transaction(
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
     // Extract and decode transaction_payload_bytes
+
+    use crate::constants::REQUIRED_SIGNATURE_COUNT;
     let transaction_payload_bytes =
         args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
     let transaction_payload = match TransactionPayload::consensus_deserialize(
@@ -365,6 +367,12 @@ async fn build_unsigned_transaction(
         })
         .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
+    let signer_count = stacks_public_keys.len() as u16;
+    let required_signature_count: u16 = wallet_state
+        .get_uint(REQUIRED_SIGNATURE_COUNT)
+        .and_then(|count| Some(count.try_into().unwrap_or(signer_count).max(1)))
+        .unwrap_or(signer_count);
+
     let version: u8 = wallet_state
         .get_expected_uint("hash_flag")?
         .try_into()
@@ -374,7 +382,7 @@ async fn build_unsigned_transaction(
     let address = StacksAddress::from_public_keys(
         version,
         &hash_mode,
-        stacks_public_keys.len(),
+        required_signature_count.into(),
         &stacks_public_keys,
     )
     .unwrap();
@@ -400,7 +408,7 @@ async fn build_unsigned_transaction(
             nonce,
             tx_fee: fee,
             fields: vec![],
-            signatures_required: stacks_public_keys.len() as u16,
+            signatures_required: required_signature_count,
         }),
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
