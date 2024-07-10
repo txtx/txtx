@@ -202,13 +202,17 @@ impl StacksRpc {
             let err = match res.text().await {
                 Ok(message) => {
                     if message.contains("NoEstimateAvailable") {
-                        return self
-                            .estimate_transaction_fee(
-                                &default_to_transaction_payload,
-                                priority,
-                                &default_to_transaction_payload,
-                            )
-                            .await;
+                        if tx.eq(&default_to_transaction_payload.serialize_to_vec()) {
+                            return Ok(2100);
+                        } else {
+                            return self
+                                .estimate_transaction_fee(
+                                    &default_to_transaction_payload,
+                                    priority,
+                                    &default_to_transaction_payload,
+                                )
+                                .await;
+                        }
                     } else {
                         RpcError::Message(message)
                     }

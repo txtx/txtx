@@ -1,5 +1,4 @@
 use console::Style;
-use convert_case::{Case, Casing};
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -34,26 +33,19 @@ use crate::{
 use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
-const DEFAULT_PORT_TXTX: u16 = 8488;
+pub const DEFAULT_PORT_TXTX: &str = "8488";
 
 use super::{CheckRunbooks, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
 pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest_file_path = match cmd.manifest_path {
-        Some(ref path) => path.clone(),
-        None => "txtx.yml".to_string(),
-    };
-    let manifest = read_manifest_at_path(&manifest_file_path)?;
+    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
     let _ = read_runbooks_from_manifest(&manifest, None)?;
     // let _ = txtx::check_plan(plan)?;
     Ok(())
 }
 
 pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(), String> {
-    let manifest_res = match &cmd.manifest_path {
-        Some(manifest_path) => read_manifest_at_path(&manifest_path),
-        None => read_manifest_at_path("txtx.yml"),
-    };
+    let manifest_res = read_manifest_at_path(&cmd.manifest_path);
 
     let theme = ColorfulTheme {
         values_style: Style::new().green(),
@@ -69,12 +61,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
                 .interact_text()
                 .unwrap();
 
-            ProtocolManifest {
-                name,
-                runbooks: vec![],
-                environments: BTreeMap::new(),
-                location: None,
-            }
+            ProtocolManifest::new(name)
         }
     };
 
@@ -82,11 +69,11 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let choices = vec![
         "Maintenance: update settings, authorize new contracts, etc.",
         "Emergencies: pause contracts, authorization rotations, etc.",
-        "Others",
+        "Other",
     ];
     let folders = vec!["maintenance", "emergencies", "other"];
     let choice = Select::with_theme(&theme)
-        .with_prompt("Choose a type of Runbook:")
+        .with_prompt("Choose a Runbook type:")
         .default(0)
         .items(&choices)
         .interact()
@@ -102,23 +89,10 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     }
 
     // Provide a name for the runbook
-    let mut runbook_name: String = Input::with_theme(&theme)
-        .with_prompt("Enter a name for the runbook (e.g., bns-multisig.tx)")
-        .validate_with(|input: &String| {
-            if input.ends_with(".tx") && input.chars().next().unwrap().is_lowercase() {
-                Ok(())
-            } else {
-                Err("Runbook name must be in camelCase and end with .tx")
-            }
-        })
+    let runbook_name: String = Input::with_theme(&theme)
+        .with_prompt("Enter a name for the runbook (e.g., 'BNS Multisig')")
         .interact_text()
         .unwrap();
-
-    // Normalize names
-    runbook_name = runbook_name.to_case(Case::Kebab);
-    if !runbook_name.ends_with(".tx") {
-        runbook_name = format!("{}.tx", runbook_name);
-    }
 
     // Provide a description (optional)
     let runbook_description: String = Input::with_theme(&theme)
@@ -127,14 +101,17 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         .interact_text()
         .unwrap();
 
-    manifest.runbooks.push(RunbookMetadata {
-        location: format!("runbooks/{}/{}", action, runbook_name),
-        name: runbook_name
-            .strip_suffix(".tx")
-            .unwrap()
-            .to_ascii_lowercase(),
-        description: Some(runbook_description),
-    });
+    let runbook = RunbookMetadata::new(
+        &action,
+        &runbook_name,
+        if runbook_description.eq("") {
+            None
+        } else {
+            Some(runbook_description)
+        },
+    );
+    let runbook_id = &runbook.id.clone();
+    manifest.runbooks.push(runbook);
 
     // Initialize root location
     let root_location_path: PathBuf = env::current_dir().expect("Failed to get current directory");
@@ -143,95 +120,122 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
 
-    if manifest.location.is_none() {
-        // Create manifest file
+    let (manifest_location, manifest_name) = if let Some(location) = manifest.location.clone() {
+        (location, manifest.name.clone())
+    } else {
         let manifest_name = "txtx.yml";
         let mut manifest_location = root_location.clone();
         let _ = manifest_location.append_path(manifest_name);
-
-        let mut manifest_file =
-            File::create(manifest_location.to_string()).expect("creation failed");
-        let manifest_file_data = build_manifest_data(&manifest);
-        let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
-            .expect("Failed to compile template");
-        template
-            .render_data(&mut manifest_file, &manifest_file_data)
-            .expect("Failed to render template");
+        let manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
         println!("{} {}", green!("Created manifest"), manifest_name);
+        (manifest_location, manifest_name.to_string())
+    };
+    let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
 
-        // Create runbooks directory
-        fs::create_dir_all(&runbook_file_path).map_err(|e| {
-            format!(
-                "unable to create parent directory {}\n{}",
-                runbook_file_path.display(),
-                e
-            )
-        })?;
-        println!("{} runbooks", green!("Created directory"));
+    let manifest_file_data = build_manifest_data(&manifest);
+    let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
+        .expect("Failed to compile template");
+    template
+        .render_data(&mut manifest_file, &manifest_file_data)
+        .expect("Failed to render template");
+
+    // Create runbooks directory
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {}
+        false => {
+            fs::create_dir_all(&runbook_file_path).map_err(|e| {
+                format!(
+                    "unable to create parent directory {}\n{}",
+                    runbook_file_path.display(),
+                    e
+                )
+            })?;
+            println!("{} runbooks", green!("Created directory"));
+        }
     }
 
     let mut readme_file_path = runbook_file_path.clone();
     readme_file_path.push("README.md");
-    let mut readme_file = File::create(readme_file_path).expect("creation failed");
-    let readme_file_data = build_manifest_data(&manifest);
-    let template = mustache::compile_str(include_str!("../templates/readme.md.mst"))
-        .expect("Failed to compile template");
-    template
-        .render_data(&mut readme_file, &readme_file_data)
-        .expect("Failed to render template");
-    println!("{} runbooks/README.md", green!("Created file"));
+    match std::path::Path::exists(&readme_file_path) {
+        true => {}
+        false => {
+            let mut readme_file = File::create(readme_file_path).expect("creation failed");
+            let readme_file_data = build_manifest_data(&manifest);
+            let template = mustache::compile_str(include_str!("../templates/readme.md.mst"))
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut readme_file, &readme_file_data)
+                .expect("Failed to render template");
+            println!("{} runbooks/README.md", green!("Created file"));
+        }
+    }
 
     // Create runbooks subdirectory
     runbook_file_path.push(action);
-    fs::create_dir_all(&runbook_file_path).map_err(|e| {
-        format!(
-            "unable to create parent directory {}\n{}",
-            runbook_file_path.display(),
-            e
-        )
-    })?;
-    let runbook_location = FileLocation::from_path(runbook_file_path.clone());
-    println!(
-        "{} {}",
-        green!("Created directory"),
-        runbook_location
-            .get_relative_path_from_base(&root_location)
-            .unwrap()
-    );
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {}
+        false => {
+            fs::create_dir_all(&runbook_file_path.clone()).map_err(|e| {
+                format!(
+                    "unable to create parent directory {}\n{}",
+                    runbook_file_path.display(),
+                    e
+                )
+            })?;
+            let runbook_location = FileLocation::from_path(runbook_file_path.clone());
+            println!(
+                "{} {}",
+                green!("Created directory"),
+                runbook_location
+                    .get_relative_path_from_base(&root_location)
+                    .unwrap()
+            );
+        }
+    }
 
     // Create runbook
-    runbook_file_path.push(runbook_name.clone());
-    let mut runbook_file = File::create(runbook_file_path.clone()).expect("creation failed");
-    let runbook_file_data = build_runbook_data(&runbook_name);
-    let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
-        .expect("Failed to compile template");
-    template
-        .render_data(&mut runbook_file, &runbook_file_data)
-        .expect("Failed to render template");
-    let runbook_location = FileLocation::from_path(runbook_file_path);
-    println!(
-        "{} {}",
-        green!("Created runbook"),
-        runbook_location
-            .get_relative_path_from_base(&root_location)
-            .unwrap()
-    );
+    runbook_file_path.push(format!("{}.tx", runbook_id));
 
+    match std::path::Path::exists(&runbook_file_path) {
+        true => {
+            return Err(format!(
+            "file {} already exists. choose a different runbook name, or rename the existing file",
+            runbook_file_path.to_str().unwrap()
+        ))
+        }
+        false => {
+            let mut runbook_file =
+                File::create(runbook_file_path.clone()).expect("creation failed");
+            let runbook_file_data = build_runbook_data(&runbook_name);
+            let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut runbook_file, &runbook_file_data)
+                .expect("Failed to render template");
+            let runbook_location = FileLocation::from_path(runbook_file_path);
+            println!(
+                "{} {}",
+                green!("Created runbook"),
+                runbook_location
+                    .get_relative_path_from_base(&root_location)
+                    .unwrap()
+            );
+        }
+    }
     Ok(())
 }
 
 pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest = match &cmd.manifest_path {
-        Some(manifest_path) => read_manifest_at_path(&manifest_path)?,
-        None => read_manifest_at_path("txtx.yml")?,
-    };
+    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
     if manifest.runbooks.is_empty() {
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
     }
+    println!("{:<35}\t{:<35}\t{}", "ID", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
         println!(
-            "{}\t\t{}",
+            "{:<35}\t{:<35}\t{}",
+            runbook.id,
             runbook.name,
             yellow!(format!("{}", runbook.description.unwrap_or("".into())))
         );
@@ -240,11 +244,13 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(), String> {
-    let start_web_ui = cmd.web_console || cmd.port.is_some();
-    let is_execution_interactive = start_web_ui || cmd.term_console;
+    let is_execution_unsupervised = cmd.unsupervised;
+    let do_use_term_console = cmd.term_console;
+    let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
+
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
 
-    if !is_execution_interactive {
+    if is_execution_unsupervised {
         let mut batch_inputs = vec![];
 
         for input in cmd.inputs.iter() {
@@ -268,12 +274,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
 
         loop {
-            let res = match &cmd.manifest_path {
-                Some(manifest_path) => {
-                    load_runbook_from_manifest(&manifest_path, &cmd.runbook).await
-                }
-                None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
-            };
+            let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
             let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
                 Ok((m, a, b, c)) => (a, b, c, m.environments),
                 Err(_) => {
@@ -316,10 +317,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     }
 
-    let res = match &cmd.manifest_path {
-        Some(manifest_path) => load_runbook_from_manifest(&manifest_path, &cmd.runbook).await,
-        None => load_runbook_from_manifest("txtx.yml", &cmd.runbook).await,
-    };
+    let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
     let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
         Ok((m, a, b, c)) => (a, b, c, m.environments),
         Err(_) => {
@@ -370,7 +368,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let runbook_description = runbook.description.clone();
 
     // should not be generating actions
-    if !is_execution_interactive {
+    if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
@@ -447,7 +445,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             channel_data: channel_data.clone(),
         };
 
-        let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
+        let port = cmd.port;
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),
@@ -511,7 +509,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::ProgressBar(new_block) => {
-                        println!("==> inserting progress bar to block store");
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
@@ -579,12 +576,18 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
 pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
-) -> Result<(ProtocolManifest, HashMap<String, (Runbook, RuntimeContext)>), String> {
+) -> Result<
+    (
+        ProtocolManifest,
+        HashMap<String, (Runbook, RuntimeContext, String)>,
+    ),
+    String,
+> {
     let manifest = read_manifest_at_path(&manifest_path)?;
     let mut runbooks = read_runbooks_from_manifest(&manifest, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
 
-    for (runbook_name, (runbook, runtime_context)) in runbooks.iter_mut() {
+    for (_, (runbook, runtime_context, runbook_name)) in runbooks.iter_mut() {
         let res = pre_compute_runbook(runbook, runtime_context);
         if let Err(diags) = res {
             for diag in diags.iter() {
@@ -602,13 +605,10 @@ pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
 ) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
-    println!("manifest path {}", manifest_path);
-    println!("name {}", desired_runbook_name);
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
-    for (runbook_name, (runbook, runtime_context)) in runbooks.into_iter() {
-        println!("{}", runbook_name);
-        if runbook_name.eq(desired_runbook_name) {
+    for (runbook_id, (runbook, runtime_context, runbook_name)) in runbooks.into_iter() {
+        if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
     }

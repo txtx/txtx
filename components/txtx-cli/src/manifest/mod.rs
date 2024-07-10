@@ -24,7 +24,7 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
 pub fn read_runbooks_from_manifest(
     manifest: &ProtocolManifest,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<HashMap<String, (Runbook, RuntimeContext)>, String> {
+) -> Result<HashMap<String, (Runbook, RuntimeContext, String)>, String> {
     let mut runbooks = HashMap::new();
 
     let root_path = manifest
@@ -37,10 +37,11 @@ pub fn read_runbooks_from_manifest(
         name: runbook_name,
         location: runbook_root_package_relative_path,
         description,
+        id: runbook_id,
     } in manifest.runbooks.iter()
     {
         if let Some(runbooks_filter_in) = runbooks_filter_in {
-            if !runbooks_filter_in.contains(runbook_name) {
+            if !runbooks_filter_in.contains(runbook_id) {
                 continue;
             }
         }
@@ -49,7 +50,10 @@ pub fn read_runbooks_from_manifest(
         let (_, runbook, runtime_context) =
             read_runbook_from_location(&package_location, description, &manifest.environments)?;
 
-        runbooks.insert(runbook_name.to_string(), (runbook, runtime_context));
+        runbooks.insert(
+            runbook_id.to_string(),
+            (runbook, runtime_context, runbook_name.to_string()),
+        );
     }
     Ok(runbooks)
 }
