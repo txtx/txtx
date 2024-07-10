@@ -192,6 +192,8 @@ impl CommandImplementation for SendContractCall {
                 return Err((wallets, wallet_state, diag))
             }
         };
+        wallets.push_wallet_state(wallet_state);
+
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
