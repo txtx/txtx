@@ -204,10 +204,12 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
     }
+    println!("{:<35}\t{:<35}\t{}", "Name", "ID", yellow!("Description"));
     for runbook in manifest.runbooks {
         println!(
-            "{}\t\t{}",
+            "{:<35}\t{:<35}\t{}",
             runbook.name,
+            runbook.id,
             yellow!(format!("{}", runbook.description.unwrap_or("".into())))
         );
     }
@@ -548,12 +550,18 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
 pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
-) -> Result<(ProtocolManifest, HashMap<String, (Runbook, RuntimeContext)>), String> {
+) -> Result<
+    (
+        ProtocolManifest,
+        HashMap<String, (Runbook, RuntimeContext, String)>,
+    ),
+    String,
+> {
     let manifest = read_manifest_at_path(&manifest_path)?;
     let mut runbooks = read_runbooks_from_manifest(&manifest, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
 
-    for (runbook_name, (runbook, runtime_context)) in runbooks.iter_mut() {
+    for (_, (runbook, runtime_context, runbook_name)) in runbooks.iter_mut() {
         let res = pre_compute_runbook(runbook, runtime_context);
         if let Err(diags) = res {
             for diag in diags.iter() {
@@ -571,13 +579,11 @@ pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
 ) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
-    println!("manifest path {}", manifest_path);
-    println!("name {}", desired_runbook_name);
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
-    for (runbook_name, (runbook, runtime_context)) in runbooks.into_iter() {
+    for (runbook_id, (runbook, runtime_context, runbook_name)) in runbooks.into_iter() {
         println!("{}", runbook_name);
-        if runbook_name.eq(desired_runbook_name) {
+        if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
     }
