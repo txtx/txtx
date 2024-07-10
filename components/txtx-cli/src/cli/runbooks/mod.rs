@@ -34,7 +34,7 @@ use crate::{
 use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
-const DEFAULT_PORT_TXTX: u16 = 8488;
+pub const DEFAULT_PORT_TXTX: &str = "8488";
 
 use super::{CheckRunbooks, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
@@ -429,7 +429,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             channel_data: channel_data.clone(),
         };
 
-        let port = cmd.port.unwrap_or(DEFAULT_PORT_TXTX);
+        let port = cmd.port;
         println!(
             "\n{} Running Web console\n{}",
             purple!("→"),

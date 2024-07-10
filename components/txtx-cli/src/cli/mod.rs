@@ -100,11 +100,9 @@ pub struct ExecuteRunbook {
     /// Start Terminal Console
     #[clap(long = "term-console")]
     pub term_console: bool,
-    /// Start Terminal Console
-    #[clap(long = "port", short = 'p')]
-    pub port: Option<u16>,
-    /// Choose environment variable set
-    #[clap(long = "env")]
+    /// Set the port for hosting the web UI
+    #[arg(long = "port", short = 'p', default_value = DEFAULT_PORT_TXTX )]
+    pub port: u16,
     pub environment: Option<String>,
     /// Choose environment variable set
     #[clap(long = "input")]
