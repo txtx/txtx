@@ -5,7 +5,8 @@ use kit::{
     types::{
         block_id::BlockId,
         frontend::{
-            ActionPanelData, NormalizedActionItemRequestUpdate, ProvideSignedTransactionResponse,
+            ActionPanelData, ModalPanelData, NormalizedActionItemRequestUpdate,
+            ProvideSignedTransactionResponse,
         },
     },
 };
@@ -44,7 +45,7 @@ impl TestHarness {
     fn send_and_expect_action_item_update(
         &self,
         response: ActionItemResponse,
-        expected_updates: Vec<(&BlockId, ActionItemStatus)>,
+        expected_updates: Vec<(&BlockId, Option<ActionItemStatus>)>,
     ) -> Vec<NormalizedActionItemRequestUpdate> {
         self.send(&response);
         self.expect_action_item_update(Some(response), expected_updates)
@@ -53,7 +54,7 @@ impl TestHarness {
     fn expect_action_item_update(
         &self,
         response: Option<ActionItemResponse>,
-        expected_updates: Vec<(&BlockId, ActionItemStatus)>,
+        expected_updates: Vec<(&BlockId, Option<ActionItemStatus>)>,
     ) -> Vec<NormalizedActionItemRequestUpdate> {
         let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
             panic!(
@@ -64,18 +65,13 @@ impl TestHarness {
 
         let updates = event.expect_updated_action_items();
         let ctx = format!(
-            "=> action item response: {:?}\n=> expected updates: {:?}",
-            response, expected_updates
+            "\n=> action item response: {:?}\n\n=> expected updates: {:?}\n\n=> actual updates:{:?}\n",
+            response, expected_updates, updates
         );
         assert_eq!(updates.len(), expected_updates.len(), "{}", ctx);
         updates.iter().enumerate().for_each(|(i, u)| {
             assert_eq!(expected_updates[i].0.clone(), u.id, "{}", ctx);
-            assert_eq!(
-                Some(expected_updates[i].1.clone()),
-                u.action_status,
-                "{}",
-                ctx
-            );
+            assert_eq!(expected_updates[i].1.clone(), u.action_status, "{}", ctx);
         });
         updates.clone()
     }
@@ -88,6 +84,16 @@ impl TestHarness {
     ) -> ActionPanelData {
         self.send(&response);
         self.expect_action_panel(Some(response), expected_title, expected_group_lengths)
+    }
+
+    fn send_and_expect_modal(
+        &self,
+        response: ActionItemResponse,
+        expected_title: &str,
+        expected_group_lengths: Vec<Vec<usize>>,
+    ) -> ModalPanelData {
+        self.send(&response);
+        self.expect_modal(Some(response), expected_title, expected_group_lengths)
     }
 
     fn expect_action_panel(
@@ -135,6 +141,50 @@ impl TestHarness {
         action_panel_data.clone()
     }
 
+    fn expect_modal(
+        &self,
+        response: Option<ActionItemResponse>,
+        expected_title: &str,
+        expected_group_lengths: Vec<Vec<usize>>,
+    ) -> ModalPanelData {
+        let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
+            panic!(
+                "unable to receive input block after sending action item response: {:?}",
+                response
+            );
+        };
+
+        let modal_panel_data = event.expect_modal().panel.as_modal_panel().unwrap();
+
+        assert_eq!(
+            modal_panel_data.title.to_uppercase(),
+            expected_title.to_uppercase(),
+            "unexpected panel title after sending action item response: {:?}",
+            response
+        );
+        let ctx = format!(
+            "=> response triggering panel: {:?}\n=> actual panel group: {:?}",
+            response, modal_panel_data.groups
+        );
+        assert_eq!(
+            modal_panel_data.groups.len(),
+            expected_group_lengths.len(),
+            "{}",
+            ctx
+        );
+        modal_panel_data
+            .groups
+            .iter()
+            .enumerate()
+            .for_each(|(i, g)| {
+                let expected_sub_groups = &expected_group_lengths[i];
+                assert_eq!(g.sub_groups.len(), expected_sub_groups.len(), "{}", ctx);
+                g.sub_groups.iter().enumerate().for_each(|(j, s)| {
+                    assert_eq!(s.action_items.len(), expected_sub_groups[j], "{}", ctx);
+                })
+            });
+        modal_panel_data.clone()
+    }
     fn expect_noop(&self) {
         let Err(_) = self.block_rx.recv_timeout(Duration::from_secs(2)) else {
             panic!("unable to receive input block")
@@ -225,7 +275,7 @@ fn test_ab_c_runbook_no_env() {
                 action_item_id: start_runbook.id.clone(),
                 payload: ActionItemResponseType::ValidateBlock,
             },
-            vec![(&validate_button.id, ActionItemStatus::Success(None))],
+            vec![(&validate_button.id, Some(ActionItemStatus::Success(None)))],
         );
     }
     // Review inputs assertions
@@ -248,7 +298,7 @@ fn test_ab_c_runbook_no_env() {
                     input_name: "value".into(),
                 }),
             },
-            vec![(&input_a_action.id, ActionItemStatus::Success(None))],
+            vec![(&input_a_action.id, Some(ActionItemStatus::Success(None)))],
         );
 
         // Should be a no-op
@@ -271,7 +321,7 @@ fn test_ab_c_runbook_no_env() {
                     input_name: "default".into(),
                 }),
             },
-            vec![(&input_b_action.id, ActionItemStatus::Success(None))],
+            vec![(&input_b_action.id, Some(ActionItemStatus::Success(None)))],
         );
 
         // our validate block button yields another action item update for input b, but it would be filtered
@@ -281,7 +331,7 @@ fn test_ab_c_runbook_no_env() {
                 action_item_id: BlockId::new(&vec![]),
                 payload: ActionItemResponseType::ValidateBlock,
             },
-            vec![(&input_b_action.id, ActionItemStatus::Success(None))],
+            vec![(&input_b_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
 
@@ -331,11 +381,15 @@ fn test_wallet_runbook_no_env() {
         vec![
             (
                 &confirm_address.id,
-                ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into())),
+                Some(ActionItemStatus::Success(Some(
+                    "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into(),
+                ))),
             ),
             (
                 &get_public_key.id,
-                ActionItemStatus::Success(Some("ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into())),
+                Some(ActionItemStatus::Success(Some(
+                    "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4".into(),
+                ))),
             ),
         ],
     );
@@ -346,7 +400,7 @@ fn test_wallet_runbook_no_env() {
             action_item_id: start_runbook.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         },
-        vec![(&start_runbook.id, ActionItemStatus::Success(None))],
+        vec![(&start_runbook.id, Some(ActionItemStatus::Success(None)))],
     );
 
     let action_panel_data =
@@ -382,7 +436,7 @@ fn test_wallet_runbook_no_env() {
             },
             vec![(
                 &provide_signature_action.id,
-                ActionItemStatus::Success(None),
+                Some(ActionItemStatus::Success(None)),
             )],
         );
     }
@@ -401,7 +455,7 @@ fn test_wallet_runbook_no_env() {
                     value_checked: true,
                 }),
             },
-            vec![(&nonce_action.id, ActionItemStatus::Success(None))],
+            vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
     // validate fee input
@@ -419,7 +473,7 @@ fn test_wallet_runbook_no_env() {
                     value_checked: true,
                 }),
             },
-            vec![(&fee_action.id, ActionItemStatus::Success(None))],
+            vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
 
@@ -433,9 +487,12 @@ fn test_wallet_runbook_no_env() {
         vec![
             (
                 &provide_signature_action.id,
-                ActionItemStatus::Success(None),
+                Some(ActionItemStatus::Success(None)),
             ),
-            (&validate_signature.id, ActionItemStatus::Success(None)),
+            (
+                &validate_signature.id,
+                Some(ActionItemStatus::Success(None)),
+            ),
         ],
     );
 
@@ -454,264 +511,151 @@ fn test_wallet_runbook_no_env() {
 
 #[test]
 fn test_multisig_runbook_no_env() {
-    // Load Runbook abc.tx
-    let wallet_tx = include_str!("./fixtures/multisig.tx");
+    let multisig_tx = include_str!("./fixtures/multisig.tx");
+    let harness = setup_test("wallet.tx", multisig_tx);
 
-    let mut source_tree = SourceTree::new();
-    source_tree.add_source(
-        "multisig.tx".into(),
-        FileLocation::from_path_string(".").unwrap(),
-        wallet_tx.into(),
+    let modal_panel_data = harness.expect_modal(
+        None,
+        "STACKS MULTISIG CONFIGURATION ASSISTANT",
+        vec![vec![1], vec![1], vec![1]],
     );
 
-    let environments = BTreeMap::new();
-    let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()), false);
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
-
-    let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
-    let mut runbook = Runbook::new(Some(source_tree), None);
-
-    let _ = pre_compute_runbook(&mut runbook, &mut runtime_context)
-        .expect("unable to pre-compute runbook");
-
-    let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
-    let (action_item_updates_tx, _action_item_updates_rx) =
-        txtx_addon_kit::channel::unbounded::<ActionItemRequest>();
-    let (action_item_events_tx, action_item_events_rx) =
-        txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
-
-    let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_interactive_runbook_runloop(
-            &mut runbook,
-            &mut runtime_context,
-            block_tx,
-            action_item_updates_tx,
-            action_item_events_rx,
-            environments,
-        );
-        if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
-            for diag in diags.iter() {
-                println!("{}", diag);
-            }
-        }
-    });
-
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive genesis block");
-        panic!()
-    };
-
-    let modal_panel_data = event.expect_modal().panel.as_modal_panel().unwrap();
-
-    assert_eq!(
-        modal_panel_data.title.to_uppercase(),
-        "STACKS MULTISIG CONFIGURATION ASSISTANT"
-    );
-
-    assert_eq!(modal_panel_data.groups.len(), 3);
-    assert_eq!(modal_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(modal_panel_data.groups[1].sub_groups.len(), 1);
-    assert_eq!(modal_panel_data.groups[2].sub_groups.len(), 1);
-    assert_eq!(
-        modal_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
-    );
-    assert_eq!(
-        modal_panel_data.groups[1].sub_groups[0].action_items.len(),
-        1
-    );
-    assert_eq!(
-        modal_panel_data.groups[2].sub_groups[0].action_items.len(),
-        1
-    );
-
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive genesis block");
-        panic!()
-    };
-
-    let action_panel_data = event.expect_block().panel.expect_action_panel();
-    println!("==> action panel {:?}", action_panel_data);
-    assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
-    assert_eq!(action_panel_data.groups.len(), 2);
-    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        1
-    );
-    assert_eq!(action_panel_data.groups[1].sub_groups.len(), 3);
-    assert_eq!(
-        action_panel_data.groups[1].sub_groups[0].action_items.len(),
-        1
-    );
-    assert_eq!(
-        action_panel_data.groups[1].sub_groups[1].action_items.len(),
-        2
-    );
-    assert_eq!(
-        action_panel_data.groups[1].sub_groups[2].action_items.len(),
-        1
-    );
+    let action_panel_data =
+        harness.expect_action_panel(None, "runbook checklist", vec![vec![1], vec![1, 2, 1]]);
 
     let get_public_key_alice = &modal_panel_data.groups[0].sub_groups[0].action_items[0];
-    assert_eq!(get_public_key_alice.action_status, ActionItemStatus::Todo);
-    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_alice.action_type
-    else {
-        panic!("expected provide public key request");
-    };
-    assert_eq!(
-        &get_public_key_alice.title.to_uppercase(),
-        "CONNECT WALLET ALICE"
-    );
-
     let get_public_key_bob = &modal_panel_data.groups[1].sub_groups[0].action_items[0];
-    assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
-    let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type else {
-        panic!("expected provide public key request");
-    };
-    assert_eq!(
-        &get_public_key_bob.title.to_uppercase(),
-        "CONNECT WALLET BOB"
-    );
+    println!("modal_panel_data: {:?}", modal_panel_data);
+    // validate some data about actions to provide pub key
+    {
+        assert_eq!(get_public_key_alice.action_status, ActionItemStatus::Todo);
+        let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_alice.action_type
+        else {
+            panic!("expected provide public key request");
+        };
+        assert_eq!(
+            &get_public_key_alice.title.to_uppercase(),
+            "CONNECT WALLET ALICE"
+        );
 
+        assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
+        let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type
+        else {
+            panic!("expected provide public key request");
+        };
+        assert_eq!(
+            &get_public_key_bob.title.to_uppercase(),
+            "CONNECT WALLET BOB"
+        );
+    }
+    println!("action panel data: {:?}", action_panel_data);
+    let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
+    let verify_address_bob = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let compute_multisig = &action_panel_data.groups[1].sub_groups[1].action_items[0];
+    let verify_balance = &action_panel_data.groups[1].sub_groups[1].action_items[1];
     assert_eq!(compute_multisig.action_status, ActionItemStatus::Todo);
     assert_eq!(
         compute_multisig.title.to_uppercase(),
-        "COMPUTE MULTISIG ADDRESS"
+        "COMPUTED MULTISIG ADDRESS"
     );
 
-    // Provide Alice public key
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_id: get_public_key_alice.id.clone(),
-        payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
-            public_key: "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33".into(),
-        }),
-    });
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-    let updates = event.expect_updated_action_items();
-    assert_eq!(updates.len(), 2);
-    assert_eq!(
-        updates[0].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into()))
-    );
-    assert_eq!(
-        updates[1].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into()))
-    );
-
-    // Provide Bob public key
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_id: get_public_key_bob.id.clone(),
-        payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
-            public_key: "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e".into(),
-        }),
-    });
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-    let updates = event.expect_updated_action_items();
-    println!("==> updates: {:?}", updates);
-    assert_eq!(updates.len(), 6);
-    assert_eq!(
-        updates[0].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND".into()))
-    );
-    assert_eq!(
-        updates[1].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND".into()))
-    );
-    assert_eq!(
-        updates[2].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into()))
-    );
-    assert_eq!(
-        updates[3].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into()))
-    );
-    assert_eq!(
-        updates[4].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(None)
-    );
-    assert_eq!(
-        updates[5].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(Some("SN263VV5AHS55QV94FB70W6DJNPET8SWF5WRK5S1K".into()))
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
+            action_item_id: get_public_key_alice.id.clone(),
+            payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
+                public_key: "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33"
+                    .into(),
+            }),
+        },
+        vec![
+            (
+                &verify_address_alice.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into(),
+                ))),
+            ),
+            (
+                &get_public_key_alice.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into(),
+                ))),
+            ),
+        ],
     );
 
-    // Validate panel
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_id: compute_multisig.id.clone(),
-        payload: ActionItemResponseType::ValidateBlock,
-    });
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
+            action_item_id: get_public_key_bob.id.clone(),
+            payload: ActionItemResponseType::ProvidePublicKey(ProvidePublicKeyResponse {
+                public_key: "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
+                    .into(),
+            }),
+        },
+        vec![
+            (
+                &verify_address_bob.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND".into(),
+                ))),
+            ),
+            (
+                &get_public_key_bob.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND".into(),
+                ))),
+            ),
+            (
+                &verify_address_alice.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into(),
+                ))),
+            ),
+            (
+                &get_public_key_alice.id,
+                Some(ActionItemStatus::Success(Some(
+                    "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC".into(),
+                ))),
+            ),
+            (&verify_balance.id, Some(ActionItemStatus::Success(None))),
+            (
+                &compute_multisig.id,
+                Some(ActionItemStatus::Success(Some(
+                    "SN263VV5AHS55QV94FB70W6DJNPET8SWF5WRK5S1K".into(),
+                ))),
+            ),
+        ],
+    );
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
+    let sign_tx_modal = harness.send_and_expect_modal(
+        ActionItemResponse {
+            action_item_id: compute_multisig.id.clone(),
+            payload: ActionItemResponseType::ValidateBlock,
+        },
+        "Stacks Multisig Signing Assistant",
+        vec![vec![1, 1], vec![1]],
+    );
 
-    println!("---> event: {:?}", event);
-    let sign_tx_modal = event.expect_modal().panel.expect_modal_panel();
-    assert_eq!(&sign_tx_modal.title, "Stacks Multisig Signing Assistant");
-    assert_eq!(sign_tx_modal.groups.len(), 2);
-    assert_eq!(sign_tx_modal.groups[0].sub_groups.len(), 2);
-    assert_eq!(sign_tx_modal.groups[0].sub_groups[0].action_items.len(), 1);
-    assert_eq!(sign_tx_modal.groups[0].sub_groups[1].action_items.len(), 1);
-    assert_eq!(sign_tx_modal.groups[1].sub_groups.len(), 1);
-    assert_eq!(sign_tx_modal.groups[1].sub_groups[0].action_items.len(), 1);
     let sign_tx_alice = &sign_tx_modal.groups[0].sub_groups[0].action_items[0];
     let sign_tx_bob = &sign_tx_modal.groups[0].sub_groups[1].action_items[0];
 
     // I don't know why this update is sent here, this feels extraneous
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-    let updates = event.expect_updated_action_items();
-    assert_eq!(updates.len(), 1);
-    assert_eq!(
-        updates[0].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(None)
+    harness.expect_action_item_update(
+        None,
+        vec![(&compute_multisig.id, Some(ActionItemStatus::Success(None)))],
     );
-    assert_eq!(updates[0].id, compute_multisig.id);
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
+    let action_panel_data =
+        harness.expect_action_panel(None, "TRANSACTION SIGNING", vec![vec![2, 1, 1]]);
 
-    let action_panel_data = event.as_block().unwrap().panel.as_action_panel().unwrap();
-    assert_eq!(
-        action_panel_data.title.to_uppercase(),
-        "TRANSACTION SIGNING"
-    );
-    assert_eq!(action_panel_data.groups.len(), 1);
-    assert_eq!(action_panel_data.groups[0].sub_groups.len(), 3);
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        2
-    );
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[1].action_items.len(),
-        1
-    );
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[2].action_items.len(),
-        1
-    );
     let nonce_action = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let fee_action = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let compute_multisig = &action_panel_data.groups[0].sub_groups[1].action_items[0];
     let validate_signature = &action_panel_data.groups[0].sub_groups[2].action_items[0];
 
-    let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     // alice signature
-    {
-        let _ = action_item_events_tx.send(ActionItemResponse {
+    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c30000000102014511a3f97d09ec94db5f7ebee6f8fe62b5400ce1ba97c39e68acda4493e6c57572e752a2bcfacf3d2c6dc6cd18b5ede7c9913eeb6729e1a00b312f950b9e8f4a0002030100000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
             action_item_id: sign_tx_alice.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
@@ -723,31 +667,17 @@ fn test_multisig_runbook_no_env() {
                         .signer_uuid,
                 },
             ),
-        });
+        },
+        vec![
+            (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
+            (&sign_tx_bob.id, None),
+        ],
+    );
 
-        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-            assert!(false, "unable to receive input block");
-            panic!()
-        };
-
-        let updates = event.expect_updated_action_items();
-        assert_eq!(updates.len(), 2);
-        assert_eq!(
-            updates[0].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(None)
-        );
-        assert_eq!(updates[0].id, sign_tx_alice.id);
-        assert_eq!(
-            updates[1].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Todo
-        );
-        assert_eq!(updates[1].id, sign_tx_bob.id);
-        // assert_eq!(updates[0].id, sign_tx_alice.id);
-    }
     // bob signature
-    {
-        let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
-        let _ = action_item_events_tx.send(ActionItemResponse {
+    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c30000000202014511a3f97d09ec94db5f7ebee6f8fe62b5400ce1ba97c39e68acda4493e6c57572e752a2bcfacf3d2c6dc6cd18b5ede7c9913eeb6729e1a00b312f950b9e8f4a0201f9f471b80dc111b4e33632335002a5e26ac4369899da7545273c883d26bdd28356e29821259e4ced4d65f0d833a12860b4a0844858b14df6f39ece49c05f75f30002030100000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
             action_item_id: sign_tx_bob.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
@@ -759,35 +689,22 @@ fn test_multisig_runbook_no_env() {
                         .signer_uuid,
                 },
             ),
-        });
-
-        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-            assert!(false, "unable to receive input block");
-            panic!()
-        };
-
-        let updates = event.expect_updated_action_items();
-        assert_eq!(updates.len(), 3);
-        assert_eq!(
-            updates[0].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(None)
-        );
-        assert_eq!(updates[0].id, sign_tx_alice.id);
-        assert_eq!(
-            updates[1].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(None)
-        );
-        assert_eq!(updates[1].id, sign_tx_bob.id);
-        assert_eq!(
-            updates[2].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(Some("All signers participated".to_string()))
-        );
-        assert_eq!(updates[2].id, compute_multisig.id);
-    }
+        },
+        vec![
+            (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
+            (&sign_tx_bob.id, Some(ActionItemStatus::Success(None))),
+            (
+                &compute_multisig.id,
+                Some(ActionItemStatus::Success(Some(
+                    "All signers participated".to_string(),
+                ))),
+            ),
+        ],
+    );
 
     // validate nonce
-    {
-        let _ = action_item_events_tx.send(ActionItemResponse {
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
             action_item_id: nonce_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 input_name: nonce_action
@@ -798,22 +715,13 @@ fn test_multisig_runbook_no_env() {
                     .clone(),
                 value_checked: true,
             }),
-        });
-        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-            assert!(false, "unable to receive input block");
-            panic!()
-        };
-        let updates = event.expect_updated_action_items();
-        assert_eq!(updates.len(), 1);
-        assert_eq!(
-            updates[0].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(None)
-        );
-        assert_eq!(updates[0].id, nonce_action.id);
-    }
+        },
+        vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
+    );
+
     // validate fee
-    {
-        let _ = action_item_events_tx.send(ActionItemResponse {
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
             action_item_id: fee_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                 input_name: fee_action
@@ -824,63 +732,28 @@ fn test_multisig_runbook_no_env() {
                     .clone(),
                 value_checked: true,
             }),
-        });
-        let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-            assert!(false, "unable to receive input block");
-            panic!()
-        };
-        let updates = event.expect_updated_action_items();
-        assert_eq!(updates.len(), 1);
-        assert_eq!(
-            updates[0].action_status.as_ref().unwrap(),
-            &ActionItemStatus::Success(None)
-        );
-        assert_eq!(updates[0].id, fee_action.id);
-    }
+        },
+        vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],
+    );
 
-    let _ = action_item_events_tx.send(ActionItemResponse {
-        action_item_id: validate_signature.id.clone(),
-        payload: ActionItemResponseType::ValidateBlock,
-    });
+    // validate signature block
+    harness.send_and_expect_action_item_update(
+        ActionItemResponse {
+            action_item_id: validate_signature.id.clone(),
+            payload: ActionItemResponseType::ValidateBlock,
+        },
+        vec![
+            (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
+            (&sign_tx_bob.id, Some(ActionItemStatus::Success(None))),
+            (
+                &validate_signature.id,
+                Some(ActionItemStatus::Success(None)),
+            ),
+        ],
+    );
 
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-    let updates = event.expect_updated_action_items();
-    println!("==> updates: {:?}", updates);
-    assert_eq!(updates.len(), 3);
-    assert_eq!(
-        updates[0].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(None)
-    );
-    assert_eq!(updates[0].id, sign_tx_alice.id);
-    assert_eq!(
-        updates[1].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(None)
-    );
-    assert_eq!(updates[1].id, sign_tx_bob.id);
-    assert_eq!(
-        updates[2].action_status.as_ref().unwrap(),
-        &ActionItemStatus::Success(None)
-    );
-    assert_eq!(updates[2].id, validate_signature.id);
-    let Ok(event) = block_rx.recv_timeout(Duration::from_secs(5)) else {
-        assert!(false, "unable to receive input block");
-        panic!()
-    };
-    println!("---> output event: {:?}", event);
-    let outputs_panel_data = event.expect_block().panel.expect_action_panel();
+    let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
 
-    assert_eq!(outputs_panel_data.title.to_uppercase(), "OUTPUT REVIEW");
-    assert_eq!(outputs_panel_data.groups.len(), 1);
-    assert_eq!(outputs_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(
-        outputs_panel_data.groups[0].sub_groups[0]
-            .action_items
-            .len(),
-        1
-    );
     assert_eq!(
         outputs_panel_data.groups[0].sub_groups[0].action_items[0]
             .action_type
@@ -888,6 +761,8 @@ fn test_multisig_runbook_no_env() {
             .map(|v| &v.value),
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
+
+    harness.expect_runbook_complete();
 }
 
 #[ignore]
