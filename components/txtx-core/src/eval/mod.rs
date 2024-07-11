@@ -541,6 +541,9 @@ pub async fn run_constructs_evaluation(
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
+        if let Some(_) = runbook.constructs_execution_results.get(&construct_uuid) {
+            continue;
+        };
 
         if let Some(_) = unexecutable_nodes.get(&node) {
             continue;
