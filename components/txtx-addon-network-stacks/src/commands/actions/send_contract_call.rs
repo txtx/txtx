@@ -22,6 +22,7 @@ use crate::{
     typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
 };
 
+use super::get_wallet_uuid;
 use super::{
     broadcast_transaction::BroadcastStacksTransaction, encode_contract_call,
     sign_transaction::SignStacksTransaction,
@@ -150,21 +151,49 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        wallets: WalletsState,
+        mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
+        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
         // Extract network_id
-        let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
-        let contract_id_value = args.get_expected_value("contract_id").unwrap();
-        let function_name = args.get_expected_string("function_name").unwrap();
-        let function_args_values = args.get_expected_array("function_args").unwrap();
-        let bytes = encode_contract_call(
+        let network_id: String = match args.get_defaulting_string("network_id", defaults) {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag))
+            }
+        };
+        let contract_id_value = match args.get_expected_value("contract_id") {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag))
+            }
+        };
+        let function_name = match args.get_expected_string("function_name") {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag))
+            }
+        };
+        let function_args_values = match args.get_expected_array("function_args") {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag))
+            }
+        };
+        let bytes = match encode_contract_call(
             spec,
             function_name,
             function_args_values,
             &network_id,
             contract_id_value,
-        )
-        .unwrap();
+        ) {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((wallets, wallet_state, diag))
+            }
+        };
+        wallets.push_wallet_state(wallet_state);
+
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
