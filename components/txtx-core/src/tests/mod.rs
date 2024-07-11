@@ -664,7 +664,7 @@ fn test_multisig_runbook_no_env() {
         },
         vec![
             (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
-            (&sign_tx_bob.id, None),
+            (&sign_tx_bob.id, Some(ActionItemStatus::Todo)),
         ],
     );
 
@@ -736,14 +736,10 @@ fn test_multisig_runbook_no_env() {
             action_item_id: validate_signature.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         },
-        vec![
-            (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
-            (&sign_tx_bob.id, Some(ActionItemStatus::Success(None))),
-            (
-                &validate_signature.id,
-                Some(ActionItemStatus::Success(None)),
-            ),
-        ],
+        vec![(
+            &validate_signature.id,
+            Some(ActionItemStatus::Success(None)),
+        )],
     );
 
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
