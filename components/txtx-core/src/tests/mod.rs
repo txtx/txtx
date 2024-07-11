@@ -64,8 +64,8 @@ impl TestHarness {
 
         let updates = event.expect_updated_action_items();
         let ctx = format!(
-            "=> action item response: {:?}\n=> expected updates: {:?}",
-            response, expected_updates
+            "\n=> action item response: {:?}\n=> expected updates: {:?}\n=> actual updates: {:?}",
+            response, expected_updates, updates
         );
         assert_eq!(updates.len(), expected_updates.len(), "{}", ctx);
         updates.iter().enumerate().for_each(|(i, u)| {
