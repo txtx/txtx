@@ -121,15 +121,15 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
 
-    let (manifest_location, manifest_name) = if let Some(location) = manifest.location.clone() {
-        (location, manifest.name.clone())
+    let manifest_location = if let Some(location) = manifest.location.clone() {
+        location
     } else {
         let manifest_name = "txtx.yml";
         let mut manifest_location = root_location.clone();
         let _ = manifest_location.append_path(manifest_name);
-        let manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
+        let _ = File::create(manifest_location.to_string()).expect("creation failed");
         println!("{} {}", green!("Created manifest"), manifest_name);
-        (manifest_location, manifest_name.to_string())
+        manifest_location
     };
     let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
 
