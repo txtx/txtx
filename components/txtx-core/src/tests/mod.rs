@@ -430,13 +430,7 @@ fn test_wallet_runbook_no_env() {
             action_item_id: validate_signature.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         },
-        vec![
-            (
-                &provide_signature_action.id,
-                ActionItemStatus::Success(None),
-            ),
-            (&validate_signature.id, ActionItemStatus::Success(None)),
-        ],
+        vec![(&validate_signature.id, ActionItemStatus::Success(None))],
     );
 
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
