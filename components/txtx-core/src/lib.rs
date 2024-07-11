@@ -231,6 +231,15 @@ pub async fn start_runbook_runloop(
             }
         }
 
+        if !pass_results
+            .pending_background_tasks_constructs_uuids
+            .is_empty()
+        {
+            background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
+            background_tasks_contructs_uuids
+                .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+        }
+
         if !pass_results.actions.has_pending_actions()
             && background_tasks_contructs_uuids.is_empty()
         {
@@ -244,15 +253,6 @@ pub async fn start_runbook_runloop(
                 }
             }
             runbook_completed = true;
-        }
-
-        if !pass_results
-            .pending_background_tasks_constructs_uuids
-            .is_empty()
-        {
-            background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
-            background_tasks_contructs_uuids
-                .append(&mut pass_results.pending_background_tasks_constructs_uuids);
         }
 
         if background_tasks_futures.is_empty() {
