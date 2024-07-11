@@ -4,6 +4,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     env,
     fs::{self, File},
+    io::Write,
     path::PathBuf,
     sync::Arc,
 };
@@ -14,7 +15,7 @@ use txtx_core::{
         helpers::fs::FileLocation,
         types::{
             commands::CommandInputsEvaluationResult,
-            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor},
             types::Value,
         },
     },
@@ -306,16 +307,21 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
                     BlockEvent::UpdateProgressBarStatus(update) => {
-                        if update.new_status.message.len() == 64 {
-                            // Hacky - update message in place
-                            print!(
-                                "\r{} 0x{}",
-                                yellow!(format!("{}", update.new_status.status)),
-                                update.new_status.message
-                            );
-                        } else {
-                            println!("{}", update.new_status.message)
-                        }
+                        match update.new_status.status_color {
+                            ProgressBarStatusColor::Yellow => {
+                                print!("\r{}", yellow!(format!("{}", update.new_status.status)));
+                            }
+                            ProgressBarStatusColor::Green => {
+                                print!(
+                                    "\r{:<20}\n",
+                                    green!(format!("{}", update.new_status.status))
+                                );
+                            }
+                            ProgressBarStatusColor::Red => {
+                                print!("\r{:<20}\n", red!(format!("{}", update.new_status.status)));
+                            }
+                        };
+                        std::io::stdout().flush().unwrap();
                     }
                     _ => {}
                 }

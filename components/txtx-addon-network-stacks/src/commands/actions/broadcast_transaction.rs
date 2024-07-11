@@ -161,7 +161,21 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
+        let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
         let future = async move {
+            let mut progress = 0;
+            let mut status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &uuid.value(),
+                &ProgressBarStatus {
+                    status_color: ProgressBarStatusColor::Yellow,
+                    status: format!("Pending {}", progress_symbol[progress]),
+                    message: "Broadcasting Transaction".into(),
+                    diagnostic: None,
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
             let mut result = CommandExecutionResult::new();
 
             let mut s = String::from("0x");
@@ -182,17 +196,34 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
             let tx_result = loop {
+                progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes.bytes).await {
                     Ok(res) => break res,
                     Err(e) => {
                         retry_count -= 1;
                         if retry_count > 0 {
                             sleep_ms(backoff_ms);
+                            status_update.update_status(&ProgressBarStatus::new_msg(
+                                ProgressBarStatusColor::Yellow,
+                                &format!("Pending {}", progress_symbol[progress]),
+                                "Broadcasting Transaction",
+                            ));
+                            let _ = progress_tx
+                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                             continue;
                         }
 
+                        status_update.update_status(&ProgressBarStatus::new_err(
+                            "Failure",
+                            "Failed to broadcast Stacks transaction",
+                            &diagnosed_error!("{}", e),
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                         return Err(Diagnostic::error_from_string(format!(
-                            "Failed to broadcast stacks transaction: {e}"
+                            "Failed to broadcast Stacks transaction: {}",
+                            e,
                         )));
                     }
                 }
@@ -215,25 +246,17 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let progress_tx = progress_tx.clone();
             let mut retry_count = 4;
-            let mut status_update = ProgressBarStatusUpdate::new(
-                &background_tasks_uuid,
-                &uuid.value(),
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Yellow,
-                    status: "Pending".to_string(),
-                    message: wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
-                    diagnostic: None,
-                },
-            );
+            status_update.update_status(&ProgressBarStatus::new_msg(
+                ProgressBarStatusColor::Yellow,
+                &format!("Pending {}", progress_symbol[progress]),
+                &wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
+            ));
+
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut block_height = 0;
             let mut confirmed_blocks_ids = VecDeque::new();
             let backoff_ms = 500;
-
-            // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
-            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-            let mut progress = 0;
 
             loop {
                 progress = (progress + 1) % progress_symbol.len();
