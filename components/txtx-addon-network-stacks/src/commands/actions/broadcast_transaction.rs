@@ -207,8 +207,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let moved_network_id = network_id.clone();
             let wrap_msg = move |msg: &str| {
                 txtx_addon_kit::formatdoc! {
-                    r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}">{}</a>"#,
-                    moved_txid, moved_network_id, msg
+                    r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}&api={}">{}</a>"#,
+                    moved_txid, moved_network_id, rpc_api_url, msg
                 }
                 .to_string()
             };
