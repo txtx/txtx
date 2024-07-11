@@ -136,6 +136,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
+        execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
@@ -162,6 +163,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+        let is_supervised = execution_context.is_supervised;
         let future = async move {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(
@@ -237,11 +239,15 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let moved_txid = txid.clone();
             let moved_network_id = network_id.clone();
             let wrap_msg = move |msg: &str| {
-                txtx_addon_kit::formatdoc! {
+                if is_supervised {
+                    txtx_addon_kit::formatdoc! {
                     r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}&api={}">{}</a>"#,
                     moved_txid, moved_network_id, rpc_api_url, msg
                 }
                 .to_string()
+                } else {
+                    msg.to_string()
+                }
             };
 
             let progress_tx = progress_tx.clone();

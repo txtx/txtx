@@ -817,6 +817,7 @@ pub async fn run_constructs_evaluation(
                 addon_defaults.clone(),
                 progress_tx,
                 &pass_result.background_tasks_uuid,
+                execution_context,
             );
             let future = match future_res {
                 Ok(future) => future,

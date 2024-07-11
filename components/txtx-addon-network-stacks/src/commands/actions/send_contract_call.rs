@@ -294,6 +294,7 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
+        execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
         BroadcastStacksTransaction::build_background_task(
             &uuid,
@@ -302,6 +303,7 @@ impl CommandImplementation for SendContractCall {
             &defaults,
             &progress_tx,
             &background_tasks_uuid,
+            &execution_context,
         )
     }
 }

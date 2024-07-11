@@ -29,7 +29,6 @@ use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::collect_runbook_outputs;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
-use kit::channel;
 use kit::types::block_id::BlockId;
 use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
@@ -177,6 +176,7 @@ pub async fn start_unsupervised_runbook_runloop(
     let execution_context = CommandExecutionContext {
         review_input_default_values: false,
         review_input_values: false,
+        is_supervised: false,
     };
 
     let mut action_item_requests = BTreeMap::new();
@@ -301,6 +301,7 @@ pub async fn start_interactive_runbook_runloop(
     let execution_context = CommandExecutionContext {
         review_input_default_values: true,
         review_input_values: true,
+        is_supervised: true,
     };
 
     // Compute number of steps
