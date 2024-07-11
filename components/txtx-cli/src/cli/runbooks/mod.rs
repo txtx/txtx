@@ -4,6 +4,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     env,
     fs::{self, File},
+    io::Write,
     path::PathBuf,
     sync::Arc,
 };
@@ -14,11 +15,11 @@ use txtx_core::{
         helpers::fs::FileLocation,
         types::{
             commands::CommandInputsEvaluationResult,
-            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent},
+            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor},
             types::Value,
         },
     },
-    pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
+    pre_compute_runbook, start_interactive_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
 };
 
@@ -120,15 +121,15 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
 
-    let (manifest_location, manifest_name) = if let Some(location) = manifest.location.clone() {
-        (location, manifest.name.clone())
+    let manifest_location = if let Some(location) = manifest.location.clone() {
+        location
     } else {
         let manifest_name = "txtx.yml";
         let mut manifest_location = root_location.clone();
         let _ = manifest_location.append_path(manifest_name);
-        let manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
+        let _ = File::create(manifest_location.to_string()).expect("creation failed");
         println!("{} {}", green!("Created manifest"), manifest_name);
-        (manifest_location, manifest_name.to_string())
+        manifest_location
     };
     let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
 
@@ -250,73 +251,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
 
-    if is_execution_unsupervised {
-        let mut batch_inputs = vec![];
-
-        for input in cmd.inputs.iter() {
-            let (input_name, input_value) = input.split_once("=").unwrap();
-            if input_value.starts_with("[") {
-                batch_inputs = input_value[1..(input_value.len() - 2)]
-                    .split(",")
-                    .map(|v| {
-                        (
-                            input_name.to_string(),
-                            Value::uint(v.parse::<u64>().unwrap()),
-                        )
-                    })
-                    .collect::<Vec<(String, Value)>>();
-            } else {
-                batch_inputs.push((
-                    input_name.to_string(),
-                    Value::uint(input_value.parse::<u64>().unwrap()),
-                ));
-            }
-        }
-
-        loop {
-            let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
-            let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
-                Ok((m, a, b, c)) => (a, b, c, m.environments),
-                Err(_) => {
-                    let (runbook_name, runbook, runtime_context) =
-                        load_runbook_from_file_path(&cmd.runbook).await?;
-                    (runbook_name, runbook, runtime_context, BTreeMap::new())
-                }
-            };
-
-            if let Some(ref selected_env) = cmd.environment {
-                runtime_context.set_active_environment(selected_env.clone())?;
-            }
-
-            if batch_inputs.len() == 0 {
-                return Ok(());
-            }
-
-            let (input_name, input_value) = batch_inputs.remove(0);
-
-            for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
-                if command_instance.specification.matcher.eq("input")
-                    && input_name.eq(&command_instance.name)
-                {
-                    let mut result = CommandInputsEvaluationResult::new(&input_name);
-                    result.inputs.insert("value", input_value.clone());
-                    runbook
-                        .command_inputs_evaluation_results
-                        .insert(construct_uuid.clone(), result);
-                }
-            }
-
-            println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
-
-            let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
-            if let Err(diags) = res {
-                for diag in diags.iter() {
-                    println!("{} {}", red!("x"), diag);
-                }
-            }
-        }
-    }
-
     let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
     let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
         Ok((m, a, b, c)) => (a, b, c, m.environments),
@@ -373,23 +307,42 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
                     BlockEvent::UpdateProgressBarStatus(update) => {
-                        if update.new_status.message.len() == 64 {
-                            // Hacky - update message in place
-                            print!(
-                                "\r{} 0x{}",
-                                yellow!(format!("{}", update.new_status.status)),
-                                update.new_status.message
-                            );
-                        } else {
-                            println!("{}", update.new_status.message)
-                        }
+                        match update.new_status.status_color {
+                            ProgressBarStatusColor::Yellow => {
+                                print!(
+                                    "\r{} {} - {}",
+                                    yellow!("→"),
+                                    update.new_status.message,
+                                    yellow!(format!("{}", update.new_status.status)),
+                                );
+                            }
+                            ProgressBarStatusColor::Green => {
+                                print!(
+                                    "\r{} {} - {:<100}\n",
+                                    green!("✓"),
+                                    update.new_status.message,
+                                    green!(format!("{}", update.new_status.status)),
+                                );
+                            }
+                            ProgressBarStatusColor::Red => {
+                                print!(
+                                    "\r{} {} - {:<100}\n",
+                                    red!("x"),
+                                    update.new_status.message,
+                                    red!(format!("{}", update.new_status.status)),
+                                );
+                            }
+                        };
+                        std::io::stdout().flush().unwrap();
                     }
                     _ => {}
                 }
             }
         });
-
-        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
+        println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
+        let res =
+            start_unsupervised_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx)
+                .await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
