@@ -327,7 +327,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 }
             }
         });
-
+        println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
         let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
