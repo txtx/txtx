@@ -19,6 +19,28 @@ use crate::{
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
+            EncodeClarityValueBool => {
+                name: "cv_bool",
+                documentation: "`stacks::cv_bool` returns the given boolean as a Clarity `bool`.",
+                example: indoc! {r#"
+                output "my_bool" { 
+                  value = stacks::cv_bool(true)
+                }
+                // > my_bool: 0x03
+                "#},
+                inputs: [
+                    clarity_value: {
+                        documentation: "The boolean values `true` or `false`.",
+                        typing: vec![Type::uint()]
+                    }
+                ],
+                output: {
+                    documentation: "The input boolean as a Clarity `bool`.",
+                    typing: Type::uint()
+                },
+            }
+        },
+        define_function! {
             EncodeClarityValueUint => {
                 name: "cv_uint",
                 documentation: "`stacks::cv_uint` returns the given number as a Clarity `uint`.",
@@ -289,8 +311,8 @@ impl FunctionImplementation for StacksEncodeNone {
     }
 }
 
-pub struct StacksEncodeBool;
-impl FunctionImplementation for StacksEncodeBool {
+pub struct EncodeClarityValueBool;
+impl FunctionImplementation for EncodeClarityValueBool {
     fn check_instantiability(
         _ctx: &FunctionSpecification,
         _args: &Vec<Type>,
@@ -298,8 +320,24 @@ impl FunctionImplementation for StacksEncodeBool {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        unimplemented!()
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let entry = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val.clone(),
+            Some(any) => {
+                return Err(diagnosed_error!(
+                    "'cv_bool' function: expected bool, got {:?}",
+                    any
+                ))
+            }
+            None => {
+                return Err(diagnosed_error!(
+                    "'cv_bool' function: expected uint, got none :("
+                ))
+            }
+        };
+        let clarity_value = ClarityValue::Bool(entry);
+        let bytes = clarity_value.serialize_to_vec();
+        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
     }
 }
 
