@@ -169,7 +169,7 @@ lazy_static! {
       );
 }
 
-pub async fn start_runbook_runloop(
+pub async fn start_unsupervised_runbook_runloop(
     runbook: &mut Runbook,
     runtime_context: &mut RuntimeContext,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,

@@ -19,7 +19,7 @@ use txtx_core::{
             types::Value,
         },
     },
-    pre_compute_runbook, start_interactive_runbook_runloop, start_runbook_runloop,
+    pre_compute_runbook, start_interactive_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
 };
 
@@ -328,7 +328,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         });
         println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
-        let res = start_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx).await;
+        let res =
+            start_unsupervised_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx)
+                .await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
