@@ -158,27 +158,19 @@ impl CommandImplementation for SendContractCall {
         // Extract network_id
         let network_id: String = match args.get_defaulting_string("network_id", defaults) {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((wallets, wallet_state, diag))
-            }
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         let contract_id_value = match args.get_expected_value("contract_id") {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((wallets, wallet_state, diag))
-            }
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         let function_name = match args.get_expected_string("function_name") {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((wallets, wallet_state, diag))
-            }
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         let function_args_values = match args.get_expected_array("function_args") {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((wallets, wallet_state, diag))
-            }
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         let bytes = match encode_contract_call(
             spec,
@@ -188,9 +180,7 @@ impl CommandImplementation for SendContractCall {
             contract_id_value,
         ) {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((wallets, wallet_state, diag))
-            }
+            Err(diag) => return Err((wallets, wallet_state, diag)),
         };
         wallets.push_wallet_state(wallet_state);
 
