@@ -271,7 +271,15 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
                         "Complete",
-                        &wrap_msg(&format!("Confirmed {} blocks", &confirmations_required)),
+                        &wrap_msg(&format!(
+                            "Confirmed {} {}",
+                            &confirmations_required,
+                            if confirmations_required.eq(&1) {
+                                "block"
+                            } else {
+                                "blocks"
+                            }
+                        )),
                     ));
 
                     let _ = progress_tx
