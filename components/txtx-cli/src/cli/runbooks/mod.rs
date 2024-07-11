@@ -309,16 +309,28 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     BlockEvent::UpdateProgressBarStatus(update) => {
                         match update.new_status.status_color {
                             ProgressBarStatusColor::Yellow => {
-                                print!("\r{}", yellow!(format!("{}", update.new_status.status)));
+                                print!(
+                                    "\r{} {} - {}",
+                                    yellow!("→"),
+                                    update.new_status.message,
+                                    yellow!(format!("{}", update.new_status.status)),
+                                );
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{:<20}\n",
-                                    green!(format!("{}", update.new_status.status))
+                                    "\r{} {} - {:<100}\n",
+                                    green!("✓"),
+                                    update.new_status.message,
+                                    green!(format!("{}", update.new_status.status)),
                                 );
                             }
                             ProgressBarStatusColor::Red => {
-                                print!("\r{:<20}\n", red!(format!("{}", update.new_status.status)));
+                                print!(
+                                    "\r{} {} - {:<100}\n",
+                                    red!("x"),
+                                    update.new_status.message,
+                                    red!(format!("{}", update.new_status.status)),
+                                );
                             }
                         };
                         std::io::stdout().flush().unwrap();
