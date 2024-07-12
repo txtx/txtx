@@ -272,6 +272,7 @@ impl CommandImplementation for SendContractCall {
             };
 
             res_signing.append(&mut res);
+
             Ok((wallets, wallet_state, res_signing))
         };
         Ok(Box::pin(future))
@@ -280,7 +281,8 @@ impl CommandImplementation for SendContractCall {
     fn build_background_task(
         uuid: &ConstructUuid,
         spec: &CommandSpecification,
-        args: &ValueStore,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
@@ -289,7 +291,8 @@ impl CommandImplementation for SendContractCall {
         BroadcastStacksTransaction::build_background_task(
             &uuid,
             &spec,
-            &args,
+            &inputs,
+            &outputs,
             &defaults,
             &progress_tx,
             &background_tasks_uuid,

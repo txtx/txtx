@@ -350,6 +350,7 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
         &ConstructUuid,
         &CommandSpecification,
         &ValueStore,
+        &ValueStore,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
         &Uuid,
@@ -927,19 +928,23 @@ impl CommandInstance {
         background_tasks_uuid: &Uuid,
         execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
-        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        let mut inputs = ValueStore::new(&self.name, &construct_uuid.value());
+        let mut outputs = ValueStore::new(&self.name, &construct_uuid.value());
+        
         for (key, value) in evaluated_inputs.inputs.iter() {
-            values.insert(key, value.clone());
+            inputs.insert(key, value.clone());
         }
         for (key, value) in execution_result.outputs.iter() {
-            values.insert(key, value.clone());
+            inputs.insert(key, value.clone());
+            outputs.insert(key, value.clone());
         }
 
         let spec = &self.specification;
         let res = (spec.build_background_task)(
             &construct_uuid,
             &self.specification,
-            &values,
+            &inputs,
+            &outputs,
             &addon_defaults,
             progress_tx,
             background_tasks_uuid,
@@ -1032,7 +1037,8 @@ pub trait CommandImplementation {
     fn build_background_task(
         _uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
+        _inputs: &ValueStore,
+        _outputs: &ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,

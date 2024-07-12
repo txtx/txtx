@@ -132,7 +132,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
     fn build_background_task(
         uuid: &ConstructUuid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
@@ -144,7 +145,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
             constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
         };
 
-        let args = args.clone();
+        let args = inputs.clone();
+        let outputs = outputs.clone();
+
         let uuid = uuid.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
@@ -179,6 +182,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut result = CommandExecutionResult::new();
+            for (k, v) in outputs.iter() {
+                result.outputs.insert(k.clone(), v.clone());
+            }
 
             let mut s = String::from("0x");
             s.write_str(
