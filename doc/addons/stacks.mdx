@@ -582,17 +582,17 @@ The `sign_transaction` action signs an encoded transaction payload with the supp
 
 
   <Property name="signer" type="required">
-    Coming soon
+    A reference to a wallet construct, which will be used to sign the transaction payload.
   </Property>
 
 
   <Property name="nonce" type="required">
-    Coming soon
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
   </Property>
 
 
   <Property name="fee" type="required">
-    Coming soon
+    The transaction fee. This value will automatically be estimated if omitted.
   </Property>
 
 
@@ -763,7 +763,7 @@ The `call_contract` action encodes a valid contract call payload and serializes 
 
 
   <Property name="depends_on" type="optional">
-    Coming soon
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
   </Property>
 
 
@@ -910,7 +910,7 @@ The `broadcast_transaction` action sends a signed transaction payload to the spe
 
 
   <Property name="confirmations" type="optional">
-    Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
   </Property>
 
 
@@ -974,7 +974,7 @@ output "result" {
 
 ## call_readonly_fn {{ tag: 'action' }}
 
-The `call_readonly_fn` action queries public functions.
+The `call_readonly_fn` action queries a public readonly function.
 
 ### Inputs
 
@@ -982,22 +982,32 @@ The `call_readonly_fn` action queries public functions.
 
 
   <Property name="contract_id" type="required">
-    Address and identifier of the contract to invoke
+    The address and identifier of the contract to invoke.
   </Property>
 
 
   <Property name="function_name" type="required">
-    Method to invoke
+    The contract method to invoke.
   </Property>
 
 
   <Property name="function_args" type="optional">
-    Args to provide
+    The function arguments for the contract call.
   </Property>
 
 
   <Property name="rpc_api_url" type="optional">
     The URL of the Stacks API to broadcast to.
+  </Property>
+
+
+  <Property name="sender" type="optional">
+    The simulated tx-sender to use.
+  </Property>
+
+
+  <Property name="block_height" type="optional">
+    Coming soon.
   </Property>
 
 
@@ -1146,17 +1156,27 @@ The `send_contract_call` action encodes a contract call transaction, signs the t
 
 
   <Property name="signer" type="required">
-    Coming soon
+    A reference to a wallet construct, which will be used to sign the transaction payload.
   </Property>
 
 
   <Property name="confirmations" type="optional">
-    Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+  </Property>
+
+
+  <Property name="nonce" type="required">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="fee" type="optional">
+    The transaction fee. This value will automatically be estimated if omitted.
   </Property>
 
 
   <Property name="depends_on" type="optional">
-    Coming soon
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
   </Property>
 
 
@@ -1234,9 +1254,9 @@ value = action.my_ref.result
 
 
 
-##  {{ tag: 'wallet' }}
+## mnemonic {{ tag: 'wallet' }}
 
-Coming soon
+The `mnemonic` wallet can be used to synchronously sign a transaction.
 
 ### Inputs
 
@@ -1244,12 +1264,12 @@ Coming soon
 
 
   <Property name="mnemonic" type="">
-    Coming soon
+    The mnemonic phrase used to generate the secret key.
   </Property>
 
 
   <Property name="derivation_path" type="">
-    Coming soon
+    The derivation path used to generate the secret key.
   </Property>
 
 
@@ -1269,7 +1289,7 @@ Coming soon
 
 <Note>
 
-When the `` action is successfully executed, the following outputs are attached to the action
+When the `mnemonic` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -1277,17 +1297,20 @@ When the `` action is successfully executed, the following outputs are attached 
 
 
   <Property name="public_key">
-    Coming soon
+    The public key of the account generated from the secret key.
   </Property>
 
 
 </Properties>
 
-<CodeGroup title="Example using ">
+<CodeGroup title="Example using mnemonic">
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+wallet "bob" "stacks::mnemonic" {
+    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+    derivation_path = "m/44'/5757'/0'/0/0"
+}
 
 ```
 
@@ -1305,9 +1328,10 @@ When the `` action is successfully executed, the following outputs are attached 
 ---
 
 
-##  {{ tag: 'wallet' }}
+## connect {{ tag: 'wallet' }}
 
-Coming soon
+The `connect` wallet will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+This allows a Runbook operator to sign the transaction with the browser wallet of their choice.
 
 ### Inputs
 
@@ -1315,12 +1339,7 @@ Coming soon
 
 
   <Property name="expected_address" type="">
-    Coming soon
-  </Property>
-
-
-  <Property name="expected_public_key" type="">
-    Coming soon
+    The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this wallet.
   </Property>
 
 
@@ -1330,7 +1349,7 @@ Coming soon
 
 <Note>
 
-When the `` action is successfully executed, the following outputs are attached to the action
+When the `connect` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -1338,17 +1357,19 @@ When the `` action is successfully executed, the following outputs are attached 
 
 
   <Property name="public_key">
-    Coming soon
+    The public key of the connected wallet.
   </Property>
 
 
 </Properties>
 
-<CodeGroup title="Example using ">
+<CodeGroup title="Example using connect">
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+wallet "alice" "stacks::connect" {
+    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+}
 
 ```
 
@@ -1366,9 +1387,10 @@ When the `` action is successfully executed, the following outputs are attached 
 ---
 
 
-##  {{ tag: 'wallet' }}
+## multisig {{ tag: 'wallet' }}
 
-Coming soon
+The `multisig` wallet creates an ordered, `n` of `n` multisig.
+Each of the specified signers can be any other supported wallet type, and will be prompted to sign in the appropriate order.
 
 ### Inputs
 
@@ -1376,17 +1398,12 @@ Coming soon
 
 
   <Property name="signers" type="">
-    Coming soon
+    A list of signers that make up the multisig.
   </Property>
 
 
-  <Property name="exepcted_address" type="">
-    Coming soon
-  </Property>
-
-
-  <Property name="exepcted_public_key" type="">
-    Coming soon
+  <Property name="expected_address" type="">
+    The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this wallet.
   </Property>
 
 
@@ -1396,7 +1413,7 @@ Coming soon
 
 <Note>
 
-When the `` action is successfully executed, the following outputs are attached to the action
+When the `multisig` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -1404,22 +1421,32 @@ When the `` action is successfully executed, the following outputs are attached 
 
 
   <Property name="public_key">
-    Coming soon
+    The public key of the generated multisig wallet.
   </Property>
 
 
   <Property name="signers">
-    Coming soon
+    The list of signers that make up the multisig.
   </Property>
 
 
 </Properties>
 
-<CodeGroup title="Example using ">
+<CodeGroup title="Example using multisig">
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+wallet "alice" "stacks::connect" {
+    expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+wallet "bob" "stacks::connect" {
+    expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+}
+
+wallet "alice_and_bob" "stacks::multisig" {
+    signers = [wallet.alice, wallet.bob]
+}
 
 ```
 

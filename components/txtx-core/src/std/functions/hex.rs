@@ -12,17 +12,21 @@ lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         EncodeHex => {
             name: "encode_hex",
-            documentation: "Coming soon",
+            documentation: "`encode_hex` encodes a string as a hexadecimal string.",
             example: indoc!{r#"
+                output "encoded_hex" {
+                    value = encode_hex("hello, world")
+                }
+                // > encoded_hex: 68656C6C6F2C20776F726C64
           "#},
             inputs: [
                 value: {
-                    documentation: "Coming soon",
+                    documentation: "Any input string.",
                     typing: vec![Type::string()]
                 }
             ],
             output: {
-                documentation: "",
+                documentation: "The input string in its hexadecimal representation.",
                 typing: Type::string()
             },
         }

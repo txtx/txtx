@@ -285,6 +285,7 @@ fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                 wallets = wallets.push_map(|function| {
                     function
                         .insert_str("name", &wallet_spec.name)
+                        .insert_str("matcher", &wallet_spec.matcher)
                         .insert_str("documentation", &wallet_spec.documentation)
                         .insert_str("example", &wallet_spec.example)
                         .insert_vec("inputs", |inputs_builder| {

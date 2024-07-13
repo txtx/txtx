@@ -2,12 +2,15 @@
 name: BNS Runbook
 id: bns-runbook
 environments:
-  devnet:
-    stacks_network_id: testnet
-    stacks_api_url: http://localhost:3999
-  testnet:
+  development:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so
+  staging:
+    stacks_network_id: testnet
+    stacks_api_url: https://api.testnet.hiro.so
+  production:
+    stacks_network_id: mainnet
+    stacks_api_url: https://api.mainnet.hiro.so
 runbooks:
 - name: Register BNS
   id: register-bns

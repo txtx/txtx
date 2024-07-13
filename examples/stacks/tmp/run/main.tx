@@ -1,0 +1,7 @@
+input "a" {
+    value = "1"
+}
+
+output "b" {
+    value = input.a
+}

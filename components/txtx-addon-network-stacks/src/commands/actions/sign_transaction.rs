@@ -42,6 +42,8 @@ use crate::constants::{
 use crate::rpc::StacksRpc;
 use crate::typing::CLARITY_BUFFER;
 
+use super::get_wallet_uuid;
+
 lazy_static! {
     pub static ref SIGN_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
       SignStacksTransaction => {
@@ -64,25 +66,25 @@ lazy_static! {
                 interpolable: true
             },
             network_id: {
-                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"testnet"` or `"mainnet"`."#},
+                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`."#},
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
             },
             signer: {
-                documentation: "Coming soon",
+                documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             nonce: {
-                documentation: "Coming soon",
+                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::uint(),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             fee: {
-                documentation: "Coming soon",
+                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::uint(),
                 optional: false,
                 interpolable: true
@@ -287,12 +289,6 @@ impl CommandImplementation for SignStacksTransaction {
     }
 }
 
-fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
-    let signer = args.get_expected_string("signer")?;
-    let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
-    Ok(wallet_uuid)
-}
-
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transaction(
     wallet_state: &ValueStore,
@@ -321,7 +317,8 @@ async fn build_unsigned_transaction(
         let boot_address = match network_id.as_str() {
             "mainnet" => "SP000000000000000000002Q6VF78",
             "testnet" => "ST000000000000000000002AMW42H",
-            _ => unimplemented!("invalid network_id, return diagnostic"),
+            "devnet" => "ST000000000000000000002AMW42H",
+            _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
         };
         TransactionPayload::ContractCall(TransactionContractCall {
             address: StacksAddress::from_string(boot_address).unwrap(),
@@ -351,7 +348,8 @@ async fn build_unsigned_transaction(
     let transaction_version = match network_id.as_str() {
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
-        _ => unimplemented!("invalid network_id, return diagnostic"),
+        "devnet" => TransactionVersion::Testnet,
+        _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
     };
 
     let public_keys = wallet_state.get_expected_array(PUBLIC_KEYS)?;

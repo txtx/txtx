@@ -37,29 +37,26 @@ lazy_static! {
             StacksConnect => {
                 name: "Stacks Connect",
                 matcher: "connect",
-                documentation: "Coming soon",
+                documentation:txtx_addon_kit::indoc! {r#"The `connect` wallet will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                This allows a Runbook operator to sign the transaction with the browser wallet of their choice."#},
                 inputs: [
                     expected_address: {
-                        documentation: "Coming soon",
+                        documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this wallet.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true
-                    },
-                    expected_public_key: {
-                        documentation: "Coming soon",
-                        typing: Type::string(),
-                        optional: true,
                         interpolable: true
                     }
                 ],
                 outputs: [
                     public_key: {
-                        documentation: "Coming soon",
+                        documentation: "The public key of the connected wallet.",
                         typing: Type::array(Type::buffer())
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                // Coming soon
+                wallet "alice" "stacks::connect" {
+                    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+                }
                 "#},
             }
         };

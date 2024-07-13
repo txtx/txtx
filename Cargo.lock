@@ -4758,6 +4758,7 @@ dependencies = [
  "serde_json",
  "serde_yml",
  "sha2 0.10.8",
+ "test-case",
  "tokio",
  "tokio-tungstenite",
  "toml 0.8.12",
