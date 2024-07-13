@@ -144,6 +144,11 @@ pub fn read_runbook_from_location(
     addons_ctx.register(Box::new(StdAddon::new()), false);
     addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
     let runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
+    let runbook_id = RunbookId {
+        org: None,
+        project: None,
+        name: runbook_name.to_string(),
+    };
     Ok((
         runbook_name,
         Runbook::new(runbook_id, description.clone()),
