@@ -16,38 +16,34 @@ pub fn run_constructs_dependencies_indexing(
     ),
     Vec<Diagnostic>,
 > {
-    let mut runbook_execution_context = runbook.execution_context.clone();
-    runbook
-        .resolution_context
-        .seed_environment_variables(runtime_ctx);
+    let environment_variables = &runtime_ctx.get_active_environment_variables();
+    runbook.index_environment_variables(environment_variables);
 
     let mut constructs_edges = vec![];
     let packages_edges = vec![];
     let mut diags = vec![];
 
-    let packages = runbook.resolution_context.packages.clone();
+    let packages = runbook.workspace_context.packages.clone();
 
     for (package_did, package) in packages.iter() {
         for construct_did in package.imports_dids.iter() {
-            let construct = runbook_execution_context
+            let construct = runbook
+                .execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for _dep in construct.collect_dependencies().iter() {} // todo
         }
         for construct_did in package.variables_dids.iter() {
-            let construct = runbook_execution_context
+            let construct = runbook
+                .execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
-                    .resolution_context
-                    .try_resolve_construct_reference_in_expression(
-                        package_did,
-                        dep,
-                        &runbook_execution_context,
-                    );
+                    .workspace_context
+                    .try_resolve_construct_reference_in_expression(package_did, dep);
                 if let Ok(Some((resolved_construct_did, _, _))) = result {
                     constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
@@ -60,18 +56,15 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         for construct_did in package.modules_dids.iter() {
-            let construct = runbook_execution_context
+            let construct = runbook
+                .execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
-                    .resolution_context
-                    .try_resolve_construct_reference_in_expression(
-                        package_did,
-                        dep,
-                        &runbook_execution_context,
-                    );
+                    .workspace_context
+                    .try_resolve_construct_reference_in_expression(package_did, dep);
                 if let Ok(Some((resolved_construct_did, _, _))) = result {
                     constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
@@ -84,18 +77,15 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         for construct_did in package.outputs_dids.iter() {
-            let construct = runbook_execution_context
+            let construct = runbook
+                .execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
-                    .resolution_context
-                    .try_resolve_construct_reference_in_expression(
-                        package_did,
-                        dep,
-                        &runbook_execution_context,
-                    );
+                    .workspace_context
+                    .try_resolve_construct_reference_in_expression(package_did, dep);
                 if let Ok(Some((resolved_construct_did, _, _))) = result {
                     constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
@@ -110,20 +100,18 @@ pub fn run_constructs_dependencies_indexing(
         let mut wallets = VecDeque::new();
         let mut instantiated_wallets = HashSet::new();
         for construct_did in package.addons_dids.iter() {
-            let command_instance = runbook_execution_context
+            let command_instance = runbook
+                .execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for (_input, dep) in command_instance.collect_dependencies().iter() {
                 let result = runbook
-                    .resolution_context
-                    .try_resolve_construct_reference_in_expression(
-                        package_did,
-                        dep,
-                        &runbook_execution_context,
-                    );
+                    .workspace_context
+                    .try_resolve_construct_reference_in_expression(package_did, dep);
                 if let Ok(Some((resolved_construct_did, _, _))) = result {
-                    if let Some(_) = runbook_execution_context
+                    if let Some(_) = runbook
+                        .execution_context
                         .signing_commands_instances
                         .get(&resolved_construct_did)
                     {
@@ -142,23 +130,21 @@ pub fn run_constructs_dependencies_indexing(
         }
         // todo: should we constrain to wallets depending on wallets?
         for construct_did in package.signing_commands_dids.iter() {
-            let wallet_instance = runbook_execution_context
+            let wallet_instance = runbook
+                .execution_context
                 .signing_commands_instances
                 .get(construct_did)
                 .unwrap();
             for (_input, dep) in wallet_instance.collect_dependencies().iter() {
                 let result = runbook
-                    .resolution_context
-                    .try_resolve_construct_reference_in_expression(
-                        package_did,
-                        dep,
-                        &runbook_execution_context,
-                    );
+                    .workspace_context
+                    .try_resolve_construct_reference_in_expression(package_did, dep);
                 if let Ok(Some((resolved_construct_did, _, _))) = result {
                     if !instantiated_wallets.contains(&resolved_construct_did) {
                         wallets.push_front((resolved_construct_did.clone(), false))
                     }
-                    runbook_execution_context
+                    runbook
+                        .execution_context
                         .signing_commands_state
                         .as_mut()
                         .unwrap()
@@ -213,7 +199,8 @@ pub fn run_constructs_dependencies_indexing(
             .instantiated_signing_commands
             .iter()
         {
-            runbook_execution_context
+            runbook
+                .execution_context
                 .order_for_signing_commands_initialization
                 .push(construct_did.clone());
 
@@ -236,7 +223,8 @@ pub fn run_constructs_dependencies_indexing(
                         .expect("construct_did not indexed in graph");
                     dependencies.push(dependent_construct_did.clone());
                 }
-                runbook_execution_context
+                runbook
+                    .execution_context
                     .signing_commands_dependencies
                     .insert(construct_did.clone(), dependencies);
             }
@@ -248,12 +236,13 @@ pub fn run_constructs_dependencies_indexing(
                 .constructs_dag
                 .node_weight(node)
                 .expect("construct_did not indexed in graph");
-            runbook_execution_context
+            runbook
+                .execution_context
                 .order_for_commands_execution
                 .push(construct_did.clone());
         }
 
-        for (construct_did, _) in runbook_execution_context.commands_instances.iter() {
+        for (construct_did, _) in runbook.execution_context.commands_instances.iter() {
             let mut dependencies = vec![];
             let node_index = runbook
                 .resolution_context
@@ -272,12 +261,11 @@ pub fn run_constructs_dependencies_indexing(
                     .expect("construct_did not indexed in graph");
                 dependencies.push(dependent_construct_did.clone());
             }
-            runbook_execution_context
+            runbook
+                .execution_context
                 .commands_dependencies
                 .insert(construct_did.clone(), dependencies);
         }
-
-        runbook.execution_context = runbook_execution_context;
         return Ok((constructs_edges, packages_edges));
     }
 

@@ -1,4 +1,5 @@
-use crate::types::{RunbookExecutionContext, RunbookResolutionContext, RuntimeContext};
+use crate::runbook::RunbookWorkspaceContext;
+use crate::types::{RunbookExecutionContext, RuntimeContext};
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
@@ -32,7 +33,7 @@ use txtx_addon_kit::{
 // Instead of activating all the wallets detected in a graph, we should instead traverse the graph and collecting the wallets
 // being used.
 pub async fn run_wallets_evaluation(
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
@@ -42,7 +43,7 @@ pub async fn run_wallets_evaluation(
 ) -> EvaluationPassResult {
     let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
     let _ = run_commands_updating_defaults(
-        runbook_resolution_context,
+        runbook_workspace_context,
         runbook_execution_context,
         runtime_ctx,
         progress_tx,
@@ -86,12 +87,8 @@ pub async fn run_wallets_evaluation(
                     .unwrap();
 
                 for (_input, expr) in references_expressions.into_iter() {
-                    let res = runbook_resolution_context
-                        .try_resolve_construct_reference_in_expression(
-                            &package_id,
-                            &expr,
-                            &runbook_execution_context,
-                        )
+                    let res = runbook_workspace_context
+                        .try_resolve_construct_reference_in_expression(&package_id, &expr)
                         .unwrap();
 
                     if let Some((dependency, _, _)) = res {
@@ -132,7 +129,7 @@ pub async fn run_wallets_evaluation(
                     &cached_dependency_execution_results,
                     &input_evaluation_results,
                     &package_id,
-                    &runbook_resolution_context,
+                    &runbook_workspace_context,
                     &runbook_execution_context,
                     runtime_ctx,
                 );
@@ -243,13 +240,13 @@ pub async fn run_wallets_evaluation(
 }
 
 pub async fn run_commands_updating_defaults(
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Update environment variables
-    let environments_variables = runbook_resolution_context
+    let environments_variables = runbook_workspace_context
         .environment_variables_values
         .clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -290,11 +287,10 @@ pub async fn run_commands_updating_defaults(
                 .unwrap();
 
             for (_input, expr) in references_expressions.into_iter() {
-                let res = runbook_resolution_context
+                let res = runbook_workspace_context
                     .try_resolve_construct_reference_in_expression(
                         &command_instance.package_id,
                         &expr,
-                        &runbook_execution_context,
                     )
                     .unwrap();
 
@@ -322,7 +318,7 @@ pub async fn run_commands_updating_defaults(
                 &input_evaluation_results,
                 &None,
                 &package_id,
-                &runbook_resolution_context,
+                &runbook_workspace_context,
                 &runbook_execution_context,
                 runtime_ctx,
             );
@@ -457,7 +453,7 @@ impl Display for EvaluationPassResult {
 // Before evaluating the executability, we first check if they depend on a tainted node.
 pub async fn run_constructs_evaluation(
     background_tasks_uuid: &Uuid,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
@@ -469,7 +465,7 @@ pub async fn run_constructs_evaluation(
 
     let mut unexecutable_nodes: HashSet<ConstructDid> = HashSet::new();
 
-    let environments_variables = runbook_resolution_context
+    let environments_variables = runbook_workspace_context
         .environment_variables_values
         .clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
@@ -567,12 +563,8 @@ pub async fn run_constructs_evaluation(
             .unwrap();
 
         for (_input, expr) in references_expressions.into_iter() {
-            let res = runbook_resolution_context
-                .try_resolve_construct_reference_in_expression(
-                    &package_id,
-                    &expr,
-                    &runbook_execution_context,
-                )
+            let res = runbook_workspace_context
+                .try_resolve_construct_reference_in_expression(&package_id, &expr)
                 .unwrap();
 
             if let Some((dependency, _, _)) = res {
@@ -599,7 +591,7 @@ pub async fn run_constructs_evaluation(
             &input_evaluation_results,
             &action_item_responses.get(&construct_did),
             &package_id,
-            runbook_resolution_context,
+            runbook_workspace_context,
             runbook_execution_context,
             runtime_ctx,
         );
@@ -867,7 +859,7 @@ pub fn eval_expression(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     package_id: &PackageId,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
@@ -899,7 +891,7 @@ pub fn eval_expression(
                     entry_expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 )? {
@@ -925,7 +917,7 @@ pub fn eval_expression(
                             k_expr,
                             dependencies_execution_results,
                             package_id,
-                            runbook_resolution_context,
+                            runbook_workspace_context,
                             runbook_execution_context,
                             runtime_ctx,
                         )? {
@@ -956,7 +948,7 @@ pub fn eval_expression(
                     v.expr(),
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 )? {
@@ -983,7 +975,7 @@ pub fn eval_expression(
                             &interpolation.expr,
                             dependencies_execution_results,
                             package_id,
-                            runbook_resolution_context,
+                            runbook_workspace_context,
                             runbook_execution_context,
                             runtime_ctx,
                         )? {
@@ -1030,7 +1022,7 @@ pub fn eval_expression(
                     expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 )? {
@@ -1050,12 +1042,8 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components, mut subpath))) = runbook_resolution_context
-                .try_resolve_construct_reference_in_expression(
-                    package_id,
-                    expr,
-                    runbook_execution_context,
-                )
+            let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
+                .try_resolve_construct_reference_in_expression(package_id, expr)
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
@@ -1098,7 +1086,7 @@ pub fn eval_expression(
                 &unary_op.expr,
                 dependencies_execution_results,
                 package_id,
-                runbook_resolution_context,
+                runbook_workspace_context,
                 runbook_execution_context,
                 runtime_ctx,
             )?;
@@ -1114,7 +1102,7 @@ pub fn eval_expression(
                 &binary_op.lhs_expr,
                 dependencies_execution_results,
                 package_id,
-                runbook_resolution_context,
+                runbook_workspace_context,
                 runbook_execution_context,
                 runtime_ctx,
             )? {
@@ -1130,7 +1118,7 @@ pub fn eval_expression(
                 &binary_op.rhs_expr,
                 dependencies_execution_results,
                 package_id,
-                runbook_resolution_context,
+                runbook_workspace_context,
                 runbook_execution_context,
                 runtime_ctx,
             )? {
@@ -1238,7 +1226,7 @@ pub fn perform_inputs_evaluation(
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     action_item_response: &Option<&Vec<ActionItemResponse>>,
     package_id: &PackageId,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
@@ -1311,7 +1299,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {
@@ -1367,7 +1355,7 @@ pub fn perform_inputs_evaluation(
                 &expr,
                 dependencies_execution_results,
                 package_id,
-                runbook_resolution_context,
+                runbook_workspace_context,
                 runbook_execution_context,
                 runtime_ctx,
             ) {
@@ -1411,7 +1399,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {
@@ -1448,7 +1436,7 @@ pub fn perform_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {
@@ -1491,7 +1479,7 @@ pub fn perform_wallet_inputs_evaluation(
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     package_id: &PackageId,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
@@ -1534,7 +1522,7 @@ pub fn perform_wallet_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {
@@ -1590,7 +1578,7 @@ pub fn perform_wallet_inputs_evaluation(
                 &expr,
                 dependencies_execution_results,
                 package_id,
-                runbook_resolution_context,
+                runbook_workspace_context,
                 runbook_execution_context,
                 runtime_ctx,
             ) {
@@ -1624,12 +1612,8 @@ pub fn perform_wallet_inputs_evaluation(
                     };
                     let mut references = vec![];
                     for expr in exprs.iter() {
-                        let result = runbook_resolution_context
-                            .try_resolve_construct_reference_in_expression(
-                                package_id,
-                                &expr,
-                                runbook_execution_context,
-                            );
+                        let result = runbook_workspace_context
+                            .try_resolve_construct_reference_in_expression(package_id, &expr);
                         if let Ok(Some((construct_did, _, _))) = result {
                             references.push(Value::string(construct_did.value().to_string()));
                         }
@@ -1651,7 +1635,7 @@ pub fn perform_wallet_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {
@@ -1688,7 +1672,7 @@ pub fn perform_wallet_inputs_evaluation(
                     &expr,
                     dependencies_execution_results,
                     package_id,
-                    runbook_resolution_context,
+                    runbook_workspace_context,
                     runbook_execution_context,
                     runtime_ctx,
                 ) {

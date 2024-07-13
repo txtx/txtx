@@ -48,6 +48,7 @@ use kit::types::wallets::WalletInstance;
 use kit::types::ConstructDid;
 use kit::types::PackageId;
 use kit::uuid::Uuid;
+use runbook::RunbookWorkspaceContext;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::hcl::structure::Block as CodeBlock;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -60,7 +61,6 @@ use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::PackageDid;
 use txtx_addon_kit::AddonContext;
 use types::RunbookExecutionContext;
-use types::RunbookResolutionContext;
 use types::RunbookSources;
 use types::RuntimeContext;
 use visitor::run_constructs_dependencies_indexing;
@@ -186,10 +186,10 @@ pub async fn start_unsupervised_runbook_runloop(
     let mut action_item_requests = BTreeMap::new();
     let action_item_responses = BTreeMap::new();
     let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-    let runbook_resolution_context = runbook.resolution_context.clone();
+    let runbook_workspace_context = runbook.workspace_context.clone();
 
     let pass_result = run_wallets_evaluation(
-        &runbook_resolution_context,
+        &runbook_workspace_context,
         &mut runbook.execution_context,
         runtime_context,
         &execution_context,
@@ -220,7 +220,7 @@ pub async fn start_unsupervised_runbook_runloop(
     loop {
         let mut pass_results = run_constructs_evaluation(
             &uuid,
-            &runbook_resolution_context,
+            &runbook_workspace_context,
             &mut runbook.execution_context,
             runtime_context,
             &execution_context,
@@ -303,7 +303,7 @@ pub async fn start_supervised_runbook_runloop(
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
-    let runbook_resolution_context = runbook.resolution_context.clone();
+    let runbook_workspace_context = runbook.workspace_context.clone();
 
     let mut runbook_initialized = false;
     let execution_context = CommandExecutionContext {
@@ -337,7 +337,7 @@ pub async fn start_supervised_runbook_runloop(
             let genesis_events = build_genesis_panel(
                 &environments,
                 &runtime_context.selected_env.clone(),
-                &runbook_resolution_context,
+                &runbook_workspace_context,
                 &mut runbook.execution_context,
                 runtime_context,
                 &execution_context,
@@ -364,7 +364,7 @@ pub async fn start_supervised_runbook_runloop(
         if action_item_id == SET_ENV_ACTION.id {
             reset_runbook_execution(
                 &payload,
-                &runbook_resolution_context,
+                &runbook_workspace_context,
                 &mut runbook.execution_context,
                 runtime_context,
                 &block_tx,
@@ -445,7 +445,7 @@ pub async fn start_supervised_runbook_runloop(
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
-                    &runbook_resolution_context,
+                    &runbook_workspace_context,
                     &mut runbook.execution_context,
                     runtime_context,
                     &execution_context,
@@ -548,7 +548,7 @@ pub async fn start_supervised_runbook_runloop(
                 map.insert(wallet_construct_did, scoped_requests);
 
                 let pass_result = run_wallets_evaluation(
-                    &runbook_resolution_context,
+                    &runbook_workspace_context,
                     &mut runbook.execution_context,
                     runtime_context,
                     &execution_context,
@@ -586,7 +586,7 @@ pub async fn start_supervised_runbook_runloop(
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
-                    &runbook_resolution_context,
+                    &runbook_workspace_context,
                     &mut runbook.execution_context,
                     runtime_context,
                     &execution_context,
@@ -660,7 +660,7 @@ pub fn retrieve_related_action_items_requests<'a>(
 
 pub async fn reset_runbook_execution(
     payload: &ActionItemResponseType,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_context: &mut RuntimeContext,
     block_tx: &Sender<BlockEvent>,
@@ -693,7 +693,7 @@ pub async fn reset_runbook_execution(
     let genesis_events = build_genesis_panel(
         &environments,
         &Some(environment_key.clone()),
-        runbook_resolution_context,
+        runbook_workspace_context,
         runbook_execution_context,
         runtime_context,
         &execution_context,
@@ -711,7 +711,7 @@ pub async fn reset_runbook_execution(
 pub async fn build_genesis_panel(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     selected_env: &Option<String>,
-    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
@@ -759,7 +759,7 @@ pub async fn build_genesis_panel(
     }
 
     let mut pass_result = run_wallets_evaluation(
-        runbook_resolution_context,
+        runbook_workspace_context,
         runbook_execution_context,
         runtime_context,
         &execution_context,

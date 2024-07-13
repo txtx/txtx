@@ -1,8 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::types::{
-    PreConstructData, Runbook, RunbookExecutionContext, RunbookSources, RuntimeContext,
-};
+use crate::types::{PreConstructData, Runbook, RunbookSources, RuntimeContext};
 use kit::types::PackageId;
 use txtx_addon_kit::{
     hcl::structure::Block,
@@ -23,7 +21,6 @@ pub fn run_constructs_indexing(
     runtime_context: &mut RuntimeContext,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut has_errored = false;
-    let mut execution_context = RunbookExecutionContext::new();
     let mut sources = VecDeque::new();
     // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
     let mut files_visited = HashSet::new();
@@ -44,9 +41,7 @@ pub fn run_constructs_indexing(
             package_location: package_location.clone(),
             package_name: package_name.clone(),
         };
-        let _ = runbook
-            .resolution_context
-            .find_or_create_package_did(&package_id);
+        let _ = runbook.index_package(&package_id);
 
         let mut blocks = content
             .into_blocks()
@@ -117,12 +112,11 @@ pub fn run_constructs_indexing(
                         }
                     }
 
-                    let _ = runbook.resolution_context.index_construct(
+                    let _ = runbook.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Import(block.clone()),
                         &package_id,
-                        &mut execution_context,
                     );
                 }
                 "input" => {
@@ -139,12 +133,11 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.resolution_context.index_construct(
+                    let _ = runbook.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Input(block.clone()),
                         &package_id,
-                        &mut execution_context,
                     );
                 }
                 "module" => {
@@ -161,12 +154,11 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.resolution_context.index_construct(
+                    let _ = runbook.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Module(block.clone()),
                         &package_id,
-                        &mut execution_context,
                     );
                 }
                 "output" => {
@@ -183,12 +175,11 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.resolution_context.index_construct(
+                    let _ = runbook.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Output(block.clone()),
                         &package_id,
-                        &mut execution_context,
                     );
                 }
                 "action" => {
@@ -221,12 +212,11 @@ pub fn run_constructs_indexing(
                         &location,
                     ) {
                         Ok(command_instance) => {
-                            let _ = runbook.resolution_context.index_construct(
+                            let _ = runbook.index_construct(
                                 command_name.to_string(),
                                 location.clone(),
                                 PreConstructData::Action(command_instance),
                                 &package_id,
-                                &mut execution_context,
                             );
                         }
                         Err(diagnostic) => {
@@ -259,12 +249,11 @@ pub fn run_constructs_indexing(
                         &location,
                     ) {
                         Ok(wallet_instance) => {
-                            let _ = runbook.resolution_context.index_construct(
+                            let _ = runbook.index_construct(
                                 wallet_name.to_string(),
                                 location.clone(),
                                 PreConstructData::Wallet(wallet_instance),
                                 &package_id,
-                                &mut execution_context,
                             );
                         }
                         Err(diagnostic) => {
@@ -289,6 +278,5 @@ pub fn run_constructs_indexing(
             }
         }
     }
-    runbook.execution_context = execution_context;
     Ok(has_errored)
 }

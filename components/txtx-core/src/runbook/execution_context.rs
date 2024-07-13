@@ -1,6 +1,3 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-
 use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
@@ -9,6 +6,8 @@ use kit::types::types::Value;
 use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructDid;
 use serde_json::json;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
 use txtx_addon_kit::types::wallets::WalletInstance;
