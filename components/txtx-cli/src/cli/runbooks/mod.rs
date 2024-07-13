@@ -269,7 +269,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     for input in cmd.inputs.iter() {
         let (input_name, input_value) = input.split_once("=").unwrap();
-        for (construct_uuid, command_instance) in
+        for (construct_did, command_instance) in
             runbook.execution_context.commands_instances.iter_mut()
         {
             if command_instance.specification.matcher.eq("input")
@@ -287,7 +287,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     runbook
                         .execution_context
                         .commands_inputs_evaluations_results
-                        .insert(construct_uuid.clone(), result);
+                        .insert(construct_did.clone(), result);
                 } else {
                     let value = match input_value.parse::<u64>() {
                         Ok(uint) => Value::uint(uint),
@@ -297,7 +297,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     runbook
                         .execution_context
                         .commands_inputs_evaluations_results
-                        .insert(construct_uuid.clone(), result);
+                        .insert(construct_did.clone(), result);
                 }
             }
         }
@@ -475,7 +475,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         .iter_mut()
                         .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
                         .for_each(|(_, b)| {
-                            b.update_progress_bar_status(&update.construct_uuid, &update.new_status)
+                            b.update_progress_bar_status(&update.construct_did, &update.new_status)
                         }),
                     BlockEvent::UpdateProgressBarVisibility(update) => block_store
                         .iter_mut()

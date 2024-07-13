@@ -7,7 +7,7 @@ pub extern crate txtx_addon_kit as kit;
 mod constants;
 pub mod errors;
 pub mod eval;
-pub mod snapshot;
+// pub mod snapshot;
 pub mod std;
 pub mod types;
 pub mod visitor;
