@@ -1,5 +1,4 @@
 use clarity::util::sleep_ms;
-use std::collections::VecDeque;
 use std::fmt::Write;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
@@ -150,7 +149,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let confirmations_required = args
             .get_expected_uint("confirmations")
-            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
+            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as u64;
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
@@ -261,13 +260,13 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut block_height = 0;
-            let mut confirmed_blocks_ids = VecDeque::new();
+            let mut included_in_block = u64::MAX - confirmations_required;
             let backoff_ms = 500;
 
             loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                if confirmed_blocks_ids.len() >= confirmations_required {
+                if block_height >= (included_in_block + confirmations_required) {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
                         "Complete",
@@ -335,12 +334,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 let _ =
                     progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                if !confirmed_blocks_ids.is_empty() {
-                    confirmed_blocks_ids.push_back(block_height);
-                    sleep_ms(backoff_ms);
-                    continue;
-                }
-
                 let tx_details_result = client.get_tx(&txid).await.map_err(|e| {
                     Diagnostic::error_from_string(format!(
                         "Failed to broadcast stacks transaction: {e}"
@@ -357,17 +350,20 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 match tx_details.tx_status {
                     TransactionStatus::Success => {
-                        status_update.update_status(&ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Yellow,
-                            &format!("Pending {}", progress_symbol[progress]),
-                            &wrap_msg("Transaction included in block"),
-                        ));
-                        let _ = progress_tx
-                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                        result.outputs.insert(
-                            "result".into(),
-                            Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
-                        );
+                        if included_in_block != tx_details.block_height {
+                            status_update.update_status(&ProgressBarStatus::new_msg(
+                                ProgressBarStatusColor::Yellow,
+                                &format!("Pending {}", progress_symbol[progress]),
+                                &wrap_msg("Transaction included in block"),
+                            ));
+                            let _ = progress_tx
+                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                            result.outputs.insert(
+                                "result".into(),
+                                Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
+                            );
+                            included_in_block = tx_details.block_height;
+                        }
                     }
                     TransactionStatus::AbortByResponse => {
                         let diag = Diagnostic::error_from_string(format!(
@@ -398,7 +394,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         return Err(diag);
                     }
                 };
-                confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
 
             Ok(result)
