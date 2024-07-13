@@ -1,6 +1,6 @@
+use kit::sha2::Sha256 as LibSha256;
 use kit::types::types::{TypeImplementation, TypeSpecification};
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
-use sha2::Sha256 as LibSha256;
 
 use txtx_addon_kit::{
     define_function, indoc,

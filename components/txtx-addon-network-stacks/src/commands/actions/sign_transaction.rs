@@ -155,7 +155,7 @@ impl CommandImplementation for SignStacksTransaction {
             let mut actions = Actions::none();
             let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
             if let Some(_) =
-                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+                wallet_state.get_scoped_value(&uuid.to_string(), SIGNED_TRANSACTION_BYTES)
             {
                 return Ok((wallets, wallet_state, Actions::none()));
             }
@@ -193,7 +193,7 @@ impl CommandImplementation for SignStacksTransaction {
                 actions.push_panel("Transaction Signing", "");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(uuid.clone()),
                         "".into(),
                         Some(format!("Check account nonce")),
                         ActionItemStatus::Todo,
@@ -204,7 +204,7 @@ impl CommandImplementation for SignStacksTransaction {
                         ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(uuid.clone()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),
                         ActionItemStatus::Todo,

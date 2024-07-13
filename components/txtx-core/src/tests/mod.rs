@@ -436,7 +436,8 @@ fn test_wallet_runbook_no_env() {
                             .action_type
                             .as_provide_signed_tx()
                             .unwrap()
-                            .signer_uuid,
+                            .signer_uuid
+                            .clone(),
                     },
                 ),
             },
@@ -664,7 +665,8 @@ fn test_multisig_runbook_no_env() {
                         .action_type
                         .as_provide_signed_tx()
                         .unwrap()
-                        .signer_uuid,
+                        .signer_uuid
+                        .clone(),
                 },
             ),
         },
@@ -686,7 +688,8 @@ fn test_multisig_runbook_no_env() {
                         .action_type
                         .as_provide_signed_tx()
                         .unwrap()
-                        .signer_uuid,
+                        .signer_uuid
+                        .clone(),
                 },
             ),
         },

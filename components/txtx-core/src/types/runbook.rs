@@ -12,7 +12,9 @@ use kit::types::frontend::ActionItemStatus;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::types::Value;
 use kit::types::wallets::WalletsState;
+use kit::types::ConstructId;
 use kit::types::ConstructUuid;
+use kit::types::Did;
 use kit::types::PackageId;
 use kit::types::PackageUuid;
 use kit::types::RunbookId;
@@ -25,7 +27,6 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::uuid::Uuid;
 
 pub struct RunbookSources {
     /// Map of files required to construct the runbook
@@ -41,24 +42,6 @@ impl RunbookSources {
 
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
         self.tree.insert(location, (name, content));
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ConstructId {
-    /// Id of the Package
-    pub package_id: PackageId,
-    /// Location of the file enclosing the construct
-    pub construct_location: FileLocation,
-    /// Type of construct (e.g. `input` in `input.value``)
-    pub construct_type: String,
-    /// Name of construct (e.g. `value` in `input.value``)
-    pub construct_name: String,
-}
-
-impl ConstructId {
-    pub fn uuid(&self) -> ConstructUuid {
-        ConstructUuid(Uuid::new_v4())
     }
 }
 
@@ -95,11 +78,10 @@ pub struct RunbookResolutionContext {
 impl RunbookResolutionContext {
     pub fn new() -> Self {
         // Initialize DAGs
-        let uuid = Uuid::new_v4();
         let mut packages_dag = Dag::new();
-        let _ = packages_dag.add_node(PackageUuid(uuid.clone()));
+        let _ = packages_dag.add_node(PackageUuid(Did::zero()));
         let mut constructs_dag = Dag::new();
-        let graph_root = constructs_dag.add_node(ConstructUuid(uuid.clone()));
+        let graph_root = constructs_dag.add_node(ConstructUuid(Did::zero()));
 
         Self {
             packages: HashMap::new(),
@@ -229,7 +211,6 @@ impl RunbookResolutionContext {
                 execution_context
                     .signing_commands_instances
                     .insert(construct_uuid.clone(), wallet_instance.clone());
-
             }
             PreConstructData::Root => unreachable!(),
         }
@@ -531,7 +512,7 @@ impl RunbookExecutionContext {
                     .entry(command_instance.get_group())
                     .or_insert_with(Vec::new)
                     .push(ActionItemRequest::new(
-                        &Some(construct_uuid.value()),
+                        &Some(construct_uuid.clone()),
                         &command_instance.name,
                         None,
                         ActionItemStatus::Todo,

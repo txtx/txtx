@@ -41,8 +41,8 @@ pub async fn run_wallets_evaluation(
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
-    action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
+    action_item_requests: &mut BTreeMap<ConstructUuid, Vec<&mut ActionItemRequest>>,
+    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
     let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
@@ -173,8 +173,8 @@ pub async fn run_wallets_evaluation(
                 wallets_state,
                 wallets_instances,
                 &addon_defaults,
-                &action_item_requests.get(&construct_uuid.value()),
-                &action_item_responses.get(&construct_uuid.value()),
+                &action_item_requests.get(&construct_uuid),
+                &action_item_responses.get(&construct_uuid),
                 execution_context,
                 instantiated,
                 instantiated,
@@ -193,7 +193,7 @@ pub async fn run_wallets_evaluation(
             }
             Err((wallets_state, diag)) => {
                 runbook_execution_context.signing_commands_state = Some(wallets_state);
-                if let Some(requests) = action_item_requests.get_mut(&construct_uuid.value()) {
+                if let Some(requests) = action_item_requests.get_mut(&construct_uuid) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
                         let update = ActionItemRequestUpdate::from_id(&item.id)
@@ -459,8 +459,8 @@ pub async fn run_constructs_evaluation(
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
-    action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
+    action_item_requests: &mut BTreeMap<ConstructUuid, Vec<&mut ActionItemRequest>>,
+    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
     let mut pass_result = EvaluationPassResult::new(background_tasks_uuid);
@@ -519,7 +519,10 @@ pub async fn run_constructs_evaluation(
         };
 
         if let Some(_) = unexecutable_nodes.get(&construct_uuid) {
-            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_uuid) {
+            if let Some(deps) = runbook_execution_context
+                .commands_dependencies
+                .get(&construct_uuid)
+            {
                 for dep in deps.iter() {
                     unexecutable_nodes.insert(dep.clone());
                 }
@@ -592,7 +595,7 @@ pub async fn run_constructs_evaluation(
             command_instance,
             &cached_dependency_execution_results,
             &input_evaluation_results,
-            &action_item_responses.get(&construct_uuid.value()),
+            &action_item_responses.get(&construct_uuid),
             &package_id,
             runbook_resolution_context,
             runbook_execution_context,
@@ -631,7 +634,7 @@ pub async fn run_constructs_evaluation(
             let wallets = update_wallet_instances_from_action_response(
                 wallets,
                 &construct_uuid,
-                &action_item_responses.get(&construct_uuid.value()),
+                &action_item_responses.get(&construct_uuid),
             );
             let res = command_instance
                 .check_signed_executability(
@@ -640,8 +643,8 @@ pub async fn run_constructs_evaluation(
                     wallets,
                     addon_defaults.clone(),
                     &mut runbook_execution_context.signing_commands_instances,
-                    &action_item_responses.get(&construct_uuid.value()),
-                    &action_item_requests.get(&construct_uuid.value()),
+                    &action_item_responses.get(&construct_uuid),
+                    &action_item_requests.get(&construct_uuid),
                     execution_context,
                 )
                 .await;
@@ -677,9 +680,9 @@ pub async fn run_constructs_evaluation(
 
             let mut empty_vec = vec![];
             let action_items_requests = action_item_requests
-                .get_mut(&construct_uuid.value())
+                .get_mut(&construct_uuid)
                 .unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_uuid.value());
+            let action_items_response = action_item_responses.get(&construct_uuid);
 
             let execution_result = command_instance
                 .perform_signed_execution(
@@ -731,7 +734,7 @@ pub async fn run_constructs_evaluation(
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
                 &mut runbook_execution_context.signing_commands_instances,
-                &action_item_responses.get(&construct_uuid.value()),
+                &action_item_responses.get(&construct_uuid),
                 execution_context,
             ) {
                 Ok(mut new_actions) => {
@@ -761,9 +764,9 @@ pub async fn run_constructs_evaluation(
 
             let mut empty_vec = vec![];
             let action_items_requests = action_item_requests
-                .get_mut(&construct_uuid.value())
+                .get_mut(&construct_uuid)
                 .unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_uuid.value());
+            let action_items_response = action_item_responses.get(&construct_uuid);
 
             let execution_result = {
                 command_instance
@@ -1188,8 +1191,7 @@ pub fn update_wallet_instances_from_action_response(
                  payload,
              }| match payload {
                 ActionItemResponseType::ProvideSignedTransaction(response) => {
-                    if let Some(mut wallet_state) =
-                        wallets.pop_wallet_state(&ConstructUuid(response.signer_uuid))
+                    if let Some(mut wallet_state) = wallets.pop_wallet_state(&response.signer_uuid)
                     {
                         wallet_state.insert_scoped_value(
                             &construct_uuid.value().to_string(),
@@ -1200,8 +1202,7 @@ pub fn update_wallet_instances_from_action_response(
                     }
                 }
                 ActionItemResponseType::ProvideSignedMessage(response) => {
-                    if let Some(mut wallet_state) =
-                        wallets.pop_wallet_state(&ConstructUuid(response.signer_uuid))
+                    if let Some(mut wallet_state) = wallets.pop_wallet_state(&response.signer_uuid)
                     {
                         wallet_state.insert_scoped_value(
                             &construct_uuid.value().to_string(),

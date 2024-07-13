@@ -31,7 +31,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructUuid, Did, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
@@ -145,7 +145,7 @@ impl WalletImplementation for StacksConnect {
             let modal =
                 BlockEvent::new_modal("Stacks Multisig Configuration assistant", "", vec![]);
             let mut open_modal_action = vec![ActionItemRequest::new(
-                &Some(root_uuid.value()),
+                &Some(root_uuid.clone()),
                 "Compute multisig address",
                 Some("Multisig addresses are computed by hashing the public keys of all participants.".into()),
                 ActionItemStatus::Todo,
@@ -293,7 +293,7 @@ impl WalletImplementation for StacksConnect {
                 }
             } else {
                 let validate_modal_action = ActionItemRequest::new(
-                    &Some(root_uuid.value()),
+                    &Some(root_uuid.clone()),
                     "CONFIRM",
                     None,
                     ActionItemStatus::Todo,
@@ -403,7 +403,7 @@ impl WalletImplementation for StacksConnect {
         {
             let modal = BlockEvent::new_modal("Stacks Multisig Signing Assistant", "", vec![]);
             let action = ActionItemRequest::new(
-                &Some(origin_uuid.value()),
+                &Some(origin_uuid.clone()),
                 "Sign Multisig Transaction",
                 Some("All parties of the multisig must sign the transaction.".into()),
                 ActionItemStatus::Todo,
@@ -474,7 +474,7 @@ impl WalletImplementation for StacksConnect {
             );
         } else {
             let validate_modal_action = ActionItemRequest::new(
-                &Some(origin_uuid.value()),
+                &Some(origin_uuid.clone()),
                 "CONFIRM",
                 None,
                 ActionItemStatus::Todo,
@@ -625,7 +625,7 @@ fn get_signers(
     let mut signers = Vec::new();
     for signer_uuid in signers_uuid.iter() {
         let uuid = signer_uuid.as_string().unwrap();
-        let uuid = ConstructUuid(Uuid::from_str(uuid).unwrap());
+        let uuid = ConstructUuid(Did::from_hex_string(uuid));
         let wallet_instance = wallets_instances.get(&uuid).unwrap().clone();
         signers.push((uuid, wallet_instance));
     }

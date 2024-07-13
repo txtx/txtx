@@ -1,7 +1,7 @@
-use std::collections::{HashSet, VecDeque};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use petgraph::algo::toposort;
+use std::collections::{HashSet, VecDeque};
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructUuid, PackageUuid};
 
 use crate::types::{Runbook, RuntimeContext};

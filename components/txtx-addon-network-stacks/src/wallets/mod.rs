@@ -51,12 +51,12 @@ pub async fn get_addition_actions_for_address(
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
-            &Some(wallet_uuid.value()),
+            &Some(wallet_uuid.clone()),
             &format!("Connect wallet {instance_name}"),
             None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                check_expectation_action_uuid: Some(wallet_uuid.value()),
+                check_expectation_action_uuid: Some(wallet_uuid.clone()),
                 message: DEFAULT_MESSAGE.to_string(),
                 network_id: network_id.into(),
                 namespace: "stacks".to_string(),
@@ -68,7 +68,7 @@ pub async fn get_addition_actions_for_address(
     if let Some(ref expected_address) = expected_address {
         if do_request_address_check {
             action_items.push(ActionItemRequest::new(
-                &Some(wallet_uuid.value()),
+                &Some(wallet_uuid.clone()),
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
@@ -95,7 +95,7 @@ pub async fn get_addition_actions_for_address(
                 ),
             };
             let check_balance = ActionItemRequest::new(
-                &Some(wallet_uuid.value()),
+                &Some(wallet_uuid.clone()),
                 "Check wallet balance",
                 None,
                 action_status,
@@ -110,7 +110,7 @@ pub async fn get_addition_actions_for_address(
     } else {
         if do_request_balance {
             let check_balance = ActionItemRequest::new(
-                &Some(wallet_uuid.value()),
+                &Some(wallet_uuid.clone()),
                 "Check wallet balance",
                 None,
                 ActionItemStatus::Todo,

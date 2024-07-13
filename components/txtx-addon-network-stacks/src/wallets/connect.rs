@@ -273,13 +273,13 @@ impl WalletImplementation for StacksConnect {
         };
 
         let request = ActionItemRequest::new(
-            &Some(uuid.value()),
+            &Some(uuid.clone()),
             title,
             description.clone(),
             status,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(uuid.value()),
-                signer_uuid: wallet_state.uuid,
+                check_expectation_action_uuid: Some(uuid.clone()),
+                signer_uuid: ConstructUuid(wallet_state.uuid.clone()),
                 payload: payload.clone(),
                 namespace: "stacks".to_string(),
                 network_id,

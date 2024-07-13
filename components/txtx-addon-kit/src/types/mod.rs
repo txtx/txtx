@@ -1,10 +1,9 @@
 use diagnostics::{Diagnostic, DiagnosticLevel};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
-use uuid::Uuid;
-use sha2::{Digest, Sha256};
 
 use crate::{helpers::fs::FileLocation, AddonDefaults};
 
@@ -23,6 +22,25 @@ mod tests;
 pub struct Did(pub [u8; 32]);
 
 impl Did {
+    pub fn from_components(comps: Vec<impl AsRef<[u8]>>) -> Self {
+        let mut hasher = Sha256::new();
+        for comp in comps {
+            hasher.update(comp);
+        }
+        let hash = hasher.finalize();
+        Did(hash.into())
+    }
+
+    pub fn from_hex_string(source_bytes_str: &str) -> Self {
+        let bytes = hex::decode(source_bytes_str).expect("invalid hex_string");
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(source_bytes: &Vec<u8>) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&source_bytes);
+        Did(bytes)
+    }
 
     pub fn zero() -> Self {
         Self([0u8; 32])
@@ -30,6 +48,16 @@ impl Did {
 
     pub fn to_string(&self) -> String {
         hex::encode(self.0)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+impl std::fmt::Display for Did {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -39,6 +67,14 @@ pub struct RunbookUuid(pub Did);
 impl RunbookUuid {
     pub fn value(&self) -> Did {
         self.0.clone()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 
@@ -54,16 +90,16 @@ pub struct RunbookId {
 
 impl RunbookId {
     pub fn did(&self) -> RunbookUuid {
-        let mut hasher = Sha256::new();
+        let mut comps = vec![];
         if let Some(ref org) = self.org {
-            hasher.update(org.as_bytes());
+            comps.push(org.as_bytes());
         }
         if let Some(ref project) = self.project {
-            hasher.update(project.as_bytes());
+            comps.push(project.as_bytes());
         }
-        hasher.update(self.name.as_bytes());
-        let hash = hasher.finalize();
-        RunbookUuid(Did(hash.into()))
+        comps.push(self.name.as_bytes());
+        let did = Did::from_components(comps);
+        RunbookUuid(did)
     }
 }
 
@@ -71,8 +107,12 @@ impl RunbookId {
 pub struct PackageUuid(pub Did);
 
 impl PackageUuid {
-    pub fn value(&self) -> Did {
-        self.0.clone()
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 
@@ -88,12 +128,12 @@ pub struct PackageId {
 
 impl PackageId {
     pub fn did(&self) -> PackageUuid {
-        let mut hasher = Sha256::new();
-        hasher.update(self.runbook_id.did().value().0);
-        hasher.update(self.package_location.to_string());
-        hasher.update(self.package_name.to_string());
-        let hash = hasher.finalize();
-        PackageUuid(Did(hash.into()))
+        let did = Did::from_components(vec![
+            self.runbook_id.did().as_bytes(),
+            self.package_location.to_string().as_bytes(),
+            self.package_name.to_string().as_bytes(),
+        ]);
+        PackageUuid(did)
     }
 }
 
@@ -103,6 +143,14 @@ pub struct ConstructUuid(pub Did);
 impl ConstructUuid {
     pub fn value(&self) -> Did {
         self.0.clone()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 
@@ -120,13 +168,13 @@ pub struct ConstructId {
 
 impl ConstructId {
     pub fn did(&self) -> ConstructUuid {
-        let mut hasher = Sha256::new();
-        hasher.update(self.package_id.did().value().0);
-        hasher.update(self.construct_location.to_string());
-        hasher.update(self.construct_type.to_string());
-        hasher.update(self.construct_name.to_string());
-        let hash = hasher.finalize();
-        ConstructUuid(Did(hash.into()))
+        let did = Did::from_components(vec![
+            self.package_id.did().as_bytes(),
+            self.construct_location.to_string().as_bytes(),
+            self.construct_type.to_string().as_bytes(),
+            self.construct_name.to_string().as_bytes(),
+        ]);
+        ConstructUuid(did)
     }
 }
 

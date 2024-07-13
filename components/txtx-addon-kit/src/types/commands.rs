@@ -21,14 +21,18 @@ use crate::{
 };
 
 use super::{
-    diagnostics::Diagnostic, frontend::{
+    diagnostics::Diagnostic,
+    frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
-    }, types::{ObjectProperty, Type, TypeSpecification, Value}, wallets::{
+    },
+    types::{ObjectProperty, Type, TypeSpecification, Value},
+    wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
-    }, ConstructUuid, Did, PackageId, PackageUuid, ValueStore
+    },
+    ConstructUuid, Did, PackageId, PackageUuid, ValueStore,
 };
 
 #[derive(Clone, Debug)]
@@ -90,7 +94,7 @@ impl Serialize for CommandInputsEvaluationResult {
 impl CommandInputsEvaluationResult {
     pub fn new(name: &str) -> Self {
         Self {
-            inputs: ValueStore::new(&format!("{name}_inputs"), &Uuid::new_v4()),
+            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()),
         }
     }
 

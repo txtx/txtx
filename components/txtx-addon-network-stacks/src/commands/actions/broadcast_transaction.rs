@@ -171,7 +171,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
-                &uuid.value(),
+                &uuid,
                 &ProgressBarStatus {
                     status_color: ProgressBarStatusColor::Yellow,
                     status: format!("Pending {}", progress_symbol[progress]),

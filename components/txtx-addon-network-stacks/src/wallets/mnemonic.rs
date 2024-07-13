@@ -11,8 +11,8 @@ use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
 use hmac::Hmac;
 use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
-use sha2::Sha512;
 use tiny_hderive::bip32::ExtendedPrivKey;
+use txtx_addon_kit::sha2::Sha512;
 use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,

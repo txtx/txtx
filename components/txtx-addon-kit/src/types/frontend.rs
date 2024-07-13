@@ -4,7 +4,7 @@ use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
-    ConstructUuid,
+    ConstructUuid, Did,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -124,7 +124,7 @@ impl Block {
 
     pub fn update_progress_bar_status(
         &mut self,
-        construct_uuid: &Uuid,
+        construct_uuid: &ConstructUuid,
         new_status: &ProgressBarStatus,
     ) {
         match self.panel.borrow_mut() {
@@ -167,7 +167,7 @@ pub struct ActionItemRequestUpdate {
 #[derive(Debug, Clone, Serialize)]
 pub enum ActionItemRequestUpdateIdentifier {
     Id(BlockId),
-    ConstructUuidWithKey((Uuid, String)),
+    ConstructUuidWithKey((ConstructUuid, String)),
 }
 
 impl ActionItemRequestUpdate {
@@ -181,7 +181,7 @@ impl ActionItemRequestUpdate {
     pub fn from_context(construct_uuid: &ConstructUuid, internal_key: &str) -> Self {
         ActionItemRequestUpdate {
             id: ActionItemRequestUpdateIdentifier::ConstructUuidWithKey((
-                construct_uuid.value(),
+                construct_uuid.clone(),
                 internal_key.to_string(),
             )),
             action_status: None,
@@ -417,12 +417,12 @@ impl ActionPanelData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConstructProgressBarStatuses {
-    pub construct_uuid: Uuid,
+    pub construct_uuid: ConstructUuid,
     pub statuses: Vec<ProgressBarStatus>,
 }
 
 impl ConstructProgressBarStatuses {
-    pub fn new(construct_uuid: &Uuid) -> Self {
+    pub fn new(construct_uuid: &ConstructUuid) -> Self {
         ConstructProgressBarStatuses {
             construct_uuid: construct_uuid.clone(),
             statuses: vec![],
@@ -481,14 +481,14 @@ impl ProgressBarStatusColor {
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatusUpdate {
     pub progress_bar_uuid: Uuid,
-    pub construct_uuid: Uuid,
+    pub construct_uuid: ConstructUuid,
     pub new_status: ProgressBarStatus,
 }
 
 impl ProgressBarStatusUpdate {
     pub fn new(
         progress_bar_uuid: &Uuid,
-        &construct_uuid: &Uuid,
+        construct_uuid: &ConstructUuid,
         new_status: &ProgressBarStatus,
     ) -> Self {
         ProgressBarStatusUpdate {
@@ -741,7 +741,7 @@ impl ActionSubGroup {
 #[serde(rename_all = "camelCase")]
 pub struct ActionItemRequest {
     pub id: BlockId,
-    pub construct_uuid: Option<Uuid>,
+    pub construct_uuid: Option<ConstructUuid>,
     pub index: u16,
     pub title: String,
     pub description: Option<String>,
@@ -752,7 +752,7 @@ pub struct ActionItemRequest {
 
 impl ActionItemRequest {
     pub fn new(
-        construct_uuid: &Option<Uuid>,
+        construct_uuid: &Option<ConstructUuid>,
         title: &str,
         description: Option<String>,
         action_status: ActionItemStatus,
@@ -765,7 +765,8 @@ impl ActionItemRequest {
             description.clone().unwrap_or("".into()),
             internal_key,
             construct_uuid
-                .and_then(|u| Some(u.to_string()))
+                .as_ref()
+                .and_then(|did| Some(did.to_string()))
                 .unwrap_or("".into()),
             action_type.get_block_id_string()
         );
@@ -1386,6 +1387,7 @@ impl ActionItemRequestType {
             ActionItemRequestType::ProvidePublicKey(val) => format!(
                 "ProvidePublicKey({}-{}-{})",
                 val.check_expectation_action_uuid
+                    .as_ref()
                     .and_then(|u| Some(u.to_string()))
                     .unwrap_or("None".to_string()),
                 val.namespace,
@@ -1395,6 +1397,7 @@ impl ActionItemRequestType {
                 format!(
                     "ProvideSignedTransaction({}-{}-{}-{})",
                     val.check_expectation_action_uuid
+                        .as_ref()
                         .and_then(|u| Some(u.to_string()))
                         .unwrap_or("None".to_string()),
                     val.signer_uuid.to_string(),
@@ -1405,6 +1408,7 @@ impl ActionItemRequestType {
             ActionItemRequestType::ProvideSignedMessage(val) => format!(
                 "ProvideSignedMessage({}-{}-{}-{})",
                 val.check_expectation_action_uuid
+                    .as_ref()
                     .and_then(|u| Some(u.to_string()))
                     .unwrap_or("None".to_string()),
                 val.signer_uuid.to_string(),
@@ -1617,7 +1621,7 @@ impl InputOption {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvidePublicKeyRequest {
-    pub check_expectation_action_uuid: Option<Uuid>,
+    pub check_expectation_action_uuid: Option<ConstructUuid>,
     pub message: String,
     pub namespace: String,
     pub network_id: String,
@@ -1626,8 +1630,8 @@ pub struct ProvidePublicKeyRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionRequest {
-    pub check_expectation_action_uuid: Option<Uuid>,
-    pub signer_uuid: Uuid,
+    pub check_expectation_action_uuid: Option<ConstructUuid>,
+    pub signer_uuid: ConstructUuid,
     pub payload: Value,
     pub namespace: String,
     pub network_id: String,
@@ -1636,8 +1640,8 @@ pub struct ProvideSignedTransactionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedMessageRequest {
-    pub check_expectation_action_uuid: Option<Uuid>,
-    pub signer_uuid: Uuid,
+    pub check_expectation_action_uuid: Option<ConstructUuid>,
+    pub signer_uuid: ConstructUuid,
     pub message: Value,
     pub namespace: String,
     pub network_id: String,
@@ -1697,14 +1701,14 @@ pub struct ProvidePublicKeyResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedMessageResponse {
     pub signed_message_bytes: String,
-    pub signer_uuid: Uuid,
+    pub signer_uuid: ConstructUuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: String,
-    pub signer_uuid: Uuid,
+    pub signer_uuid: ConstructUuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -44,6 +44,7 @@ use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::frontend::ValidateBlockData;
 use kit::types::wallets::WalletInstance;
+use kit::types::ConstructUuid;
 use kit::types::PackageId;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -439,7 +440,7 @@ pub async fn start_supervised_runbook_runloop(
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
-                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                let mut map: BTreeMap<ConstructUuid, _> = BTreeMap::new();
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
@@ -578,7 +579,7 @@ pub async fn start_supervised_runbook_runloop(
                 else {
                     continue;
                 };
-                let mut map: BTreeMap<Uuid, _> = BTreeMap::new();
+                let mut map: BTreeMap<ConstructUuid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_uuid, scoped_requests);
 
                 let mut pass_results = run_constructs_evaluation(
@@ -632,10 +633,10 @@ pub fn register_action_items_from_actions(
 pub fn retrieve_related_action_items_requests<'a>(
     action_item_id: &BlockId,
     action_item_requests: &'a mut BTreeMap<BlockId, ActionItemRequest>,
-) -> Option<(Uuid, Vec<&'a mut ActionItemRequest>)> {
+) -> Option<(ConstructUuid, Vec<&'a mut ActionItemRequest>)> {
     let Some(wallet_construct_uuid) = action_item_requests
         .get(&action_item_id)
-        .and_then(|a| a.construct_uuid)
+        .and_then(|a| a.construct_uuid.clone())
     else {
         eprintln!("unable to retrieve {}", action_item_id);
         // todo: log error
@@ -664,7 +665,7 @@ pub async fn reset_runbook_execution(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
+    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
@@ -713,7 +714,7 @@ pub async fn build_genesis_panel(
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
-    action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
+    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
     let mut actions = Actions::new_panel("runbook checklist", "");

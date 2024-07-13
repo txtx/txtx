@@ -6,7 +6,7 @@ pub use construct::PreConstructData;
 use kit::helpers::fs::FileLocation;
 use kit::serde::{Deserialize, Serialize};
 pub use package::Package;
-pub use runbook::{Runbook, SourceTree};
+pub use runbook::{Runbook, RunbookExecutionContext, RunbookResolutionContext, RunbookSources};
 use std::collections::{BTreeMap, HashMap};
 pub use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::PackageUuid;
@@ -57,6 +57,7 @@ pub struct RunbookMetadata {
     pub name: String,
     pub description: Option<String>,
     pub id: String,
+    pub stateful: bool,
 }
 
 impl RunbookMetadata {
@@ -68,6 +69,7 @@ impl RunbookMetadata {
             name: name.to_string(),
             description,
             id,
+            stateful: false,
         }
     }
 }
