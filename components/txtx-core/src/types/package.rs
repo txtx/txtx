@@ -1,12 +1,11 @@
+use kit::types::PackageId;
 use std::collections::{HashMap, HashSet};
-use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
+use txtx_addon_kit::types::ConstructUuid;
 
 #[derive(Clone, Debug)]
 pub struct Package {
-    pub uuid: PackageUuid,
-    pub name: String,
-    pub location: FileLocation,
+    /// Id of the Package
+    pub package_id: PackageId,
     pub variables_uuids: HashSet<ConstructUuid>,
     pub inputs_uuids_lookup: HashMap<String, ConstructUuid>,
     pub outputs_uuids: HashSet<ConstructUuid>,
@@ -22,12 +21,9 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn new(package_name: &str, package_location: &FileLocation) -> Self {
-        let uuid = PackageUuid::new();
+    pub fn new(package_id: &PackageId) -> Self {
         Self {
-            uuid,
-            name: package_name.to_string(),
-            location: package_location.clone(),
+            package_id: package_id.clone(),
             variables_uuids: HashSet::new(),
             inputs_uuids_lookup: HashMap::new(),
             outputs_uuids: HashSet::new(),

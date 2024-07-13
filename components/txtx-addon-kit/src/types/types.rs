@@ -292,7 +292,16 @@ impl Value {
                 format!("0x{}", hex::encode(&val.bytes))
             }
             Value::Object(obj) => json!(obj).to_string(),
-            Value::Array(_) => todo!(),
+            Value::Array(array) => {
+                format!(
+                    "[{}]",
+                    array
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             Value::Addon(_) => todo!(),
         }
     }

@@ -18,7 +18,7 @@ use super::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
     types::{ObjectProperty, Type, Value},
-    ConstructUuid, PackageUuid, ValueStore,
+    ConstructUuid, PackageId, PackageUuid, ValueStore,
 };
 
 #[derive(Debug, Clone)]
@@ -46,10 +46,8 @@ impl WalletsState {
     }
 
     pub fn push_wallet_state(&mut self, wallet_state: ValueStore) {
-        self.store.insert(
-            ConstructUuid::from_uuid(&wallet_state.uuid.clone()),
-            wallet_state,
-        );
+        self.store
+            .insert(ConstructUuid(wallet_state.uuid.clone()), wallet_state);
     }
 
     // pub fn get_mining_spend_amount<F, G>(
@@ -265,7 +263,7 @@ pub struct WalletInstance {
     pub specification: WalletSpecification,
     pub name: String,
     pub block: Block,
-    pub package_uuid: PackageUuid,
+    pub package_id: PackageId,
     pub namespace: String,
 }
 
@@ -302,7 +300,7 @@ impl WalletInstance {
 
     pub fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Result<Vec<Expression>, String> {
+    ) -> Result<Vec<(Option<&CommandInput>, Expression)>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -316,6 +314,7 @@ impl WalletInstance {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
                                     &expr,
+                                    Some(input),
                                     &mut references,
                                 );
                                 expressions.append(&mut references);
@@ -328,7 +327,11 @@ impl WalletInstance {
                         .map_err(|e| format!("{:?}", e))?;
                     if let Some(expr) = res {
                         let mut references = vec![];
-                        collect_constructs_references_from_expression(&expr, &mut references);
+                        collect_constructs_references_from_expression(
+                            &expr,
+                            Some(input),
+                            &mut references,
+                        );
                         expressions.append(&mut references);
                     }
                 }
@@ -526,7 +529,7 @@ impl WalletInstance {
         res
     }
 
-    pub fn collect_dependencies(&self) -> Vec<Expression> {
+    pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -539,6 +542,7 @@ impl WalletInstance {
                             };
                             collect_constructs_references_from_expression(
                                 &attr.value,
+                                Some(input),
                                 &mut dependencies,
                             );
                         }
@@ -548,7 +552,11 @@ impl WalletInstance {
                     let Some(attr) = self.block.body.get_attribute(&input.name) else {
                         continue;
                     };
-                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+                    collect_constructs_references_from_expression(
+                        &attr.value,
+                        Some(input),
+                        &mut dependencies,
+                    );
                 }
             }
         }

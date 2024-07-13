@@ -318,7 +318,12 @@ async fn build_unsigned_transaction(
             "mainnet" => "SP000000000000000000002Q6VF78",
             "testnet" => "ST000000000000000000002AMW42H",
             "devnet" => "ST000000000000000000002AMW42H",
-            _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+            _ => {
+                return Err(diagnosed_error!(
+                    "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                    network_id.as_str()
+                ))
+            }
         };
         TransactionPayload::ContractCall(TransactionContractCall {
             address: StacksAddress::from_string(boot_address).unwrap(),
@@ -349,7 +354,12 @@ async fn build_unsigned_transaction(
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
         "devnet" => TransactionVersion::Testnet,
-        _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+        _ => {
+            return Err(diagnosed_error!(
+                "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                network_id.as_str()
+            ))
+        }
     };
 
     let public_keys = wallet_state.get_expected_array(PUBLIC_KEYS)?;

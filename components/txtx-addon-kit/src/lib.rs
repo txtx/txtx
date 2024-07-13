@@ -12,6 +12,7 @@ pub use hex;
 pub use indoc::formatdoc;
 pub use indoc::indoc;
 pub use rust_fsm as fsm;
+use types::PackageId;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 pub use futures;
@@ -20,18 +21,16 @@ use hcl::structure::Block;
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};
 use types::{
-    commands::{
-        CommandId, CommandInstance, CommandInstanceOrParts, CommandInstanceType,
-        PreCommandSpecification,
-    },
+    commands::{CommandId, CommandInstance, CommandInstanceType, PreCommandSpecification},
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     wallets::{WalletInstance, WalletSpecification},
-    ConstructUuid, PackageUuid,
+    ConstructUuid,
 };
 
 pub use reqwest;
 pub use serde;
+pub use sha2;
 
 pub mod helpers;
 pub mod types;
@@ -124,8 +123,8 @@ impl AddonContext {
         namespace: &str,
         command_name: &str,
         block: &Block,
-        package_uuid: &PackageUuid,
-    ) -> Result<CommandInstanceOrParts, Diagnostic> {
+        package_id: &PackageId,
+    ) -> Result<CommandInstance, Diagnostic> {
         let Some(pre_command_spec) = self.commands.get(command_id) else {
             todo!("return diagnostic: unknown command: {:?}", command_id)
         };
@@ -138,20 +137,13 @@ impl AddonContext {
                     specification: command_spec.clone(),
                     name: command_name.to_string(),
                     block: block.clone(),
-                    package_uuid: package_uuid.clone(),
+                    package_id: package_id.clone(),
                     typing,
                     namespace: namespace.to_string(),
                 };
-                Ok(CommandInstanceOrParts::Instance(command_instance))
+                Ok(command_instance)
             }
-            PreCommandSpecification::Composite(composite_spec) => {
-                let bodies = (composite_spec.router)(
-                    &block.body.to_string(),
-                    &command_name.to_string(),
-                    &composite_spec.parts,
-                )?;
-                Ok(CommandInstanceOrParts::Parts(bodies))
-            }
+            PreCommandSpecification::Composite(composite_spec) => unimplemented!(),
         }
     }
 
@@ -161,7 +153,7 @@ impl AddonContext {
         namespace: &str,
         wallet_name: &str,
         block: &Block,
-        package_uuid: &PackageUuid,
+        package_id: &PackageId,
     ) -> Result<WalletInstance, Diagnostic> {
         let Some(wallet_spec) = self.wallets.get(wallet_id) else {
             return Err(Diagnostic::error_from_string(format!(
@@ -173,7 +165,7 @@ impl AddonContext {
             name: wallet_name.to_string(),
             specification: wallet_spec.clone(),
             block: block.clone(),
-            package_uuid: package_uuid.clone(),
+            package_id: package_id.clone(),
             namespace: namespace.to_string(),
         })
     }

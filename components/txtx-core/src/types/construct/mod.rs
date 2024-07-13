@@ -15,6 +15,18 @@ pub enum PreConstructData {
 }
 
 impl PreConstructData {
+    pub fn construct_type(&self) -> &str {
+        match &self {
+            PreConstructData::Import(_) => "import",
+            PreConstructData::Input(_) => "input",
+            PreConstructData::Output(_) => "output",
+            PreConstructData::Module(_) => "module",
+            PreConstructData::Action(_) => "action",
+            PreConstructData::Wallet(_) => "wallet",
+            PreConstructData::Root => unreachable!(),
+        }
+    }
+
     pub fn as_import(&self) -> Option<&Block> {
         match self {
             PreConstructData::Import(data) => Some(&data),

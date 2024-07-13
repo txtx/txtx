@@ -1,126 +1,133 @@
-use super::RuntimeContext;
-use super::{Package, PreConstructData};
 use crate::std::commands;
+
+use super::Package;
+use super::PreConstructData;
+use super::RuntimeContext;
 use daggy::{Dag, NodeIndex};
+use kit::types::commands::CommandInstanceType;
 use kit::types::diagnostics::Diagnostic;
+use kit::types::frontend::ActionItemRequest;
+use kit::types::frontend::ActionItemRequestType;
+use kit::types::frontend::ActionItemStatus;
+use kit::types::frontend::DisplayOutputRequest;
 use kit::types::types::Value;
 use kit::types::wallets::WalletsState;
-use sha2::digest::typenum::Exp;
+use kit::types::ConstructUuid;
+use kit::types::PackageId;
+use kit::types::PackageUuid;
+use kit::types::RunbookId;
+use serde_json::json;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionResult, CommandInstance, CommandInstanceType,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
 use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
 use txtx_addon_kit::types::wallets::WalletInstance;
-use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
 use txtx_addon_kit::uuid::Uuid;
 
-#[derive(Debug, Clone)]
-pub struct SourceTree {
-    pub files: HashMap<FileLocation, (String, String)>,
+pub struct RunbookSources {
+    /// Map of files required to construct the runbook
+    pub tree: HashMap<FileLocation, (String, String)>,
 }
 
-impl SourceTree {
+impl RunbookSources {
     pub fn new() -> Self {
         Self {
-            files: HashMap::new(),
+            tree: HashMap::new(),
         }
     }
 
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
-        self.files.insert(location, (name, content));
+        self.tree.insert(location, (name, content));
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Runbook {
-    pub uuid: Uuid,
-    pub source_tree: Option<SourceTree>,
-    pub packages_uuid_lookup: HashMap<FileLocation, PackageUuid>,
-    pub runbook_metadata_construct_uuid: Option<ConstructUuid>,
-    pub packages: HashMap<PackageUuid, Package>,
-    pub graph_root: NodeIndex<u32>,
-    pub packages_graph: Dag<Uuid, u32, u32>,
-    pub constructs_graph: Dag<Uuid, u32, u32>,
-    pub constructs_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
-    pub packages_graph_nodes: HashMap<Uuid, NodeIndex<u32>>,
-    pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
-    pub wallets_instances: HashMap<ConstructUuid, WalletInstance>,
-    pub wallets_state: Option<WalletsState>,
-    pub instantiated_wallet_instances: VecDeque<(ConstructUuid, bool)>,
-    pub constructs_locations: HashMap<ConstructUuid, (PackageUuid, FileLocation)>,
-    pub errors: Vec<Diagnostic>,
-    pub constructs_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
-    pub command_inputs_evaluation_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
-    pub environment_variables_uuid_lookup: HashMap<String, ConstructUuid>,
-    pub environment_variables_values: HashMap<ConstructUuid, String>,
-    pub description: Option<String>,
+pub struct ConstructId {
+    /// Id of the Package
+    pub package_id: PackageId,
+    /// Location of the file enclosing the construct
+    pub construct_location: FileLocation,
+    /// Type of construct (e.g. `input` in `input.value``)
+    pub construct_type: String,
+    /// Name of construct (e.g. `value` in `input.value``)
+    pub construct_name: String,
 }
 
-impl Runbook {
-    pub fn new(source_tree: Option<SourceTree>, description: Option<String>) -> Self {
-        let uuid = PackageUuid::new();
-        let mut packages_graph = Dag::new();
-        let _ = packages_graph.add_node(uuid.value());
-        let mut constructs_graph = Dag::new();
-        let graph_root = constructs_graph.add_node(uuid.value());
-        let runbook_uuid = Uuid::new_v4();
+impl ConstructId {
+    pub fn uuid(&self) -> ConstructUuid {
+        ConstructUuid(Uuid::new_v4())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Construct {
+    /// Id of the Construct
+    pub construct_id: ConstructId,
+}
+
+#[derive(Debug, Clone)]
+pub struct RunbookResolutionContext {
+    /// Map of packages. A package is either a standalone .tx file, or a directory enclosing multiple .tx files
+    pub packages: HashMap<PackageId, Package>,
+    /// Direct Acyclic Graph keeping track of the dependencies between packages
+    pub packages_dag: Dag<PackageUuid, u32, u32>,
+    /// Lookup: Retrieve the DAG node id of a given package uuid
+    pub packages_dag_node_lookup: HashMap<PackageUuid, NodeIndex<u32>>,
+    /// Map of constructs. A construct refers to root level objects (input, action, output, wallet, import, ...)
+    pub constructs: HashMap<ConstructId, Construct>,
+    /// Direct Acyclic Graph keeping track of the dependencies between constructs
+    pub constructs_dag: Dag<ConstructUuid, u32, u32>,
+    /// Lookup: Retrieve the DAG node id of a given construct uuid
+    pub constructs_dag_node_lookup: HashMap<ConstructUuid, NodeIndex<u32>>,
+    /// Keep track of the signing commands (wallet) instantiated (ordered)
+    pub instantiated_signing_commands: VecDeque<(ConstructUuid, bool)>,
+    /// Keep track of the root DAGs (temporary - to be removed)
+    pub graph_root: NodeIndex<u32>,
+    /// Lookup: Retrieve a construct uuid, given an environment name (mainnet, testnet, etc)
+    pub environment_variables_uuid_lookup: BTreeMap<String, ConstructUuid>,
+    /// Lookup: Retrieve a construct uuid, given an environment name (mainnet, testnet, etc)
+    pub environment_variables_values: BTreeMap<ConstructUuid, String>,
+}
+
+impl RunbookResolutionContext {
+    pub fn new() -> Self {
+        // Initialize DAGs
+        let uuid = Uuid::new_v4();
+        let mut packages_dag = Dag::new();
+        let _ = packages_dag.add_node(PackageUuid(uuid.clone()));
+        let mut constructs_dag = Dag::new();
+        let graph_root = constructs_dag.add_node(ConstructUuid(uuid.clone()));
+
         Self {
-            uuid: runbook_uuid,
-            source_tree,
             packages: HashMap::new(),
-            packages_uuid_lookup: HashMap::new(),
-            packages_graph,
-            constructs_graph,
-            constructs_graph_nodes: HashMap::new(),
-            packages_graph_nodes: HashMap::new(),
+            packages_dag,
+            packages_dag_node_lookup: HashMap::new(),
+            constructs: HashMap::new(),
+            constructs_dag,
+            constructs_dag_node_lookup: HashMap::new(),
+            instantiated_signing_commands: VecDeque::new(),
             graph_root,
-            runbook_metadata_construct_uuid: None,
-            errors: vec![],
-            constructs_locations: HashMap::new(),
-            commands_instances: HashMap::new(),
-            wallets_instances: HashMap::new(),
-            wallets_state: Some(WalletsState::new()),
-            instantiated_wallet_instances: VecDeque::new(),
-            constructs_execution_results: HashMap::new(),
-            command_inputs_evaluation_results: HashMap::new(),
-            environment_variables_uuid_lookup: HashMap::new(),
-            environment_variables_values: HashMap::new(),
-            description,
+            environment_variables_uuid_lookup: BTreeMap::new(),
+            environment_variables_values: BTreeMap::new(),
         }
     }
 
-    pub fn get_metadata_module(&self) -> Option<&CommandInstance> {
-        None
-    }
-
-    pub fn get_command_instance(&self, construct_uuid: &ConstructUuid) -> Option<&CommandInstance> {
-        self.commands_instances.get(construct_uuid)
-    }
-
-    pub fn find_or_create_package_uuid(
-        &mut self,
-        package_name: &String,
-        package_location: &FileLocation,
-    ) -> Result<PackageUuid, String> {
+    pub fn find_or_create_package_uuid(&mut self, package_id: &PackageId) -> PackageUuid {
         // Retrieve existing module_uuid, create otherwise
         let package_uuid = loop {
-            if let Some(uuid) = self.packages_uuid_lookup.get(&package_location) {
-                break uuid.clone();
+            if let Some(_) = self.packages.get(&package_id) {
+                break package_id.did();
             }
-            let package = Package::new(&package_name, &package_location);
-            self.packages_uuid_lookup
-                .insert(package_location.clone(), package.uuid.clone());
-            let package_uuid = package.uuid.clone();
-            self.packages.insert(package_uuid.clone(), package);
-            self.packages_graph
-                .add_child(self.graph_root, 0, package_uuid.value());
+            let package = Package::new(package_id);
+            self.packages.insert(package_id.clone(), package);
+            self.packages_dag
+                .add_child(self.graph_root, 0, package_id.did());
             continue;
         };
-        Ok(package_uuid)
+        package_uuid
     }
 
     pub fn index_construct(
@@ -128,30 +135,37 @@ impl Runbook {
         construct_name: String,
         construct_location: FileLocation,
         construct_data: PreConstructData,
-        package_uuid: &PackageUuid,
+        package_id: &PackageId,
+        execution_context: &mut RunbookExecutionContext,
     ) -> Result<(), String> {
-        let Some(package) = self.packages.get_mut(&package_uuid) else {
+        let Some(package) = self.packages.get_mut(&package_id) else {
             unreachable!()
         };
 
-        let construct_uuid = ConstructUuid::new();
+        let construct_id = ConstructId {
+            package_id: package_id.clone(),
+            construct_type: construct_data.construct_type().into(),
+            construct_location,
+            construct_name: construct_name.clone(),
+        };
+        let construct_uuid = construct_id.did();
         // Update module
         match &construct_data {
             PreConstructData::Module(block) => {
-                if construct_name.eq("runbook") && self.runbook_metadata_construct_uuid.is_none() {
-                    self.runbook_metadata_construct_uuid = Some(construct_uuid.clone());
-                }
+                // if construct_name.eq("runbook") && self.runbook_metadata_construct_uuid.is_none() {
+                //     self.runbook_metadata_construct_uuid = Some(construct_uuid.clone());
+                // }
                 package.modules_uuids.insert(construct_uuid.clone());
                 package
                     .modules_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
-                self.commands_instances.insert(
+                execution_context.commands_instances.insert(
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_module_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
-                        package_uuid: package_uuid.clone(),
+                        package_id: package_id.clone(),
                         namespace: construct_name.clone(),
                         typing: CommandInstanceType::Module,
                     },
@@ -162,13 +176,13 @@ impl Runbook {
                 package
                     .inputs_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
-                self.commands_instances.insert(
+                execution_context.commands_instances.insert(
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_input_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
-                        package_uuid: package_uuid.clone(),
+                        package_id: package_id.clone(),
                         namespace: construct_name.clone(),
                         typing: CommandInstanceType::Input,
                     },
@@ -179,13 +193,13 @@ impl Runbook {
                 package
                     .outputs_uuids_lookup
                     .insert(construct_name.clone(), construct_uuid.clone());
-                self.commands_instances.insert(
+                execution_context.commands_instances.insert(
                     construct_uuid.clone(),
                     CommandInstance {
                         specification: commands::new_output_specification(),
                         name: construct_name.clone(),
                         block: block.clone(),
-                        package_uuid: package_uuid.clone(),
+                        package_id: package_id.clone(),
                         namespace: construct_name.clone(),
                         typing: CommandInstanceType::Output,
                     },
@@ -203,7 +217,8 @@ impl Runbook {
                     CommandId::Action(construct_name).to_string(),
                     construct_uuid.clone(),
                 );
-                self.commands_instances
+                execution_context
+                    .commands_instances
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
             PreConstructData::Wallet(wallet_instance) => {
@@ -211,22 +226,37 @@ impl Runbook {
                 package
                     .wallets_uuids_lookup
                     .insert(construct_name, construct_uuid.clone());
-                self.wallets_instances
+                execution_context
+                    .signing_commands_instances
                     .insert(construct_uuid.clone(), wallet_instance.clone());
+
             }
             PreConstructData::Root => unreachable!(),
         }
         let (_, node_index) =
-            self.constructs_graph
-                .add_child(self.graph_root.clone(), 100, construct_uuid.value());
-        self.constructs_graph_nodes
-            .insert(construct_uuid.value(), node_index);
-        // Update plan
-        self.constructs_locations.insert(
-            construct_uuid.clone(),
-            (package_uuid.clone(), construct_location),
-        );
+            self.constructs_dag
+                .add_child(self.graph_root.clone(), 100, construct_uuid.clone());
+        self.constructs_dag_node_lookup
+            .insert(construct_uuid, node_index);
         Ok(())
+    }
+
+    pub fn seed_environment_variables(&mut self, runtime_context: &RuntimeContext) {
+        for (k, v) in runtime_context
+            .get_active_environment_variables()
+            .into_iter()
+        {
+            let construct_uuid = ConstructUuid(Uuid::new_v4());
+            self.environment_variables_values
+                .insert(construct_uuid.clone(), v);
+            self.environment_variables_uuid_lookup
+                .insert(k, construct_uuid.clone());
+            let (_, node_index) =
+                self.constructs_dag
+                    .add_child(self.graph_root.clone(), 100, construct_uuid.clone());
+            self.constructs_dag_node_lookup
+                .insert(construct_uuid, node_index);
+        }
     }
 
     /// Expects `expression` to be a traversal and `package_uuid_source` to be indexed in the runbook's `packages`.
@@ -235,15 +265,15 @@ impl Runbook {
     ///
     pub fn try_resolve_construct_reference_in_expression(
         &self,
-        package_uuid_source: &PackageUuid,
+        source_package_id: &PackageId,
         expression: &Expression,
-        _runtime_context: &RuntimeContext,
+        execution_context: &RunbookExecutionContext,
     ) -> Result<Option<(ConstructUuid, VecDeque<String>, VecDeque<Value>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
 
-        let Some(mut current_package) = self.packages.get(package_uuid_source) else {
+        let Some(mut current_package) = self.packages.get(source_package_id) else {
             return Ok(None);
         };
 
@@ -364,8 +394,8 @@ impl Runbook {
             let imported_package = current_package
                 .imports_uuids_lookup
                 .get(&component.to_string())
-                .and_then(|c| self.commands_instances.get(c))
-                .and_then(|c| Some(&c.package_uuid))
+                .and_then(|c| execution_context.commands_instances.get(c))
+                .and_then(|c| Some(&c.package_id))
                 .and_then(|p| self.packages.get(&p));
 
             if let Some(imported_package) = imported_package {
@@ -375,24 +405,181 @@ impl Runbook {
         }
         Ok(None)
     }
+}
 
-    pub fn seed_environment_variables(&mut self, runtime_context: &RuntimeContext) {
-        for (k, v) in runtime_context
-            .get_active_environment_variables()
-            .into_iter()
-        {
-            let construct_uuid = ConstructUuid::new();
-            self.environment_variables_values
-                .insert(construct_uuid.clone(), v);
-            self.environment_variables_uuid_lookup
-                .insert(k, construct_uuid.clone());
-            let (_, node_index) = self.constructs_graph.add_child(
-                self.graph_root.clone(),
-                100,
-                construct_uuid.value(),
-            );
-            self.constructs_graph_nodes
-                .insert(construct_uuid.value(), node_index);
+#[derive(Debug, Clone)]
+pub struct RunbookExecutionContext {
+    /// Ordered constructs
+    pub ordered_executable_constructs: Vec<ConstructUuid>,
+    /// Map of executable commands (input, output, action)
+    pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
+    /// Map of signing commands (wallet)
+    pub signing_commands_instances: HashMap<ConstructUuid, WalletInstance>,
+    /// State of the signing commands states (stateful)
+    pub signing_commands_state: Option<WalletsState>,
+    /// Results of commands executions
+    pub commands_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
+    /// Results of commands inputs evaluations
+    pub commands_inputs_evaluations_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
+    /// Constructs depending on a given Construct
+    pub commands_dependencies: HashMap<ConstructUuid, Vec<ConstructUuid>>,
+    /// Constructs depending on a given Construct performing signing
+    pub signing_commands_dependencies: HashMap<ConstructUuid, Vec<ConstructUuid>>,
+}
+
+impl RunbookExecutionContext {
+    pub fn new() -> Self {
+        Self {
+            ordered_executable_constructs: Vec::new(),
+            commands_instances: HashMap::new(),
+            signing_commands_instances: HashMap::new(),
+            signing_commands_state: None,
+            commands_execution_results: HashMap::new(),
+            commands_inputs_evaluations_results: HashMap::new(),
+            commands_dependencies: HashMap::new(),
+            signing_commands_dependencies: HashMap::new(),
         }
     }
+
+    pub fn serialize_execution(&self) -> serde_json::Value {
+        let mut serialized_nodes = vec![];
+
+        for construct_uuid in self.ordered_executable_constructs.iter() {
+            let Some(command_instance) = self.commands_instances.get(&construct_uuid) else {
+                // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+                continue;
+            };
+
+            let inputs_results = &self
+                .commands_inputs_evaluations_results
+                .get(&construct_uuid)
+                .unwrap()
+                .inputs;
+
+            let outputs_results = &self
+                .commands_execution_results
+                .get(&construct_uuid)
+                .unwrap()
+                .outputs;
+
+            let inputs = command_instance.specification.inputs.iter().map(|i| {
+                let value = match (inputs_results.get_value(&i.name), i.optional) {
+                    (Some(v), _) => {
+                        v.clone()
+                    },
+                    (None, true) => {
+                        Value::null()
+                    },
+                    _ => panic!("corrupted execution, required input {} missing post execution - investigation required", i.name)
+                };
+                json!({
+                    "name": i.name,
+                    "type": value.get_type(),
+                    "value": value.to_string()
+                })
+            }).collect::<Vec<_>>();
+
+            let outputs = command_instance.specification.outputs.iter().map(|o| {
+                let output_result = match outputs_results.get(&o.name) {
+                    Some(v) => v,
+                    None => panic!("corrupted execution, required output {} missing post execution - investigation required", o.name)
+                };
+                json!({
+                    "name": o.name,
+                    "value_type": output_result.get_type(),
+                    "value": output_result.to_string()
+                })
+            }).collect::<Vec<_>>();
+
+            serialized_nodes.push(json!({
+                "action": command_instance.specification.matcher,
+                "inputs": inputs,
+                "outputs": outputs,
+            }));
+        }
+
+        json!({
+            "nodes": serialized_nodes
+        })
+    }
+
+    pub fn collect_runbook_outputs(&self) -> BTreeMap<String, Vec<ActionItemRequest>> {
+        let mut action_items = BTreeMap::new();
+
+        for construct_uuid in self.ordered_executable_constructs.iter() {
+            let Some(command_instance) = self.commands_instances.get(&construct_uuid) else {
+                // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
+                continue;
+            };
+
+            if command_instance
+                .specification
+                .name
+                .to_lowercase()
+                .eq("output")
+            {
+                let Some(execution_result) = self.commands_execution_results.get(&construct_uuid)
+                else {
+                    return action_items;
+                };
+
+                let Some(value) = execution_result.outputs.get("value") else {
+                    unreachable!()
+                };
+
+                action_items
+                    .entry(command_instance.get_group())
+                    .or_insert_with(Vec::new)
+                    .push(ActionItemRequest::new(
+                        &Some(construct_uuid.value()),
+                        &command_instance.name,
+                        None,
+                        ActionItemStatus::Todo,
+                        ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                            name: command_instance.name.to_string(),
+                            description: None,
+                            value: value.clone(),
+                        }),
+                        "output".into(),
+                    ));
+            }
+        }
+
+        action_items
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Runbook {
+    /// Id of the Runbook
+    pub runbook_id: RunbookId,
+    /// Description of the Runbook
+    pub description: Option<String>,
+    /// The resolution context contains all the data related to source code analysis and DAG construction
+    pub resolution_context: RunbookResolutionContext,
+    /// The execution context contains all the data related to the execution of the runbook
+    pub execution_context: RunbookExecutionContext,
+    /// Diagnostics collected over time, until hitting a fatal error
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl Runbook {
+    pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
+        Self {
+            runbook_id,
+            description,
+            resolution_context: RunbookResolutionContext::new(),
+            execution_context: RunbookExecutionContext::new(),
+            diagnostics: vec![],
+        }
+    }
+
+    // add attribute "tainting_change"
+
+    // -> Order the nodes
+    // -> Compute canonical id for each node
+    //      -> traverse all the inputs, same order, only considering the one with "tainting_change" set to true
+    // The edges should be slightly differently created: only if a tainting_change is at stake. 5
+    // -> Compute canonical id for each edge (?)
+    //      ->
 }

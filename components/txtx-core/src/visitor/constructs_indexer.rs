@@ -1,12 +1,12 @@
 use std::collections::{HashSet, VecDeque};
 
-use crate::types::{PreConstructData, Runbook, RuntimeContext};
+use crate::types::{
+    PreConstructData, Runbook, RunbookExecutionContext, RunbookSources, RuntimeContext,
+};
+use kit::types::PackageId;
 use txtx_addon_kit::{
     hcl::structure::Block,
-    types::{
-        commands::CommandInstanceOrParts,
-        diagnostics::{Diagnostic, DiagnosticLevel},
-    },
+    types::diagnostics::{Diagnostic, DiagnosticLevel},
 };
 use txtx_addon_kit::{
     hcl::{self, structure::BlockLabel},
@@ -19,18 +19,15 @@ use txtx_addon_kit::{
 // todo(lgalabru): clean-up this function
 pub fn run_constructs_indexing(
     runbook: &mut Runbook,
+    runbook_sources: &mut RunbookSources,
     runtime_context: &mut RuntimeContext,
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut has_errored = false;
-
-    let Some(source_tree) = runbook.source_tree.take() else {
-        return Ok(has_errored);
-    };
-
+    let mut execution_context = RunbookExecutionContext::new();
     let mut sources = VecDeque::new();
     // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
     let mut files_visited = HashSet::new();
-    for (location, (module_name, raw_content)) in source_tree.files.iter() {
+    for (location, (module_name, raw_content)) in runbook_sources.tree.iter() {
         files_visited.insert(location);
         sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
     }
@@ -42,9 +39,14 @@ pub fn run_constructs_indexing(
         let package_location = location
             .get_parent_location()
             .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
-        let package_uuid = runbook
-            .find_or_create_package_uuid(&package_name, &package_location)
-            .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
+        let package_id = PackageId {
+            runbook_id: runbook.runbook_id.clone(),
+            package_location: package_location.clone(),
+            package_name: package_name.clone(),
+        };
+        let _ = runbook
+            .resolution_context
+            .find_or_create_package_uuid(&package_id);
 
         let mut blocks = content
             .into_blocks()
@@ -55,7 +57,7 @@ pub fn run_constructs_indexing(
                 "import" => {
                     // imports are the only constructs that we need to process in this step
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "import name missing".to_string(),
@@ -115,16 +117,17 @@ pub fn run_constructs_indexing(
                         }
                     }
 
-                    let _ = runbook.index_construct(
+                    let _ = runbook.resolution_context.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Import(block.clone()),
-                        &package_uuid,
+                        &package_id,
+                        &mut execution_context,
                     );
                 }
                 "input" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "variable name missing".to_string(),
@@ -136,16 +139,17 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.index_construct(
+                    let _ = runbook.resolution_context.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Input(block.clone()),
-                        &package_uuid,
+                        &package_id,
+                        &mut execution_context,
                     );
                 }
                 "module" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "module name missing".to_string(),
@@ -157,16 +161,17 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.index_construct(
+                    let _ = runbook.resolution_context.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Module(block.clone()),
-                        &package_uuid,
+                        &package_id,
+                        &mut execution_context,
                     );
                 }
                 "output" => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "output name missing".to_string(),
@@ -178,18 +183,19 @@ pub fn run_constructs_indexing(
                         has_errored = true;
                         continue;
                     };
-                    let _ = runbook.index_construct(
+                    let _ = runbook.resolution_context.index_construct(
                         name.to_string(),
                         location.clone(),
                         PreConstructData::Output(block.clone()),
-                        &package_uuid,
+                        &package_id,
+                        &mut execution_context,
                     );
                 }
                 "action" => {
                     let (Some(command_name), Some(namespaced_action)) =
                         (block.labels.get(0), block.labels.get(1))
                     else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "action syntax invalid".to_string(),
@@ -210,30 +216,21 @@ pub fn run_constructs_indexing(
                         namespace,
                         command_id,
                         command_name.as_str(),
-                        &package_uuid,
+                        &package_id,
                         &block,
                         &location,
                     ) {
-                        Ok(command_instance_or_parts) => match command_instance_or_parts {
-                            CommandInstanceOrParts::Instance(command_instance) => {
-                                let _ = runbook.index_construct(
-                                    command_name.to_string(),
-                                    location.clone(),
-                                    PreConstructData::Action(command_instance),
-                                    &package_uuid,
-                                );
-                            }
-                            CommandInstanceOrParts::Parts(parts_blocks) => {
-                                for block in parts_blocks {
-                                    let parsed_block = hcl::parser::parse_body(&block).unwrap();
-                                    for block in parsed_block.blocks() {
-                                        blocks.push_back(block.clone());
-                                    }
-                                }
-                            }
-                        },
+                        Ok(command_instance) => {
+                            let _ = runbook.resolution_context.index_construct(
+                                command_name.to_string(),
+                                location.clone(),
+                                PreConstructData::Action(command_instance),
+                                &package_id,
+                                &mut execution_context,
+                            );
+                        }
                         Err(diagnostic) => {
-                            runbook.errors.push(diagnostic);
+                            runbook.diagnostics.push(diagnostic);
                             continue;
                         }
                     };
@@ -242,7 +239,7 @@ pub fn run_constructs_indexing(
                     let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
                         (block.labels.get(0), block.labels.get(1))
                     else {
-                        runbook.errors.push(Diagnostic {
+                        runbook.diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
                             span: None,
                             message: "action syntax invalid".to_string(),
@@ -257,27 +254,28 @@ pub fn run_constructs_indexing(
                     match runtime_context.addons_ctx.create_wallet_instance(
                         &namespaced_wallet_cmd.as_str(),
                         wallet_name.as_str(),
-                        &package_uuid,
+                        &package_id,
                         &block,
                         &location,
                     ) {
                         Ok(wallet_instance) => {
-                            let _ = runbook.index_construct(
+                            let _ = runbook.resolution_context.index_construct(
                                 wallet_name.to_string(),
                                 location.clone(),
                                 PreConstructData::Wallet(wallet_instance),
-                                &package_uuid,
+                                &package_id,
+                                &mut execution_context,
                             );
                         }
                         Err(diagnostic) => {
-                            runbook.errors.push(diagnostic);
+                            runbook.diagnostics.push(diagnostic);
                             has_errored = true;
                             continue;
                         }
                     }
                 }
                 _ => {
-                    runbook.errors.push(Diagnostic {
+                    runbook.diagnostics.push(Diagnostic {
                         location: Some(location.clone()),
                         span: None,
                         message: "construct unknown".to_string(),
@@ -291,6 +289,6 @@ pub fn run_constructs_indexing(
             }
         }
     }
-
+    runbook.execution_context = execution_context;
     Ok(has_errored)
 }

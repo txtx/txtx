@@ -1,4 +1,4 @@
-use crate::types::{Runbook, RuntimeContext};
+use crate::types::{Runbook, RunbookExecutionContext, RunbookResolutionContext, RuntimeContext};
 use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use kit::types::commands::CommandExecutionFuture;
@@ -7,6 +7,7 @@ use kit::types::frontend::{
     BlockEvent, ErrorPanelData, Panel,
 };
 use kit::types::wallets::WalletsState;
+use kit::types::PackageId;
 use petgraph::algo::toposort;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
@@ -32,67 +33,12 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
-/// Gets all descendants of `node` within `graph`.
-pub fn get_descendants_of_node(node: NodeIndex, graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
-    let mut descendant_nodes = VecDeque::new();
-    descendant_nodes.push_front(node);
-    let mut descendants = IndexSet::new();
-    while let Some(node) = descendant_nodes.pop_front() {
-        for (_, child) in graph.children(node).iter(&graph) {
-            descendant_nodes.push_back(child);
-            descendants.insert(child);
-        }
-    }
-    descendants
-}
-
-/// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
-pub fn get_sorted_descendants_of_node(
-    node: NodeIndex,
-    graph: Dag<Uuid, u32, u32>,
-) -> IndexSet<NodeIndex> {
-    let sorted = toposort(&graph, None)
-        .unwrap()
-        .into_iter()
-        .collect::<IndexSet<NodeIndex>>();
-
-    let start_node_descendants = get_descendants_of_node(node, graph);
-    let mut sorted_descendants = IndexSet::new();
-
-    for this_node in sorted.into_iter() {
-        let is_descendant = start_node_descendants.iter().any(|d| d == &this_node);
-        let is_start_node = this_node == node;
-        if is_descendant || is_start_node {
-            sorted_descendants.insert(this_node);
-        }
-    }
-    sorted_descendants
-}
-
-/// Returns a topologically sorted set of all nodes in the graph.
-pub fn get_sorted_nodes(graph: Dag<Uuid, u32, u32>) -> IndexSet<NodeIndex> {
-    toposort(&graph, None)
-        .unwrap()
-        .into_iter()
-        .collect::<IndexSet<NodeIndex>>()
-}
-
-pub fn is_child_of_node(
-    node: NodeIndex,
-    maybe_child: NodeIndex,
-    graph: &Dag<Uuid, u32, u32>,
-) -> bool {
-    graph
-        .children(node)
-        .iter(graph)
-        .any(|(_, child)| child == maybe_child)
-}
-
 // The flow for wallet evaluation should be drastically different
 // Instead of activating all the wallets detected in a graph, we should instead traverse the graph and collecting the wallets
 // being used.
 pub async fn run_wallets_evaluation(
-    runbook: &mut Runbook,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
@@ -100,83 +46,99 @@ pub async fn run_wallets_evaluation(
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
     let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
-    let _ = run_commands_updating_defaults(runbook, runtime_ctx, progress_tx).await;
+    let _ = run_commands_updating_defaults(
+        runbook_resolution_context,
+        runbook_execution_context,
+        runtime_ctx,
+        progress_tx,
+    )
+    .await;
 
-    let constructs_locations = runbook.constructs_locations.clone();
-    let wallets_instances = &runbook.wallets_instances;
-    let instantiated_wallets = runbook.instantiated_wallet_instances.clone();
+    let wallets_instances = &runbook_execution_context.signing_commands_instances;
+    let instantiated_wallets = runbook_resolution_context
+        .instantiated_signing_commands
+        .clone();
     for (construct_uuid, instantiated) in instantiated_wallets.into_iter() {
-        let Some((package_uuid, _)) = constructs_locations.get(&construct_uuid) else {
-            continue;
+        let package_id = {
+            let Some(command) = runbook_execution_context
+                .signing_commands_instances
+                .get(&construct_uuid)
+            else {
+                continue;
+            };
+            command.package_id.clone()
         };
 
-        let (evaluated_inputs_res, _group, addon_defaults) =
-            match runbook.wallets_instances.get(&construct_uuid) {
-                None => continue,
-                Some(wallet_instance) => {
-                    let mut cached_dependency_execution_results: HashMap<
-                        ConstructUuid,
-                        Result<&CommandExecutionResult, &Diagnostic>,
-                    > = HashMap::new();
+        let (evaluated_inputs_res, _group, addon_defaults) = match runbook_execution_context
+            .signing_commands_instances
+            .get(&construct_uuid)
+        {
+            None => continue,
+            Some(wallet_instance) => {
+                let mut cached_dependency_execution_results: HashMap<
+                    ConstructUuid,
+                    Result<&CommandExecutionResult, &Diagnostic>,
+                > = HashMap::new();
 
-                    let references_expressions: Vec<Expression> = wallet_instance
-                        .get_expressions_referencing_commands_from_inputs()
+                let references_expressions = wallet_instance
+                    .get_expressions_referencing_commands_from_inputs()
+                    .unwrap();
+
+                for (input, expr) in references_expressions.into_iter() {
+                    let res = runbook_resolution_context
+                        .try_resolve_construct_reference_in_expression(
+                            &package_id,
+                            &expr,
+                            &runbook_execution_context,
+                        )
                         .unwrap();
 
-                    for expr in references_expressions.into_iter() {
-                        let res = runbook
-                            .try_resolve_construct_reference_in_expression(
-                                package_uuid,
-                                &expr,
-                                &runtime_ctx,
-                            )
-                            .unwrap();
+                    if let Some((dependency, _, _)) = res {
+                        let evaluation_result_opt = runbook_execution_context
+                            .commands_execution_results
+                            .get(&dependency);
 
-                        if let Some((dependency, _, _)) = res {
-                            let evaluation_result_opt =
-                                runbook.constructs_execution_results.get(&dependency);
-
-                            if let Some(evaluation_result) = evaluation_result_opt {
-                                match cached_dependency_execution_results.get(&dependency) {
-                                    None => {
-                                        cached_dependency_execution_results
-                                            .insert(dependency, Ok(evaluation_result));
-                                    }
-                                    Some(Err(diag)) => {
-                                        pass_result.diagnostics.push((*diag).clone());
-                                        continue;
-                                    }
-                                    Some(Ok(_)) => {}
+                        if let Some(evaluation_result) = evaluation_result_opt {
+                            match cached_dependency_execution_results.get(&dependency) {
+                                None => {
+                                    cached_dependency_execution_results
+                                        .insert(dependency, Ok(evaluation_result));
                                 }
+                                Some(Err(diag)) => {
+                                    pass_result.diagnostics.push((*diag).clone());
+                                    continue;
+                                }
+                                Some(Ok(_)) => {}
                             }
                         }
                     }
-
-                    let input_evaluation_results = runbook
-                        .command_inputs_evaluation_results
-                        .get(&construct_uuid.clone());
-
-                    let addon_context_key =
-                        (package_uuid.clone(), wallet_instance.namespace.clone());
-                    let addon_defaults = runtime_ctx
-                        .addons_ctx
-                        .contexts
-                        .get(&addon_context_key)
-                        .and_then(|addon| Some(addon.defaults.clone()))
-                        .unwrap_or(AddonDefaults::new());
-
-                    let res = perform_wallet_inputs_evaluation(
-                        &wallet_instance,
-                        &cached_dependency_execution_results,
-                        &input_evaluation_results,
-                        package_uuid,
-                        &runbook,
-                        runtime_ctx,
-                    );
-                    let group = wallet_instance.get_group();
-                    (res, group, addon_defaults)
                 }
-            };
+
+                let input_evaluation_results = runbook_execution_context
+                    .commands_inputs_evaluations_results
+                    .get(&construct_uuid.clone());
+
+                let addon_context_key = (package_id.did(), wallet_instance.namespace.clone());
+                let addon_defaults = runtime_ctx
+                    .addons_ctx
+                    .contexts
+                    .get(&addon_context_key)
+                    .and_then(|addon| Some(addon.defaults.clone()))
+                    .unwrap_or(AddonDefaults::new());
+
+                let res = perform_wallet_inputs_evaluation(
+                    &wallet_instance,
+                    &cached_dependency_execution_results,
+                    &input_evaluation_results,
+                    &package_id,
+                    &runbook_resolution_context,
+                    &runbook_execution_context,
+                    runtime_ctx,
+                );
+                let group = wallet_instance.get_group();
+                (res, group, addon_defaults)
+            }
+        };
         let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
@@ -194,8 +156,14 @@ pub async fn run_wallets_evaluation(
             }
         };
 
-        let wallet = runbook.wallets_instances.get(&construct_uuid).unwrap();
-        let mut wallets_state = runbook.wallets_state.take().unwrap();
+        let wallet = runbook_execution_context
+            .signing_commands_instances
+            .get(&construct_uuid)
+            .unwrap();
+        let mut wallets_state = runbook_execution_context
+            .signing_commands_state
+            .take()
+            .unwrap();
         wallets_state.create_new_wallet(&construct_uuid, &wallet.name);
 
         let res = wallet
@@ -216,7 +184,7 @@ pub async fn run_wallets_evaluation(
         let wallets_state = match res {
             Ok((wallets_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
-                    runbook.wallets_state = Some(wallets_state);
+                    runbook_execution_context.signing_commands_state = Some(wallets_state);
                     pass_result.actions.append(&mut new_actions);
                     continue;
                 }
@@ -224,7 +192,7 @@ pub async fn run_wallets_evaluation(
                 wallets_state
             }
             Err((wallets_state, diag)) => {
-                runbook.wallets_state = Some(wallets_state);
+                runbook_execution_context.signing_commands_state = Some(wallets_state);
                 if let Some(requests) = action_item_requests.get_mut(&construct_uuid.value()) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
@@ -238,8 +206,8 @@ pub async fn run_wallets_evaluation(
             }
         };
 
-        runbook
-            .command_inputs_evaluation_results
+        runbook_execution_context
+            .commands_inputs_evaluations_results
             .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
         let res = wallet
@@ -260,12 +228,12 @@ pub async fn run_wallets_evaluation(
                 return pass_result;
             }
         };
-        runbook.wallets_state = wallets_state;
+        runbook_execution_context.signing_commands_state = wallets_state;
         let Some(result) = result.take() else {
             continue;
         };
-        runbook
-            .constructs_execution_results
+        runbook_execution_context
+            .commands_execution_results
             .insert(construct_uuid.clone(), result);
     }
 
@@ -273,17 +241,20 @@ pub async fn run_wallets_evaluation(
 }
 
 pub async fn run_commands_updating_defaults(
-    runbook: &mut Runbook,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Update environment variables
-    let environments_variables = runbook.environment_variables_values.clone();
+    let environments_variables = runbook_resolution_context
+        .environment_variables_values
+        .clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
         res.outputs.insert("value".into(), Value::string(value));
-        runbook
-            .constructs_execution_results
+        runbook_execution_context
+            .commands_execution_results
             .insert(env_variable_uuid, res);
     }
 
@@ -292,7 +263,7 @@ pub async fn run_commands_updating_defaults(
     let input_evaluation_results = None;
 
     // Run commands updating defaults
-    let construct_uuids = runbook
+    let construct_uuids = runbook_execution_context
         .commands_instances
         .iter()
         .map(|(c, _)| c.clone())
@@ -300,31 +271,35 @@ pub async fn run_commands_updating_defaults(
 
     for construct_uuid in construct_uuids.iter() {
         let evaluated_inputs_res = {
-            let command_instance = runbook.commands_instances.get(construct_uuid).unwrap();
+            let command_instance = runbook_execution_context
+                .commands_instances
+                .get(construct_uuid)
+                .unwrap();
             if !command_instance.specification.update_addon_defaults {
                 continue;
             }
 
-            let package_uuid = &command_instance.package_uuid;
+            let package_id = &command_instance.package_id.clone();
 
             // Retrieve the construct_uuid of the inputs
             // Collect the outputs
-            let references_expressions: Vec<Expression> = command_instance
+            let references_expressions = command_instance
                 .get_expressions_referencing_commands_from_inputs()
                 .unwrap();
 
-            for expr in references_expressions.into_iter() {
-                let res = runbook
+            for (input, expr) in references_expressions.into_iter() {
+                let res = runbook_resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        &command_instance.package_uuid,
+                        &command_instance.package_id,
                         &expr,
-                        &runtime_ctx,
+                        &runbook_execution_context,
                     )
                     .unwrap();
 
                 if let Some((dependency, _, _)) = res {
-                    let evaluation_result_opt =
-                        runbook.constructs_execution_results.get(&dependency);
+                    let evaluation_result_opt = runbook_execution_context
+                        .commands_execution_results
+                        .get(&dependency);
 
                     if let Some(evaluation_result) = evaluation_result_opt {
                         match cached_dependency_execution_results.get(&dependency) {
@@ -344,21 +319,25 @@ pub async fn run_commands_updating_defaults(
                 &cached_dependency_execution_results,
                 &input_evaluation_results,
                 &None,
-                package_uuid,
-                &runbook,
+                &package_id,
+                &runbook_resolution_context,
+                &runbook_execution_context,
                 runtime_ctx,
             );
             evaluated_inputs_res
         };
 
         let _execution_result = {
-            let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
+            let Some(command_instance) = runbook_execution_context
+                .commands_instances
+                .get_mut(&construct_uuid)
+            else {
                 // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                 continue;
             };
 
             let addon_context_key = (
-                command_instance.package_uuid.clone(),
+                command_instance.package_id.did(),
                 command_instance.namespace.clone(),
             );
 
@@ -381,8 +360,8 @@ pub async fn run_commands_updating_defaults(
             };
 
             {
-                runbook
-                    .command_inputs_evaluation_results
+                runbook_execution_context
+                    .commands_inputs_evaluations_results
                     .insert(construct_uuid.clone(), evaluated_inputs.clone());
             }
 
@@ -404,7 +383,7 @@ pub async fn run_commands_updating_defaults(
                 Ok(result) => {
                     if command_instance.specification.update_addon_defaults {
                         let addon_context_key = (
-                            command_instance.package_uuid.clone(),
+                            command_instance.package_id.did(),
                             command_instance.namespace.clone(),
                         );
                         if let Some(ref mut addon_context) =
@@ -476,37 +455,28 @@ impl Display for EvaluationPassResult {
 // Before evaluating the executability, we first check if they depend on a tainted node.
 pub async fn run_constructs_evaluation(
     background_tasks_uuid: &Uuid,
-    runbook: &mut Runbook,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &mut RunbookExecutionContext,
     runtime_ctx: &mut RuntimeContext,
-    start_node: Option<NodeIndex>,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<Uuid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<Uuid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
-    let g = runbook.constructs_graph.clone();
-
     let mut pass_result = EvaluationPassResult::new(background_tasks_uuid);
 
-    let mut unexecutable_nodes: HashSet<NodeIndex> = HashSet::new();
+    let mut unexecutable_nodes: HashSet<ConstructUuid> = HashSet::new();
 
-    let environments_variables = runbook.environment_variables_values.clone();
+    let environments_variables = runbook_resolution_context
+        .environment_variables_values
+        .clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
         res.outputs.insert("value".into(), Value::string(value));
-        runbook
-            .constructs_execution_results
+        runbook_execution_context
+            .commands_execution_results
             .insert(env_variable_uuid, res);
     }
-
-    let ordered_nodes_to_process = match start_node {
-        Some(start_node) => {
-            // if we are walking the graph from a given start node, we only add the
-            // node and its dependents (not its parents) to the nodes we visit.
-            get_sorted_descendants_of_node(start_node, runbook.constructs_graph.clone())
-        }
-        None => get_sorted_nodes(runbook.constructs_graph.clone()),
-    };
 
     let mut genesis_dependency_execution_results = HashMap::new();
     let mut empty_result = CommandExecutionResult::new();
@@ -515,7 +485,7 @@ pub async fn run_constructs_evaluation(
         .insert("value".into(), Value::bool(true));
 
     let mut wallets_results = HashMap::new();
-    for (wallet_construct_uuid, _) in runbook.wallets_instances.iter() {
+    for (wallet_construct_uuid, _) in runbook_execution_context.signing_commands_instances.iter() {
         let mut result = CommandExecutionResult::new();
         result.outputs.insert(
             "value".into(),
@@ -524,34 +494,42 @@ pub async fn run_constructs_evaluation(
         wallets_results.insert(wallet_construct_uuid.clone(), result);
     }
 
-    for (wallet_construct_uuid, _) in runbook.wallets_instances.iter() {
+    for (wallet_construct_uuid, _) in runbook_execution_context.signing_commands_instances.iter() {
         let results = wallets_results.get(wallet_construct_uuid).unwrap();
         genesis_dependency_execution_results.insert(wallet_construct_uuid.clone(), Ok(results));
     }
 
-    let constructs_locations = runbook.constructs_locations.clone();
+    let ordered_constructs = runbook_execution_context
+        .ordered_executable_constructs
+        .clone();
 
-    for node in ordered_nodes_to_process.into_iter() {
-        let uuid = g
-            .node_weight(node.clone())
-            .expect("unable to retrieve construct");
-        let construct_uuid = ConstructUuid::Local(uuid.clone());
-
-        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
+    for construct_uuid in ordered_constructs.into_iter() {
+        let Some(command_instance) = runbook_execution_context
+            .commands_instances
+            .get(&construct_uuid)
+        else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
-        if let Some(_) = runbook.constructs_execution_results.get(&construct_uuid) {
+        if let Some(_) = runbook_execution_context
+            .commands_execution_results
+            .get(&construct_uuid)
+        {
             continue;
         };
 
-        if let Some(_) = unexecutable_nodes.get(&node) {
+        if let Some(_) = unexecutable_nodes.get(&construct_uuid) {
+            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_uuid) {
+                for dep in deps.iter() {
+                    unexecutable_nodes.insert(dep.clone());
+                }
+            }
             continue;
         }
 
-        let (package_uuid, _) = constructs_locations.get(&construct_uuid).unwrap();
+        let package_id = command_instance.package_id.clone();
 
-        let addon_context_key = (package_uuid.clone(), command_instance.namespace.clone());
+        let addon_context_key = (package_id.did(), command_instance.namespace.clone());
         let addon_defaults = runtime_ctx
             .addons_ctx
             .contexts
@@ -567,8 +545,8 @@ pub async fn run_constructs_evaluation(
         let input_evaluation_results = if execution_context.review_input_default_values {
             None
         } else {
-            runbook
-                .command_inputs_evaluation_results
+            runbook_execution_context
+                .commands_inputs_evaluations_results
                 .get(&construct_uuid.clone())
         };
 
@@ -579,17 +557,23 @@ pub async fn run_constructs_evaluation(
 
         // Retrieve the construct_uuid of the inputs
         // Collect the outputs
-        let references_expressions: Vec<Expression> = command_instance
+        let references_expressions = command_instance
             .get_expressions_referencing_commands_from_inputs()
             .unwrap();
 
-        for expr in references_expressions.into_iter() {
-            let res = runbook
-                .try_resolve_construct_reference_in_expression(package_uuid, &expr, &runtime_ctx)
+        for (input, expr) in references_expressions.into_iter() {
+            let res = runbook_resolution_context
+                .try_resolve_construct_reference_in_expression(
+                    &package_id,
+                    &expr,
+                    &runbook_execution_context,
+                )
                 .unwrap();
 
             if let Some((dependency, _, _)) = res {
-                let evaluation_result_opt = runbook.constructs_execution_results.get(&dependency);
+                let evaluation_result_opt = runbook_execution_context
+                    .commands_execution_results
+                    .get(&dependency);
 
                 if let Some(evaluation_result) = evaluation_result_opt {
                     match cached_dependency_execution_results.get(&dependency) {
@@ -609,11 +593,15 @@ pub async fn run_constructs_evaluation(
             &cached_dependency_execution_results,
             &input_evaluation_results,
             &action_item_responses.get(&construct_uuid.value()),
-            package_uuid,
-            &runbook,
+            &package_id,
+            runbook_resolution_context,
+            runbook_execution_context,
             runtime_ctx,
         );
-        let Some(command_instance) = runbook.commands_instances.get_mut(&construct_uuid) else {
+        let Some(command_instance) = runbook_execution_context
+            .commands_instances
+            .get_mut(&construct_uuid)
+        else {
             // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
             continue;
         };
@@ -636,7 +624,10 @@ pub async fn run_constructs_evaluation(
         };
 
         let execution_result = if command_instance.specification.implements_signing_capability {
-            let wallets = runbook.wallets_state.take().unwrap();
+            let wallets = runbook_execution_context
+                .signing_commands_state
+                .take()
+                .unwrap();
             let wallets = update_wallet_instances_from_action_response(
                 wallets,
                 &construct_uuid,
@@ -648,7 +639,7 @@ pub async fn run_constructs_evaluation(
                     &mut evaluated_inputs,
                     wallets,
                     addon_defaults.clone(),
-                    &mut runbook.wallets_instances,
+                    &mut runbook_execution_context.signing_commands_instances,
                     &action_item_responses.get(&construct_uuid.value()),
                     &action_item_requests.get(&construct_uuid.value()),
                     execution_context,
@@ -659,9 +650,14 @@ pub async fn run_constructs_evaluation(
                 Ok((updated_wallets, mut new_actions)) => {
                     if new_actions.has_pending_actions() {
                         pass_result.actions.append(&mut new_actions);
-                        runbook.wallets_state = Some(updated_wallets);
-                        for descendant in get_descendants_of_node(node, g.clone()) {
-                            unexecutable_nodes.insert(descendant);
+                        runbook_execution_context.signing_commands_state = Some(updated_wallets);
+                        if let Some(deps) = runbook_execution_context
+                            .commands_dependencies
+                            .get(&construct_uuid)
+                        {
+                            for dep in deps.iter() {
+                                unexecutable_nodes.insert(dep.clone());
+                            }
                         }
                         continue;
                     }
@@ -670,13 +666,13 @@ pub async fn run_constructs_evaluation(
                 }
                 Err((updated_wallets, diag)) => {
                     pass_result.diagnostics.push(diag);
-                    runbook.wallets_state = Some(updated_wallets);
+                    runbook_execution_context.signing_commands_state = Some(updated_wallets);
                     return pass_result;
                 }
             };
 
-            runbook
-                .command_inputs_evaluation_results
+            runbook_execution_context
+                .commands_inputs_evaluations_results
                 .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
             let mut empty_vec = vec![];
@@ -691,7 +687,7 @@ pub async fn run_constructs_evaluation(
                     &evaluated_inputs,
                     wallets,
                     addon_defaults.clone(),
-                    &runbook.wallets_instances,
+                    &runbook_execution_context.signing_commands_instances,
                     action_items_requests,
                     &action_items_response,
                     progress_tx,
@@ -703,7 +699,7 @@ pub async fn run_constructs_evaluation(
                 Ok((updated_wallets, result)) => {
                     if command_instance.specification.update_addon_defaults {
                         let addon_context_key =
-                            (package_uuid.clone(), command_instance.namespace.clone());
+                            (package_id.did(), command_instance.namespace.clone());
                         if let Some(ref mut addon_context) =
                             runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
                         {
@@ -712,13 +708,18 @@ pub async fn run_constructs_evaluation(
                             }
                         }
                     }
-                    runbook.wallets_state = Some(updated_wallets);
+                    runbook_execution_context.signing_commands_state = Some(updated_wallets);
                     Ok(result)
                 }
                 Err((updated_wallets, diag)) => {
-                    runbook.wallets_state = Some(updated_wallets);
-                    for descendant in get_descendants_of_node(node, g.clone()) {
-                        unexecutable_nodes.insert(descendant);
+                    runbook_execution_context.signing_commands_state = Some(updated_wallets);
+                    if let Some(deps) = runbook_execution_context
+                        .commands_dependencies
+                        .get(&construct_uuid)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
                     }
                     Err(diag)
                 }
@@ -729,15 +730,20 @@ pub async fn run_constructs_evaluation(
                 &construct_uuid,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
-                &mut runbook.wallets_instances,
+                &mut runbook_execution_context.signing_commands_instances,
                 &action_item_responses.get(&construct_uuid.value()),
                 execution_context,
             ) {
                 Ok(mut new_actions) => {
                     if new_actions.has_pending_actions() {
                         pass_result.actions.append(&mut new_actions);
-                        for descendant in get_descendants_of_node(node, g.clone()) {
-                            unexecutable_nodes.insert(descendant);
+                        if let Some(deps) = runbook_execution_context
+                            .commands_dependencies
+                            .get(&construct_uuid)
+                        {
+                            for dep in deps.iter() {
+                                unexecutable_nodes.insert(dep.clone());
+                            }
                         }
                         continue;
                     }
@@ -749,8 +755,8 @@ pub async fn run_constructs_evaluation(
                 }
             }
 
-            runbook
-                .command_inputs_evaluation_results
+            runbook_execution_context
+                .commands_inputs_evaluations_results
                 .insert(construct_uuid.clone(), evaluated_inputs.clone());
 
             let mut empty_vec = vec![];
@@ -777,7 +783,7 @@ pub async fn run_constructs_evaluation(
                 Ok(result) => {
                     if command_instance.specification.update_addon_defaults {
                         let addon_context_key =
-                            (package_uuid.clone(), command_instance.namespace.clone());
+                            (package_id.did(), command_instance.namespace.clone());
                         if let Some(ref mut addon_context) =
                             runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
                         {
@@ -789,8 +795,13 @@ pub async fn run_constructs_evaluation(
                     Ok(result)
                 }
                 Err(e) => {
-                    for descendant in get_descendants_of_node(node, g.clone()) {
-                        unexecutable_nodes.insert(descendant);
+                    if let Some(deps) = runbook_execution_context
+                        .commands_dependencies
+                        .get(&construct_uuid)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
                     }
                     Err(e)
                 }
@@ -831,69 +842,13 @@ pub async fn run_constructs_evaluation(
                 .pending_background_tasks_constructs_uuids
                 .push(construct_uuid.clone());
         }
-        runbook
-            .constructs_execution_results
+        runbook_execution_context
+            .commands_execution_results
             .entry(construct_uuid)
             .or_insert_with(CommandExecutionResult::new)
             .append(&mut execution_result);
     }
     pass_result
-}
-
-pub fn collect_runbook_outputs(
-    _block_uuid: &Uuid,
-    runbook: &Runbook,
-    _runtime_ctx: &RuntimeContext,
-) -> BTreeMap<String, Vec<ActionItemRequest>> {
-    let g = runbook.constructs_graph.clone();
-
-    let mut action_items = BTreeMap::new();
-
-    let ordered_nodes_to_process = get_sorted_nodes(runbook.constructs_graph.clone());
-
-    for node in ordered_nodes_to_process.into_iter() {
-        let uuid = g.node_weight(node).expect("unable to retrieve construct");
-        let construct_uuid = ConstructUuid::Local(uuid.clone());
-
-        let Some(command_instance) = runbook.commands_instances.get(&construct_uuid) else {
-            // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
-            continue;
-        };
-
-        if command_instance
-            .specification
-            .name
-            .to_lowercase()
-            .eq("output")
-        {
-            let Some(execution_result) = runbook.constructs_execution_results.get(&construct_uuid)
-            else {
-                return action_items;
-            };
-
-            let Some(value) = execution_result.outputs.get("value") else {
-                unreachable!()
-            };
-
-            action_items
-                .entry(command_instance.get_group())
-                .or_insert_with(Vec::new)
-                .push(ActionItemRequest::new(
-                    &Some(construct_uuid.value()),
-                    &command_instance.name,
-                    None,
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                        name: command_instance.name.to_string(),
-                        description: None,
-                        value: value.clone(),
-                    }),
-                    "output".into(),
-                ));
-        }
-    }
-
-    action_items
 }
 
 pub enum ExpressionEvaluationStatus {
@@ -908,8 +863,9 @@ pub fn eval_expression(
         ConstructUuid,
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
-    package_uuid: &PackageUuid,
-    runbook: &Runbook,
+    package_id: &PackageId,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
@@ -939,8 +895,9 @@ pub fn eval_expression(
                 let value = match eval_expression(
                     entry_expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -964,8 +921,9 @@ pub fn eval_expression(
                         match eval_expression(
                             k_expr,
                             dependencies_execution_results,
-                            package_uuid,
-                            runbook,
+                            package_id,
+                            runbook_resolution_context,
+                            runbook_execution_context,
                             runtime_ctx,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => match result {
@@ -994,8 +952,9 @@ pub fn eval_expression(
                 let value = match eval_expression(
                     v.expr(),
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
@@ -1020,8 +979,9 @@ pub fn eval_expression(
                         let value = match eval_expression(
                             &interpolation.expr,
                             dependencies_execution_results,
-                            package_uuid,
-                            runbook,
+                            package_id,
+                            runbook_resolution_context,
+                            runbook_execution_context,
                             runtime_ctx,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => result.to_string(),
@@ -1066,8 +1026,9 @@ pub fn eval_expression(
                 let value = match eval_expression(
                     expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -1081,13 +1042,17 @@ pub fn eval_expression(
                 args.push(value);
             }
             runtime_ctx
-                .execute_function(package_uuid.clone(), func_namespace, &func_name, &args)
+                .execute_function(package_id.did(), func_namespace, &func_name, &args)
                 .map_err(|e| e)?
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components, mut subpath))) = runbook
-                .try_resolve_construct_reference_in_expression(package_uuid, expr, runtime_ctx)
+            let Ok(Some((dependency, mut components, mut subpath))) = runbook_resolution_context
+                .try_resolve_construct_reference_in_expression(
+                    package_id,
+                    expr,
+                    runbook_execution_context,
+                )
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
@@ -1129,8 +1094,9 @@ pub fn eval_expression(
             let _expr = eval_expression(
                 &unary_op.expr,
                 dependencies_execution_results,
-                package_uuid,
-                runbook,
+                package_id,
+                runbook_resolution_context,
+                runbook_execution_context,
                 runtime_ctx,
             )?;
             match &unary_op.operator.value() {
@@ -1144,8 +1110,9 @@ pub fn eval_expression(
             let lhs = match eval_expression(
                 &binary_op.lhs_expr,
                 dependencies_execution_results,
-                package_uuid,
-                runbook,
+                package_id,
+                runbook_resolution_context,
+                runbook_execution_context,
                 runtime_ctx,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -1159,8 +1126,9 @@ pub fn eval_expression(
             let rhs = match eval_expression(
                 &binary_op.rhs_expr,
                 dependencies_execution_results,
-                package_uuid,
-                runbook,
+                package_id,
+                runbook_resolution_context,
+                runbook_execution_context,
                 runtime_ctx,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
@@ -1193,7 +1161,7 @@ pub fn eval_expression(
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
-            runtime_ctx.execute_function(package_uuid.clone(), None, func, &vec![lhs, rhs])?
+            runtime_ctx.execute_function(package_id.did(), None, func, &vec![lhs, rhs])?
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
         Expression::ForExpr(_for_expr) => {
@@ -1221,7 +1189,7 @@ pub fn update_wallet_instances_from_action_response(
              }| match payload {
                 ActionItemResponseType::ProvideSignedTransaction(response) => {
                     if let Some(mut wallet_state) =
-                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                        wallets.pop_wallet_state(&ConstructUuid(response.signer_uuid))
                     {
                         wallet_state.insert_scoped_value(
                             &construct_uuid.value().to_string(),
@@ -1233,7 +1201,7 @@ pub fn update_wallet_instances_from_action_response(
                 }
                 ActionItemResponseType::ProvideSignedMessage(response) => {
                     if let Some(mut wallet_state) =
-                        wallets.pop_wallet_state(&ConstructUuid::Local(response.signer_uuid))
+                        wallets.pop_wallet_state(&ConstructUuid(response.signer_uuid))
                     {
                         wallet_state.insert_scoped_value(
                             &construct_uuid.value().to_string(),
@@ -1266,8 +1234,9 @@ pub fn perform_inputs_evaluation(
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     action_item_response: &Option<&Vec<ActionItemResponse>>,
-    package_uuid: &PackageUuid,
-    runbook: &Runbook,
+    package_id: &PackageId,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
@@ -1338,8 +1307,9 @@ pub fn perform_inputs_evaluation(
                 let value = match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
@@ -1393,8 +1363,9 @@ pub fn perform_inputs_evaluation(
             let value = match eval_expression(
                 &expr,
                 dependencies_execution_results,
-                package_uuid,
-                runbook,
+                package_id,
+                runbook_resolution_context,
+                runbook_execution_context,
                 runtime_ctx,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
@@ -1436,8 +1407,9 @@ pub fn perform_inputs_evaluation(
                 match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
@@ -1472,8 +1444,9 @@ pub fn perform_inputs_evaluation(
                 match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
@@ -1514,8 +1487,9 @@ pub fn perform_wallet_inputs_evaluation(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
-    package_uuid: &PackageUuid,
-    runbook: &Runbook,
+    package_id: &PackageId,
+    runbook_resolution_context: &RunbookResolutionContext,
+    runbook_execution_context: &RunbookExecutionContext,
     runtime_ctx: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&wallet_instance.name);
@@ -1556,8 +1530,9 @@ pub fn perform_wallet_inputs_evaluation(
                 let value = match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
@@ -1611,8 +1586,9 @@ pub fn perform_wallet_inputs_evaluation(
             let value = match eval_expression(
                 &expr,
                 dependencies_execution_results,
-                package_uuid,
-                runbook,
+                package_id,
+                runbook_resolution_context,
+                runbook_execution_context,
                 runtime_ctx,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
@@ -1645,11 +1621,12 @@ pub fn perform_wallet_inputs_evaluation(
                     };
                     let mut references = vec![];
                     for expr in exprs.iter() {
-                        let result = runbook.try_resolve_construct_reference_in_expression(
-                            package_uuid,
-                            &expr,
-                            runtime_ctx,
-                        );
+                        let result = runbook_resolution_context
+                            .try_resolve_construct_reference_in_expression(
+                                package_id,
+                                &expr,
+                                runbook_execution_context,
+                            );
                         if let Ok(Some((construct_uuid, _, _))) = result {
                             references.push(Value::string(construct_uuid.value().to_string()));
                         }
@@ -1670,8 +1647,9 @@ pub fn perform_wallet_inputs_evaluation(
                 match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
@@ -1706,8 +1684,9 @@ pub fn perform_wallet_inputs_evaluation(
                 match eval_expression(
                     &expr,
                     dependencies_execution_results,
-                    package_uuid,
-                    runbook,
+                    package_id,
+                    runbook_resolution_context,
+                    runbook_execution_context,
                     runtime_ctx,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,

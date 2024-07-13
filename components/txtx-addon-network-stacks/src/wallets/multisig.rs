@@ -625,7 +625,7 @@ fn get_signers(
     let mut signers = Vec::new();
     for signer_uuid in signers_uuid.iter() {
         let uuid = signer_uuid.as_string().unwrap();
-        let uuid = ConstructUuid::from_uuid(&Uuid::from_str(uuid).unwrap());
+        let uuid = ConstructUuid(Uuid::from_str(uuid).unwrap());
         let wallet_instance = wallets_instances.get(&uuid).unwrap().clone();
         signers.push((uuid, wallet_instance));
     }

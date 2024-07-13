@@ -244,7 +244,7 @@ impl ActionItemRequestUpdate {
                     construct_uuid,
                     internal_key,
                 )) => {
-                    let Some(action_construct_uuid) = action.construct_uuid else {
+                    let Some(ref action_construct_uuid) = action.construct_uuid else {
                         continue;
                     };
                     if action_construct_uuid.eq(construct_uuid)

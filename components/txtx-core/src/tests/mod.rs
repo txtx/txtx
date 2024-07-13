@@ -8,6 +8,7 @@ use kit::{
             ActionPanelData, ModalPanelData, NormalizedActionItemRequestUpdate,
             ProvideSignedTransactionResponse,
         },
+        RunbookId,
     },
 };
 use txtx_addon_kit::{
@@ -24,9 +25,9 @@ use txtx_addon_kit::{
 use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
-    pre_compute_runbook, start_interactive_runbook_runloop,
+    pre_compute_runbook, start_supervised_runbook_runloop,
     std::StdAddon,
-    types::{Runbook, RuntimeContext, SourceTree},
+    types::{Runbook, RunbookSources, RuntimeContext},
     AddonsContext,
 };
 
@@ -202,8 +203,8 @@ impl TestHarness {
 }
 
 fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
-    let mut source_tree = SourceTree::new();
-    source_tree.add_source(
+    let mut runbook_sources = RunbookSources::new();
+    runbook_sources.add_source(
         file_name.into(),
         FileLocation::from_path_string(".").unwrap(),
         fixture.into(),
@@ -215,9 +216,14 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
     addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
-    let mut runbook = Runbook::new(Some(source_tree), None);
+    let runbook_id = RunbookId {
+        org: None,
+        project: None,
+        name: "test".into(),
+    };
+    let mut runbook = Runbook::new(runbook_id, None);
 
-    let _ = pre_compute_runbook(&mut runbook, &mut runtime_context)
+    let _ = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context)
         .expect("unable to pre-compute runbook");
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
@@ -234,7 +240,7 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
         action_item_events_rx: action_item_events_rx.clone(),
     };
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_interactive_runbook_runloop(
+        let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,
@@ -761,8 +767,8 @@ fn test_bns_runbook_no_env() {
     // Load Runbook abc.tx
     let wallet_tx = include_str!("./fixtures/wallet.tx");
 
-    let mut source_tree = SourceTree::new();
-    source_tree.add_source(
+    let mut runbook_sources = RunbookSources::new();
+    runbook_sources.add_source(
         "bns.tx".into(),
         FileLocation::from_path_string(".").unwrap(),
         wallet_tx.into(),
@@ -774,9 +780,14 @@ fn test_bns_runbook_no_env() {
     addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
 
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
-    let mut runbook = Runbook::new(Some(source_tree), None);
+    let runbook_id = RunbookId {
+        org: None,
+        project: None,
+        name: "test".into(),
+    };
+    let mut runbook = Runbook::new(runbook_id, None);
 
-    let _ = pre_compute_runbook(&mut runbook, &mut runtime_context)
+    let _ = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context)
         .expect("unable to pre-compute runbook");
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
@@ -786,7 +797,7 @@ fn test_bns_runbook_no_env() {
         txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
 
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_interactive_runbook_runloop(
+        let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             block_tx,

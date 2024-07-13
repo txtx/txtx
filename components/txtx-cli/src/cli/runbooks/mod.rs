@@ -19,8 +19,8 @@ use txtx_core::{
             types::Value,
         },
     },
-    pre_compute_runbook, start_interactive_runbook_runloop, start_unsupervised_runbook_runloop,
-    types::{ProtocolManifest, Runbook, RunbookMetadata, RuntimeContext},
+    pre_compute_runbook, start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
+    types::{ProtocolManifest, Runbook, RunbookMetadata, RunbookSources, RuntimeContext},
 };
 
 use crate::{
@@ -269,7 +269,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     for input in cmd.inputs.iter() {
         let (input_name, input_value) = input.split_once("=").unwrap();
-        for (construct_uuid, command_instance) in runbook.commands_instances.iter_mut() {
+        for (construct_uuid, command_instance) in
+            runbook.execution_context.commands_instances.iter_mut()
+        {
             if command_instance.specification.matcher.eq("input")
                 && input_name.eq(&command_instance.name)
             {
@@ -283,14 +285,18 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     let v = batch_inputs.remove(0);
                     result.inputs.insert("value", v);
                     runbook
-                        .command_inputs_evaluation_results
+                        .execution_context
+                        .commands_inputs_evaluations_results
                         .insert(construct_uuid.clone(), result);
                 } else {
-                    result
-                        .inputs
-                        .insert("value", Value::uint(input_value.parse::<u64>().unwrap()));
+                    let value = match input_value.parse::<u64>() {
+                        Ok(uint) => Value::uint(uint),
+                        Err(_) => Value::string(input_value.into()),
+                    };
+                    result.inputs.insert("value", value);
                     runbook
-                        .command_inputs_evaluation_results
+                        .execution_context
+                        .commands_inputs_evaluations_results
                         .insert(construct_uuid.clone(), result);
                 }
             }
@@ -363,7 +369,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_interactive_runbook_runloop(
+        let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
             &mut runtime_context,
             moved_block_tx,
@@ -532,25 +538,13 @@ pub async fn load_runbooks_from_manifest(
 ) -> Result<
     (
         ProtocolManifest,
-        HashMap<String, (Runbook, RuntimeContext, String)>,
+        HashMap<String, (Runbook, RunbookSources, RuntimeContext, String)>,
     ),
     String,
 > {
     let manifest = read_manifest_at_path(&manifest_path)?;
-    let mut runbooks = read_runbooks_from_manifest(&manifest, None)?;
+    let runbooks = read_runbooks_from_manifest(&manifest, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
-
-    for (_, (runbook, runtime_context, runbook_name)) in runbooks.iter_mut() {
-        let res = pre_compute_runbook(runbook, runtime_context);
-        if let Err(diags) = res {
-            for diag in diags.iter() {
-                println!("{} {}", red!("x"), diag);
-            }
-            std::process::exit(1);
-        }
-
-        println!("{} '{}' successfully checked", green!("✓"), runbook_name);
-    }
     Ok((manifest, runbooks))
 }
 
@@ -560,12 +554,21 @@ pub async fn load_runbook_from_manifest(
 ) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
-    for (runbook_id, (runbook, runtime_context, runbook_name)) in runbooks.into_iter() {
+    for (runbook_id, (mut runbook, mut runbook_sources, mut runtime_context, runbook_name)) in
+        runbooks.into_iter()
+    {
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
+            let res = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context);
+            if let Err(diags) = res {
+                for diag in diags.iter() {
+                    println!("{} {}", red!("x"), diag);
+                }
+                std::process::exit(1);
+            }
+            println!("{} '{}' successfully checked", green!("✓"), runbook_name);
             return Ok((manifest, runbook_name, runbook, runtime_context));
         }
     }
-
     Err(format!(
         "unable to retrieve runbook '{}' in manifest",
         desired_runbook_name
@@ -577,12 +580,12 @@ pub async fn load_runbook_from_file_path(
 ) -> Result<(String, Runbook, RuntimeContext), String> {
     let location = FileLocation::from_path_string(file_path)?;
 
-    let (runbook_name, mut runbook, mut runtime_context) =
+    let (runbook_name, mut runbook, mut runbook_sources, mut runtime_context) =
         read_runbook_from_location(&location, &None, &BTreeMap::new())?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
 
-    let res = pre_compute_runbook(&mut runbook, &mut runtime_context);
+    let res = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context);
     if let Err(diags) = res {
         for diag in diags.iter() {
             println!("{} {}", red!("x"), diag);

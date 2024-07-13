@@ -21,18 +21,14 @@ use crate::{
 };
 
 use super::{
-    diagnostics::Diagnostic,
-    frontend::{
+    diagnostics::Diagnostic, frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
-    },
-    types::{ObjectProperty, Type, TypeSpecification, Value},
-    wallets::{
+    }, types::{ObjectProperty, Type, TypeSpecification, Value}, wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
-    },
-    ConstructUuid, PackageUuid, ValueStore,
+    }, ConstructUuid, Did, PackageId, PackageUuid, ValueStore
 };
 
 #[derive(Clone, Debug)]
@@ -186,12 +182,6 @@ impl CommandId {
             &CommandId::Action(id) => format!("action::{id}"),
         }
     }
-}
-
-#[derive(Clone, Debug)]
-pub enum CommandInstanceOrParts {
-    Instance(CommandInstance),
-    Parts(Vec<String>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -465,7 +455,7 @@ pub struct CommandInstance {
     pub specification: CommandSpecification,
     pub name: String,
     pub block: Block,
-    pub package_uuid: PackageUuid,
+    pub package_id: PackageId,
     pub namespace: String,
     pub typing: CommandInstanceType,
 }
@@ -482,7 +472,7 @@ impl Serialize for CommandInstance {
         let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
-        ser.serialize_field("packageUuid", &self.package_uuid)?;
+        ser.serialize_field("packageUuid", &self.package_id.did())?;
         ser.serialize_field("namespace", &self.namespace)?;
         ser.serialize_field("typing", &self.typing)?;
         ser.end()
@@ -522,7 +512,7 @@ impl CommandInstance {
 
     pub fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Result<Vec<Expression>, String> {
+    ) -> Result<Vec<(Option<&CommandInput>, Expression)>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -536,6 +526,7 @@ impl CommandInstance {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
                                     &expr,
+                                    Some(input),
                                     &mut references,
                                 );
                                 expressions.append(&mut references);
@@ -548,7 +539,11 @@ impl CommandInstance {
                         .map_err(|e| format!("{:?}", e))?;
                     if let Some(expr) = res {
                         let mut references = vec![];
-                        collect_constructs_references_from_expression(&expr, &mut references);
+                        collect_constructs_references_from_expression(
+                            &expr,
+                            Some(input),
+                            &mut references,
+                        );
                         expressions.append(&mut references);
                     }
                 }
@@ -557,7 +552,11 @@ impl CommandInstance {
         if self.specification.accepts_arbitrary_inputs {
             for attribute in self.block.body.attributes() {
                 let mut references = vec![];
-                collect_constructs_references_from_expression(&attribute.value, &mut references);
+                collect_constructs_references_from_expression(
+                    &attribute.value,
+                    None,
+                    &mut references,
+                );
                 expressions.append(&mut references);
             }
         }
@@ -930,7 +929,7 @@ impl CommandInstance {
     ) -> CommandExecutionFutureResult {
         let mut inputs = ValueStore::new(&self.name, &construct_uuid.value());
         let mut outputs = ValueStore::new(&self.name, &construct_uuid.value());
-        
+
         for (key, value) in evaluated_inputs.inputs.iter() {
             inputs.insert(key, value.clone());
         }
@@ -953,7 +952,7 @@ impl CommandInstance {
         res
     }
 
-    pub fn collect_dependencies(&self) -> Vec<Expression> {
+    pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -966,6 +965,7 @@ impl CommandInstance {
                             };
                             collect_constructs_references_from_expression(
                                 &attr.value,
+                                Some(input),
                                 &mut dependencies,
                             );
                         }
@@ -975,7 +975,11 @@ impl CommandInstance {
                     let Some(attr) = self.block.body.get_attribute(&input.name) else {
                         continue;
                     };
-                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+                    collect_constructs_references_from_expression(
+                        &attr.value,
+                        Some(input),
+                        &mut dependencies,
+                    );
                 }
             }
         }
