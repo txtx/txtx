@@ -7,8 +7,6 @@ mod send_contract_call;
 pub mod set_default_network;
 pub mod sign_transaction;
 
-use std::str::FromStr;
-
 use crate::{stacks_helpers::parse_clarity_value, typing::STACKS_CONTRACT_CALL};
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
 use call_readonly_fn::CALL_READONLY_FN;
@@ -30,7 +28,6 @@ use txtx_addon_kit::types::{
     types::{PrimitiveValue, Value},
 };
 use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![

@@ -1,12 +1,8 @@
 use async_recursion::async_recursion;
-use clarity::types::chainstate::StacksAddress;
-use clarity::types::Address;
-use clarity::vm::types::BuffData;
-use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::clarity::codec::StacksMessageCodec;
 use clarity_repl::clarity::util::hash::{bytes_to_hex, hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
-use clarity_repl::codec::{TransactionContractCall, TransactionPayload};
+use clarity_repl::codec::TransactionPayload;
 use serde_json::Value as JsonValue;
 use std::io::Cursor;
 use txtx_addon_kit::helpers::format_currency;

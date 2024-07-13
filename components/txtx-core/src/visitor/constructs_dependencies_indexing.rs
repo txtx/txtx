@@ -40,7 +40,7 @@ pub fn run_constructs_dependencies_indexing(
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
-            for (input, dep) in construct.collect_dependencies().iter() {
+            for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
@@ -64,7 +64,7 @@ pub fn run_constructs_dependencies_indexing(
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
-            for (input, dep) in construct.collect_dependencies().iter() {
+            for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
@@ -88,7 +88,7 @@ pub fn run_constructs_dependencies_indexing(
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
-            for (input, dep) in construct.collect_dependencies().iter() {
+            for (_input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
@@ -114,7 +114,7 @@ pub fn run_constructs_dependencies_indexing(
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
-            for (input, dep) in command_instance.collect_dependencies().iter() {
+            for (_input, dep) in command_instance.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
@@ -146,7 +146,7 @@ pub fn run_constructs_dependencies_indexing(
                 .signing_commands_instances
                 .get(construct_did)
                 .unwrap();
-            for (input, dep) in wallet_instance.collect_dependencies().iter() {
+            for (_input, dep) in wallet_instance.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(

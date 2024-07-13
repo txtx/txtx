@@ -4,7 +4,7 @@ use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
-    ConstructDid, Did,
+    ConstructDid,
 };
 use serde::Serialize;
 use uuid::Uuid;

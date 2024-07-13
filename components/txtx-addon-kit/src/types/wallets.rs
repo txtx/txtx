@@ -18,7 +18,7 @@ use super::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
     types::{ObjectProperty, Type, Value},
-    ConstructDid, PackageDid, PackageId, ValueStore,
+    ConstructDid, PackageId, ValueStore,
 };
 
 #[derive(Debug, Clone)]

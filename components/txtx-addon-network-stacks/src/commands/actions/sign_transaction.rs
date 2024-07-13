@@ -14,7 +14,6 @@ use clarity_repl::{
     },
 };
 use std::collections::HashMap;
-use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -32,7 +31,6 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{

@@ -1,6 +1,4 @@
-use crate::types::{Runbook, RunbookExecutionContext, RunbookResolutionContext, RuntimeContext};
-use daggy::{Dag, NodeIndex, Walker};
-use indexmap::IndexSet;
+use crate::types::{RunbookExecutionContext, RunbookResolutionContext, RuntimeContext};
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
@@ -241,8 +239,6 @@ pub async fn run_wallets_evaluation(
             .insert(construct_did.clone(), result);
     }
 
-    println!("{:?}", pass_result.actions);
-
     pass_result
 }
 
@@ -293,7 +289,7 @@ pub async fn run_commands_updating_defaults(
                 .get_expressions_referencing_commands_from_inputs()
                 .unwrap();
 
-            for (input, expr) in references_expressions.into_iter() {
+            for (_input, expr) in references_expressions.into_iter() {
                 let res = runbook_resolution_context
                     .try_resolve_construct_reference_in_expression(
                         &command_instance.package_id,
@@ -570,7 +566,7 @@ pub async fn run_constructs_evaluation(
             .get_expressions_referencing_commands_from_inputs()
             .unwrap();
 
-        for (input, expr) in references_expressions.into_iter() {
+        for (_input, expr) in references_expressions.into_iter() {
             let res = runbook_resolution_context
                 .try_resolve_construct_reference_in_expression(
                     &package_id,
@@ -615,11 +611,9 @@ pub async fn run_constructs_evaluation(
             continue;
         };
 
-        let mut evaluated_inputs = CommandInputsEvaluationResult::new(&command_instance.name);
-
-        match evaluated_inputs_res {
+        let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
-                CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
+                CommandInputEvaluationStatus::Complete(result) => result,
                 CommandInputEvaluationStatus::NeedsUserInteraction => continue,
                 CommandInputEvaluationStatus::Aborted(mut diags) => {
                     pass_result.diagnostics.append(&mut diags);

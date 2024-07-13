@@ -143,7 +143,7 @@ impl AddonContext {
                 };
                 Ok(command_instance)
             }
-            PreCommandSpecification::Composite(composite_spec) => unimplemented!(),
+            PreCommandSpecification::Composite(_) => unimplemented!(),
         }
     }
 

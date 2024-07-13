@@ -31,6 +31,7 @@ use crate::{
     AddonsContext,
 };
 
+#[allow(unused)]
 struct TestHarness {
     block_tx: Sender<BlockEvent>,
     block_rx: Receiver<BlockEvent>,
@@ -38,6 +39,8 @@ struct TestHarness {
     action_item_events_tx: Sender<ActionItemResponse>,
     action_item_events_rx: Receiver<ActionItemResponse>,
 }
+
+#[allow(unused)]
 impl TestHarness {
     fn send(&self, response: &ActionItemResponse) {
         let _ = self.action_item_events_tx.send(response.clone());

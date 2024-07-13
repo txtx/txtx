@@ -32,7 +32,7 @@ use super::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
     },
-    ConstructDid, Did, PackageDid, PackageId, ValueStore,
+    ConstructDid, Did, PackageId, ValueStore,
 };
 
 #[derive(Clone, Debug)]

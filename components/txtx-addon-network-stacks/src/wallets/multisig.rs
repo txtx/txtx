@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-use std::str::FromStr;
-
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
+use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionResult, CommandSpecification,
 };
@@ -32,7 +30,6 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
