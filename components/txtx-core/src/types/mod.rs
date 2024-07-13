@@ -1,12 +1,13 @@
 mod construct;
 mod package;
-mod runbook;
 
+pub use super::runbook::{
+    Runbook, RunbookExecutionContext, RunbookResolutionContext, RunbookSources,
+};
 pub use construct::PreConstructData;
 use kit::helpers::fs::FileLocation;
 use kit::serde::{Deserialize, Serialize};
 pub use package::Package;
-pub use runbook::{Runbook, RunbookExecutionContext, RunbookResolutionContext, RunbookSources};
 use std::collections::{BTreeMap, HashMap};
 pub use txtx_addon_kit::types::commands::CommandInstance;
 use txtx_addon_kit::types::PackageDid;

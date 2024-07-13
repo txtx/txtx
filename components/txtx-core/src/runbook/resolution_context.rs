@@ -1,49 +1,24 @@
 use crate::std::commands;
-
-use super::Package;
-use super::PreConstructData;
-use super::RuntimeContext;
+use crate::types::Package;
+use crate::types::PreConstructData;
+use crate::types::RuntimeContext;
 use daggy::{Dag, NodeIndex};
+use kit::helpers::fs::FileLocation;
+use kit::types::commands::CommandInstance;
 use kit::types::commands::CommandInstanceType;
-use kit::types::diagnostics::Diagnostic;
-use kit::types::frontend::ActionItemRequest;
-use kit::types::frontend::ActionItemRequestType;
-use kit::types::frontend::ActionItemStatus;
-use kit::types::frontend::DisplayOutputRequest;
 use kit::types::types::Value;
-use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructDid;
 use kit::types::ConstructId;
 use kit::types::Did;
 use kit::types::PackageDid;
 use kit::types::PackageId;
-use kit::types::RunbookId;
-use serde_json::json;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
-use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
-use txtx_addon_kit::types::commands::{CommandId, CommandInputsEvaluationResult};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::commands::CommandId;
 
-pub struct RunbookSources {
-    /// Map of files required to construct the runbook
-    pub tree: HashMap<FileLocation, (String, String)>,
-}
-
-impl RunbookSources {
-    pub fn new() -> Self {
-        Self {
-            tree: HashMap::new(),
-        }
-    }
-
-    pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
-        self.tree.insert(location, (name, content));
-    }
-}
+use super::execution_context::RunbookExecutionContext;
 
 #[derive(Debug, Clone)]
 pub struct Construct {
@@ -57,21 +32,21 @@ pub struct RunbookResolutionContext {
     pub packages: HashMap<PackageId, Package>,
     /// Direct Acyclic Graph keeping track of the dependencies between packages
     pub packages_dag: Dag<PackageDid, u32, u32>,
-    /// Lookup: Retrieve the DAG node id of a given package uuid
+    /// Lookup: Retrieve the DAG node id of a given package did
     pub packages_dag_node_lookup: HashMap<PackageDid, NodeIndex<u32>>,
     /// Map of constructs. A construct refers to root level objects (input, action, output, wallet, import, ...)
     pub constructs: HashMap<ConstructId, Construct>,
     /// Direct Acyclic Graph keeping track of the dependencies between constructs
     pub constructs_dag: Dag<ConstructDid, u32, u32>,
-    /// Lookup: Retrieve the DAG node id of a given construct uuid
+    /// Lookup: Retrieve the DAG node id of a given construct did
     pub constructs_dag_node_lookup: HashMap<ConstructDid, NodeIndex<u32>>,
     /// Keep track of the signing commands (wallet) instantiated (ordered)
     pub instantiated_signing_commands: VecDeque<(ConstructDid, bool)>,
     /// Keep track of the root DAGs (temporary - to be removed)
     pub graph_root: NodeIndex<u32>,
-    /// Lookup: Retrieve a construct uuid, given an environment name (mainnet, testnet, etc)
-    pub environment_variables_uuid_lookup: BTreeMap<String, ConstructDid>,
-    /// Lookup: Retrieve a construct uuid, given an environment name (mainnet, testnet, etc)
+    /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
+    pub environment_variables_did_lookup: BTreeMap<String, ConstructDid>,
+    /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
     pub environment_variables_values: BTreeMap<ConstructDid, String>,
 }
 
@@ -92,7 +67,7 @@ impl RunbookResolutionContext {
             constructs_dag_node_lookup: HashMap::new(),
             instantiated_signing_commands: VecDeque::new(),
             graph_root,
-            environment_variables_uuid_lookup: BTreeMap::new(),
+            environment_variables_did_lookup: BTreeMap::new(),
             environment_variables_values: BTreeMap::new(),
         }
     }
@@ -137,9 +112,9 @@ impl RunbookResolutionContext {
                 // if construct_name.eq("runbook") && self.runbook_metadata_construct_did.is_none() {
                 //     self.runbook_metadata_construct_did = Some(construct_did.clone());
                 // }
-                package.modules_uuids.insert(construct_did.clone());
+                package.modules_dids.insert(construct_did.clone());
                 package
-                    .modules_uuids_lookup
+                    .modules_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
                 execution_context.commands_instances.insert(
                     construct_did.clone(),
@@ -154,9 +129,9 @@ impl RunbookResolutionContext {
                 );
             }
             PreConstructData::Input(block) => {
-                package.variables_uuids.insert(construct_did.clone());
+                package.variables_dids.insert(construct_did.clone());
                 package
-                    .inputs_uuids_lookup
+                    .inputs_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
                 execution_context.commands_instances.insert(
                     construct_did.clone(),
@@ -171,9 +146,9 @@ impl RunbookResolutionContext {
                 );
             }
             PreConstructData::Output(block) => {
-                package.outputs_uuids.insert(construct_did.clone());
+                package.outputs_dids.insert(construct_did.clone());
                 package
-                    .outputs_uuids_lookup
+                    .outputs_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
                 execution_context.commands_instances.insert(
                     construct_did.clone(),
@@ -188,14 +163,14 @@ impl RunbookResolutionContext {
                 );
             }
             PreConstructData::Import(_) => {
-                package.imports_uuids.insert(construct_did.clone());
+                package.imports_dids.insert(construct_did.clone());
                 package
-                    .imports_uuids_lookup
+                    .imports_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
             }
             PreConstructData::Action(command_instance) => {
-                package.addons_uuids.insert(construct_did.clone());
-                package.addons_uuids_lookup.insert(
+                package.addons_dids.insert(construct_did.clone());
+                package.addons_did_lookup.insert(
                     CommandId::Action(construct_name).to_string(),
                     construct_did.clone(),
                 );
@@ -204,9 +179,9 @@ impl RunbookResolutionContext {
                     .insert(construct_did.clone(), command_instance.clone());
             }
             PreConstructData::Wallet(wallet_instance) => {
-                package.signing_commands_uuids.insert(construct_did.clone());
+                package.signing_commands_dids.insert(construct_did.clone());
                 package
-                    .signing_commands_uuids_lookup
+                    .signing_commands_did_lookup
                     .insert(construct_name, construct_did.clone());
                 execution_context
                     .signing_commands_instances
@@ -233,7 +208,7 @@ impl RunbookResolutionContext {
             ]));
             self.environment_variables_values
                 .insert(construct_did.clone(), v);
-            self.environment_variables_uuid_lookup
+            self.environment_variables_did_lookup
                 .insert(k, construct_did.clone());
             let (_, node_index) =
                 self.constructs_dag
@@ -301,7 +276,7 @@ impl RunbookResolutionContext {
                         continue;
                     };
                     if let Some(construct_did) =
-                        current_package.modules_uuids_lookup.get(&module_name)
+                        current_package.modules_did_lookup.get(&module_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
@@ -314,7 +289,7 @@ impl RunbookResolutionContext {
                         continue;
                     };
                     if let Some(construct_did) =
-                        current_package.outputs_uuids_lookup.get(&output_name)
+                        current_package.outputs_did_lookup.get(&output_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
@@ -326,8 +301,7 @@ impl RunbookResolutionContext {
                     let Some(input_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_did) =
-                        current_package.inputs_uuids_lookup.get(&input_name)
+                    if let Some(construct_did) = current_package.inputs_did_lookup.get(&input_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
@@ -340,7 +314,7 @@ impl RunbookResolutionContext {
                         continue;
                     };
                     if let Some(construct_did) = current_package
-                        .addons_uuids_lookup
+                        .addons_did_lookup
                         .get(&CommandId::Action(action_name).to_string())
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
@@ -354,7 +328,7 @@ impl RunbookResolutionContext {
                         continue;
                     };
                     if let Some(construct_did) = current_package
-                        .signing_commands_uuids_lookup
+                        .signing_commands_did_lookup
                         .get(&wallet_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
@@ -368,7 +342,7 @@ impl RunbookResolutionContext {
                     };
 
                     if let Some(construct_did) = self
-                        .environment_variables_uuid_lookup
+                        .environment_variables_did_lookup
                         .get(&env_variable_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
@@ -377,7 +351,7 @@ impl RunbookResolutionContext {
             }
 
             let imported_package = current_package
-                .imports_uuids_lookup
+                .imports_did_lookup
                 .get(&component.to_string())
                 .and_then(|c| execution_context.commands_instances.get(c))
                 .and_then(|c| Some(&c.package_id))
@@ -390,184 +364,4 @@ impl RunbookResolutionContext {
         }
         Ok(None)
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct RunbookExecutionContext {
-    /// Map of executable commands (input, output, action)
-    pub commands_instances: HashMap<ConstructDid, CommandInstance>,
-    /// Map of signing commands (wallet)
-    pub signing_commands_instances: HashMap<ConstructDid, WalletInstance>,
-    /// State of the signing commands states (stateful)
-    pub signing_commands_state: Option<SigningCommandsState>,
-    /// Results of commands executions
-    pub commands_execution_results: HashMap<ConstructDid, CommandExecutionResult>,
-    /// Results of commands inputs evaluations
-    pub commands_inputs_evaluations_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
-    /// Constructs depending on a given Construct. Keys are sorted in order of execution.
-    pub commands_dependencies: BTreeMap<ConstructDid, Vec<ConstructDid>>,
-    /// Constructs depending on a given Construct performing signing. Keys are sorted in order of execution.
-    pub signing_commands_dependencies: BTreeMap<ConstructDid, Vec<ConstructDid>>,
-    /// Commands execution order.
-    pub order_for_commands_execution: Vec<ConstructDid>,
-    /// Signing commands initialization order.
-    pub order_for_signing_commands_initialization: Vec<ConstructDid>,
-}
-
-impl RunbookExecutionContext {
-    pub fn new() -> Self {
-        Self {
-            commands_instances: HashMap::new(),
-            signing_commands_instances: HashMap::new(),
-            signing_commands_state: Some(SigningCommandsState::new()),
-            commands_execution_results: HashMap::new(),
-            commands_inputs_evaluations_results: HashMap::new(),
-            commands_dependencies: BTreeMap::new(),
-            signing_commands_dependencies: BTreeMap::new(),
-            order_for_commands_execution: vec![],
-            order_for_signing_commands_initialization: vec![],
-        }
-    }
-
-    pub fn serialize_execution(&self) -> serde_json::Value {
-        let mut serialized_nodes = vec![];
-
-        for construct_did in self.order_for_commands_execution.iter() {
-            let Some(command_instance) = self.commands_instances.get(&construct_did) else {
-                // runtime_ctx.addons.index_command_instance(namespace, package_did, block)
-                continue;
-            };
-
-            let inputs_results = &self
-                .commands_inputs_evaluations_results
-                .get(&construct_did)
-                .unwrap()
-                .inputs;
-
-            let outputs_results = &self
-                .commands_execution_results
-                .get(&construct_did)
-                .unwrap()
-                .outputs;
-
-            let inputs = command_instance.specification.inputs.iter().map(|i| {
-                let value = match (inputs_results.get_value(&i.name), i.optional) {
-                    (Some(v), _) => {
-                        v.clone()
-                    },
-                    (None, true) => {
-                        Value::null()
-                    },
-                    _ => panic!("corrupted execution, required input {} missing post execution - investigation required", i.name)
-                };
-                json!({
-                    "name": i.name,
-                    "type": value.get_type(),
-                    "value": value.to_string()
-                })
-            }).collect::<Vec<_>>();
-
-            let outputs = command_instance.specification.outputs.iter().map(|o| {
-                let output_result = match outputs_results.get(&o.name) {
-                    Some(v) => v,
-                    None => panic!("corrupted execution, required output {} missing post execution - investigation required", o.name)
-                };
-                json!({
-                    "name": o.name,
-                    "value_type": output_result.get_type(),
-                    "value": output_result.to_string()
-                })
-            }).collect::<Vec<_>>();
-
-            serialized_nodes.push(json!({
-                "action": command_instance.specification.matcher,
-                "inputs": inputs,
-                "outputs": outputs,
-            }));
-        }
-
-        json!({
-            "nodes": serialized_nodes
-        })
-    }
-
-    pub fn collect_runbook_outputs(&self) -> BTreeMap<String, Vec<ActionItemRequest>> {
-        let mut action_items = BTreeMap::new();
-
-        for construct_did in self.order_for_commands_execution.iter() {
-            let Some(command_instance) = self.commands_instances.get(&construct_did) else {
-                // runtime_ctx.addons.index_command_instance(namespace, package_did, block)
-                continue;
-            };
-
-            if command_instance
-                .specification
-                .name
-                .to_lowercase()
-                .eq("output")
-            {
-                let Some(execution_result) = self.commands_execution_results.get(&construct_did)
-                else {
-                    return action_items;
-                };
-
-                let Some(value) = execution_result.outputs.get("value") else {
-                    unreachable!()
-                };
-
-                action_items
-                    .entry(command_instance.get_group())
-                    .or_insert_with(Vec::new)
-                    .push(ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        &command_instance.name,
-                        None,
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                            name: command_instance.name.to_string(),
-                            description: None,
-                            value: value.clone(),
-                        }),
-                        "output".into(),
-                    ));
-            }
-        }
-
-        action_items
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Runbook {
-    /// Id of the Runbook
-    pub runbook_id: RunbookId,
-    /// Description of the Runbook
-    pub description: Option<String>,
-    /// The resolution context contains all the data related to source code analysis and DAG construction
-    pub resolution_context: RunbookResolutionContext,
-    /// The execution context contains all the data related to the execution of the runbook
-    pub execution_context: RunbookExecutionContext,
-    /// Diagnostics collected over time, until hitting a fatal error
-    pub diagnostics: Vec<Diagnostic>,
-}
-
-impl Runbook {
-    pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
-        Self {
-            runbook_id,
-            description,
-            resolution_context: RunbookResolutionContext::new(),
-            execution_context: RunbookExecutionContext::new(),
-            diagnostics: vec![],
-        }
-    }
-
-    // add attribute "tainting_change"
-
-    // -> Order the nodes
-    // -> Compute canonical id for each node
-    //      -> traverse all the inputs, same order, only considering the one with "tainting_change" set to true
-    // The edges should be slightly differently created: only if a tainting_change is at stake. 5
-    // -> Compute canonical id for each edge (?)
-    //      ->
 }

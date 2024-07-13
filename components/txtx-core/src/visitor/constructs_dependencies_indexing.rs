@@ -28,14 +28,14 @@ pub fn run_constructs_dependencies_indexing(
     let packages = runbook.resolution_context.packages.clone();
 
     for (package_did, package) in packages.iter() {
-        for construct_did in package.imports_uuids.iter() {
+        for construct_did in package.imports_dids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
                 .get(construct_did)
                 .unwrap();
             for _dep in construct.collect_dependencies().iter() {} // todo
         }
-        for construct_did in package.variables_uuids.iter() {
+        for construct_did in package.variables_dids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
                 .get(construct_did)
@@ -59,7 +59,7 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
-        for construct_did in package.modules_uuids.iter() {
+        for construct_did in package.modules_dids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
                 .get(construct_did)
@@ -83,7 +83,7 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
-        for construct_did in package.outputs_uuids.iter() {
+        for construct_did in package.outputs_dids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
                 .get(construct_did)
@@ -109,7 +109,7 @@ pub fn run_constructs_dependencies_indexing(
         }
         let mut wallets = VecDeque::new();
         let mut instantiated_wallets = HashSet::new();
-        for construct_did in package.addons_uuids.iter() {
+        for construct_did in package.addons_dids.iter() {
             let command_instance = runbook_execution_context
                 .commands_instances
                 .get(construct_did)
@@ -141,7 +141,7 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         // todo: should we constrain to wallets depending on wallets?
-        for construct_did in package.signing_commands_uuids.iter() {
+        for construct_did in package.signing_commands_dids.iter() {
             let wallet_instance = runbook_execution_context
                 .signing_commands_instances
                 .get(construct_did)

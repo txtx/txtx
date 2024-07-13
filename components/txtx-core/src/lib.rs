@@ -8,6 +8,7 @@ mod constants;
 pub mod errors;
 pub mod eval;
 // pub mod snapshot;
+pub mod runbook;
 pub mod std;
 pub mod types;
 pub mod visitor;
@@ -247,7 +248,9 @@ pub async fn start_unsupervised_runbook_runloop(
 
         if !pass_results.actions.has_pending_actions() && background_tasks_contructs_dids.is_empty()
         {
-            let grouped_actions_items = runbook.execution_context.collect_runbook_outputs();
+            let grouped_actions_items = runbook
+                .execution_context
+                .collect_outputs_constructs_results();
             for (group, items) in grouped_actions_items.iter() {
                 println!("{}", group);
                 for item in items.iter() {
@@ -459,7 +462,9 @@ pub async fn start_supervised_runbook_runloop(
                     && background_tasks_contructs_dids.is_empty()
                 {
                     runbook_completed = true;
-                    let grouped_actions_items = runbook.execution_context.collect_runbook_outputs();
+                    let grouped_actions_items = runbook
+                        .execution_context
+                        .collect_outputs_constructs_results();
                     let mut actions = Actions::new_panel("output review", "");
                     for (key, action_items) in grouped_actions_items.into_iter() {
                         actions.push_group(key.as_str(), action_items);
