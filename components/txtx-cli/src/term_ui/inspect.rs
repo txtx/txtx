@@ -174,12 +174,12 @@ fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
         .commands_instances
         .iter()
         .enumerate()
-        .map(|(i, (construct_uuid, _construct_data))| {
+        .map(|(i, (construct_did, _construct_data))| {
             let color = match i % 2 {
                 0 => app.colors.normal_row_color,
                 _ => app.colors.alt_row_color,
             };
-            let row = vec![construct_uuid.value().to_string()];
+            let row = vec![construct_did.value().to_string()];
             Row::new(row)
                 .style(Style::new().fg(app.colors.row_fg).bg(color))
                 .height(4)

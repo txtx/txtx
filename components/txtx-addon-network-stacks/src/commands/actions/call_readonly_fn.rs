@@ -10,7 +10,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::Type,
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
@@ -86,7 +86,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -97,7 +97,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,

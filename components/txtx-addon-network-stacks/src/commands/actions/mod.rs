@@ -29,7 +29,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, Did, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 
 lazy_static! {
@@ -126,8 +126,8 @@ pub fn encode_contract_call(
     Ok(value)
 }
 
-fn get_wallet_uuid(args: &ValueStore) -> Result<ConstructUuid, Diagnostic> {
+fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
     let signer = args.get_expected_string("signer")?;
-    let wallet_uuid = ConstructUuid(Did::from_hex_string(signer));
-    Ok(wallet_uuid)
+    let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
+    Ok(signing_construct_did)
 }

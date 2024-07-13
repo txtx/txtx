@@ -1,23 +1,23 @@
 use kit::types::PackageId;
 use std::collections::{HashMap, HashSet};
-use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::types::ConstructDid;
 
 #[derive(Clone, Debug)]
 pub struct Package {
     /// Id of the Package
     pub package_id: PackageId,
-    pub variables_uuids: HashSet<ConstructUuid>,
-    pub inputs_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub outputs_uuids: HashSet<ConstructUuid>,
-    pub outputs_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub modules_uuids: HashSet<ConstructUuid>,
-    pub modules_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub imports_uuids: HashSet<ConstructUuid>,
-    pub imports_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub addons_uuids: HashSet<ConstructUuid>,
-    pub addons_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub signing_commands_uuids: HashSet<ConstructUuid>,
-    pub signing_commands_uuids_lookup: HashMap<String, ConstructUuid>,
+    pub variables_uuids: HashSet<ConstructDid>,
+    pub inputs_uuids_lookup: HashMap<String, ConstructDid>,
+    pub outputs_uuids: HashSet<ConstructDid>,
+    pub outputs_uuids_lookup: HashMap<String, ConstructDid>,
+    pub modules_uuids: HashSet<ConstructDid>,
+    pub modules_uuids_lookup: HashMap<String, ConstructDid>,
+    pub imports_uuids: HashSet<ConstructDid>,
+    pub imports_uuids_lookup: HashMap<String, ConstructDid>,
+    pub addons_uuids: HashSet<ConstructDid>,
+    pub addons_uuids_lookup: HashMap<String, ConstructDid>,
+    pub signing_commands_uuids: HashSet<ConstructDid>,
+    pub signing_commands_uuids_lookup: HashMap<String, ConstructDid>,
 }
 
 impl Package {

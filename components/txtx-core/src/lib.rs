@@ -44,7 +44,7 @@ use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::frontend::ValidateBlockData;
 use kit::types::wallets::WalletInstance;
-use kit::types::ConstructUuid;
+use kit::types::ConstructDid;
 use kit::types::PackageId;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -56,7 +56,7 @@ use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
 use txtx_addon_kit::types::frontend::InputOption;
 use txtx_addon_kit::types::functions::FunctionSpecification;
-use txtx_addon_kit::types::PackageUuid;
+use txtx_addon_kit::types::PackageDid;
 use txtx_addon_kit::AddonContext;
 use types::RunbookExecutionContext;
 use types::RunbookResolutionContext;
@@ -85,7 +85,7 @@ pub fn pre_compute_runbook(
 #[derive(Debug)]
 pub struct AddonsContext {
     addons: HashMap<String, (Box<dyn Addon>, bool)>,
-    contexts: HashMap<(PackageUuid, String), AddonContext>,
+    contexts: HashMap<(PackageDid, String), AddonContext>,
 }
 
 impl AddonsContext {
@@ -113,9 +113,9 @@ impl AddonsContext {
     fn find_or_create_context(
         &mut self,
         namespace: &str,
-        package_uuid: &PackageUuid,
+        package_did: &PackageDid,
     ) -> Result<&AddonContext, Diagnostic> {
-        let key = (package_uuid.clone(), namespace.to_string());
+        let key = (package_did.clone(), namespace.to_string());
         if self.contexts.get(&key).is_none() {
             let Some((addon, _)) = self.addons.get(namespace) else {
                 unimplemented!();
@@ -213,7 +213,7 @@ pub async fn start_unsupervised_runbook_runloop(
 
     let mut uuid = Uuid::new_v4();
     let mut background_tasks_futures = vec![];
-    let mut background_tasks_contructs_uuids = vec![];
+    let mut background_tasks_contructs_dids = vec![];
     let mut runbook_completed = false;
 
     loop {
@@ -241,12 +241,12 @@ pub async fn start_unsupervised_runbook_runloop(
             .is_empty()
         {
             background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
-            background_tasks_contructs_uuids
+            background_tasks_contructs_dids
                 .append(&mut pass_results.pending_background_tasks_constructs_uuids);
         }
 
         if !pass_results.actions.has_pending_actions()
-            && background_tasks_contructs_uuids.is_empty()
+            && background_tasks_contructs_dids.is_empty()
         {
             let grouped_actions_items = runbook.execution_context.collect_runbook_outputs();
             for (group, items) in grouped_actions_items.iter() {
@@ -264,15 +264,14 @@ pub async fn start_unsupervised_runbook_runloop(
             sleep(time::Duration::from_secs(3));
         } else {
             let results = kit::futures::future::join_all(background_tasks_futures).await;
-            for (construct_uuid, result) in
-                background_tasks_contructs_uuids.into_iter().zip(results)
+            for (construct_did, result) in background_tasks_contructs_dids.into_iter().zip(results)
             {
                 match result {
                     Ok(result) => {
                         runbook
                             .execution_context
                             .commands_execution_results
-                            .insert(construct_uuid, result);
+                            .insert(construct_did, result);
                     }
                     Err(diag) => {
                         let diags = vec![diag];
@@ -281,7 +280,7 @@ pub async fn start_unsupervised_runbook_runloop(
                 }
             }
             background_tasks_futures = vec![];
-            background_tasks_contructs_uuids = vec![];
+            background_tasks_contructs_dids = vec![];
         }
 
         uuid = Uuid::new_v4();
@@ -316,11 +315,11 @@ pub async fn start_supervised_runbook_runloop(
 
     // store of action_item_ids and the associated action_item_request
     let mut action_item_requests: BTreeMap<BlockId, ActionItemRequest> = BTreeMap::new();
-    // store of construct_uuids and its associated action_item_response_types
+    // store of construct_dids and its associated action_item_response_types
     let mut action_item_responses = BTreeMap::new();
 
     let mut background_tasks_futures = vec![];
-    let mut background_tasks_contructs_uuids = vec![];
+    let mut background_tasks_contructs_dids = vec![];
     let mut background_tasks_handle_uuid = Uuid::new_v4();
     let mut validated_blocks = 0;
     loop {
@@ -379,11 +378,11 @@ pub async fn start_supervised_runbook_runloop(
 
         if let Some(action_item) = action_item_requests.get(&action_item_id) {
             let action_item = action_item.clone();
-            if let Some(construct_uuid) = action_item.construct_uuid {
-                if let Some(responses) = action_item_responses.get_mut(&construct_uuid) {
+            if let Some(construct_did) = action_item.construct_did {
+                if let Some(responses) = action_item_responses.get_mut(&construct_did) {
                     responses.push(action_item_response);
                 } else {
-                    action_item_responses.insert(construct_uuid, vec![action_item_response]);
+                    action_item_responses.insert(construct_did, vec![action_item_response]);
                 }
             }
         }
@@ -406,15 +405,15 @@ pub async fn start_supervised_runbook_runloop(
                     )));
 
                     let results = kit::futures::future::join_all(background_tasks_futures).await;
-                    for (construct_uuid, result) in
-                        background_tasks_contructs_uuids.into_iter().zip(results)
+                    for (construct_did, result) in
+                        background_tasks_contructs_dids.into_iter().zip(results)
                     {
                         match result {
                             Ok(result) => {
                                 runbook
                                     .execution_context
                                     .commands_execution_results
-                                    .insert(construct_uuid, result);
+                                    .insert(construct_did, result);
                             }
                             Err(diag) => {
                                 let diags = vec![diag];
@@ -433,14 +432,14 @@ pub async fn start_supervised_runbook_runloop(
                         ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
                     ));
                     background_tasks_futures = vec![];
-                    background_tasks_contructs_uuids = vec![];
+                    background_tasks_contructs_dids = vec![];
                 }
 
                 background_tasks_handle_uuid = Uuid::new_v4();
 
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
-                let mut map: BTreeMap<ConstructUuid, _> = BTreeMap::new();
+                let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
@@ -459,7 +458,7 @@ pub async fn start_supervised_runbook_runloop(
                     let _ = block_tx.send(BlockEvent::Error(error_event));
                     return Err(pass_results.diagnostics);
                 } else if !pass_results.actions.has_pending_actions()
-                    && background_tasks_contructs_uuids.is_empty()
+                    && background_tasks_contructs_dids.is_empty()
                 {
                     runbook_completed = true;
                     let grouped_actions_items = runbook.execution_context.collect_runbook_outputs();
@@ -490,7 +489,7 @@ pub async fn start_supervised_runbook_runloop(
                 {
                     background_tasks_futures
                         .append(&mut pass_results.pending_background_tasks_futures);
-                    background_tasks_contructs_uuids
+                    background_tasks_contructs_dids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                 }
 
@@ -533,7 +532,7 @@ pub async fn start_supervised_runbook_runloop(
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
-                let Some((wallet_construct_uuid, scoped_requests)) =
+                let Some((wallet_construct_did, scoped_requests)) =
                     retrieve_related_action_items_requests(
                         &action_item_id,
                         &mut action_item_requests,
@@ -543,7 +542,7 @@ pub async fn start_supervised_runbook_runloop(
                 };
 
                 let mut map = BTreeMap::new();
-                map.insert(wallet_construct_uuid, scoped_requests);
+                map.insert(wallet_construct_did, scoped_requests);
 
                 let pass_result = run_wallets_evaluation(
                     &runbook_resolution_context,
@@ -571,7 +570,7 @@ pub async fn start_supervised_runbook_runloop(
             ActionItemResponseType::ProvideSignedTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
-                let Some((signing_action_construct_uuid, scoped_requests)) =
+                let Some((signing_action_construct_did, scoped_requests)) =
                     retrieve_related_action_items_requests(
                         &action_item_id,
                         &mut action_item_requests,
@@ -579,8 +578,8 @@ pub async fn start_supervised_runbook_runloop(
                 else {
                     continue;
                 };
-                let mut map: BTreeMap<ConstructUuid, _> = BTreeMap::new();
-                map.insert(signing_action_construct_uuid, scoped_requests);
+                let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
+                map.insert(signing_action_construct_did, scoped_requests);
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
@@ -610,7 +609,7 @@ pub async fn start_supervised_runbook_runloop(
                 {
                     background_tasks_futures
                         .append(&mut pass_results.pending_background_tasks_futures);
-                    background_tasks_contructs_uuids
+                    background_tasks_contructs_dids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
@@ -633,10 +632,10 @@ pub fn register_action_items_from_actions(
 pub fn retrieve_related_action_items_requests<'a>(
     action_item_id: &BlockId,
     action_item_requests: &'a mut BTreeMap<BlockId, ActionItemRequest>,
-) -> Option<(ConstructUuid, Vec<&'a mut ActionItemRequest>)> {
-    let Some(wallet_construct_uuid) = action_item_requests
+) -> Option<(ConstructDid, Vec<&'a mut ActionItemRequest>)> {
+    let Some(wallet_construct_did) = action_item_requests
         .get(&action_item_id)
-        .and_then(|a| a.construct_uuid.clone())
+        .and_then(|a| a.construct_did.clone())
     else {
         eprintln!("unable to retrieve {}", action_item_id);
         // todo: log error
@@ -646,14 +645,14 @@ pub fn retrieve_related_action_items_requests<'a>(
     // // and update their statuses.
     let mut scoped_requests = vec![];
     for (_, request) in action_item_requests.iter_mut() {
-        let Some(ref construct_uuid) = request.construct_uuid else {
+        let Some(ref construct_did) = request.construct_did else {
             continue;
         };
-        if construct_uuid.eq(&wallet_construct_uuid) {
+        if construct_did.eq(&wallet_construct_did) {
             scoped_requests.push(request);
         }
     }
-    Some((wallet_construct_uuid, scoped_requests))
+    Some((wallet_construct_did, scoped_requests))
 }
 
 pub async fn reset_runbook_execution(
@@ -665,7 +664,7 @@ pub async fn reset_runbook_execution(
     environments: &BTreeMap<String, BTreeMap<String, String>>,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
-    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
+    action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
@@ -714,7 +713,7 @@ pub async fn build_genesis_panel(
     runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
-    action_item_responses: &BTreeMap<ConstructUuid, Vec<ActionItemResponse>>,
+    action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
     let mut actions = Actions::new_panel("runbook checklist", "");

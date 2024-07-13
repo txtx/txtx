@@ -18,7 +18,7 @@ pub mod wallets;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
 pub struct Did(pub [u8; 32]);
 
 impl Did {
@@ -61,10 +61,16 @@ impl std::fmt::Display for Did {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RunbookUuid(pub Did);
+impl std::fmt::Debug for Did {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "0x{}", self.to_string())
+    }
+}
 
-impl RunbookUuid {
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RunbookDid(pub Did);
+
+impl RunbookDid {
     pub fn value(&self) -> Did {
         self.0.clone()
     }
@@ -89,7 +95,7 @@ pub struct RunbookId {
 }
 
 impl RunbookId {
-    pub fn did(&self) -> RunbookUuid {
+    pub fn did(&self) -> RunbookDid {
         let mut comps = vec![];
         if let Some(ref org) = self.org {
             comps.push(org.as_bytes());
@@ -99,14 +105,14 @@ impl RunbookId {
         }
         comps.push(self.name.as_bytes());
         let did = Did::from_components(comps);
-        RunbookUuid(did)
+        RunbookDid(did)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PackageUuid(pub Did);
+pub struct PackageDid(pub Did);
 
-impl PackageUuid {
+impl PackageDid {
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
@@ -127,20 +133,20 @@ pub struct PackageId {
 }
 
 impl PackageId {
-    pub fn did(&self) -> PackageUuid {
+    pub fn did(&self) -> PackageDid {
         let did = Did::from_components(vec![
             self.runbook_id.did().as_bytes(),
             self.package_location.to_string().as_bytes(),
             self.package_name.to_string().as_bytes(),
         ]);
-        PackageUuid(did)
+        PackageDid(did)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
-pub struct ConstructUuid(pub Did);
+pub struct ConstructDid(pub Did);
 
-impl ConstructUuid {
+impl ConstructDid {
     pub fn value(&self) -> Did {
         self.0.clone()
     }
@@ -167,14 +173,14 @@ pub struct ConstructId {
 }
 
 impl ConstructId {
-    pub fn did(&self) -> ConstructUuid {
+    pub fn did(&self) -> ConstructDid {
         let did = Did::from_components(vec![
             self.package_id.did().as_bytes(),
             self.construct_location.to_string().as_bytes(),
             self.construct_type.to_string().as_bytes(),
             self.construct_name.to_string().as_bytes(),
         ]);
-        ConstructUuid(did)
+        ConstructDid(did)
     }
 }
 

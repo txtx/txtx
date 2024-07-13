@@ -9,12 +9,12 @@ pub use package::Package;
 pub use runbook::{Runbook, RunbookExecutionContext, RunbookResolutionContext, RunbookSources};
 use std::collections::{BTreeMap, HashMap};
 pub use txtx_addon_kit::types::commands::CommandInstance;
-use txtx_addon_kit::types::PackageUuid;
+use txtx_addon_kit::types::PackageDid;
 
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::functions::FunctionSpecification;
 use txtx_addon_kit::types::types::Value;
-pub use txtx_addon_kit::types::ConstructUuid;
+pub use txtx_addon_kit::types::ConstructDid;
 
 use crate::AddonsContext;
 
@@ -117,7 +117,7 @@ impl RuntimeContext {
 
     pub fn execute_function(
         &self,
-        package_uuid: PackageUuid,
+        package_did: PackageDid,
         namespace_opt: Option<String>,
         name: &str,
         args: &Vec<Value>,
@@ -126,7 +126,7 @@ impl RuntimeContext {
             Some(namespace) => match self
                 .addons_ctx
                 .contexts
-                .get(&(package_uuid, namespace.clone()))
+                .get(&(package_did, namespace.clone()))
             {
                 Some(addon) => match addon.functions.get(name) {
                     Some(function) => function,

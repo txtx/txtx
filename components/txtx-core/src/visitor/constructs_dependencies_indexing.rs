@@ -2,7 +2,7 @@ use daggy::{Dag, NodeIndex, Walker};
 use indexmap::IndexSet;
 use petgraph::algo::toposort;
 use std::collections::{HashSet, VecDeque};
-use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructUuid, PackageUuid};
+use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, PackageDid};
 
 use crate::types::{Runbook, RuntimeContext};
 
@@ -11,8 +11,8 @@ pub fn run_constructs_dependencies_indexing(
     runtime_ctx: &mut RuntimeContext,
 ) -> Result<
     (
-        Vec<(ConstructUuid, ConstructUuid)>,
-        Vec<(PackageUuid, PackageUuid)>,
+        Vec<(ConstructDid, ConstructDid)>,
+        Vec<(PackageDid, PackageDid)>,
     ),
     Vec<Diagnostic>,
 > {
@@ -27,29 +27,29 @@ pub fn run_constructs_dependencies_indexing(
 
     let packages = runbook.resolution_context.packages.clone();
 
-    for (package_uuid, package) in packages.iter() {
-        for construct_uuid in package.imports_uuids.iter() {
+    for (package_did, package) in packages.iter() {
+        for construct_did in package.imports_uuids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for _dep in construct.collect_dependencies().iter() {} // todo
         }
-        for construct_uuid in package.variables_uuids.iter() {
+        for construct_did in package.variables_uuids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for (input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        package_uuid,
+                        package_did,
                         dep,
                         &runbook_execution_context,
                     );
-                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
-                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                if let Ok(Some((resolved_construct_did, _, _))) = result {
+                    constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
                     diags.push(diagnosed_error!(
                         "input '{}': unable to resolve '{}'",
@@ -59,21 +59,21 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
-        for construct_uuid in package.modules_uuids.iter() {
+        for construct_did in package.modules_uuids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for (input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        package_uuid,
+                        package_did,
                         dep,
                         &runbook_execution_context,
                     );
-                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
-                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                if let Ok(Some((resolved_construct_did, _, _))) = result {
+                    constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
                     diags.push(diagnosed_error!(
                         "module '{}': unable to resolve '{}'",
@@ -83,21 +83,21 @@ pub fn run_constructs_dependencies_indexing(
                 }
             }
         }
-        for construct_uuid in package.outputs_uuids.iter() {
+        for construct_did in package.outputs_uuids.iter() {
             let construct = runbook_execution_context
                 .commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for (input, dep) in construct.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        package_uuid,
+                        package_did,
                         dep,
                         &runbook_execution_context,
                     );
-                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
-                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                if let Ok(Some((resolved_construct_did, _, _))) = result {
+                    constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
                     diags.push(diagnosed_error!(
                         "output '{}': unable to resolve '{}'",
@@ -109,28 +109,28 @@ pub fn run_constructs_dependencies_indexing(
         }
         let mut wallets = VecDeque::new();
         let mut instantiated_wallets = HashSet::new();
-        for construct_uuid in package.addons_uuids.iter() {
+        for construct_did in package.addons_uuids.iter() {
             let command_instance = runbook_execution_context
                 .commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for (input, dep) in command_instance.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        package_uuid,
+                        package_did,
                         dep,
                         &runbook_execution_context,
                     );
-                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
+                if let Ok(Some((resolved_construct_did, _, _))) = result {
                     if let Some(_) = runbook_execution_context
                         .signing_commands_instances
-                        .get(&resolved_construct_uuid)
+                        .get(&resolved_construct_did)
                     {
-                        wallets.push_front((resolved_construct_uuid.clone(), true));
-                        instantiated_wallets.insert(resolved_construct_uuid.clone());
+                        wallets.push_front((resolved_construct_did.clone(), true));
+                        instantiated_wallets.insert(resolved_construct_did.clone());
                     }
-                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                    constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
                     diags.push(diagnosed_error!(
                         "action '{}': unable to resolve '{}'",
@@ -141,32 +141,32 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         // todo: should we constrain to wallets depending on wallets?
-        for construct_uuid in package.signing_commands_uuids.iter() {
+        for construct_did in package.signing_commands_uuids.iter() {
             let wallet_instance = runbook_execution_context
                 .signing_commands_instances
-                .get(construct_uuid)
+                .get(construct_did)
                 .unwrap();
             for (input, dep) in wallet_instance.collect_dependencies().iter() {
                 let result = runbook
                     .resolution_context
                     .try_resolve_construct_reference_in_expression(
-                        package_uuid,
+                        package_did,
                         dep,
                         &runbook_execution_context,
                     );
-                if let Ok(Some((resolved_construct_uuid, _, _))) = result {
-                    if !instantiated_wallets.contains(&resolved_construct_uuid) {
-                        wallets.push_front((resolved_construct_uuid.clone(), false))
+                if let Ok(Some((resolved_construct_did, _, _))) = result {
+                    if !instantiated_wallets.contains(&resolved_construct_did) {
+                        wallets.push_front((resolved_construct_did.clone(), false))
                     }
                     runbook_execution_context
                         .signing_commands_state
                         .as_mut()
                         .unwrap()
                         .create_new_wallet(
-                            &resolved_construct_uuid,
-                            &resolved_construct_uuid.value().to_string(),
+                            &resolved_construct_did,
+                            &resolved_construct_did.value().to_string(),
                         );
-                    constructs_edges.push((construct_uuid.clone(), resolved_construct_uuid));
+                    constructs_edges.push((construct_did.clone(), resolved_construct_did));
                 } else {
                     diags.push(diagnosed_error!(
                         "wallet '{}': unable to resolve '{}'",
@@ -208,73 +208,73 @@ pub fn run_constructs_dependencies_indexing(
     }
 
     if diags.is_empty() {
-        for (construct_uuid, instantiated) in runbook
+        for (construct_did, instantiated) in runbook
             .resolution_context
             .instantiated_signing_commands
             .iter()
         {
             runbook_execution_context
                 .order_for_signing_commands_initialization
-                .push(construct_uuid.clone());
+                .push(construct_did.clone());
 
             if *instantiated {
                 let mut dependencies = vec![];
                 let node_index = runbook
                     .resolution_context
                     .constructs_dag_node_lookup
-                    .get(construct_uuid)
-                    .expect("construct_uuid not indexed in graph");
+                    .get(construct_did)
+                    .expect("construct_did not indexed in graph");
                 let descendants = get_descendants_of_node(
                     node_index.clone(),
                     runbook.resolution_context.constructs_dag.clone(),
                 );
                 for descendant in descendants.into_iter() {
-                    let dependent_construct_uuid = runbook
+                    let dependent_construct_did = runbook
                         .resolution_context
                         .constructs_dag
                         .node_weight(descendant)
-                        .expect("construct_uuid not indexed in graph");
-                    dependencies.push(dependent_construct_uuid.clone());
+                        .expect("construct_did not indexed in graph");
+                    dependencies.push(dependent_construct_did.clone());
                 }
                 runbook_execution_context
                     .signing_commands_dependencies
-                    .insert(construct_uuid.clone(), dependencies);
+                    .insert(construct_did.clone(), dependencies);
             }
         }
 
         for node in get_sorted_nodes(runbook.resolution_context.constructs_dag.clone()) {
-            let construct_uuid = runbook
+            let construct_did = runbook
                 .resolution_context
                 .constructs_dag
                 .node_weight(node)
-                .expect("construct_uuid not indexed in graph");
+                .expect("construct_did not indexed in graph");
             runbook_execution_context
                 .order_for_commands_execution
-                .push(construct_uuid.clone());
+                .push(construct_did.clone());
         }
 
-        for (construct_uuid, _) in runbook_execution_context.commands_instances.iter() {
+        for (construct_did, _) in runbook_execution_context.commands_instances.iter() {
             let mut dependencies = vec![];
             let node_index = runbook
                 .resolution_context
                 .constructs_dag_node_lookup
-                .get(construct_uuid)
-                .expect("construct_uuid not indexed in graph");
+                .get(construct_did)
+                .expect("construct_did not indexed in graph");
             let descendants = get_descendants_of_node(
                 node_index.clone(),
                 runbook.resolution_context.constructs_dag.clone(),
             );
             for descendant in descendants.into_iter() {
-                let dependent_construct_uuid = runbook
+                let dependent_construct_did = runbook
                     .resolution_context
                     .constructs_dag
                     .node_weight(descendant)
-                    .expect("construct_uuid not indexed in graph");
-                dependencies.push(dependent_construct_uuid.clone());
+                    .expect("construct_did not indexed in graph");
+                dependencies.push(dependent_construct_did.clone());
             }
             runbook_execution_context
                 .commands_dependencies
-                .insert(construct_uuid.clone(), dependencies);
+                .insert(construct_did.clone(), dependencies);
         }
 
         runbook.execution_context = runbook_execution_context;
@@ -287,7 +287,7 @@ pub fn run_constructs_dependencies_indexing(
 /// Gets all descendants of `node` within `graph`.
 pub fn get_descendants_of_node(
     node: NodeIndex,
-    graph: Dag<ConstructUuid, u32, u32>,
+    graph: Dag<ConstructDid, u32, u32>,
 ) -> IndexSet<NodeIndex> {
     let mut descendant_nodes = VecDeque::new();
     descendant_nodes.push_front(node);
@@ -306,7 +306,7 @@ pub fn get_descendants_of_node(
 #[allow(dead_code)]
 pub fn get_sorted_descendants_of_node(
     node: NodeIndex,
-    graph: Dag<ConstructUuid, u32, u32>,
+    graph: Dag<ConstructDid, u32, u32>,
 ) -> IndexSet<NodeIndex> {
     let sorted = toposort(&graph, None)
         .unwrap()
@@ -327,7 +327,7 @@ pub fn get_sorted_descendants_of_node(
 }
 
 /// Returns a topologically sorted set of all nodes in the graph.
-pub fn get_sorted_nodes(graph: Dag<ConstructUuid, u32, u32>) -> IndexSet<NodeIndex> {
+pub fn get_sorted_nodes(graph: Dag<ConstructDid, u32, u32>) -> IndexSet<NodeIndex> {
     toposort(&graph, None)
         .unwrap()
         .into_iter()

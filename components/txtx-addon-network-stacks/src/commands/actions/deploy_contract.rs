@@ -7,7 +7,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::{Actions, BlockEvent},
         types::Type,
-        ConstructUuid, ValueStore,
+        ConstructDid, ValueStore,
     },
     AddonDefaults,
 };
@@ -51,7 +51,7 @@ impl CommandImplementation for StacksDeployContract {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -62,7 +62,7 @@ impl CommandImplementation for StacksDeployContract {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,

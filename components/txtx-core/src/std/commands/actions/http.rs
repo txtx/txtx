@@ -6,7 +6,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
 };
 use txtx_addon_kit::types::types::ObjectProperty;
-use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -97,7 +97,7 @@ impl CommandImplementation for SendHttpRequest {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -108,7 +108,7 @@ impl CommandImplementation for SendHttpRequest {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,

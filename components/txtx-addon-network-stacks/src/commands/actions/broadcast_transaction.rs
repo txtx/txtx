@@ -12,7 +12,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
@@ -102,7 +102,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -114,7 +114,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -130,7 +130,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
@@ -148,7 +148,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let args = inputs.clone();
         let outputs = outputs.clone();
 
-        let uuid = uuid.clone();
+        let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
         let confirmations_required = args
@@ -171,7 +171,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
-                &uuid,
+                &construct_did,
                 &ProgressBarStatus {
                     status_color: ProgressBarStatusColor::Yellow,
                     status: format!("Pending {}", progress_symbol[progress]),

@@ -25,7 +25,7 @@ use types::{
     diagnostics::Diagnostic,
     functions::FunctionSpecification,
     wallets::{WalletInstance, WalletSpecification},
-    ConstructUuid,
+    ConstructDid,
 };
 
 pub use reqwest;
@@ -172,8 +172,8 @@ impl AddonContext {
 
     pub fn resolve_construct_dependencies(
         self: &Self,
-        _construct_uuid: &ConstructUuid,
-    ) -> Vec<ConstructUuid> {
+        _construct_did: &ConstructDid,
+    ) -> Vec<ConstructDid> {
         vec![]
     }
 }

@@ -46,7 +46,7 @@ pub fn run_constructs_indexing(
         };
         let _ = runbook
             .resolution_context
-            .find_or_create_package_uuid(&package_id);
+            .find_or_create_package_did(&package_id);
 
         let mut blocks = content
             .into_blocks()

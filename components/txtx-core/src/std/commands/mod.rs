@@ -16,7 +16,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
         types::Type,
-        ConstructUuid,
+        ConstructDid,
     },
     AddonDefaults,
 };
@@ -56,7 +56,7 @@ impl CommandImplementation for Module {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -67,7 +67,7 @@ impl CommandImplementation for Module {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -140,7 +140,7 @@ impl CommandImplementation for Input {
     }
 
     fn check_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
@@ -176,7 +176,7 @@ impl CommandImplementation for Input {
             if execution_context.review_input_values {
                 return Ok(Actions::new_sub_group_of_items(vec![
                     ActionItemRequest::new(
-                        &Some(uuid.clone()),
+                        &Some(construct_did.clone()),
                         &title,
                         description,
                         ActionItemStatus::Todo,
@@ -211,7 +211,7 @@ impl CommandImplementation for Input {
         };
 
         let action = ActionItemRequest::new(
-            &Some(uuid.clone()),
+            &Some(construct_did.clone()),
             &title,
             description,
             ActionItemStatus::Todo,
@@ -231,7 +231,7 @@ impl CommandImplementation for Input {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -291,7 +291,7 @@ impl CommandImplementation for Output {
     }
 
     fn check_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &CommandSpecification,
         args: &ValueStore,
@@ -300,7 +300,7 @@ impl CommandImplementation for Output {
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
         let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest::new(
-            &Some(uuid.clone()),
+            &Some(construct_did.clone()),
             instance_name,
             None,
             ActionItemStatus::Todo,
@@ -315,7 +315,7 @@ impl CommandImplementation for Output {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,

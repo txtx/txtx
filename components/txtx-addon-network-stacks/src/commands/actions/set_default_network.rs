@@ -8,7 +8,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{NETWORK_ID, RPC_API_URL};
@@ -79,7 +79,7 @@ impl CommandImplementation for SetStacksGlobals {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -90,7 +90,7 @@ impl CommandImplementation for SetStacksGlobals {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,

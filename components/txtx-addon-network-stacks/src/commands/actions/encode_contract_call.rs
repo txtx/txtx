@@ -9,7 +9,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use super::encode_contract_call;
@@ -102,7 +102,7 @@ impl CommandImplementation for EncodeStacksContractCall {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
@@ -113,7 +113,7 @@ impl CommandImplementation for EncodeStacksContractCall {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
