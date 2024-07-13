@@ -24,8 +24,8 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::wallets::{
     consolidate_wallet_activate_result, consolidate_wallet_result, CheckSignabilityOk,
-    WalletActionErr, WalletActionsFutureResult, WalletActivateFutureResult, WalletImplementation,
-    WalletInstance, WalletSignFutureResult, WalletSpecification, WalletsState,
+    SigningCommandsState, WalletActionErr, WalletActionsFutureResult, WalletActivateFutureResult,
+    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
 };
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
@@ -111,7 +111,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
@@ -313,7 +313,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
@@ -389,7 +389,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
@@ -495,7 +495,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         wallet_state: ValueStore,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {

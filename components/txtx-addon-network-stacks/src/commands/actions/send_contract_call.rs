@@ -11,7 +11,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::BlockEvent,
         types::Type,
-        wallets::{WalletInstance, WalletSignFutureResult, WalletsState},
+        wallets::{SigningCommandsState, WalletInstance, WalletSignFutureResult},
         ConstructUuid, ValueStore,
     },
     AddonDefaults,
@@ -151,7 +151,7 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
@@ -206,7 +206,7 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();

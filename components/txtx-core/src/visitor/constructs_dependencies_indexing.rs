@@ -141,7 +141,7 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
         // todo: should we constrain to wallets depending on wallets?
-        for construct_uuid in package.wallets_uuids.iter() {
+        for construct_uuid in package.signing_commands_uuids.iter() {
             let wallet_instance = runbook_execution_context
                 .signing_commands_instances
                 .get(construct_uuid)
@@ -208,31 +208,52 @@ pub fn run_constructs_dependencies_indexing(
     }
 
     if diags.is_empty() {
-        for (construct_uuid, _) in runbook_execution_context.commands_instances.iter() {
-            let mut dependencies = vec![];
-            let node_index = runbook
-                .resolution_context
-                .constructs_dag_node_lookup
-                .get(construct_uuid)
-                .expect("construct_uuid not indexed in graph");
-            let descendants = get_descendants_of_node(
-                node_index.clone(),
-                runbook.resolution_context.constructs_dag.clone(),
-            );
-            for descendant in descendants.into_iter() {
-                let dependent_construct_uuid = runbook
-                    .resolution_context
-                    .constructs_dag
-                    .node_weight(descendant)
-                    .expect("construct_uuid not indexed in graph");
-                dependencies.push(dependent_construct_uuid.clone());
-            }
+        for (construct_uuid, instantiated) in runbook
+            .resolution_context
+            .instantiated_signing_commands
+            .iter()
+        {
             runbook_execution_context
-                .commands_dependencies
-                .insert(construct_uuid.clone(), dependencies);
+                .order_for_signing_commands_initialization
+                .push(construct_uuid.clone());
+
+            if *instantiated {
+                let mut dependencies = vec![];
+                let node_index = runbook
+                    .resolution_context
+                    .constructs_dag_node_lookup
+                    .get(construct_uuid)
+                    .expect("construct_uuid not indexed in graph");
+                let descendants = get_descendants_of_node(
+                    node_index.clone(),
+                    runbook.resolution_context.constructs_dag.clone(),
+                );
+                for descendant in descendants.into_iter() {
+                    let dependent_construct_uuid = runbook
+                        .resolution_context
+                        .constructs_dag
+                        .node_weight(descendant)
+                        .expect("construct_uuid not indexed in graph");
+                    dependencies.push(dependent_construct_uuid.clone());
+                }
+                runbook_execution_context
+                    .signing_commands_dependencies
+                    .insert(construct_uuid.clone(), dependencies);
+            }
         }
 
-        for (construct_uuid, _) in runbook_execution_context.signing_commands_instances.iter() {
+        for node in get_sorted_nodes(runbook.resolution_context.constructs_dag.clone()) {
+            let construct_uuid = runbook
+                .resolution_context
+                .constructs_dag
+                .node_weight(node)
+                .expect("construct_uuid not indexed in graph");
+            runbook_execution_context
+                .order_for_commands_execution
+                .push(construct_uuid.clone());
+        }
+
+        for (construct_uuid, _) in runbook_execution_context.commands_instances.iter() {
             let mut dependencies = vec![];
             let node_index = runbook
                 .resolution_context

@@ -6,10 +6,9 @@ use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
-use kit::types::wallets::WalletsState;
+use kit::types::wallets::SigningCommandsState;
 use kit::types::PackageId;
-use petgraph::algo::toposort;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
 use txtx_addon_kit::{
     hcl::{
@@ -22,12 +21,10 @@ use txtx_addon_kit::{
             CommandInstance,
         },
         diagnostics::Diagnostic,
-        frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemStatus, DisplayOutputRequest,
-        },
+        frontend::{ActionItemRequest, ActionItemStatus},
         types::{PrimitiveValue, Value},
         wallets::WalletInstance,
-        ConstructUuid, PackageUuid,
+        ConstructUuid,
     },
     uuid::Uuid,
     AddonDefaults,
@@ -55,10 +52,10 @@ pub async fn run_wallets_evaluation(
     .await;
 
     let wallets_instances = &runbook_execution_context.signing_commands_instances;
-    let instantiated_wallets = runbook_resolution_context
-        .instantiated_signing_commands
+    let instantiated_wallets = runbook_execution_context
+        .order_for_signing_commands_initialization
         .clone();
-    for (construct_uuid, instantiated) in instantiated_wallets.into_iter() {
+    for construct_uuid in instantiated_wallets.into_iter() {
         let package_id = {
             let Some(command) = runbook_execution_context
                 .signing_commands_instances
@@ -68,6 +65,17 @@ pub async fn run_wallets_evaluation(
             };
             command.package_id.clone()
         };
+
+        println!(
+            "~~~> {:?}",
+            runbook_execution_context.signing_commands_dependencies
+        );
+
+        let instantiated = runbook_execution_context
+            .signing_commands_dependencies
+            .get(&construct_uuid)
+            .map(|d| !d.is_empty())
+            .unwrap_or(false);
 
         let (evaluated_inputs_res, _group, addon_defaults) = match runbook_execution_context
             .signing_commands_instances
@@ -84,7 +92,7 @@ pub async fn run_wallets_evaluation(
                     .get_expressions_referencing_commands_from_inputs()
                     .unwrap();
 
-                for (input, expr) in references_expressions.into_iter() {
+                for (_input, expr) in references_expressions.into_iter() {
                     let res = runbook_resolution_context
                         .try_resolve_construct_reference_in_expression(
                             &package_id,
@@ -160,17 +168,18 @@ pub async fn run_wallets_evaluation(
             .signing_commands_instances
             .get(&construct_uuid)
             .unwrap();
-        let mut wallets_state = runbook_execution_context
+        println!("-> {:?}", wallet);
+        let mut signing_commands_state = runbook_execution_context
             .signing_commands_state
             .take()
             .unwrap();
-        wallets_state.create_new_wallet(&construct_uuid, &wallet.name);
+        signing_commands_state.create_new_wallet(&construct_uuid, &wallet.name);
 
         let res = wallet
             .check_activability(
                 &construct_uuid,
                 &mut evaluated_inputs,
-                wallets_state,
+                signing_commands_state,
                 wallets_instances,
                 &addon_defaults,
                 &action_item_requests.get(&construct_uuid),
@@ -181,18 +190,18 @@ pub async fn run_wallets_evaluation(
             )
             .await;
 
-        let wallets_state = match res {
-            Ok((wallets_state, mut new_actions)) => {
+        let signing_commands_state = match res {
+            Ok((signing_commands_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
-                    runbook_execution_context.signing_commands_state = Some(wallets_state);
+                    runbook_execution_context.signing_commands_state = Some(signing_commands_state);
                     pass_result.actions.append(&mut new_actions);
                     continue;
                 }
                 pass_result.actions.append(&mut new_actions);
-                wallets_state
+                signing_commands_state
             }
-            Err((wallets_state, diag)) => {
-                runbook_execution_context.signing_commands_state = Some(wallets_state);
+            Err((signing_commands_state, diag)) => {
+                runbook_execution_context.signing_commands_state = Some(signing_commands_state);
                 if let Some(requests) = action_item_requests.get_mut(&construct_uuid) {
                     for item in requests.iter_mut() {
                         // This should be improved / become more granular
@@ -214,21 +223,21 @@ pub async fn run_wallets_evaluation(
             .perform_activation(
                 &construct_uuid,
                 &evaluated_inputs,
-                wallets_state,
+                signing_commands_state,
                 wallets_instances,
                 &addon_defaults,
                 progress_tx,
             )
             .await;
 
-        let (mut result, wallets_state) = match res {
-            Ok((wallets_state, result)) => (Some(result), Some(wallets_state)),
-            Err((wallets_state, diag)) => {
+        let (mut result, signing_commands_state) = match res {
+            Ok((signing_commands_state, result)) => (Some(result), Some(signing_commands_state)),
+            Err((signing_commands_state, diag)) => {
                 pass_result.diagnostics.push(diag);
                 return pass_result;
             }
         };
-        runbook_execution_context.signing_commands_state = wallets_state;
+        runbook_execution_context.signing_commands_state = signing_commands_state;
         let Some(result) = result.take() else {
             continue;
         };
@@ -236,6 +245,8 @@ pub async fn run_wallets_evaluation(
             .commands_execution_results
             .insert(construct_uuid.clone(), result);
     }
+
+    println!("{:?}", pass_result.actions);
 
     pass_result
 }
@@ -495,12 +506,12 @@ pub async fn run_constructs_evaluation(
     }
 
     for (wallet_construct_uuid, _) in runbook_execution_context.signing_commands_instances.iter() {
-        let results = wallets_results.get(wallet_construct_uuid).unwrap();
+        let results: &CommandExecutionResult = wallets_results.get(wallet_construct_uuid).unwrap();
         genesis_dependency_execution_results.insert(wallet_construct_uuid.clone(), Ok(results));
     }
 
     let ordered_constructs = runbook_execution_context
-        .ordered_executable_constructs
+        .order_for_commands_execution
         .clone();
 
     for construct_uuid in ordered_constructs.into_iter() {
@@ -1180,10 +1191,10 @@ pub fn eval_expression(
 // }
 
 pub fn update_wallet_instances_from_action_response(
-    mut wallets: WalletsState,
+    mut wallets: SigningCommandsState,
     construct_uuid: &ConstructUuid,
     action_item_response: &Option<&Vec<ActionItemResponse>>,
-) -> WalletsState {
+) -> SigningCommandsState {
     match action_item_response {
         Some(responses) => responses.into_iter().for_each(
             |ActionItemResponse {

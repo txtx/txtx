@@ -53,7 +53,9 @@ impl App {
     fn new(runbook: Runbook) -> App {
         App {
             state: TableState::default().with_selected(0),
-            scroll_state: ScrollbarState::new((runbook.commands_instances.len() - 1) * ITEM_HEIGHT),
+            scroll_state: ScrollbarState::new(
+                (runbook.execution_context.commands_instances.len() - 1) * ITEM_HEIGHT,
+            ),
             colors: TableColors::new(&palette::tailwind::EMERALD),
             runbook,
         }
@@ -61,7 +63,7 @@ impl App {
     pub fn next(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.runbook.commands_instances.len() - 1 {
+                if i >= self.runbook.execution_context.commands_instances.len() - 1 {
                     0
                 } else {
                     i + 1
@@ -77,7 +79,7 @@ impl App {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.runbook.commands_instances.len() - 1
+                    self.runbook.execution_context.commands_instances.len() - 1
                 } else {
                     i - 1
                 }
@@ -166,8 +168,13 @@ fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
         .collect::<Row>()
         .style(header_style)
         .height(1);
-    let rows = app.runbook.commands_instances.iter().enumerate().map(
-        |(i, (construct_uuid, _construct_data))| {
+    let rows = app
+        .runbook
+        .execution_context
+        .commands_instances
+        .iter()
+        .enumerate()
+        .map(|(i, (construct_uuid, _construct_data))| {
             let color = match i % 2 {
                 0 => app.colors.normal_row_color,
                 _ => app.colors.alt_row_color,
@@ -176,8 +183,7 @@ fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
             Row::new(row)
                 .style(Style::new().fg(app.colors.row_fg).bg(color))
                 .height(4)
-        },
-    );
+        });
     let bar = " █ ";
     let t = Table::new(
         rows,

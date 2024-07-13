@@ -11,7 +11,7 @@ use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::types::Value;
-use kit::types::wallets::WalletsState;
+use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructId;
 use kit::types::ConstructUuid;
 use kit::types::Did;
@@ -204,9 +204,11 @@ impl RunbookResolutionContext {
                     .insert(construct_uuid.clone(), command_instance.clone());
             }
             PreConstructData::Wallet(wallet_instance) => {
-                package.wallets_uuids.insert(construct_uuid.clone());
                 package
-                    .wallets_uuids_lookup
+                    .signing_commands_uuids
+                    .insert(construct_uuid.clone());
+                package
+                    .signing_commands_uuids_lookup
                     .insert(construct_name, construct_uuid.clone());
                 execution_context
                     .signing_commands_instances
@@ -227,7 +229,10 @@ impl RunbookResolutionContext {
             .get_active_environment_variables()
             .into_iter()
         {
-            let construct_uuid = ConstructUuid(Uuid::new_v4());
+            let construct_uuid = ConstructUuid(Did::from_components(vec![
+                "environment_variable".as_bytes(),
+                k.as_bytes(),
+            ]));
             self.environment_variables_values
                 .insert(construct_uuid.clone(), v);
             self.environment_variables_uuid_lookup
@@ -350,8 +355,9 @@ impl RunbookResolutionContext {
                     let Some(wallet_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_uuid) =
-                        current_package.wallets_uuids_lookup.get(&wallet_name)
+                    if let Some(construct_uuid) = current_package
+                        .signing_commands_uuids_lookup
+                        .get(&wallet_name)
                     {
                         return Ok(Some((construct_uuid.clone(), components, subpath)));
                     }
@@ -390,42 +396,45 @@ impl RunbookResolutionContext {
 
 #[derive(Debug, Clone)]
 pub struct RunbookExecutionContext {
-    /// Ordered constructs
-    pub ordered_executable_constructs: Vec<ConstructUuid>,
     /// Map of executable commands (input, output, action)
     pub commands_instances: HashMap<ConstructUuid, CommandInstance>,
     /// Map of signing commands (wallet)
     pub signing_commands_instances: HashMap<ConstructUuid, WalletInstance>,
     /// State of the signing commands states (stateful)
-    pub signing_commands_state: Option<WalletsState>,
+    pub signing_commands_state: Option<SigningCommandsState>,
     /// Results of commands executions
     pub commands_execution_results: HashMap<ConstructUuid, CommandExecutionResult>,
     /// Results of commands inputs evaluations
     pub commands_inputs_evaluations_results: HashMap<ConstructUuid, CommandInputsEvaluationResult>,
-    /// Constructs depending on a given Construct
-    pub commands_dependencies: HashMap<ConstructUuid, Vec<ConstructUuid>>,
-    /// Constructs depending on a given Construct performing signing
-    pub signing_commands_dependencies: HashMap<ConstructUuid, Vec<ConstructUuid>>,
+    /// Constructs depending on a given Construct. Keys are sorted in order of execution.
+    pub commands_dependencies: BTreeMap<ConstructUuid, Vec<ConstructUuid>>,
+    /// Constructs depending on a given Construct performing signing. Keys are sorted in order of execution.
+    pub signing_commands_dependencies: BTreeMap<ConstructUuid, Vec<ConstructUuid>>,
+    /// Commands execution order.
+    pub order_for_commands_execution: Vec<ConstructUuid>,
+    /// Signing commands initialization order.
+    pub order_for_signing_commands_initialization: Vec<ConstructUuid>,
 }
 
 impl RunbookExecutionContext {
     pub fn new() -> Self {
         Self {
-            ordered_executable_constructs: Vec::new(),
             commands_instances: HashMap::new(),
             signing_commands_instances: HashMap::new(),
-            signing_commands_state: None,
+            signing_commands_state: Some(SigningCommandsState::new()),
             commands_execution_results: HashMap::new(),
             commands_inputs_evaluations_results: HashMap::new(),
-            commands_dependencies: HashMap::new(),
-            signing_commands_dependencies: HashMap::new(),
+            commands_dependencies: BTreeMap::new(),
+            signing_commands_dependencies: BTreeMap::new(),
+            order_for_commands_execution: vec![],
+            order_for_signing_commands_initialization: vec![],
         }
     }
 
     pub fn serialize_execution(&self) -> serde_json::Value {
         let mut serialized_nodes = vec![];
 
-        for construct_uuid in self.ordered_executable_constructs.iter() {
+        for construct_uuid in self.order_for_commands_execution.iter() {
             let Some(command_instance) = self.commands_instances.get(&construct_uuid) else {
                 // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                 continue;
@@ -487,7 +496,7 @@ impl RunbookExecutionContext {
     pub fn collect_runbook_outputs(&self) -> BTreeMap<String, Vec<ActionItemRequest>> {
         let mut action_items = BTreeMap::new();
 
-        for construct_uuid in self.ordered_executable_constructs.iter() {
+        for construct_uuid in self.order_for_commands_execution.iter() {
             let Some(command_instance) = self.commands_instances.get(&construct_uuid) else {
                 // runtime_ctx.addons.index_command_instance(namespace, package_uuid, block)
                 continue;

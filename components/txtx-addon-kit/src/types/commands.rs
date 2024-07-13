@@ -30,7 +30,7 @@ use super::{
     types::{ObjectProperty, Type, TypeSpecification, Value},
     wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
-        WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+        SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
     },
     ConstructUuid, Did, PackageId, PackageUuid, ValueStore,
 };
@@ -360,7 +360,7 @@ pub type CommandSignedExecutionClosure = Box<
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
         &HashMap<ConstructUuid, WalletInstance>,
-        WalletsState,
+        SigningCommandsState,
     ) -> WalletSignFutureResult,
 >;
 
@@ -384,7 +384,7 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &AddonDefaults,
     &CommandExecutionContext,
     &HashMap<ConstructUuid, WalletInstance>,
-    WalletsState,
+    SigningCommandsState,
 ) -> WalletActionsFutureResult;
 
 pub fn return_synchronous_result(
@@ -790,13 +790,13 @@ impl CommandInstance {
         &mut self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         addon_defaults: AddonDefaults,
         wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
+    ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
@@ -867,13 +867,14 @@ impl CommandInstance {
         &self,
         construct_uuid: &ConstructUuid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         addon_defaults: AddonDefaults,
         wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
-    ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
+    ) -> Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)>
+    {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
@@ -1025,7 +1026,7 @@ pub trait CommandImplementation {
         _defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _wallets_state: WalletsState,
+        _signing_commands_state: SigningCommandsState,
     ) -> WalletActionsFutureResult {
         unimplemented!()
     }
@@ -1037,7 +1038,7 @@ pub trait CommandImplementation {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _wallets_state: WalletsState,
+        _signing_commands_state: SigningCommandsState,
     ) -> WalletSignFutureResult {
         unimplemented!()
     }

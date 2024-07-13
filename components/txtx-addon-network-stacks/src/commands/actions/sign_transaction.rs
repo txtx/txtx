@@ -23,8 +23,8 @@ use txtx_addon_kit::types::frontend::{
     ReviewInputRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_ok, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
-    WalletsState,
+    return_synchronous_ok, SigningCommandsState, WalletActionsFutureResult, WalletInstance,
+    WalletSignFutureResult,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -134,7 +134,7 @@ impl CommandImplementation for SignStacksTransaction {
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
@@ -249,7 +249,7 @@ impl CommandImplementation for SignStacksTransaction {
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        mut wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
         let wallet_uuid = get_wallet_uuid(args).unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();

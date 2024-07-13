@@ -9,9 +9,9 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, WalletActionErr,
-    WalletActionsFutureResult, WalletActivateFutureResult, WalletImplementation, WalletInstance,
-    WalletSignFutureResult, WalletSpecification, WalletsState,
+    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk,
+    SigningCommandsState, WalletActionErr, WalletActionsFutureResult, WalletActivateFutureResult,
+    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -88,7 +88,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
@@ -214,7 +214,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         mut wallet_state: ValueStore,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
@@ -251,7 +251,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         args: &ValueStore,
         wallet_state: ValueStore,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         defaults: &AddonDefaults,
         _execution_context: &CommandExecutionContext,
@@ -304,7 +304,7 @@ impl WalletImplementation for StacksConnect {
         _spec: &WalletSpecification,
         _args: &ValueStore,
         wallet_state: ValueStore,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
