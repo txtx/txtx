@@ -1,5 +1,5 @@
 use diagnostics::{Diagnostic, DiagnosticLevel};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Iter;
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ pub mod wallets;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Ord, PartialOrd)]
 pub struct Did(pub [u8; 32]);
 
 impl Did {
@@ -52,6 +52,15 @@ impl Did {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
+    }
+}
+
+impl Serialize for Did {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("0x{}", self))
     }
 }
 

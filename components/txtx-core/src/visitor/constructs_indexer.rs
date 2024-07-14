@@ -37,7 +37,7 @@ pub fn run_constructs_indexing(
             .get_parent_location()
             .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
         let package_id = PackageId {
-            runbook_id: runbook.runbook_id.clone(),
+            runbook_id: runbook.runbook_id(),
             package_location: package_location.clone(),
             package_name: package_name.clone(),
         };

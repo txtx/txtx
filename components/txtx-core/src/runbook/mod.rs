@@ -33,10 +33,6 @@ impl RunbookSources {
 
 #[derive(Debug, Clone)]
 pub struct Runbook {
-    /// Id of the Runbook
-    pub runbook_id: RunbookId,
-    /// Description of the Runbook
-    pub description: Option<String>,
     /// The resolution context contains all the data related to source code analysis and DAG construction
     pub resolution_context: RunbookResolutionContext,
     /// The execution context contains all the data related to the execution of the runbook
@@ -50,13 +46,15 @@ pub struct Runbook {
 impl Runbook {
     pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
         Self {
-            runbook_id,
-            description,
-            workspace_context: RunbookWorkspaceContext::new(),
+            workspace_context: RunbookWorkspaceContext::new(runbook_id, description),
             resolution_context: RunbookResolutionContext::new(),
             execution_context: RunbookExecutionContext::new(),
             diagnostics: vec![],
         }
+    }
+
+    pub fn runbook_id(&self) -> RunbookId {
+        self.workspace_context.runbook_id.clone()
     }
 
     pub fn index_package(&mut self, package_id: &PackageId) -> PackageDid {

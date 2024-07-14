@@ -305,7 +305,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let runbook_description = runbook.description.clone();
+    let runbook_description = runbook.workspace_context.description.clone();
 
     // should not be generating actions
     if is_execution_unsupervised {

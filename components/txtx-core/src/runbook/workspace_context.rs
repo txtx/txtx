@@ -5,7 +5,7 @@ use kit::helpers::fs::FileLocation;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::types::Value;
 use kit::types::wallets::WalletInstance;
-use kit::types::{ConstructDid, ConstructId, Did, PackageId};
+use kit::types::{ConstructDid, ConstructId, Did, PackageId, RunbookId};
 
 use crate::std::commands;
 use crate::types::{Package, PreConstructData};
@@ -18,6 +18,10 @@ pub enum ConstructInstanceType {
 
 #[derive(Debug, Clone)]
 pub struct RunbookWorkspaceContext {
+    /// Id of the Runbook
+    pub runbook_id: RunbookId,
+    /// Description of the Runbook
+    pub description: Option<String>,
     /// Map of packages. A package is either a standalone .tx file, or a directory enclosing multiple .tx files
     pub packages: HashMap<PackageId, Package>,
     /// Map of constructs. A construct refers to root level objects (input, action, output, wallet, import, ...)
@@ -29,8 +33,10 @@ pub struct RunbookWorkspaceContext {
 }
 
 impl RunbookWorkspaceContext {
-    pub fn new() -> Self {
+    pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
         Self {
+            runbook_id,
+            description,
             packages: HashMap::new(),
             constructs: HashMap::new(),
             environment_variables_did_lookup: BTreeMap::new(),
@@ -79,13 +85,14 @@ impl RunbookWorkspaceContext {
             construct_name: construct_name.clone(),
         };
         let construct_did = construct_id.did();
-
+        self.constructs
+            .insert(construct_did.clone(), construct_id.clone());
         let construct_instance_type = match construct_data {
             PreConstructData::Module(block) => {
                 // if construct_name.eq("runbook") && self.runbook_metadata_construct_did.is_none() {
                 //     self.runbook_metadata_construct_did = Some(construct_did.clone());
                 // }
-                package.modules_dids.insert(construct_id.did());
+                package.modules_dids.insert(construct_did.clone());
                 package
                     .modules_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
