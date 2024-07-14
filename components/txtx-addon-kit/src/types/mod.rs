@@ -1,5 +1,6 @@
 use diagnostics::{Diagnostic, DiagnosticLevel};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Iter;
 use std::collections::HashMap;
@@ -18,7 +19,7 @@ pub mod wallets;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, PartialEq, Eq, Hash, Deserialize, Ord, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct Did(pub [u8; 32]);
 
 impl Did {
@@ -64,6 +65,17 @@ impl Serialize for Did {
     }
 }
 
+impl<'de> Deserialize<'de> for Did {
+    fn deserialize<D>(deserializer: D) -> Result<Did, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes_hex: String = serde::Deserialize::deserialize(deserializer)?;
+        let bytes = hex::decode(&bytes_hex[2..]).map_err(|e| D::Error::custom(e.to_string()))?;
+        Ok(Did::from_bytes(&bytes))
+    }
+}
+
 impl std::fmt::Display for Did {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
@@ -95,10 +107,10 @@ impl RunbookDid {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RunbookId {
-    /// Canonical name of the org behind the project
+    /// Canonical name of the org authoring the workspace
     pub org: Option<String>,
-    /// Canonical name of the project supporting the runbook
-    pub project: Option<String>,
+    /// Canonical name of the workspace supporting the runbook
+    pub workspace: Option<String>,
     /// Canonical name of the runbook
     pub name: String,
 }
@@ -109,8 +121,8 @@ impl RunbookId {
         if let Some(ref org) = self.org {
             comps.push(org.as_bytes());
         }
-        if let Some(ref project) = self.project {
-            comps.push(project.as_bytes());
+        if let Some(ref workspace) = self.workspace {
+            comps.push(workspace.as_bytes());
         }
         comps.push(self.name.as_bytes());
         let did = Did::from_components(comps);
@@ -135,7 +147,7 @@ impl PackageDid {
 pub struct PackageId {
     /// Id of the Runbook
     pub runbook_id: RunbookId,
-    /// Location of the package within the project
+    /// Location of the package within the workspace
     pub package_location: FileLocation,
     /// Name of the package
     pub package_name: String,

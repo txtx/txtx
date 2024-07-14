@@ -17,7 +17,7 @@ pub struct Construct {
 }
 
 #[derive(Debug, Clone)]
-pub struct RunbookResolutionContext {
+pub struct RunbookGraphContext {
     /// Direct Acyclic Graph keeping track of the dependencies between packages
     pub packages_dag: Dag<PackageDid, u32, u32>,
     /// Lookup: Retrieve the DAG node id of a given package did
@@ -32,7 +32,7 @@ pub struct RunbookResolutionContext {
     pub graph_root: NodeIndex<u32>,
 }
 
-impl RunbookResolutionContext {
+impl RunbookGraphContext {
     pub fn new() -> Self {
         // Initialize DAGs
         let mut packages_dag = Dag::new();
@@ -115,6 +115,26 @@ impl RunbookResolutionContext {
             }
         }
         self.resolve_constructs_dids(sorted_descendants)
+    }
+
+    /// Gets all ascendants of `node` within `graph`.
+    pub fn get_nodes_ascending_from_node(&self, node: NodeIndex) -> IndexSet<NodeIndex> {
+        let mut ascendants_nodes = VecDeque::new();
+        ascendants_nodes.push_front(node);
+        let mut ascendants = IndexSet::new();
+        while let Some(node) = ascendants_nodes.pop_front() {
+            for (_, parent) in self.constructs_dag.parents(node).iter(&self.constructs_dag) {
+                ascendants_nodes.push_back(parent);
+                ascendants.insert(parent);
+            }
+        }
+        ascendants
+    }
+
+    /// Gets all ascendants of `node` within `graph`.
+    pub fn get_constructs_ids_ascending_from_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
+        let nodes = self.get_nodes_ascending_from_node(node);
+        self.resolve_constructs_dids(nodes)
     }
 
     /// Returns a topologically sorted set of all nodes in the graph.

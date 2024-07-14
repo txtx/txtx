@@ -221,7 +221,7 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
-        project: None,
+        workspace: None,
         name: "test".into(),
     };
     let mut runbook = Runbook::new(runbook_id, None);
@@ -788,7 +788,7 @@ fn test_bns_runbook_no_env() {
     let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
-        project: None,
+        workspace: None,
         name: "test".into(),
     };
     let mut runbook = Runbook::new(runbook_id, None);

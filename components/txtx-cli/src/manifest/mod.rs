@@ -146,7 +146,7 @@ pub fn read_runbook_from_location(
     let runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
-        project: None,
+        workspace: None,
         name: runbook_name.to_string(),
     };
     Ok((

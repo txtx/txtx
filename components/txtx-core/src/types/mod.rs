@@ -2,7 +2,8 @@ mod construct;
 mod package;
 
 pub use super::runbook::{
-    Runbook, RunbookExecutionContext, RunbookResolutionContext, RunbookSources,
+    Runbook, RunbookExecutionContext, RunbookGraphContext, RunbookSnapshotContext,
+    RunbookSources,
 };
 pub use construct::PreConstructData;
 use kit::helpers::fs::FileLocation;

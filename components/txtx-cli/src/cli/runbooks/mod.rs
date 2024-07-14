@@ -56,9 +56,9 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut manifest = match manifest_res {
         Ok(manifest) => manifest,
         Err(_) => {
-            // Ask for the name of the project
+            // Ask for the name of the workspace
             let name: String = Input::new()
-                .with_prompt("Enter the name of this project")
+                .with_prompt("Enter the name of this workspace")
                 .interact_text()
                 .unwrap();
 

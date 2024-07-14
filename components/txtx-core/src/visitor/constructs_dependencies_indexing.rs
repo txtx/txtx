@@ -162,29 +162,29 @@ pub fn run_constructs_dependencies_indexing(
         // this is the most idiomatic way I could find to get unique values from a hash set
         let mut seen_wallets = HashSet::new();
         wallets.retain(|w| seen_wallets.insert(w.clone()));
-        runbook.resolution_context.instantiated_signing_commands = wallets;
+        runbook.graph_context.instantiated_signing_commands = wallets;
     }
 
     for (src, dst) in constructs_edges.iter() {
         let constructs_graph_nodes = runbook
-            .resolution_context
+            .graph_context
             .constructs_dag_node_lookup
             .clone();
 
         let src_node_index = constructs_graph_nodes.get(&src).unwrap();
         let dst_node_index = constructs_graph_nodes.get(&dst).unwrap();
 
-        if let Some(edge_to_root) = runbook.resolution_context.constructs_dag.find_edge(
-            runbook.resolution_context.graph_root,
+        if let Some(edge_to_root) = runbook.graph_context.constructs_dag.find_edge(
+            runbook.graph_context.graph_root,
             src_node_index.clone(),
         ) {
             runbook
-                .resolution_context
+                .graph_context
                 .constructs_dag
                 .remove_edge(edge_to_root);
         }
         runbook
-            .resolution_context
+            .graph_context
             .constructs_dag
             .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
             .unwrap();
@@ -192,7 +192,7 @@ pub fn run_constructs_dependencies_indexing(
 
     if diags.is_empty() {
         for (construct_did, instantiated) in runbook
-            .resolution_context
+            .graph_context
             .instantiated_signing_commands
             .iter()
         {
@@ -204,12 +204,12 @@ pub fn run_constructs_dependencies_indexing(
             if *instantiated {
                 let mut dependencies = vec![];
                 let node_index = runbook
-                    .resolution_context
+                    .graph_context
                     .constructs_dag_node_lookup
                     .get(construct_did)
                     .expect("construct_did not indexed in graph");
                 for dependent_construct_did in runbook
-                    .resolution_context
+                    .graph_context
                     .get_constructs_ids_descending_from_node(node_index.clone())
                     .into_iter()
                 {
@@ -222,7 +222,7 @@ pub fn run_constructs_dependencies_indexing(
             }
         }
 
-        for construct_did in runbook.resolution_context.get_sorted_constructs() {
+        for construct_did in runbook.graph_context.get_sorted_constructs() {
             runbook
                 .execution_context
                 .order_for_commands_execution
@@ -232,12 +232,12 @@ pub fn run_constructs_dependencies_indexing(
         for (construct_did, _) in runbook.execution_context.commands_instances.iter() {
             let mut dependencies = vec![];
             let node_index = runbook
-                .resolution_context
+                .graph_context
                 .constructs_dag_node_lookup
                 .get(construct_did)
                 .expect("construct_did not indexed in graph");
             for dependent_construct_did in runbook
-                .resolution_context
+                .graph_context
                 .get_constructs_ids_descending_from_node(node_index.clone())
                 .into_iter()
             {

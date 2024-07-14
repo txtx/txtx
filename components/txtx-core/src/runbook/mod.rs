@@ -4,12 +4,14 @@ use std::collections::{BTreeMap, HashMap};
 use txtx_addon_kit::helpers::fs::FileLocation;
 use workspace_context::ConstructInstanceType;
 
+mod diffing_context;
 mod execution_context;
-mod resolution_context;
+mod graph_context;
 mod workspace_context;
 
+pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext};
 pub use execution_context::RunbookExecutionContext;
-pub use resolution_context::RunbookResolutionContext;
+pub use graph_context::RunbookGraphContext;
 pub use workspace_context::RunbookWorkspaceContext;
 
 use crate::types::PreConstructData;
@@ -34,7 +36,7 @@ impl RunbookSources {
 #[derive(Debug, Clone)]
 pub struct Runbook {
     /// The resolution context contains all the data related to source code analysis and DAG construction
-    pub resolution_context: RunbookResolutionContext,
+    pub graph_context: RunbookGraphContext,
     /// The execution context contains all the data related to the execution of the runbook
     pub execution_context: RunbookExecutionContext,
     /// The workspace context keeps track of packages and constructs reachable
@@ -47,7 +49,7 @@ impl Runbook {
     pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
         Self {
             workspace_context: RunbookWorkspaceContext::new(runbook_id, description),
-            resolution_context: RunbookResolutionContext::new(),
+            graph_context: RunbookGraphContext::new(),
             execution_context: RunbookExecutionContext::new(),
             diagnostics: vec![],
         }
@@ -59,7 +61,7 @@ impl Runbook {
 
     pub fn index_package(&mut self, package_id: &PackageId) -> PackageDid {
         self.workspace_context.index_package(package_id);
-        self.resolution_context.index_package(package_id);
+        self.graph_context.index_package(package_id);
         package_id.did()
     }
 
@@ -71,7 +73,7 @@ impl Runbook {
             let construct_did = self
                 .workspace_context
                 .index_environment_variable(key, value);
-            self.resolution_context
+            self.graph_context
                 .index_environment_variable(&construct_did);
         }
     }
@@ -90,7 +92,7 @@ impl Runbook {
             package_id,
         );
         let construct_did = construct_id.did();
-        self.resolution_context.index_construct(&construct_did);
+        self.graph_context.index_construct(&construct_did);
         match construct_instance_type {
             ConstructInstanceType::Executable(instance) => {
                 self.execution_context
