@@ -1,9 +1,12 @@
+use daggy::Walker;
 use daggy::{Dag, NodeIndex};
+use indexmap::IndexSet;
 use kit::types::ConstructDid;
 use kit::types::ConstructId;
 use kit::types::Did;
 use kit::types::PackageDid;
 use kit::types::PackageId;
+use petgraph::algo::toposort;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
@@ -66,5 +69,73 @@ impl RunbookResolutionContext {
                 .add_child(self.graph_root.clone(), 100, construct_did.clone());
         self.constructs_dag_node_lookup
             .insert(construct_did.clone(), node_index);
+    }
+
+    /// Gets all descendants of `node` within `graph`.
+    pub fn get_nodes_descending_from_node(&self, node: NodeIndex) -> IndexSet<NodeIndex> {
+        let mut descendant_nodes = VecDeque::new();
+        descendant_nodes.push_front(node);
+        let mut descendants = IndexSet::new();
+        while let Some(node) = descendant_nodes.pop_front() {
+            for (_, child) in self
+                .constructs_dag
+                .children(node)
+                .iter(&self.constructs_dag)
+            {
+                descendant_nodes.push_back(child);
+                descendants.insert(child);
+            }
+        }
+        descendants
+    }
+
+    /// Gets all descendants of `node` within `graph`.
+    pub fn get_constructs_ids_descending_from_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
+        let nodes = self.get_nodes_descending_from_node(node);
+        self.resolve_constructs_dids(nodes)
+    }
+
+    /// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
+    /// Legacy, dead code
+    #[allow(dead_code)]
+    pub fn get_sorted_descendants_of_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
+        let sorted = toposort(&self.constructs_dag, None)
+            .unwrap()
+            .into_iter()
+            .collect::<IndexSet<NodeIndex>>();
+
+        let start_node_descendants = self.get_nodes_descending_from_node(node);
+        let mut sorted_descendants = IndexSet::new();
+
+        for this_node in sorted.into_iter() {
+            let is_descendant = start_node_descendants.iter().any(|d| d == &this_node);
+            let is_start_node = this_node == node;
+            if is_descendant || is_start_node {
+                sorted_descendants.insert(this_node);
+            }
+        }
+        self.resolve_constructs_dids(sorted_descendants)
+    }
+
+    /// Returns a topologically sorted set of all nodes in the graph.
+    pub fn get_sorted_constructs(&self) -> Vec<&ConstructDid> {
+        let nodes = toposort(&self.constructs_dag, None)
+            .unwrap()
+            .into_iter()
+            .collect::<IndexSet<NodeIndex>>();
+        self.resolve_constructs_dids(nodes)
+    }
+
+    pub fn resolve_constructs_dids(&self, nodes: IndexSet<NodeIndex>) -> Vec<&ConstructDid> {
+        let mut construct_dids = vec![];
+        for node in nodes {
+            let construct_did = self
+                .constructs_dag
+                .node_weight(node)
+                .expect("construct_did not indexed in graph");
+
+            construct_dids.push(construct_did);
+        }
+        construct_dids
     }
 }
