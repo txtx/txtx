@@ -1,12 +1,11 @@
 use clarity::util::sleep_ms;
 use std::collections::VecDeque;
 use std::fmt::Write;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -107,7 +106,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -137,7 +136,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
@@ -166,7 +165,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-        let is_supervised = execution_context.is_supervised;
+        let is_supervised = supervision_context.is_supervised;
         let future = async move {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(

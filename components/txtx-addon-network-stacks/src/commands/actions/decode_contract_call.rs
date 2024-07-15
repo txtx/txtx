@@ -1,10 +1,11 @@
 use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
 use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
 use txtx_addon_kit::types::commands::{
-    return_synchronous_result, CommandExecutionContext, CommandExecutionFutureResult,
-    CommandImplementation, PreCommandSpecification,
+    return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
@@ -81,7 +82,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }

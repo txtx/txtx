@@ -1,3 +1,4 @@
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::RunbookId;
 use kit::types::{diagnostics::Diagnostic, types::Value};
 use std::collections::HashMap;
@@ -25,6 +26,8 @@ pub struct Runbook {
     pub workspace_context: RunbookWorkspaceContext,
     /// The runtime context keeps track of all the functions, commands, and signing commands in scope during execution
     pub runtime_context: RuntimeContext,
+    /// The supervision context keeps track of the supervision settings the runbook is executing under
+    pub supervision_context: RunbookSupervisionContext,
     /// Source files
     pub sources: RunbookSources,
     /// Runbook inputs
@@ -42,6 +45,7 @@ impl Runbook {
             runtime_context: RuntimeContext::new(),
             sources: RunbookSources::new(),
             inputs_map: RunbookInputsMap::new(),
+            supervision_context: RunbookSupervisionContext::new(),
             diagnostics: vec![],
         }
     }

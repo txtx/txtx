@@ -1,12 +1,12 @@
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
-            CommandSpecification, PreCommandSpecification,
+            CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+            PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::{Actions, BlockEvent},
-        types::Type,
+        types::{RunbookSupervisionContext, Type},
         ConstructDid, ValueStore,
     },
     AddonDefaults,
@@ -56,7 +56,7 @@ impl CommandImplementation for StacksDeployContract {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }

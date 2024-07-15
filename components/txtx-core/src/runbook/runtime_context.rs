@@ -67,6 +67,12 @@ impl RuntimeContext {
             let dependencies_execution_results = HashMap::new();
             let mut addons_context = AddonsContext::new();
 
+            // Register standard functions at the root level
+            let std_addon = StdAddon::new();
+            for function in std_addon.get_functions().iter() {
+                self.functions.insert(function.name.clone(), function.clone());
+            }
+
             while let Some((location, package_name, raw_content)) = sources.pop_front() {
                 let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
                     vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
@@ -251,15 +257,6 @@ impl AddonsContext {
             .insert(addon.get_namespace().to_string(), (addon, scope));
         self.addon_construct_factories
             .insert((package_did.clone(), key.clone()), factory);
-    }
-
-    pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionSpecification> {
-        let mut functions = vec![];
-        for (_, (addon, _)) in self.registered_addons.iter() {
-            let mut addon_functions = addon.get_functions();
-            functions.append(&mut addon_functions);
-        }
-        functions
     }
 
     fn get_factory(

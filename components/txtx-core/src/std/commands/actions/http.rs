@@ -1,10 +1,9 @@
 use kit::types::frontend::{Actions, BlockEvent};
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::ValueStore;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
@@ -102,7 +101,7 @@ impl CommandImplementation for SendHttpRequest {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }

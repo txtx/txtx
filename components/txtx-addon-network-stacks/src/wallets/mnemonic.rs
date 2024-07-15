@@ -13,7 +13,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::sha2::Sha512;
-use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
 };
@@ -32,6 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
@@ -110,7 +111,7 @@ impl WalletImplementation for StacksMnemonic {
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
@@ -150,7 +151,7 @@ impl WalletImplementation for StacksMnemonic {
         signing_command_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         signing_command_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
-        if execution_context.review_input_values {
+        if supervision_context.review_input_values {
             actions.push_sub_group(vec![ActionItemRequest::new(
                 &None,
                 &format!("Check {} expected address", instance_name),
@@ -192,7 +193,7 @@ impl WalletImplementation for StacksMnemonic {
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
         Ok((wallets, signing_command_state, Actions::none()))
     }

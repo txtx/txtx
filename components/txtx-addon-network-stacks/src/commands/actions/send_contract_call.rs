@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
-            CommandSpecification, PreCommandSpecification,
+            CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+            PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::BlockEvent,
@@ -149,7 +150,7 @@ impl CommandImplementation for SendContractCall {
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
@@ -195,7 +196,7 @@ impl CommandImplementation for SendContractCall {
             spec,
             &args,
             defaults,
-            execution_context,
+            supervision_context,
             wallets_instances,
             wallets,
         )
@@ -288,7 +289,7 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         BroadcastStacksTransaction::build_background_task(
             &construct_did,
@@ -298,7 +299,7 @@ impl CommandImplementation for SendContractCall {
             &defaults,
             &progress_tx,
             &background_tasks_uuid,
-            &execution_context,
+            &supervision_context,
         )
     }
 }

@@ -15,12 +15,13 @@ use clarity_repl::{
 };
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
+    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
     ReviewInputRequest,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::{
     return_synchronous_ok, SigningCommandsState, WalletActionsFutureResult, WalletInstance,
     WalletSignFutureResult,
@@ -130,7 +131,7 @@ impl CommandImplementation for SignStacksTransaction {
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
@@ -149,7 +150,7 @@ impl CommandImplementation for SignStacksTransaction {
         let spec = spec.clone();
         let args = args.clone();
         let defaults = defaults.clone();
-        let execution_context = execution_context.clone();
+        let supervision_context = supervision_context.clone();
         let wallets_instances = wallets_instances.clone();
 
         let future = async move {
@@ -192,7 +193,7 @@ impl CommandImplementation for SignStacksTransaction {
             );
             wallets.push_signing_command_state(signing_command_state);
 
-            if execution_context.review_input_values {
+            if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
@@ -239,7 +240,7 @@ impl CommandImplementation for SignStacksTransaction {
                     wallets,
                     &wallets_instances,
                     &defaults,
-                    &execution_context,
+                    &supervision_context,
                 )?;
             actions.append(&mut wallet_actions);
             Ok((wallets, signing_command_state, actions))

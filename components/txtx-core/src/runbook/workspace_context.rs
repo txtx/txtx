@@ -322,6 +322,7 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
+                    "addon" => {}
                     _ => {
                         diagnostics.push(Diagnostic {
                             location: Some(location.clone()),

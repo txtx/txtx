@@ -4,7 +4,6 @@ mod decode_contract_call;
 mod deploy_contract;
 pub mod encode_contract_call;
 mod send_contract_call;
-pub mod set_default_network;
 pub mod sign_transaction;
 
 use crate::{stacks_helpers::parse_clarity_value, typing::STACKS_CONTRACT_CALL};
@@ -20,7 +19,6 @@ use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
 use send_contract_call::SEND_CONTRACT_CALL;
-use set_default_network::SET_DEFAULT_NETWORK;
 use sign_transaction::SIGN_STACKS_TRANSACTION;
 use txtx_addon_kit::types::{
     commands::{CommandSpecification, PreCommandSpecification},
@@ -37,7 +35,6 @@ lazy_static! {
         DEPLOY_STACKS_CONTRACT.clone(),
         BROADCAST_STACKS_TRANSACTION.clone(),
         CALL_READONLY_FN.clone(),
-        SET_DEFAULT_NETWORK.clone(),
         SEND_CONTRACT_CALL.clone(),
     ];
 }

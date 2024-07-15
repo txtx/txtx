@@ -3,9 +3,8 @@ use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
 use std::collections::HashMap;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionResult, CommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecification};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
 use crate::typing::STACKS_TRANSACTION;
 use crate::{
@@ -113,7 +112,7 @@ impl WalletImplementation for StacksConnect {
         mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
@@ -125,7 +124,7 @@ impl WalletImplementation for StacksConnect {
         let args = args.clone();
         let wallets_instances = wallets_instances.clone();
         let defaults = defaults.clone();
-        let execution_context = execution_context.clone();
+        let supervision_context = supervision_context.clone();
         let instance_name = instance_name.to_string();
         let expected_address: Option<String> = None;
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, &defaults) {
@@ -190,7 +189,7 @@ impl WalletImplementation for StacksConnect {
                     wallets,
                     &wallets_instances,
                     &defaults,
-                    &execution_context,
+                    &supervision_context,
                     false,
                     true,
                 )?;
@@ -397,7 +396,7 @@ impl WalletImplementation for StacksConnect {
         mut wallets: SigningCommandsState,
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
         // let mut transaction_bytes_to_sign = payload.clone();
         let signers = get_signers(&signing_command_state, wallets_instances);
@@ -445,7 +444,7 @@ impl WalletImplementation for StacksConnect {
                     wallets,
                     &wallets_instances,
                     &defaults,
-                    &execution_context,
+                    &supervision_context,
                 )?;
             updated_wallets.push_signing_command_state(signer_signing_command_state.clone());
             if actions.has_pending_actions() {

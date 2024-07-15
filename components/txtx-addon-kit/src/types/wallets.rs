@@ -10,14 +10,13 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::{
     commands::{
-        CommandExecutionContext, CommandExecutionResult, CommandInput,
-        CommandInputsEvaluationResult, CommandOutput,
+        CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
     },
     diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
-    types::{ObjectProperty, Type, Value},
+    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, PackageId, ValueStore,
 };
 
@@ -163,7 +162,7 @@ pub type WalletCheckActivabilityClosure = fn(
     SigningCommandsState,
     &HashMap<ConstructDid, WalletInstance>,
     &AddonDefaults,
-    &CommandExecutionContext,
+    &RunbookSupervisionContext,
     bool,
     bool,
 ) -> WalletActionsFutureResult;
@@ -189,7 +188,7 @@ pub type WalletCheckSignabilityClosure = fn(
     SigningCommandsState,
     &HashMap<ConstructDid, WalletInstance>,
     &AddonDefaults,
-    &CommandExecutionContext,
+    &RunbookSupervisionContext,
 ) -> Result<CheckSignabilityOk, WalletActionErr>;
 
 pub type WalletOperationFutureResult = Result<
@@ -423,7 +422,7 @@ impl WalletInstance {
         addon_defaults: &AddonDefaults,
         _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
@@ -457,7 +456,7 @@ impl WalletInstance {
                                 wallets,
                                 wallets_instances,
                                 &addon_defaults,
-                                &execution_context,
+                                &supervision_context,
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
@@ -504,7 +503,7 @@ impl WalletInstance {
             wallets,
             wallets_instances,
             &addon_defaults,
-            &execution_context,
+            &supervision_context,
             is_balance_check_required,
             is_public_key_required,
         );
@@ -594,7 +593,7 @@ pub trait WalletImplementation {
         _wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
@@ -625,7 +624,7 @@ pub trait WalletImplementation {
         _wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
         unimplemented!()
     }

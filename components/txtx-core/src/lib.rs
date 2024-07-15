@@ -26,7 +26,6 @@ use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
 use kit::types::block_id::BlockId;
-use kit::types::commands::CommandExecutionContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
 use kit::types::frontend::ActionItemResponse;
@@ -41,6 +40,7 @@ use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::frontend::ValidateBlockData;
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
@@ -69,7 +69,7 @@ pub async fn start_unsupervised_runbook_runloop(
     runbook: &mut Runbook,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let execution_context = CommandExecutionContext {
+    runbook.supervision_context = RunbookSupervisionContext {
         review_input_default_values: false,
         review_input_values: false,
         is_supervised: false,
@@ -83,7 +83,7 @@ pub async fn start_unsupervised_runbook_runloop(
         &runbook_workspace_context,
         &mut runbook.execution_context,
         &mut runbook.runtime_context,
-        &execution_context,
+        &runbook.supervision_context,
         &mut action_item_requests,
         &action_item_responses,
         &progress_tx,
@@ -114,7 +114,7 @@ pub async fn start_unsupervised_runbook_runloop(
             &runbook_workspace_context,
             &mut runbook.execution_context,
             &mut runbook.runtime_context,
-            &execution_context,
+            &runbook.supervision_context,
             &mut action_item_requests,
             &action_item_responses,
             &progress_tx,
@@ -195,7 +195,7 @@ pub async fn start_supervised_runbook_runloop(
     let runbook_workspace_context = runbook.workspace_context.clone();
 
     let mut runbook_initialized = false;
-    let execution_context = CommandExecutionContext {
+    runbook.supervision_context = RunbookSupervisionContext {
         review_input_default_values: true,
         review_input_values: true,
         is_supervised: true,
@@ -327,7 +327,7 @@ pub async fn start_supervised_runbook_runloop(
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
                     &mut runbook.runtime_context,
-                    &execution_context,
+                    &runbook.supervision_context,
                     &mut map,
                     &action_item_responses,
                     &block_tx.clone(),
@@ -430,7 +430,7 @@ pub async fn start_supervised_runbook_runloop(
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
                     &mut runbook.runtime_context,
-                    &execution_context,
+                    &runbook.supervision_context,
                     &mut map,
                     &action_item_responses,
                     &block_tx.clone(),
@@ -468,7 +468,7 @@ pub async fn start_supervised_runbook_runloop(
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
                     &mut runbook.runtime_context,
-                    &execution_context,
+                    &runbook.supervision_context,
                     &mut map,
                     &action_item_responses,
                     &block_tx.clone(),
@@ -619,10 +619,10 @@ pub async fn build_genesis_panel(
     }
 
     let mut pass_result = run_wallets_evaluation(
-        runbook_workspace_context,
-        runbook_execution_context,
-        runtime_context,
-        &execution_context,
+        &runbook.workspace_context,
+        &mut runbook.execution_context,
+        &mut runbook.runtime_context,
+        &runbook.supervision_context,
         &mut BTreeMap::new(),
         &action_item_responses,
         &progress_tx,

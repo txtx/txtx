@@ -3,11 +3,12 @@ use std::collections::HashMap;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
-use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
     BlockEvent, ProvideSignedTransactionRequest,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk,
     SigningCommandsState, WalletActionErr, WalletActionsFutureResult, WalletActivateFutureResult,
@@ -92,7 +93,7 @@ impl WalletImplementation for StacksConnect {
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
@@ -262,7 +263,7 @@ impl WalletImplementation for StacksConnect {
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
         if let Some(_) = signing_command_state
             .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)

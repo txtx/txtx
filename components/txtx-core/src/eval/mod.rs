@@ -5,6 +5,7 @@ use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::wallets::SigningCommandsState;
 use kit::types::PackageId;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -15,10 +16,7 @@ use txtx_addon_kit::{
         template::Element,
     },
     types::{
-        commands::{
-            CommandExecutionContext, CommandExecutionResult, CommandInputsEvaluationResult,
-            CommandInstance,
-        },
+        commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::Diagnostic,
         frontend::{ActionItemRequest, ActionItemStatus},
         types::{PrimitiveValue, Value},
@@ -36,7 +34,7 @@ pub async fn run_wallets_evaluation(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_context: &mut RuntimeContext,
-    execution_context: &CommandExecutionContext,
+    supervision_context: &RunbookSupervisionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
@@ -164,7 +162,7 @@ pub async fn run_wallets_evaluation(
                 &addon_defaults,
                 &action_item_requests.get(&construct_did),
                 &action_item_responses.get(&construct_did),
-                execution_context,
+                supervision_context,
                 instantiated,
                 instantiated,
             )
@@ -283,7 +281,7 @@ pub async fn run_constructs_evaluation(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
     runtime_context: &mut RuntimeContext,
-    execution_context: &CommandExecutionContext,
+    supervision_context: &RunbookSupervisionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
@@ -333,7 +331,7 @@ pub async fn run_constructs_evaluation(
             .commands_instances
             .get(&construct_did)
         else {
-            // runtime_ctx.addons.index_command_instance(namespace, package_did, block)
+            // runtime_context.addons.index_command_instance(namespace, package_did, block)
             continue;
         };
         if let Some(_) = runbook_execution_context
@@ -370,7 +368,7 @@ pub async fn run_constructs_evaluation(
         // however, if there was a start_node provided, this evaluation was initiated from a user interaction
         // that is stored in the input evaluation results, and we want to keep that data to evaluate that
         // commands dependents
-        let input_evaluation_results = if execution_context.review_input_default_values {
+        let input_evaluation_results = if supervision_context.review_input_default_values {
             None
         } else {
             runbook_execution_context
@@ -426,7 +424,7 @@ pub async fn run_constructs_evaluation(
             .commands_instances
             .get_mut(&construct_did)
         else {
-            // runtime_ctx.addons.index_command_instance(namespace, package_did, block)
+            // runtime_context.addons.index_command_instance(namespace, package_did, block)
             continue;
         };
 
@@ -464,7 +462,7 @@ pub async fn run_constructs_evaluation(
                     &mut runbook_execution_context.signing_commands_instances,
                     &action_item_responses.get(&construct_did),
                     &action_item_requests.get(&construct_did),
-                    execution_context,
+                    supervision_context,
                 )
                 .await;
 
@@ -556,7 +554,7 @@ pub async fn run_constructs_evaluation(
                 addon_defaults.clone(),
                 &mut runbook_execution_context.signing_commands_instances,
                 &action_item_responses.get(&construct_did),
-                execution_context,
+                supervision_context,
             ) {
                 Ok(mut new_actions) => {
                     if new_actions.has_pending_actions() {
@@ -654,7 +652,7 @@ pub async fn run_constructs_evaluation(
                 addon_defaults.clone(),
                 progress_tx,
                 &pass_result.background_tasks_uuid,
-                execution_context,
+                supervision_context,
             );
             let future = match future_res {
                 Ok(future) => future,

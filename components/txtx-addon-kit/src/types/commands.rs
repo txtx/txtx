@@ -27,20 +27,13 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
-    types::{ObjectProperty, Type, TypeSpecification, Value},
+    types::{ObjectProperty, RunbookSupervisionContext, Type, TypeSpecification, Value},
     wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
     },
     ConstructDid, Did, PackageId, ValueStore,
 };
-
-#[derive(Clone, Debug)]
-pub struct CommandExecutionContext {
-    pub review_input_default_values: bool,
-    pub review_input_values: bool,
-    pub is_supervised: bool,
-}
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -368,7 +361,7 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
         &Uuid,
-        &CommandExecutionContext,
+        &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult,
 >;
 
@@ -393,7 +386,7 @@ pub type CommandCheckExecutabilityClosure = fn(
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &CommandExecutionContext,
+    &RunbookSupervisionContext,
 ) -> Result<Actions, Diagnostic>;
 
 pub type CommandCheckSignedExecutabilityClosure = fn(
@@ -402,7 +395,7 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &CommandExecutionContext,
+    &RunbookSupervisionContext,
     &HashMap<ConstructDid, WalletInstance>,
     SigningCommandsState,
 ) -> WalletActionsFutureResult;
@@ -656,7 +649,7 @@ impl CommandInstance {
         addon_defaults: AddonDefaults,
         _wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(
             &format!("{}_inputs", self.specification.matcher),
@@ -743,7 +736,7 @@ impl CommandInstance {
                 &spec,
                 &values,
                 &addon_defaults,
-                &execution_context,
+                &supervision_context,
             )?;
             consolidated_actions.append(&mut actions);
         }
@@ -816,7 +809,7 @@ impl CommandInstance {
         wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
@@ -873,7 +866,7 @@ impl CommandInstance {
             &self.specification,
             &values,
             &addon_defaults,
-            &execution_context,
+            &supervision_context,
             wallet_instances,
             wallets,
         );
@@ -951,7 +944,7 @@ impl CommandInstance {
         addon_defaults: AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         let mut inputs = ValueStore::new(&self.name, &construct_did.value());
         let mut outputs = ValueStore::new(&self.name, &construct_did.value());
@@ -973,7 +966,7 @@ impl CommandInstance {
             &addon_defaults,
             progress_tx,
             background_tasks_uuid,
-            execution_context,
+            supervision_context,
         );
         res
     }
@@ -1025,7 +1018,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
@@ -1045,7 +1038,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _signing_commands_state: SigningCommandsState,
     ) -> WalletActionsFutureResult {
@@ -1072,7 +1065,7 @@ pub trait CommandImplementation {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }
