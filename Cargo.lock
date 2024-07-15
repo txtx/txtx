@@ -3893,6 +3893,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "similar"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa42c91313f1d05da9b26f267f931cf178d4aba455b4c4622dd7355eb80c6640"
+
+[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4788,6 +4794,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_yml",
+ "similar",
  "txtx-addon-kit",
  "txtx-addon-network-stacks",
 ]

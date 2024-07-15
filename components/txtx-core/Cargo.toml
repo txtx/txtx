@@ -20,6 +20,7 @@ serde = "1"
 serde_derive = "1"
 serde_yml = "0.0.10"
 chrono = "0.4.38"
+similar = "2.5.0"
 
 [dev-dependencies]
 txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks"}

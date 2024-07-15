@@ -52,13 +52,15 @@ lazy_static! {
               documentation: "A list of signers that make up the multisig.",
                 typing: Type::array(Type::string()),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                sensitive: false
             },
             expected_address: {
               documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this wallet.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: false
             }
           ],
           outputs: [

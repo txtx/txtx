@@ -44,7 +44,8 @@ lazy_static! {
                         documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this wallet.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true
+                        interpolable: true,
+                        sensitive: true
                     }
                 ],
                 outputs: [

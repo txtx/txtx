@@ -65,11 +65,8 @@ pub async fn run_wallets_evaluation(
             command.package_id.clone()
         };
 
-        let instantiated = runbook_execution_context
-            .signing_commands_dependencies
-            .get(&construct_did)
-            .map(|d| !d.is_empty())
-            .unwrap_or(false);
+        let instantiated =
+            runbook_execution_context.is_signing_command_instantiated(&construct_did);
 
         let (evaluated_inputs_res, _group, addon_defaults) = match runbook_execution_context
             .signing_commands_instances

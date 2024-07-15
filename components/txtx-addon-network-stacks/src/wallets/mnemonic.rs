@@ -50,25 +50,29 @@ lazy_static! {
                 documentation: "The mnemonic phrase used to generate the secret key.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             },
             derivation_path: {
                 documentation: "The derivation path used to generate the secret key.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             },
             is_encrypted: {
                 documentation: "Coming soon",
                 typing: Type::bool(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: false
             },
             password: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             }
           ],
           outputs: [

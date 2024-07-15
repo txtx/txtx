@@ -112,6 +112,7 @@ pub struct CommandInput {
     pub interpolable: bool,
     pub check_required: bool,
     pub check_performed: bool,
+    pub sensitive: bool,
 }
 
 impl CommandInput {
@@ -237,6 +238,19 @@ pub struct CompositeCommandSpecification {
 }
 
 impl CommandSpecification {
+    pub fn set_input_as_sensitive(&mut self, input_name: &str) {
+        for input in self.inputs.iter_mut() {
+            if input.name.eq(input_name) {
+                input.sensitive = true;
+            }
+        }
+        for input in self.default_inputs.iter_mut() {
+            if input.name.eq(input_name) {
+                input.sensitive = true;
+            }
+        }
+    }
+
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
@@ -247,6 +261,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -256,6 +271,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -265,6 +281,7 @@ impl CommandSpecification {
                 interpolable: false,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "sensitive".into(),
@@ -274,6 +291,7 @@ impl CommandSpecification {
                 interpolable: false,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "group".into(),
@@ -283,6 +301,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "depends_on".into(),
@@ -292,6 +311,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
         ]
     }

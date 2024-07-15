@@ -166,18 +166,16 @@ pub fn run_constructs_dependencies_indexing(
     }
 
     for (src, dst) in constructs_edges.iter() {
-        let constructs_graph_nodes = runbook
-            .graph_context
-            .constructs_dag_node_lookup
-            .clone();
+        let constructs_graph_nodes = runbook.graph_context.constructs_dag_node_lookup.clone();
 
         let src_node_index = constructs_graph_nodes.get(&src).unwrap();
         let dst_node_index = constructs_graph_nodes.get(&dst).unwrap();
 
-        if let Some(edge_to_root) = runbook.graph_context.constructs_dag.find_edge(
-            runbook.graph_context.graph_root,
-            src_node_index.clone(),
-        ) {
+        if let Some(edge_to_root) = runbook
+            .graph_context
+            .constructs_dag
+            .find_edge(runbook.graph_context.graph_root, src_node_index.clone())
+        {
             runbook
                 .graph_context
                 .constructs_dag
@@ -191,10 +189,8 @@ pub fn run_constructs_dependencies_indexing(
     }
 
     if diags.is_empty() {
-        for (construct_did, instantiated) in runbook
-            .graph_context
-            .instantiated_signing_commands
-            .iter()
+        for (construct_did, instantiated) in
+            runbook.graph_context.instantiated_signing_commands.iter()
         {
             runbook
                 .execution_context
@@ -202,23 +198,26 @@ pub fn run_constructs_dependencies_indexing(
                 .push(construct_did.clone());
 
             if *instantiated {
-                let mut dependencies = vec![];
-                let node_index = runbook
+                let dependencies = runbook
                     .graph_context
-                    .constructs_dag_node_lookup
-                    .get(construct_did)
-                    .expect("construct_did not indexed in graph");
-                for dependent_construct_did in runbook
-                    .graph_context
-                    .get_constructs_ids_descending_from_node(node_index.clone())
-                    .into_iter()
-                {
-                    dependencies.push(dependent_construct_did.clone());
+                    .get_downstream_dependencies_for_construct_did(construct_did);
+                for signed_dependency in dependencies.iter() {
+                    let upstream_dependencies = runbook
+                        .graph_context
+                        .get_upstream_dependencies_for_construct_did(signed_dependency);
+                    runbook
+                        .execution_context
+                        .signed_commands_upstream_dependencies
+                        .insert(signed_dependency.clone(), upstream_dependencies);
+                    runbook
+                        .execution_context
+                        .signed_commands
+                        .insert(signed_dependency.clone());
                 }
                 runbook
                     .execution_context
-                    .signing_commands_dependencies
-                    .insert(construct_did.clone(), dependencies);
+                    .signing_commands_downstream_dependencies
+                    .push((construct_did.clone(), dependencies));
             }
         }
 
@@ -230,19 +229,9 @@ pub fn run_constructs_dependencies_indexing(
         }
 
         for (construct_did, _) in runbook.execution_context.commands_instances.iter() {
-            let mut dependencies = vec![];
-            let node_index = runbook
+            let dependencies = runbook
                 .graph_context
-                .constructs_dag_node_lookup
-                .get(construct_did)
-                .expect("construct_did not indexed in graph");
-            for dependent_construct_did in runbook
-                .graph_context
-                .get_constructs_ids_descending_from_node(node_index.clone())
-                .into_iter()
-            {
-                dependencies.push(dependent_construct_did.clone());
-            }
+                .get_downstream_dependencies_for_construct_did(construct_did);
             runbook
                 .execution_context
                 .commands_dependencies

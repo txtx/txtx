@@ -90,15 +90,22 @@ impl RunbookGraphContext {
     }
 
     /// Gets all descendants of `node` within `graph`.
-    pub fn get_constructs_ids_descending_from_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
-        let nodes = self.get_nodes_descending_from_node(node);
+    pub fn get_downstream_dependencies_for_construct_did(
+        &self,
+        construct_did: &ConstructDid,
+    ) -> Vec<ConstructDid> {
+        let node_index = self
+            .constructs_dag_node_lookup
+            .get(construct_did)
+            .expect("construct_did not indexed in graph");
+        let nodes = self.get_nodes_descending_from_node(node_index.clone());
         self.resolve_constructs_dids(nodes)
     }
 
     /// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
     /// Legacy, dead code
     #[allow(dead_code)]
-    pub fn get_sorted_descendants_of_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
+    pub fn get_sorted_descendants_of_node(&self, node: NodeIndex) -> Vec<ConstructDid> {
         let sorted = toposort(&self.constructs_dag, None)
             .unwrap()
             .into_iter()
@@ -132,13 +139,20 @@ impl RunbookGraphContext {
     }
 
     /// Gets all ascendants of `node` within `graph`.
-    pub fn get_constructs_ids_ascending_from_node(&self, node: NodeIndex) -> Vec<&ConstructDid> {
-        let nodes = self.get_nodes_ascending_from_node(node);
+    pub fn get_upstream_dependencies_for_construct_did(
+        &self,
+        construct_did: &ConstructDid,
+    ) -> Vec<ConstructDid> {
+        let node_index = self
+            .constructs_dag_node_lookup
+            .get(construct_did)
+            .expect("construct_did not indexed in graph");
+        let nodes = self.get_nodes_ascending_from_node(node_index.clone());
         self.resolve_constructs_dids(nodes)
     }
 
     /// Returns a topologically sorted set of all nodes in the graph.
-    pub fn get_sorted_constructs(&self) -> Vec<&ConstructDid> {
+    pub fn get_sorted_constructs(&self) -> Vec<ConstructDid> {
         let nodes = toposort(&self.constructs_dag, None)
             .unwrap()
             .into_iter()
@@ -146,7 +160,7 @@ impl RunbookGraphContext {
         self.resolve_constructs_dids(nodes)
     }
 
-    pub fn resolve_constructs_dids(&self, nodes: IndexSet<NodeIndex>) -> Vec<&ConstructDid> {
+    pub fn resolve_constructs_dids(&self, nodes: IndexSet<NodeIndex>) -> Vec<ConstructDid> {
         let mut construct_dids = vec![];
         for node in nodes {
             let construct_did = self
@@ -154,7 +168,7 @@ impl RunbookGraphContext {
                 .node_weight(node)
                 .expect("construct_did not indexed in graph");
 
-            construct_dids.push(construct_did);
+            construct_dids.push(construct_did.clone());
         }
         construct_dids
     }
