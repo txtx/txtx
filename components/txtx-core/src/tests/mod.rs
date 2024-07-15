@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 use kit::{
     channel::{Receiver, Sender},
@@ -22,13 +22,11 @@ use txtx_addon_kit::{
         types::Value,
     },
 };
-use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
-    pre_compute_runbook, start_supervised_runbook_runloop,
-    std::StdAddon,
-    types::{Runbook, RunbookSources, RuntimeContext},
-    AddonsContext,
+    runbook::RunbookInputsMap,
+    start_supervised_runbook_runloop,
+    types::{Runbook, RunbookSources},
 };
 
 #[allow(unused)]
@@ -212,22 +210,18 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
         FileLocation::from_path_string(".").unwrap(),
         fixture.into(),
     );
+    let runbook_inputs = RunbookInputsMap::new();
 
-    let environments = BTreeMap::new();
-    let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()), false);
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
-
-    let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
         workspace: None,
         name: "test".into(),
     };
-    let mut runbook = Runbook::new(runbook_id, None);
 
-    let _ = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context)
-        .expect("unable to pre-compute runbook");
+    let mut runbook = Runbook::new(runbook_id, None);
+    runbook
+        .build_contexts_from_sources(runbook_sources, runbook_inputs)
+        .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, _action_item_updates_rx) =
@@ -245,11 +239,9 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
-            &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
-            environments,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -779,22 +771,18 @@ fn test_bns_runbook_no_env() {
         FileLocation::from_path_string(".").unwrap(),
         wallet_tx.into(),
     );
+    let runbook_inputs = RunbookInputsMap::new();
 
-    let environments = BTreeMap::new();
-    let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()), false);
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
-
-    let mut runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
         workspace: None,
         name: "test".into(),
     };
-    let mut runbook = Runbook::new(runbook_id, None);
 
-    let _ = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context)
-        .expect("unable to pre-compute runbook");
+    let mut runbook = Runbook::new(runbook_id, None);
+    runbook
+        .build_contexts_from_sources(runbook_sources, runbook_inputs)
+        .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, _action_item_updates_rx) =
@@ -805,11 +793,9 @@ fn test_bns_runbook_no_env() {
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
-            &mut runtime_context,
             block_tx,
             action_item_updates_tx,
             action_item_events_rx,
-            environments,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {

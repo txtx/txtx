@@ -233,15 +233,7 @@ impl ValueStore {
         defaults: &AddonDefaults,
     ) -> Result<String, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            let res =
-                defaults
-                    .keys
-                    .get(key)
-                    .map(|x| x.as_str())
-                    .ok_or(Diagnostic::error_from_string(format!(
-                        "store '{}': unable to retrieve key '{}'",
-                        self.name, key
-                    )))?;
+            let res = defaults.store.get_expected_string(key)?;
             return Ok(res.to_string());
         };
         let Some(value) = value.as_string() else {

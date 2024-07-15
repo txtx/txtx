@@ -1,14 +1,19 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
-
-use kit::hcl::expr::{Expression, TraversalOperator};
-use kit::helpers::fs::FileLocation;
-use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
-use kit::types::types::Value;
-use kit::types::wallets::WalletInstance;
-use kit::types::{ConstructDid, ConstructId, Did, PackageId, RunbookId};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use crate::std::commands;
 use crate::types::{Package, PreConstructData};
+use kit::hcl::expr::{Expression, TraversalOperator};
+use kit::hcl::structure::{Block, BlockLabel};
+use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use kit::helpers::hcl::visit_required_string_literal_attribute;
+use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
+use kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
+use kit::types::types::Value;
+use kit::types::wallets::WalletInstance;
+use kit::types::{ConstructDid, ConstructId, Did, PackageId, RunbookId};
+use txtx_addon_kit::hcl;
+
+use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, RuntimeContext};
 
 pub enum ConstructInstanceType {
     Executable(CommandInstance),
@@ -29,7 +34,7 @@ pub struct RunbookWorkspaceContext {
     /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
     pub environment_variables_did_lookup: BTreeMap<String, ConstructDid>,
     /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
-    pub environment_variables_values: BTreeMap<ConstructDid, String>,
+    pub environment_variables_values: BTreeMap<ConstructDid, Value>,
 }
 
 impl RunbookWorkspaceContext {
@@ -44,9 +49,305 @@ impl RunbookWorkspaceContext {
         }
     }
 
-    pub fn index_environment_variable(&mut self, key: &String, value: &String) -> ConstructDid {
+    pub fn build_from_sources(
+        &mut self,
+        runbook_sources: &RunbookSources,
+        runtime_context: &mut RuntimeContext,
+        graph_context: &mut RunbookGraphContext,
+        execution_context: &mut RunbookExecutionContext,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = vec![];
+        let mut has_errored = false;
+        let mut sources = VecDeque::new();
+        // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
+        let mut files_visited = HashSet::new();
+        for (location, (module_name, raw_content)) in runbook_sources.tree.iter() {
+            files_visited.insert(location);
+            sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
+        }
+
+        while let Some((location, package_name, raw_content)) = sources.pop_front() {
+            let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
+                vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
+            })?;
+            let package_location = location
+                .get_parent_location()
+                .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
+            let package_id = PackageId {
+                runbook_id: self.runbook_id.clone(),
+                package_location: package_location.clone(),
+                package_name: package_name.clone(),
+            };
+            self.index_package(&package_id);
+            graph_context.index_package(&package_id);
+
+            let mut blocks = content
+                .into_blocks()
+                .into_iter()
+                .collect::<VecDeque<Block>>();
+            while let Some(block) = blocks.pop_front() {
+                match block.ident.value().as_str() {
+                    "import" => {
+                        // imports are the only constructs that we need to process in this step
+                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "import name missing".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+
+                        let path = visit_required_string_literal_attribute("path", &block).unwrap(); // todo(lgalabru)
+                        println!("Loading {} at path ({path})", name.to_string());
+
+                        // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
+                        let mut imported_package_location =
+                            location.get_parent_location().map_err(|e| {
+                                vec![diagnosed_error!("{}", e.to_string()).location(&location)]
+                            })?;
+
+                        imported_package_location.append_path(&path).unwrap();
+
+                        match std::fs::read_dir(imported_package_location.to_string()) {
+                            Ok(_) => {
+                                let files =
+                                    get_txtx_files_paths(&imported_package_location.to_string())
+                                        .map_err(|e| {
+                                            vec![diagnosed_error!("{}", e.to_string())
+                                                .location(&imported_package_location)]
+                                        })?;
+                                for file_path in files.into_iter() {
+                                    let file_location = FileLocation::from_path(file_path);
+                                    if !files_visited.contains(&file_location) {
+                                        let raw_content =
+                                            file_location.read_content_as_utf8().map_err(|e| {
+                                                vec![diagnosed_error!("{}", e.to_string())
+                                                    .location(&file_location)]
+                                            })?;
+                                        let module_name = name.to_string();
+                                        sources.push_back((
+                                            file_location,
+                                            module_name,
+                                            raw_content,
+                                        ));
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                if !files_visited.contains(&imported_package_location) {
+                                    let raw_content =
+                                        location.read_content_as_utf8().map_err(|e| {
+                                            vec![diagnosed_error!("{}", e.to_string())
+                                                .location(&location)]
+                                        })?;
+                                    let module_name = name.to_string();
+                                    sources.push_back((
+                                        imported_package_location.clone(),
+                                        module_name,
+                                        raw_content,
+                                    ));
+                                }
+                            }
+                        }
+
+                        let _ = self.index_construct(
+                            name.to_string(),
+                            location.clone(),
+                            PreConstructData::Import(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "input" => {
+                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "variable name missing".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+                        let _ = self.index_construct(
+                            name.to_string(),
+                            location.clone(),
+                            PreConstructData::Input(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "module" => {
+                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "module name missing".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+                        let _ = self.index_construct(
+                            name.to_string(),
+                            location.clone(),
+                            PreConstructData::Module(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "output" => {
+                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "output name missing".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+                        let _ = self.index_construct(
+                            name.to_string(),
+                            location.clone(),
+                            PreConstructData::Output(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "action" => {
+                        let (Some(command_name), Some(namespaced_action)) =
+                            (block.labels.get(0), block.labels.get(1))
+                        else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "action syntax invalid".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+
+                        let Some((namespace, command_id)) = namespaced_action.split_once("::")
+                        else {
+                            todo!("return diagnostic")
+                        };
+
+                        match runtime_context.addons_context.create_action_instance(
+                            namespace,
+                            command_id,
+                            command_name.as_str(),
+                            &package_id,
+                            &block,
+                            &location,
+                        ) {
+                            Ok(command_instance) => {
+                                let _ = self.index_construct(
+                                    command_name.to_string(),
+                                    location.clone(),
+                                    PreConstructData::Action(command_instance),
+                                    &package_id,
+                                    graph_context,
+                                    execution_context,
+                                );
+                            }
+                            Err(diagnostic) => {
+                                diagnostics.push(diagnostic);
+                                continue;
+                            }
+                        };
+                    }
+                    "wallet" => {
+                        let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
+                            (block.labels.get(0), block.labels.get(1))
+                        else {
+                            diagnostics.push(Diagnostic {
+                                location: Some(location.clone()),
+                                span: None,
+                                message: "action syntax invalid".to_string(),
+                                level: DiagnosticLevel::Error,
+                                documentation: None,
+                                example: None,
+                                parent_diagnostic: None,
+                            });
+                            has_errored = true;
+                            continue;
+                        };
+                        match runtime_context
+                            .addons_context
+                            .create_signing_command_instance(
+                                &namespaced_wallet_cmd.as_str(),
+                                wallet_name.as_str(),
+                                &package_id,
+                                &block,
+                                &location,
+                            ) {
+                            Ok(wallet_instance) => {
+                                let _ = self.index_construct(
+                                    wallet_name.to_string(),
+                                    location.clone(),
+                                    PreConstructData::Wallet(wallet_instance),
+                                    &package_id,
+                                    graph_context,
+                                    execution_context,
+                                );
+                            }
+                            Err(diagnostic) => {
+                                diagnostics.push(diagnostic);
+                                has_errored = true;
+                                continue;
+                            }
+                        }
+                    }
+                    _ => {
+                        diagnostics.push(Diagnostic {
+                            location: Some(location.clone()),
+                            span: None,
+                            message: "construct unknown".to_string(),
+                            level: DiagnosticLevel::Error,
+                            documentation: None,
+                            example: None,
+                            parent_diagnostic: None,
+                        });
+                        has_errored = true;
+                    }
+                }
+            }
+        }
+
+        if has_errored {
+            Err(diagnostics)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn index_environment_variable(&mut self, key: &String, value: &Value) -> ConstructDid {
         let construct_did = ConstructDid(Did::from_components(vec![
-            "environment_variable".as_bytes(),
+            "runbook_input".as_bytes(),
             key.as_bytes(),
         ]));
         self.environment_variables_values
@@ -56,7 +357,7 @@ impl RunbookWorkspaceContext {
         construct_did
     }
 
-    pub fn index_package(&mut self, package_id: &PackageId) {
+    fn index_package(&mut self, package_id: &PackageId) {
         loop {
             if let Some(_) = self.packages.get(&package_id) {
                 break;
@@ -67,13 +368,15 @@ impl RunbookWorkspaceContext {
         }
     }
 
-    pub fn index_construct(
+    fn index_construct(
         &mut self,
         construct_name: String,
         construct_location: FileLocation,
         construct_data: PreConstructData,
         package_id: &PackageId,
-    ) -> (ConstructId, ConstructInstanceType) {
+        graph_context: &mut RunbookGraphContext,
+        execution_context: &mut RunbookExecutionContext,
+    ) -> ConstructId {
         let package = self
             .packages
             .get_mut(&package_id)
@@ -119,6 +422,20 @@ impl RunbookWorkspaceContext {
                     typing: CommandInstanceType::Input,
                 })
             }
+            PreConstructData::Addon(block) => {
+                package.addons_dids.insert(construct_did.clone());
+                package
+                    .addons_did_lookup
+                    .insert(construct_name.clone(), construct_did.clone());
+                ConstructInstanceType::Executable(CommandInstance {
+                    specification: commands::new_addon_specification(),
+                    name: construct_name.clone(),
+                    block: block.clone(),
+                    package_id: package_id.clone(),
+                    namespace: construct_name.clone(),
+                    typing: CommandInstanceType::Addon,
+                })
+            }
             PreConstructData::Output(block) => {
                 package.outputs_dids.insert(construct_did.clone());
                 package
@@ -158,7 +475,23 @@ impl RunbookWorkspaceContext {
             PreConstructData::Root => unreachable!(),
         };
 
-        (construct_id, construct_instance_type)
+        let construct_did = construct_id.did();
+        graph_context.index_construct(&construct_did);
+        match construct_instance_type {
+            ConstructInstanceType::Executable(instance) => {
+                execution_context
+                    .commands_instances
+                    .insert(construct_did.clone(), instance);
+            }
+            ConstructInstanceType::Signing(instance) => {
+                execution_context
+                    .signing_commands_instances
+                    .insert(construct_did.clone(), instance);
+            }
+            ConstructInstanceType::Import => {}
+        }
+
+        construct_id
     }
 
     /// Expects `expression` to be a traversal and `package_did_source` to be indexed in the runbook's `packages`.

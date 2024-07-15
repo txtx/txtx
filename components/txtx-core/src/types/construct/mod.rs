@@ -11,6 +11,7 @@ pub enum PreConstructData {
     Import(Block),
     Action(CommandInstance),
     Wallet(WalletInstance),
+    Addon(Block),
     Root,
 }
 
@@ -23,6 +24,7 @@ impl PreConstructData {
             PreConstructData::Module(_) => "module",
             PreConstructData::Action(_) => "action",
             PreConstructData::Wallet(_) => "wallet",
+            PreConstructData::Addon(_) => "wallet",
             PreConstructData::Root => unreachable!(),
         }
     }
@@ -51,6 +53,13 @@ impl PreConstructData {
     pub fn as_module(&self) -> Option<&Block> {
         match self {
             PreConstructData::Module(data) => Some(&data),
+            _ => None,
+        }
+    }
+
+    pub fn as_addon(&self) -> Option<&Block> {
+        match self {
+            PreConstructData::Addon(data) => Some(&data),
             _ => None,
         }
     }

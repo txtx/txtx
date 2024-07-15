@@ -327,3 +327,64 @@ impl CommandImplementation for Output {
         return_synchronous_result(Ok(result))
     }
 }
+
+pub fn new_addon_specification() -> CommandSpecification {
+    let command: PreCommandSpecification = define_command! {
+        Input => {
+            name: "Addon",
+            matcher: "addon",
+            documentation: "Construct designed to import an addon",
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
+            inputs: [
+                defaults: {
+                    documentation: "Value of the input",
+                    typing: Type::object(vec![]),
+                    optional: true,
+                    interpolable: true
+                }
+            ],
+            outputs: [
+            ],
+            example: "",
+        }
+    };
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("input should not be composite command specification")
+        }
+    }
+}
+
+pub struct Addon;
+
+impl CommandImplementation for Addon {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn check_executability(
+        _construct_did: &ConstructDid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _execution_context: &CommandExecutionContext,
+    ) -> Result<Actions, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run_execution(
+        _construct_id: &ConstructDid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        unimplemented!()
+    }
+}

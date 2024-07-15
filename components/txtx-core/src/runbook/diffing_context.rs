@@ -1,20 +1,25 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use kit::types::{types::Value, ConstructDid, PackageDid, RunbookId};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use similar::{capture_diff_slices, Algorithm, ChangeTag, DiffOp, TextDiff};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{RunbookExecutionContext, RunbookWorkspaceContext};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunbookExecutionSnapshot {
+    /// Organization authoring the workspace
     org: Option<String>,
+    /// Workspace where the runbook
     workspace: Option<String>,
+    /// Name of the runbook
     name: String,
+    /// Keep track of the execution end date
     ended_at: String,
+    /// Snapshot of the packages pulled by the runbook
     packages: Vec<PackageSnapshot>,
+    /// Snapshot of the signing commands evaluations
     signing_commands: Vec<SigningCommandSnapshot>,
+    /// Snapshot of the commands evaluations
     commands: Vec<CommandSnapshot>,
 }
 
@@ -100,11 +105,11 @@ impl RunbookSnapshotContext {
         Self {}
     }
 
-    pub fn canonize_runbook_execution(
+    pub fn snapshot_runbook_execution(
         &self,
         execution_context: &RunbookExecutionContext,
         workspace_context: &RunbookWorkspaceContext,
-    ) -> serde_json::Value {
+    ) -> RunbookExecutionSnapshot {
         let mut snapshot = RunbookExecutionSnapshot::new(&workspace_context.runbook_id);
 
         for (package_id, _) in workspace_context.packages.iter() {
@@ -270,7 +275,7 @@ impl RunbookSnapshotContext {
                 outputs,
             });
         }
-        json!(snapshot)
+        snapshot
     }
 
     pub fn diff(&self, old: &RunbookExecutionSnapshot, new: &RunbookExecutionSnapshot) {

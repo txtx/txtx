@@ -1,5 +1,5 @@
-use crate::runbook::RunbookWorkspaceContext;
-use crate::types::{RunbookExecutionContext, RuntimeContext};
+use crate::runbook::{RunbookWorkspaceContext, RuntimeContext};
+use crate::types::RunbookExecutionContext;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
@@ -35,20 +35,13 @@ use txtx_addon_kit::{
 pub async fn run_wallets_evaluation(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_ctx: &mut RuntimeContext,
+    runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> EvaluationPassResult {
     let mut pass_result = EvaluationPassResult::new(&Uuid::new_v4());
-    let _ = run_commands_updating_defaults(
-        runbook_workspace_context,
-        runbook_execution_context,
-        runtime_ctx,
-        progress_tx,
-    )
-    .await;
 
     let wallets_instances = &runbook_execution_context.signing_commands_instances;
     let instantiated_wallets = runbook_execution_context
@@ -114,9 +107,9 @@ pub async fn run_wallets_evaluation(
                     .get(&construct_did.clone());
 
                 let addon_context_key = (package_id.did(), wallet_instance.namespace.clone());
-                let addon_defaults = runtime_ctx
-                    .addons_ctx
-                    .contexts
+                let addon_defaults = runtime_context
+                    .addons_context
+                    .addon_construct_factories
                     .get(&addon_context_key)
                     .and_then(|addon| Some(addon.defaults.clone()))
                     .unwrap_or(AddonDefaults::new());
@@ -128,7 +121,7 @@ pub async fn run_wallets_evaluation(
                     &package_id,
                     &runbook_workspace_context,
                     &runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 );
                 let group = wallet_instance.get_group();
                 (res, group, addon_defaults)
@@ -236,169 +229,6 @@ pub async fn run_wallets_evaluation(
     pass_result
 }
 
-pub async fn run_commands_updating_defaults(
-    runbook_workspace_context: &RunbookWorkspaceContext,
-    runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_ctx: &mut RuntimeContext,
-    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-) -> Result<(), Vec<Diagnostic>> {
-    // Update environment variables
-    let environments_variables = runbook_workspace_context
-        .environment_variables_values
-        .clone();
-    for (env_variable_uuid, value) in environments_variables.into_iter() {
-        let mut res = CommandExecutionResult::new();
-        res.outputs.insert("value".into(), Value::string(value));
-        runbook_execution_context
-            .commands_execution_results
-            .insert(env_variable_uuid, res);
-    }
-
-    let mut cached_dependency_execution_results = HashMap::new();
-
-    let input_evaluation_results = None;
-
-    // Run commands updating defaults
-    let construct_dids = runbook_execution_context
-        .commands_instances
-        .iter()
-        .map(|(c, _)| c.clone())
-        .collect::<Vec<_>>();
-
-    for construct_did in construct_dids.iter() {
-        let evaluated_inputs_res = {
-            let command_instance = runbook_execution_context
-                .commands_instances
-                .get(construct_did)
-                .unwrap();
-            if !command_instance.specification.update_addon_defaults {
-                continue;
-            }
-
-            let package_id = &command_instance.package_id.clone();
-
-            // Retrieve the construct_did of the inputs
-            // Collect the outputs
-            let references_expressions = command_instance
-                .get_expressions_referencing_commands_from_inputs()
-                .unwrap();
-
-            for (_input, expr) in references_expressions.into_iter() {
-                let res = runbook_workspace_context
-                    .try_resolve_construct_reference_in_expression(
-                        &command_instance.package_id,
-                        &expr,
-                    )
-                    .unwrap();
-
-                if let Some((dependency, _, _)) = res {
-                    let evaluation_result_opt = runbook_execution_context
-                        .commands_execution_results
-                        .get(&dependency);
-
-                    if let Some(evaluation_result) = evaluation_result_opt {
-                        match cached_dependency_execution_results.get(&dependency) {
-                            None => {
-                                cached_dependency_execution_results
-                                    .insert(dependency, Ok(evaluation_result));
-                            }
-                            Some(Err(_)) => continue,
-                            Some(Ok(_)) => {}
-                        }
-                    }
-                }
-            }
-
-            let evaluated_inputs_res = perform_inputs_evaluation(
-                command_instance,
-                &cached_dependency_execution_results,
-                &input_evaluation_results,
-                &None,
-                &package_id,
-                &runbook_workspace_context,
-                &runbook_execution_context,
-                runtime_ctx,
-            );
-            evaluated_inputs_res
-        };
-
-        let _execution_result = {
-            let Some(command_instance) = runbook_execution_context
-                .commands_instances
-                .get_mut(&construct_did)
-            else {
-                // runtime_ctx.addons.index_command_instance(namespace, package_did, block)
-                continue;
-            };
-
-            let addon_context_key = (
-                command_instance.package_id.did(),
-                command_instance.namespace.clone(),
-            );
-
-            let addon_defaults = runtime_ctx
-                .addons_ctx
-                .contexts
-                .get(&addon_context_key)
-                .and_then(|addon| Some(addon.defaults.clone()))
-                .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
-
-            let mut evaluated_inputs = CommandInputsEvaluationResult::new(&command_instance.name);
-
-            match evaluated_inputs_res {
-                Ok(result) => match result {
-                    CommandInputEvaluationStatus::Complete(result) => evaluated_inputs = result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction => {}
-                    CommandInputEvaluationStatus::Aborted(diags) => return Err(diags),
-                },
-                Err(diags) => return Err(diags),
-            };
-
-            {
-                runbook_execution_context
-                    .commands_inputs_evaluations_results
-                    .insert(construct_did.clone(), evaluated_inputs.clone());
-            }
-
-            let execution_result = {
-                command_instance
-                    .perform_execution(
-                        &construct_did,
-                        &evaluated_inputs,
-                        addon_defaults.clone(),
-                        &mut vec![],
-                        &None,
-                        progress_tx,
-                    )
-                    .await
-            };
-
-            let execution_result = match execution_result {
-                // todo(lgalabru): return Diagnostic instead
-                Ok(result) => {
-                    if command_instance.specification.update_addon_defaults {
-                        let addon_context_key = (
-                            command_instance.package_id.did(),
-                            command_instance.namespace.clone(),
-                        );
-                        if let Some(ref mut addon_context) =
-                            runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
-                        {
-                            for (k, v) in result.outputs.iter() {
-                                addon_context.defaults.keys.insert(k.clone(), v.to_string());
-                            }
-                        }
-                    }
-                    Ok(result)
-                }
-                Err(e) => Err(e),
-            };
-            execution_result
-        };
-    }
-    Ok(())
-}
-
 pub struct EvaluationPassResult {
     pub actions: Actions,
     pub diagnostics: Vec<Diagnostic>,
@@ -452,7 +282,7 @@ pub async fn run_constructs_evaluation(
     background_tasks_uuid: &Uuid,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_ctx: &mut RuntimeContext,
+    runtime_context: &mut RuntimeContext,
     execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
@@ -467,7 +297,7 @@ pub async fn run_constructs_evaluation(
         .clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
-        res.outputs.insert("value".into(), Value::string(value));
+        res.outputs.insert("value".into(), value);
         runbook_execution_context
             .commands_execution_results
             .insert(env_variable_uuid, res);
@@ -528,9 +358,9 @@ pub async fn run_constructs_evaluation(
         let package_id = command_instance.package_id.clone();
 
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
-        let addon_defaults = runtime_ctx
-            .addons_ctx
-            .contexts
+        let addon_defaults = runtime_context
+            .addons_context
+            .addon_construct_factories
             .get(&addon_context_key)
             .and_then(|addon| Some(addon.defaults.clone()))
             .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
@@ -590,7 +420,7 @@ pub async fn run_constructs_evaluation(
             &package_id,
             runbook_workspace_context,
             runbook_execution_context,
-            runtime_ctx,
+            runtime_context,
         );
         let Some(command_instance) = runbook_execution_context
             .commands_instances
@@ -692,11 +522,13 @@ pub async fn run_constructs_evaluation(
                     if command_instance.specification.update_addon_defaults {
                         let addon_context_key =
                             (package_id.did(), command_instance.namespace.clone());
-                        if let Some(ref mut addon_context) =
-                            runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                        if let Some(ref mut addon_context) = runtime_context
+                            .addons_context
+                            .addon_construct_factories
+                            .get_mut(&addon_context_key)
                         {
                             for (k, v) in result.outputs.iter() {
-                                addon_context.defaults.keys.insert(k.clone(), v.to_string());
+                                addon_context.defaults.store.insert(k, v.clone());
                             }
                         }
                     }
@@ -776,11 +608,13 @@ pub async fn run_constructs_evaluation(
                     if command_instance.specification.update_addon_defaults {
                         let addon_context_key =
                             (package_id.did(), command_instance.namespace.clone());
-                        if let Some(ref mut addon_context) =
-                            runtime_ctx.addons_ctx.contexts.get_mut(&addon_context_key)
+                        if let Some(ref mut addon_context) = runtime_context
+                            .addons_context
+                            .addon_construct_factories
+                            .get_mut(&addon_context_key)
                         {
                             for (k, v) in result.outputs.iter() {
-                                addon_context.defaults.keys.insert(k.clone(), v.to_string());
+                                addon_context.defaults.store.insert(&k, v.clone());
                             }
                         }
                     }
@@ -858,7 +692,7 @@ pub fn eval_expression(
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
-    runtime_ctx: &RuntimeContext,
+    runtime_context: &RuntimeContext,
 ) -> Result<ExpressionEvaluationStatus, Diagnostic> {
     let value = match expr {
         // Represents a null value.
@@ -890,7 +724,7 @@ pub fn eval_expression(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
                     ExpressionEvaluationStatus::CompleteErr(e) => {
@@ -916,7 +750,7 @@ pub fn eval_expression(
                             package_id,
                             runbook_workspace_context,
                             runbook_execution_context,
-                            runtime_ctx,
+                            runtime_context,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => match result {
                                 Value::Primitive(PrimitiveValue::String(result)) => result,
@@ -947,7 +781,7 @@ pub fn eval_expression(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
                     ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
@@ -974,7 +808,7 @@ pub fn eval_expression(
                             package_id,
                             runbook_workspace_context,
                             runbook_execution_context,
-                            runtime_ctx,
+                            runtime_context,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => result.to_string(),
                             ExpressionEvaluationStatus::CompleteErr(e) => {
@@ -1021,7 +855,7 @@ pub fn eval_expression(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 )? {
                     ExpressionEvaluationStatus::CompleteOk(result) => result,
                     ExpressionEvaluationStatus::CompleteErr(e) => {
@@ -1033,7 +867,7 @@ pub fn eval_expression(
                 };
                 args.push(value);
             }
-            runtime_ctx
+            runtime_context
                 .execute_function(package_id.did(), func_namespace, &func_name, &args)
                 .map_err(|e| e)?
         }
@@ -1085,7 +919,7 @@ pub fn eval_expression(
                 package_id,
                 runbook_workspace_context,
                 runbook_execution_context,
-                runtime_ctx,
+                runtime_context,
             )?;
             match &unary_op.operator.value() {
                 UnaryOperator::Neg => {}
@@ -1101,7 +935,7 @@ pub fn eval_expression(
                 package_id,
                 runbook_workspace_context,
                 runbook_execution_context,
-                runtime_ctx,
+                runtime_context,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
                 ExpressionEvaluationStatus::CompleteErr(e) => {
@@ -1117,7 +951,7 @@ pub fn eval_expression(
                 package_id,
                 runbook_workspace_context,
                 runbook_execution_context,
-                runtime_ctx,
+                runtime_context,
             )? {
                 ExpressionEvaluationStatus::CompleteOk(result) => result,
                 ExpressionEvaluationStatus::CompleteErr(e) => {
@@ -1149,7 +983,7 @@ pub fn eval_expression(
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
-            runtime_ctx.execute_function(package_id.did(), None, func, &vec![lhs, rhs])?
+            runtime_context.execute_function(package_id.did(), None, func, &vec![lhs, rhs])?
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
         Expression::ForExpr(_for_expr) => {
@@ -1225,7 +1059,7 @@ pub fn perform_inputs_evaluation(
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
-    runtime_ctx: &RuntimeContext,
+    runtime_context: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
     let mut diags = vec![];
@@ -1298,7 +1132,7 @@ pub fn perform_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
@@ -1354,7 +1188,7 @@ pub fn perform_inputs_evaluation(
                 package_id,
                 runbook_workspace_context,
                 runbook_execution_context,
-                runtime_ctx,
+                runtime_context,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
                     Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
@@ -1398,7 +1232,7 @@ pub fn perform_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
@@ -1435,7 +1269,7 @@ pub fn perform_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
@@ -1478,7 +1312,7 @@ pub fn perform_wallet_inputs_evaluation(
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
-    runtime_ctx: &RuntimeContext,
+    runtime_context: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&wallet_instance.name);
     let mut diags = vec![];
@@ -1521,7 +1355,7 @@ pub fn perform_wallet_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
@@ -1577,7 +1411,7 @@ pub fn perform_wallet_inputs_evaluation(
                 package_id,
                 runbook_workspace_context,
                 runbook_execution_context,
-                runtime_ctx,
+                runtime_context,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
                     Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
@@ -1634,7 +1468,7 @@ pub fn perform_wallet_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
@@ -1671,7 +1505,7 @@ pub fn perform_wallet_inputs_evaluation(
                     package_id,
                     runbook_workspace_context,
                     runbook_execution_context,
-                    runtime_ctx,
+                    runtime_context,
                 ) {
                     Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {

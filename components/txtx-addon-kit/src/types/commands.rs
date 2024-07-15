@@ -472,6 +472,7 @@ pub enum CommandInstanceType {
     Action,
     Prompt,
     Module,
+    Addon,
 }
 
 #[derive(Debug, Clone)]

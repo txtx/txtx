@@ -12,20 +12,18 @@ pub use hex;
 pub use indoc::formatdoc;
 pub use indoc::indoc;
 pub use rust_fsm as fsm;
-use types::PackageId;
+use types::Did;
+use types::ValueStore;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 pub use futures;
 
-use hcl::structure::Block;
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};
 use types::{
-    commands::{CommandId, CommandInstance, CommandInstanceType, PreCommandSpecification},
-    diagnostics::Diagnostic,
+    commands::{CommandId, PreCommandSpecification},
     functions::FunctionSpecification,
-    wallets::{WalletInstance, WalletSpecification},
-    ConstructDid,
+    wallets::WalletSpecification,
 };
 
 pub use reqwest;
@@ -85,95 +83,17 @@ pub trait Addon: Debug + Sync + Send {
 
         wallet_specs
     }
-    fn create_context(&self) -> AddonContext {
-        AddonContext {
-            functions: self.build_function_lookup(),
-            commands: self.build_command_lookup(),
-            wallets: self.build_wallet_lookup(),
-            defaults: AddonDefaults::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct AddonDefaults {
-    pub keys: HashMap<String, String>,
+    pub store: ValueStore,
 }
 
 impl AddonDefaults {
     pub fn new() -> AddonDefaults {
         AddonDefaults {
-            keys: HashMap::new(),
+            store: ValueStore::new("defaults", &Did::zero()),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AddonContext {
-    pub functions: HashMap<String, FunctionSpecification>,
-    pub commands: HashMap<CommandId, PreCommandSpecification>,
-    pub wallets: HashMap<String, WalletSpecification>,
-    pub defaults: AddonDefaults,
-}
-
-impl AddonContext {
-    pub fn create_command_instance(
-        self: &Self,
-        command_id: &CommandId,
-        namespace: &str,
-        command_name: &str,
-        block: &Block,
-        package_id: &PackageId,
-    ) -> Result<CommandInstance, Diagnostic> {
-        let Some(pre_command_spec) = self.commands.get(command_id) else {
-            todo!("return diagnostic: unknown command: {:?}", command_id)
-        };
-        let typing = match command_id {
-            CommandId::Action(_) => CommandInstanceType::Action,
-        };
-        match pre_command_spec {
-            PreCommandSpecification::Atomic(command_spec) => {
-                let command_instance = CommandInstance {
-                    specification: command_spec.clone(),
-                    name: command_name.to_string(),
-                    block: block.clone(),
-                    package_id: package_id.clone(),
-                    typing,
-                    namespace: namespace.to_string(),
-                };
-                Ok(command_instance)
-            }
-            PreCommandSpecification::Composite(_) => unimplemented!(),
-        }
-    }
-
-    pub fn create_wallet_instance(
-        self: &Self,
-        wallet_id: &str,
-        namespace: &str,
-        wallet_name: &str,
-        block: &Block,
-        package_id: &PackageId,
-    ) -> Result<WalletInstance, Diagnostic> {
-        let Some(wallet_spec) = self.wallets.get(wallet_id) else {
-            return Err(Diagnostic::error_from_string(format!(
-                "unknown wallet specification: {} ({})",
-                wallet_id, wallet_name
-            )));
-        };
-        Ok(WalletInstance {
-            name: wallet_name.to_string(),
-            specification: wallet_spec.clone(),
-            block: block.clone(),
-            package_id: package_id.clone(),
-            namespace: namespace.to_string(),
-        })
-    }
-
-    pub fn resolve_construct_dependencies(
-        self: &Self,
-        _construct_did: &ConstructDid,
-    ) -> Vec<ConstructDid> {
-        vec![]
     }
 }

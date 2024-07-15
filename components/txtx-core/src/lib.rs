@@ -11,13 +11,11 @@ pub mod eval;
 pub mod runbook;
 pub mod std;
 pub mod types;
-pub mod visitor;
 
 #[cfg(test)]
 mod tests;
 
 use ::std::collections::BTreeMap;
-use ::std::collections::HashMap;
 use ::std::thread::sleep;
 use ::std::time;
 use ::std::time::Duration;
@@ -29,7 +27,6 @@ use eval::run_constructs_evaluation;
 use eval::run_wallets_evaluation;
 use kit::types::block_id::BlockId;
 use kit::types::commands::CommandExecutionContext;
-use kit::types::commands::CommandInstance;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
 use kit::types::frontend::ActionItemResponse;
@@ -44,118 +41,14 @@ use kit::types::frontend::PickInputOptionRequest;
 use kit::types::frontend::ProgressBarVisibilityUpdate;
 use kit::types::frontend::ReviewedInputResponse;
 use kit::types::frontend::ValidateBlockData;
-use kit::types::wallets::WalletInstance;
 use kit::types::ConstructDid;
-use kit::types::PackageId;
 use kit::uuid::Uuid;
-use runbook::RunbookWorkspaceContext;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
-use txtx_addon_kit::hcl::structure::Block as CodeBlock;
-use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::commands::CommandId;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
 use txtx_addon_kit::types::frontend::InputOption;
-use txtx_addon_kit::types::functions::FunctionSpecification;
-use txtx_addon_kit::types::PackageDid;
-use txtx_addon_kit::AddonContext;
-use types::RunbookExecutionContext;
-use types::RunbookSources;
-use types::RuntimeContext;
-use visitor::run_constructs_dependencies_indexing;
-
-use txtx_addon_kit::Addon;
 use types::Runbook;
-use visitor::run_constructs_checks;
-use visitor::run_constructs_indexing;
-
-pub fn pre_compute_runbook(
-    runbook: &mut Runbook,
-    runbook_sources: &mut RunbookSources,
-    runtime_context: &mut RuntimeContext,
-) -> Result<(), Vec<Diagnostic>> {
-    let res = run_constructs_indexing(runbook, runbook_sources, runtime_context)?;
-    if res {
-        return Err(runbook.diagnostics.clone());
-    }
-    let _ = run_constructs_checks(runbook, &mut runtime_context.addons_ctx)?;
-    Ok(())
-}
-
-#[derive(Debug)]
-pub struct AddonsContext {
-    addons: HashMap<String, (Box<dyn Addon>, bool)>,
-    contexts: HashMap<(PackageDid, String), AddonContext>,
-}
-
-impl AddonsContext {
-    pub fn new() -> Self {
-        Self {
-            addons: HashMap::new(),
-            contexts: HashMap::new(),
-        }
-    }
-
-    pub fn register(&mut self, addon: Box<dyn Addon>, scope: bool) {
-        self.addons
-            .insert(addon.get_namespace().to_string(), (addon, scope));
-    }
-
-    pub fn consolidate_functions_to_register(&mut self) -> Vec<FunctionSpecification> {
-        let mut functions = vec![];
-        for (_, (addon, _)) in self.addons.iter() {
-            let mut addon_functions = addon.get_functions();
-            functions.append(&mut addon_functions);
-        }
-        functions
-    }
-
-    fn find_or_create_context(
-        &mut self,
-        namespace: &str,
-        package_did: &PackageDid,
-    ) -> Result<&AddonContext, Diagnostic> {
-        let key = (package_did.clone(), namespace.to_string());
-        if self.contexts.get(&key).is_none() {
-            let Some((addon, _)) = self.addons.get(namespace) else {
-                unimplemented!();
-            };
-            let ctx = addon.create_context();
-            self.contexts.insert(key.clone(), ctx);
-        }
-        return Ok(self.contexts.get(&key).unwrap());
-    }
-
-    pub fn create_action_instance(
-        &mut self,
-        namespace: &str,
-        command_id: &str,
-        command_name: &str,
-        package_id: &PackageId,
-        block: &CodeBlock,
-        _location: &FileLocation,
-    ) -> Result<CommandInstance, Diagnostic> {
-        let ctx = self.find_or_create_context(namespace, &package_id.did())?;
-        let command_id = CommandId::Action(command_id.to_string());
-        ctx.create_command_instance(&command_id, namespace, command_name, block, package_id)
-    }
-
-    pub fn create_wallet_instance(
-        &mut self,
-        namespaced_action: &str,
-        wallet_name: &str,
-        package_id: &PackageId,
-        block: &CodeBlock,
-        _location: &FileLocation,
-    ) -> Result<WalletInstance, Diagnostic> {
-        let Some((namespace, wallet_id)) = namespaced_action.split_once("::") else {
-            todo!("return diagnostic")
-        };
-        let ctx = self.find_or_create_context(namespace, &package_id.did())?;
-        ctx.create_wallet_instance(wallet_id, namespace, wallet_name, block, package_id)
-    }
-}
 
 lazy_static! {
     // create this action so we can reference its `id` property, which is built from the immutable data
@@ -174,7 +67,6 @@ lazy_static! {
 
 pub async fn start_unsupervised_runbook_runloop(
     runbook: &mut Runbook,
-    runtime_context: &mut RuntimeContext,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
 ) -> Result<(), Vec<Diagnostic>> {
     let execution_context = CommandExecutionContext {
@@ -185,13 +77,12 @@ pub async fn start_unsupervised_runbook_runloop(
 
     let mut action_item_requests = BTreeMap::new();
     let action_item_responses = BTreeMap::new();
-    let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
     let runbook_workspace_context = runbook.workspace_context.clone();
 
     let pass_result = run_wallets_evaluation(
         &runbook_workspace_context,
         &mut runbook.execution_context,
-        runtime_context,
+        &mut runbook.runtime_context,
         &execution_context,
         &mut action_item_requests,
         &action_item_responses,
@@ -222,7 +113,7 @@ pub async fn start_unsupervised_runbook_runloop(
             &uuid,
             &runbook_workspace_context,
             &mut runbook.execution_context,
-            runtime_context,
+            &mut runbook.runtime_context,
             &execution_context,
             &mut action_item_requests,
             &action_item_responses,
@@ -295,11 +186,9 @@ pub async fn start_unsupervised_runbook_runloop(
 
 pub async fn start_supervised_runbook_runloop(
     runbook: &mut Runbook,
-    runtime_context: &mut RuntimeContext,
     block_tx: Sender<BlockEvent>,
     _action_item_request_tx: Sender<ActionItemRequest>,
     action_item_responses_rx: Receiver<ActionItemResponse>,
-    environments: BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
@@ -333,14 +222,9 @@ pub async fn start_supervised_runbook_runloop(
 
         if !runbook_initialized {
             runbook_initialized = true;
-            let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
+
             let genesis_events = build_genesis_panel(
-                &environments,
-                &runtime_context.selected_env.clone(),
-                &runbook_workspace_context,
-                &mut runbook.execution_context,
-                runtime_context,
-                &execution_context,
+                runbook,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
@@ -363,13 +247,8 @@ pub async fn start_supervised_runbook_runloop(
 
         if action_item_id == SET_ENV_ACTION.id {
             reset_runbook_execution(
+                runbook,
                 &payload,
-                &runbook_workspace_context,
-                &mut runbook.execution_context,
-                runtime_context,
-                &block_tx,
-                &environments,
-                &execution_context,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
@@ -447,7 +326,7 @@ pub async fn start_supervised_runbook_runloop(
                     &background_tasks_handle_uuid,
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
-                    runtime_context,
+                    &mut runbook.runtime_context,
                     &execution_context,
                     &mut map,
                     &action_item_responses,
@@ -550,7 +429,7 @@ pub async fn start_supervised_runbook_runloop(
                 let pass_result = run_wallets_evaluation(
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
-                    runtime_context,
+                    &mut runbook.runtime_context,
                     &execution_context,
                     &mut map,
                     &action_item_responses,
@@ -588,7 +467,7 @@ pub async fn start_supervised_runbook_runloop(
                     &background_tasks_handle_uuid,
                     &runbook_workspace_context,
                     &mut runbook.execution_context,
-                    runtime_context,
+                    &mut runbook.runtime_context,
                     &execution_context,
                     &mut map,
                     &action_item_responses,
@@ -659,13 +538,8 @@ pub fn retrieve_related_action_items_requests<'a>(
 }
 
 pub async fn reset_runbook_execution(
+    runbook: &mut Runbook,
     payload: &ActionItemResponseType,
-    runbook_workspace_context: &RunbookWorkspaceContext,
-    runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_context: &mut RuntimeContext,
-    block_tx: &Sender<BlockEvent>,
-    environments: &BTreeMap<String, BTreeMap<String, String>>,
-    execution_context: &CommandExecutionContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
@@ -677,59 +551,45 @@ pub async fn reset_runbook_execution(
         );
     };
 
-    if environments.get(environment_key.as_str()).is_none() {
-        unreachable!("Invalid environment variable was sent",);
-    };
+    let reset = runbook.update_inputs_selector(Some(environment_key.to_string()), true)?;
 
-    let _ = block_tx.send(BlockEvent::Clear);
+    if !reset {
+        unimplemented!()
+    }
 
-    runtime_context
-        .set_active_environment(environment_key.into())
-        .unwrap();
-
-    // Restore / revisit
-    // let _ = run_constructs_dependencies_indexing(runbook, runtime_context)?;
-
+    let _ = progress_tx.send(BlockEvent::Clear);
     let genesis_events = build_genesis_panel(
-        &environments,
-        &Some(environment_key.clone()),
-        runbook_workspace_context,
-        runbook_execution_context,
-        runtime_context,
-        &execution_context,
+        runbook,
         action_item_requests,
         action_item_responses,
         &progress_tx,
     )
     .await?;
     for event in genesis_events {
-        let _ = block_tx.send(event).unwrap();
+        let _ = progress_tx.send(event).unwrap();
     }
     Ok(())
 }
 
 pub async fn build_genesis_panel(
-    environments: &BTreeMap<String, BTreeMap<String, String>>,
-    selected_env: &Option<String>,
-    runbook_workspace_context: &RunbookWorkspaceContext,
-    runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_context: &mut RuntimeContext,
-    execution_context: &CommandExecutionContext,
+    runbook: &mut Runbook,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
     let mut actions = Actions::new_panel("runbook checklist", "");
+    let environments = runbook.get_inputs_selectors();
+    let selector = runbook.get_active_inputs_selector();
 
     if environments.len() > 0 {
         let input_options: Vec<InputOption> = environments
-            .keys()
+            .iter()
             .map(|k| InputOption {
                 value: k.to_string(),
                 displayed_value: k.to_string(),
             })
             .collect();
-        let selected_option: InputOption = selected_env
+        let selected_option: InputOption = selector
             .clone()
             .and_then(|e| {
                 Some(InputOption {
@@ -738,7 +598,7 @@ pub async fn build_genesis_panel(
                 })
             })
             .unwrap_or({
-                let k = environments.keys().next().unwrap();
+                let k = environments.iter().next().unwrap();
                 InputOption {
                     value: k.clone(),
                     displayed_value: k.clone(),
