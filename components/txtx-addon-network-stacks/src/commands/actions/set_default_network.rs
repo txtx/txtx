@@ -20,7 +20,7 @@ lazy_static! {
                 name: "Configure Stacks Network",
                 matcher: "set_default_network",
                 documentation: indoc!{r#"
-                  The `set_default_network` action can be used to set default network data for Stacks Runbook inputs.
+                  The `stacks::set_default_network` action can be used to set default network data for Stacks Runbook inputs.
                   Any commands that have an input that matches the name of one of these default inputs will automatically have these default inputs applied.
                   This allows for more terse Runbooks, as some redundant data can be omitted.
 

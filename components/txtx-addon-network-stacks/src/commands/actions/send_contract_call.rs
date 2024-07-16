@@ -22,7 +22,6 @@ use crate::{
     typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
 };
 
-use super::get_wallet_uuid;
 use super::{
     broadcast_transaction::BroadcastStacksTransaction, encode_contract_call,
     sign_transaction::SignStacksTransaction,
@@ -153,7 +152,7 @@ impl CommandImplementation for SendContractCall {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_uuid = args.get_wallet_uuid().unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
         // Extract network_id
         let network_id: String = match args.get_defaulting_string("network_id", defaults) {

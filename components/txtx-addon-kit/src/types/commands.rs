@@ -526,6 +526,13 @@ impl CommandInstance {
         for input in self.specification.inputs.iter() {
             match input.typing {
                 Type::Object(ref props) => {
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
+                        .map_err(|e| format!("{:?}", e))?;
+                    if let Some(expr) = res {
+                        let mut references = vec![];
+                        collect_constructs_references_from_expression(&expr, &mut references);
+                        expressions.append(&mut references);
+                    }
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
@@ -591,6 +598,28 @@ impl CommandInstance {
             return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
+    }
+
+    pub fn get_expression_from_object(
+        &self,
+        input: &CommandInput,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+        let object = match &input.typing {
+            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
+                unreachable!()
+            }
+            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
+        };
+        match (object, input.optional) {
+            (Some(expr), _) => Ok(Some(expr)),
+            (None, true) => Ok(None),
+            (None, false) => todo!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name,
+                self.specification.matcher,
+                input.name
+            ),
+        }
     }
 
     pub fn get_expression_from_object_property(

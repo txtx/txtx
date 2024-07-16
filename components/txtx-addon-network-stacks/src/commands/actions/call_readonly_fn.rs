@@ -20,7 +20,7 @@ use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
 
 lazy_static! {
     pub static ref CALL_READONLY_FN: PreCommandSpecification = define_command! {
-        BroadcastStacksTransaction => {
+        CallReadonlyStacksFunction => {
             name: "Call Clarity Read only function",
             matcher: "call_readonly_fn",
             documentation: "The `call_readonly_fn` action queries a public readonly function.",
@@ -76,8 +76,8 @@ lazy_static! {
     };
 }
 
-pub struct BroadcastStacksTransaction;
-impl CommandImplementation for BroadcastStacksTransaction {
+pub struct CallReadonlyStacksFunction;
+impl CommandImplementation for CallReadonlyStacksFunction {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,

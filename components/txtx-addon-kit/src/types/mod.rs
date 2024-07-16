@@ -149,6 +149,32 @@ impl ValueStore {
         Ok(value.to_string())
     }
 
+    pub fn get_optional_defaulting_value(
+        &self,
+        key: &str,
+        defaults: &AddonDefaults,
+    ) -> Result<Option<String>, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            let res = defaults.keys.get(key).map(|x| x.to_string());
+            return Ok(res);
+        };
+        let Some(value) = value.as_string() else {
+            return Err(Diagnostic {
+                span: None,
+                location: None,
+                message: format!(
+                    "store '{}': value associated to '{}' mismatch (expected string)",
+                    self.name, key
+                ),
+                level: DiagnosticLevel::Error,
+                documentation: None,
+                example: None,
+                parent_diagnostic: None,
+            });
+        };
+        Ok(Some(value.to_string()))
+    }
+
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
@@ -157,6 +183,12 @@ impl ValueStore {
             )));
         };
         Ok(value)
+    }
+
+    pub fn get_wallet_uuid(&self) -> Result<ConstructUuid, Diagnostic> {
+        let signer = self.get_expected_string("signer")?;
+        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
+        Ok(wallet_uuid)
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
@@ -173,6 +205,26 @@ impl ValueStore {
 
     pub fn get_string(&self, key: &str) -> Option<&str> {
         self.storage.get(key).and_then(|v| v.as_string())
+    }
+
+    pub fn get_object(&self, key: &str) -> Result<Option<HashMap<String, Value>>, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            return Ok(None);
+        };
+        let Some(value) = value.as_object() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected object)",
+                self.name, key
+            )));
+        };
+        let mut result = HashMap::new();
+        value.into_iter().for_each(|(k, v)| match v {
+            Ok(v) => {
+                result.insert(k.clone(), v.clone());
+            }
+            Err(_) => {}
+        });
+        Ok(Some(result))
     }
 
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
@@ -221,6 +273,29 @@ impl ValueStore {
             )));
         };
         Ok(value)
+    }
+
+    pub fn get_expected_object(&self, key: &str) -> Result<HashMap<String, Value>, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': unable to retrieve key '{}'",
+                self.name, key
+            )));
+        };
+        let Some(value) = value.as_object() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected object)",
+                self.name, key
+            )));
+        };
+        let mut result = HashMap::new();
+        value.into_iter().for_each(|(k, v)| match v {
+            Ok(v) => {
+                result.insert(k.clone(), v.clone());
+            }
+            Err(_) => {}
+        });
+        Ok(result)
     }
 
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {

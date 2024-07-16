@@ -42,14 +42,12 @@ use crate::constants::{
 use crate::rpc::StacksRpc;
 use crate::typing::CLARITY_BUFFER;
 
-use super::get_wallet_uuid;
-
 lazy_static! {
     pub static ref SIGN_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "The `sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
+          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -141,7 +139,7 @@ impl CommandImplementation for SignStacksTransaction {
             typing::STACKS_TRANSACTION,
         };
 
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_uuid = args.get_wallet_uuid().unwrap();
         let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
         let uuid = uuid.clone();
         let instance_name = instance_name.to_string();
@@ -251,7 +249,7 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
         mut wallets: WalletsState,
     ) -> WalletSignFutureResult {
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_uuid = args.get_wallet_uuid().unwrap();
         let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
@@ -318,7 +316,12 @@ async fn build_unsigned_transaction(
             "mainnet" => "SP000000000000000000002Q6VF78",
             "testnet" => "ST000000000000000000002AMW42H",
             "devnet" => "ST000000000000000000002AMW42H",
-            _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+            _ => {
+                return Err(diagnosed_error!(
+                    "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                    network_id.as_str()
+                ))
+            }
         };
         TransactionPayload::ContractCall(TransactionContractCall {
             address: StacksAddress::from_string(boot_address).unwrap(),
@@ -349,7 +352,12 @@ async fn build_unsigned_transaction(
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
         "devnet" => TransactionVersion::Testnet,
-        _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+        _ => {
+            return Err(diagnosed_error!(
+                "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                network_id.as_str()
+            ))
+        }
     };
 
     let public_keys = wallet_state.get_expected_array(PUBLIC_KEYS)?;
