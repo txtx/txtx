@@ -10,7 +10,6 @@ use txtx_addon_kit::types::{
 
 pub mod call_view_function;
 pub mod get_forge_deployment_artifacts;
-pub mod set_default_network;
 pub mod sign_contract_call;
 pub mod sign_contract_deploy;
 pub mod sign_transfer;
@@ -18,7 +17,6 @@ pub mod verify_deployment;
 
 use call_view_function::CALL_VIEW_FUNCTION;
 use get_forge_deployment_artifacts::GET_FORGE_DEPLOYMENT_ARTIFACTS;
-use set_default_network::SET_DEFAULT_NETWORK;
 use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
 use sign_contract_deploy::SIGN_EVM_CONTRACT_DEPLOY;
 use sign_transfer::SIGN_EVM_TRANSFER;
@@ -28,7 +26,6 @@ use crate::constants::TRANSACTION_FROM;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
-        SET_DEFAULT_NETWORK.clone(),
         SIGN_EVM_TRANSFER.clone(),
         SIGN_EVM_CONTRACT_CALL.clone(),
         CALL_VIEW_FUNCTION.clone(),

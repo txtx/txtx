@@ -21,10 +21,11 @@ action "deploy" "evm::sign_contract_deploy" {
     artifacts = action.artifacts.value
 } 
 
-action "verify" "evm::verify_deployment" {
-    tx_hash = action.deploy.tx_hash
-    confirmations = 1
-}
+// action "verify" "evm::verify_deployment" {
+//     tx_hash = action.deploy.tx_hash
+//     artifacts = action.artifacts.value
+//     confirmations = 1
+// }
 
 // action "store" "evm::sign_contract_call" {
 //     contract_address = evm::address("0x2331fb827792879D21e11f7e13bA0d57391393D5")

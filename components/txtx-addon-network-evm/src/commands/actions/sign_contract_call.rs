@@ -211,7 +211,6 @@ impl CommandImplementation for SignEVMContractCall {
                 .await
                 .map_err(|diag| (wallets.clone(), wallet_state.clone(), diag))?;
 
-            println!("unsigned evm tx: {:?}", transaction);
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
                     wallets.clone(),
@@ -220,7 +219,6 @@ impl CommandImplementation for SignEVMContractCall {
                 )
             })?;
             let transaction = transaction.build_unsigned().unwrap();
-            println!("tx bytes: 0x{}", hex::encode(&bytes));
 
             let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
 

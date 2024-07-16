@@ -120,7 +120,6 @@ impl CommandImplementation for CallEVMViewFunction {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             let call_result = build_view_call(&spec, &args, &defaults).await?;
-            println!("call result: {:?}", call_result);
             result
                 .outputs
                 .insert("value".into(), Value::Array(Box::new(call_result)));

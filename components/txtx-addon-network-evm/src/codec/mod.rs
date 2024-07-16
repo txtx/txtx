@@ -211,7 +211,6 @@ async fn set_gas_limit(
     if let Some(gas_limit) = gas_limit {
         tx = tx.with_gas_limit(gas_limit.into());
     } else {
-        println!("estimating gas for tx: {:?}", tx);
         let gas_limit = rpc.estimate_gas(&tx).await.map_err(|e| e.to_string())?;
         tx = tx.with_gas_limit(gas_limit.into());
     }

@@ -171,7 +171,6 @@ impl CommandImplementation for SignEVMContractDeploy {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        println!("check_signed_executability");
         let signing_construct_did = get_signing_construct_did(args).unwrap();
 
         let wallet = wallets_instances
@@ -284,7 +283,6 @@ impl CommandImplementation for SignEVMContractDeploy {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
-        println!("run_signed_execution");
         let signing_construct_did = get_signing_construct_did(args).unwrap();
         let signing_command_state = wallets
             .pop_signing_command_state(&signing_construct_did)

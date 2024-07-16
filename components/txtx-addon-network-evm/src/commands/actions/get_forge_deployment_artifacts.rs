@@ -171,8 +171,6 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                     ("contract_name".to_string(), Ok(contract_name)),
                 ])),
             );
-            println!("inserted forge artifacts value");
-
             Ok(result)
         };
 
