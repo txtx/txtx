@@ -67,6 +67,7 @@ pub struct BeginSnapshot {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
+}
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CheckRunbook {
