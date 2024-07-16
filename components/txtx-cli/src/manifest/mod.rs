@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
+use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::std::StdAddon;
@@ -84,6 +85,7 @@ pub fn read_runbook_from_location(
 
     let mut addons_ctx = AddonsContext::new();
     addons_ctx.register(Box::new(StdAddon::new()), false);
+    addons_ctx.register(Box::new(EVMNetworkAddon::new()), true);
     addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
     let runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     Ok((
