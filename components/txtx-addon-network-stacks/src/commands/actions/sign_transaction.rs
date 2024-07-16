@@ -48,7 +48,7 @@ lazy_static! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "The `sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
+          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the supplied wallet data.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [

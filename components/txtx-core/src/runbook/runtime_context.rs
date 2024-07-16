@@ -15,6 +15,7 @@ use kit::{
 };
 use serde::{Deserialize, Serialize};
 use txtx_addon_kit::hcl;
+use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
@@ -156,6 +157,14 @@ impl RuntimeContext {
                         addons_context.register(
                             &package_did,
                             Box::new(StacksNetworkAddon::new()),
+                            true,
+                            defaults,
+                        );
+                    }
+                    "evm" => {
+                        addons_context.register(
+                            &package_did,
+                            Box::new(EVMNetworkAddon::new()),
                             true,
                             defaults,
                         );
