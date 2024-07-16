@@ -51,7 +51,7 @@ pub fn load_snapshot(snapshot_path: &str) -> Result<RunbookExecutionSnapshot, St
 }
 
 pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
-    let (manifest, runbook_name, mut runbook, runbook_state) =
+    let (_manifest, _runbook_name, runbook, runbook_state) =
         load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
 
     match &runbook_state {
@@ -72,14 +72,7 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
                 &simulated_execution_context,
                 &runbook.workspace_context,
             );
-            // let old = load_snapshot("./state_old.json")?;
-            // let new = load_snapshot("./state_new.json")?;
-
-            // let data = serde_json::to_string_pretty(&new).unwrap().to_string();
-
-            // println!("{data}");
             let res = ctx.diff(old, new);
-
             for change in res.iter() {
                 if !change.description.is_empty() {
                     let fmt_critical = match change.critical {
