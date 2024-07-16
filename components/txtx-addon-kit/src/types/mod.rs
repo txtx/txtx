@@ -253,6 +253,32 @@ impl ValueStore {
         Ok(value.to_string())
     }
 
+    pub fn get_defaulting_uint(
+        &self,
+        key: &str,
+        defaults: &AddonDefaults,
+    ) -> Result<u64, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            let res = defaults.store.get_expected_uint(key)?;
+            return Ok(res);
+        };
+        let Some(value) = value.as_uint() else {
+            return Err(Diagnostic {
+                span: None,
+                location: None,
+                message: format!(
+                    "store '{}': value associated to '{}' mismatch (expected string)",
+                    self.name, key
+                ),
+                level: DiagnosticLevel::Error,
+                documentation: None,
+                example: None,
+                parent_diagnostic: None,
+            });
+        };
+        Ok(value)
+    }
+
     pub fn get_optional_defaulting_string(
         &self,
         key: &str,
