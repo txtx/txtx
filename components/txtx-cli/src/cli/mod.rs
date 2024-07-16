@@ -47,7 +47,7 @@ struct Opts {
 enum Command {
     /// Inspect deployment protocol
     #[clap(name = "check", bin_name = "check")]
-    Check(CheckRunbooks),
+    Check(CheckRunbook),
     /// New Runbook
     #[clap(name = "new", bin_name = "new")]
     New(CreateRunbook),
@@ -63,7 +63,7 @@ enum Command {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct CheckRunbooks {
+pub struct BeginSnapshot {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,

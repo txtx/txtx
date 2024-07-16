@@ -1,3 +1,4 @@
+use kit::types::commands::CommandExecutionResult;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::RunbookId;
 use kit::types::{diagnostics::Diagnostic, types::Value};
@@ -69,7 +70,11 @@ impl Runbook {
         let mut execution_context = RunbookExecutionContext::new();
 
         // Step 0: inject runbook inputs (environment variables, etc)
-        self.seed_runbook_inputs(&inputs_map.current_map());
+        inputs_map.seed_contexts(
+            &mut workspace_context,
+            &mut graph_context,
+            &mut execution_context,
+        );
         // Step 1: identify the addons at play and their globals
         runtime_context.build_from_sources(
             &sources,
@@ -132,31 +137,14 @@ impl Runbook {
         self.inputs_map.current.clone()
     }
 
-    pub fn seed_runbook_inputs(&mut self, runbook_inputs: &HashMap<String, Value>) {
-        for (key, value) in runbook_inputs.into_iter() {
-            let construct_did = self
-                .workspace_context
-                .index_environment_variable(key, value);
-            self.graph_context
-                .index_environment_variable(&construct_did);
-        }
-    }
-
-    // add attribute "tainting_change"
-
-    // -> Order the nodes
-    // -> Compute canonical id for each node
-    //      -> traverse all the inputs, same order, only considering the one with "tainting_change" set to true
-    // The edges should be slightly differently created: only if a tainting_change is at stake. 5
-    // -> Compute canonical id for each edge (?)
-    //      ->
+    pub fn seed_runbook_inputs(&mut self, runbook_inputs: &HashMap<String, Value>) {}
 }
 
 #[derive(Clone, Debug)]
 pub struct RunbookInputsMap {
     pub current: Option<String>,
     pub environments: Vec<String>,
-    values: HashMap<Option<String>, Vec<(String, Value)>>,
+    pub values: HashMap<Option<String>, Vec<(String, Value)>>,
 }
 
 impl RunbookInputsMap {
@@ -165,6 +153,23 @@ impl RunbookInputsMap {
             current: None,
             environments: vec![],
             values: HashMap::new(),
+        }
+    }
+
+    pub fn seed_contexts(
+        &self,
+        workspace_context: &mut RunbookWorkspaceContext,
+        graph_context: &mut RunbookGraphContext,
+        execution_context: &mut RunbookExecutionContext,
+    ) {
+        for (key, value) in self.current_map().iter() {
+            let construct_did = workspace_context.index_environment_variable(key, value);
+            graph_context.index_environment_variable(&construct_did);
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert("value".into(), value.clone());
+            execution_context
+                .commands_execution_results
+                .insert(construct_did, result);
         }
     }
 

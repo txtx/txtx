@@ -70,7 +70,8 @@ impl RuntimeContext {
             // Register standard functions at the root level
             let std_addon = StdAddon::new();
             for function in std_addon.get_functions().iter() {
-                self.functions.insert(function.name.clone(), function.clone());
+                self.functions
+                    .insert(function.name.clone(), function.clone());
             }
 
             while let Some((location, package_name, raw_content)) = sources.pop_front() {

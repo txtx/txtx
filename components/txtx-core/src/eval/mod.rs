@@ -675,6 +675,7 @@ pub async fn run_constructs_evaluation(
     pass_result
 }
 
+#[derive(Debug)]
 pub enum ExpressionEvaluationStatus {
     CompleteOk(Value),
     CompleteErr(Diagnostic),
@@ -874,7 +875,10 @@ pub fn eval_expression(
             let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
             else {
-                todo!("implement diagnostic for unresolvable references")
+                return Err(diagnosed_error!(
+                    "unable to resolve expression '{}'",
+                    expr.to_string().trim()
+                ));
             };
             let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
             {
@@ -882,7 +886,13 @@ pub fn eval_expression(
                     Ok(res) => res,
                     Err(e) => return Ok(ExpressionEvaluationStatus::CompleteErr(e.clone())),
                 },
-                None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+                None => match runbook_execution_context
+                    .commands_execution_results
+                    .get(&dependency)
+                {
+                    Some(res) => res,
+                    None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+                },
             };
 
             let attribute = components.pop_front().unwrap_or("value".into());

@@ -1,15 +1,12 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::kit::types::RunbookId;
-use txtx_core::std::StdAddon;
 use txtx_core::types::ProtocolManifest;
 use txtx_core::types::RunbookMetadata;
-use txtx_core::types::RuntimeContext;
+use txtx_core::types::RunbookState;
 use txtx_core::types::{Runbook, RunbookSources};
-use txtx_core::AddonsContext;
 
 pub mod generator;
 
@@ -49,7 +46,12 @@ pub struct RunbookMetadataFile {
     pub name: String,
     pub description: Option<String>,
     pub id: String,
-    pub stateful: Option<bool>,
+    pub state: Option<RunbookStateFile>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RunbookStateFile {
+    pub file: Option<String>,
 }
 
 pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifest, String> {
@@ -68,7 +70,11 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
                 name: e.name.clone(),
                 description: e.description.clone(),
                 id: e.id.clone(),
-                stateful: e.stateful.unwrap_or(false),
+                state: e
+                    .state
+                    .as_ref()
+                    .map(|s| s.file.clone().map(|f| RunbookState::File(f)))
+                    .unwrap_or(None),
             })
             .collect::<Vec<_>>(),
         environments: manifest_file.environments.clone(),
@@ -80,7 +86,7 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
 pub fn read_runbooks_from_manifest(
     manifest: &ProtocolManifest,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<HashMap<String, (Runbook, RunbookSources, RuntimeContext, String)>, String> {
+) -> Result<HashMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
     let mut runbooks = HashMap::new();
 
     let root_path = manifest
@@ -97,19 +103,16 @@ pub fn read_runbooks_from_manifest(
         }
         let mut package_location = root_path.clone();
         package_location.append_path(&runbook_metadata.location)?;
-        let (_, runbook, sources, runtime_context) = read_runbook_from_location(
-            &package_location,
-            &runbook_metadata.description,
-            &manifest.environments,
-        )?;
+        let (_, runbook, sources) =
+            read_runbook_from_location(&package_location, &runbook_metadata.description)?;
 
         runbooks.insert(
             runbook_metadata.id.to_string(),
             (
                 runbook,
                 sources,
-                runtime_context,
                 runbook_metadata.name.to_string(),
+                runbook_metadata.state.clone(),
             ),
         );
     }
@@ -119,8 +122,7 @@ pub fn read_runbooks_from_manifest(
 pub fn read_runbook_from_location(
     location: &FileLocation,
     description: &Option<String>,
-    environments: &BTreeMap<String, BTreeMap<String, String>>,
-) -> Result<(String, Runbook, RunbookSources, RuntimeContext), String> {
+) -> Result<(String, Runbook, RunbookSources), String> {
     let runbook_name = location.get_file_name().unwrap_or(location.to_string());
     let mut runbook_sources = RunbookSources::new();
     let package_location = location.clone();
@@ -140,10 +142,6 @@ pub fn read_runbook_from_location(
         }
     }
 
-    let mut addons_ctx = AddonsContext::new();
-    addons_ctx.register(Box::new(StdAddon::new()), false);
-    addons_ctx.register(Box::new(StacksNetworkAddon::new()), true);
-    let runtime_context = RuntimeContext::new(addons_ctx, environments.clone());
     let runbook_id = RunbookId {
         org: None,
         workspace: None,
@@ -153,6 +151,5 @@ pub fn read_runbook_from_location(
         runbook_name,
         Runbook::new(runbook_id, description.clone()),
         runbook_sources,
-        runtime_context,
     ))
 }

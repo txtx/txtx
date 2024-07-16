@@ -1,12 +1,15 @@
 mod construct;
 mod package;
 
+use crate::runbook::RunbookInputsMap;
+
 pub use super::runbook::{
     Runbook, RunbookExecutionContext, RunbookGraphContext, RunbookSnapshotContext, RunbookSources,
 };
 pub use construct::PreConstructData;
 use kit::helpers::fs::FileLocation;
 use kit::serde::{Deserialize, Serialize};
+use kit::types::types::Value;
 pub use package::Package;
 use std::collections::BTreeMap;
 pub use txtx_addon_kit::types::commands::CommandInstance;
@@ -32,6 +35,30 @@ impl ProtocolManifest {
             environments: BTreeMap::new(),
             location: None,
         }
+    }
+
+    pub fn get_runbook_inputs(
+        &self,
+        selector: &Option<String>,
+    ) -> Result<RunbookInputsMap, String> {
+        if let Some(selector) = selector {
+            if let Some(_) = self.environments.get(selector) {
+                return Err(format!("environment '{}' unknown from manifest", selector));
+            }
+        }
+
+        let mut inputs_map = RunbookInputsMap::new();
+        for (selector, inputs) in self.environments.iter() {
+            let mut values = vec![];
+            for (key, value) in inputs.iter() {
+                values.push((key.to_string(), Value::string(value.into())));
+            }
+            inputs_map.environments.push(selector.into());
+            inputs_map.values.insert(Some(selector.to_string()), values);
+        }
+        inputs_map.values.insert(None, vec![]);
+        inputs_map.current = inputs_map.environments.get(0).map(|v| v.to_string());
+        Ok(inputs_map)
     }
 }
 

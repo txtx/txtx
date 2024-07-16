@@ -19,8 +19,12 @@ use txtx_core::{
             types::Value,
         },
     },
-    pre_compute_runbook, start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
-    types::{ProtocolManifest, Runbook, RunbookMetadata, RunbookSources, RuntimeContext},
+    runbook::{RunbookExecutionSnapshot, RunbookInputsMap},
+    start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
+    types::{
+        ProtocolManifest, Runbook, RunbookMetadata, RunbookSnapshotContext, RunbookSources,
+        RunbookState,
+    },
 };
 
 use crate::{
@@ -36,12 +40,34 @@ use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_PORT_TXTX: &str = "8488";
 
-use super::{CheckRunbooks, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
-pub async fn handle_check_command(cmd: &CheckRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
-    let _ = read_runbooks_from_manifest(&manifest, None)?;
-    // let _ = txtx::check_plan(plan)?;
+pub fn load_snapshot(snapshot_path: &str) -> Result<RunbookExecutionSnapshot, String> {
+    let file = FileLocation::from_path(snapshot_path.into());
+    let snapshot_bytes = file.read_content()?;
+    let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
+        .map_err(|e| format!("unable to read {}: {}", snapshot_path, e.to_string()))?;
+    Ok(snapshot)
+}
+
+pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
+    let (manifest, runbook_name, mut runbook, runbook_state) =
+        load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
+
+    match &runbook_state {
+        Some(RunbookState::File(file_path)) => {
+            let ctx = RunbookSnapshotContext::new();
+            let old = load_snapshot(file_path)?;
+            // let _ = run_constructs_dependencies_indexing(&mut runbook, &mut runtime_context);
+            let new = ctx
+                .snapshot_runbook_execution(&runbook.execution_context, &runbook.workspace_context);
+            // let old = load_snapshot("./state_old.json")?;
+            // let new = load_snapshot("./state_new.json")?;
+
+            let _res = ctx.diff(&old, &new);
+        }
+        None => {}
+    }
     Ok(())
 }
 
@@ -251,19 +277,14 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
 
-    let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook).await;
-    let (runbook_name, mut runbook, mut runtime_context, environments) = match res {
-        Ok((m, a, b, c)) => (a, b, c, m.environments),
+    let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await;
+    let (runbook_name, mut runbook, runbook_state) = match res {
+        Ok((m, a, b, c)) => (a, b, c),
         Err(_) => {
-            let (runbook_name, runbook, runtime_context) =
-                load_runbook_from_file_path(&cmd.runbook).await?;
-            (runbook_name, runbook, runtime_context, BTreeMap::new())
+            let (runbook_name, runbook) = load_runbook_from_file_path(&cmd.runbook).await?;
+            (runbook_name, runbook, None)
         }
     };
-
-    if let Some(ref selected_env) = cmd.environment {
-        runtime_context.set_active_environment(selected_env.clone())?;
-    }
 
     let mut batch_inputs;
 
@@ -346,13 +367,21 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         });
         println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
-        let res =
-            start_unsupervised_runbook_runloop(&mut runbook, &mut runtime_context, &progress_tx)
-                .await;
+        let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
             }
+        } else {
+            println!("Saving to state.json");
+            let diff = RunbookSnapshotContext::new();
+            let snapshot = diff
+                .snapshot_runbook_execution(&runbook.execution_context, &runbook.workspace_context);
+
+            let state = FileLocation::from_path("state.json".into());
+            state
+                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                .unwrap();
         }
         return Ok(());
     }
@@ -371,11 +400,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
-            &mut runtime_context,
             moved_block_tx,
             action_item_updates_tx,
             action_item_events_rx,
-            environments,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
@@ -538,7 +565,7 @@ pub async fn load_runbooks_from_manifest(
 ) -> Result<
     (
         ProtocolManifest,
-        HashMap<String, (Runbook, RunbookSources, RuntimeContext, String)>,
+        HashMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>,
     ),
     String,
 > {
@@ -551,14 +578,16 @@ pub async fn load_runbooks_from_manifest(
 pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
-) -> Result<(ProtocolManifest, String, Runbook, RuntimeContext), String> {
+    environment_selector: &Option<String>,
+) -> Result<(ProtocolManifest, String, Runbook, Option<RunbookState>), String> {
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
-    for (runbook_id, (mut runbook, mut runbook_sources, mut runtime_context, runbook_name)) in
+    for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in
         runbooks.into_iter()
     {
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
-            let res = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context);
+            let inputs_map = manifest.get_runbook_inputs(environment_selector)?;
+            let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map);
             if let Err(diags) = res {
                 for diag in diags.iter() {
                     println!("{} {}", red!("x"), diag);
@@ -566,7 +595,7 @@ pub async fn load_runbook_from_manifest(
                 std::process::exit(1);
             }
             println!("{} '{}' successfully checked", green!("✓"), runbook_name);
-            return Ok((manifest, runbook_name, runbook, runtime_context));
+            return Ok((manifest, runbook_name, runbook, runbook_state));
         }
     }
     Err(format!(
@@ -575,17 +604,15 @@ pub async fn load_runbook_from_manifest(
     ))
 }
 
-pub async fn load_runbook_from_file_path(
-    file_path: &str,
-) -> Result<(String, Runbook, RuntimeContext), String> {
+pub async fn load_runbook_from_file_path(file_path: &str) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
-
-    let (runbook_name, mut runbook, mut runbook_sources, mut runtime_context) =
-        read_runbook_from_location(&location, &None, &BTreeMap::new())?;
+    let (runbook_name, mut runbook, runbook_sources) =
+        read_runbook_from_location(&location, &None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
+    let inputs_map = RunbookInputsMap::new();
 
-    let res = pre_compute_runbook(&mut runbook, &mut runbook_sources, &mut runtime_context);
+    let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map);
     if let Err(diags) = res {
         for diag in diags.iter() {
             println!("{} {}", red!("x"), diag);
@@ -596,5 +623,5 @@ pub async fn load_runbook_from_file_path(
     println!("{} '{}' successfully checked", green!("✓"), runbook_name);
 
     // Select first runbook by default
-    Ok((runbook_name, runbook, runtime_context))
+    Ok((runbook_name, runbook))
 }
