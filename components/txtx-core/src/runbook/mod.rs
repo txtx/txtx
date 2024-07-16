@@ -33,8 +33,6 @@ pub struct Runbook {
     pub sources: RunbookSources,
     /// Runbook inputs
     pub inputs_map: RunbookInputsMap,
-    /// Diagnostics collected over time, until hitting a fatal error
-    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl Runbook {
@@ -47,7 +45,6 @@ impl Runbook {
             sources: RunbookSources::new(),
             inputs_map: RunbookInputsMap::new(),
             supervision_context: RunbookSupervisionContext::new(),
-            diagnostics: vec![],
         }
     }
 

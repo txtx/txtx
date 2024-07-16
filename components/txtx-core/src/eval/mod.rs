@@ -128,10 +128,10 @@ pub async fn run_wallets_evaluation(
         let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction => {
+                CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
                     continue;
                 }
-                CommandInputEvaluationStatus::Aborted(mut diags) => {
+                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
                     pass_result.diagnostics.append(&mut diags);
                     continue;
                 }
@@ -431,8 +431,8 @@ pub async fn run_constructs_evaluation(
         let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction => continue,
-                CommandInputEvaluationStatus::Aborted(mut diags) => {
+                CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
+                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
                     pass_result.diagnostics.append(&mut diags);
                     return pass_result;
                 }
@@ -674,6 +674,11 @@ pub async fn run_constructs_evaluation(
     }
     pass_result
 }
+
+// When the graph is being traversed, we are evaluating constructs one after the other.
+// After ensuring their executability, we execute them.
+// Unexecutable nodes are tainted.
+// Before evaluating the executability, we first check if they depend on a tainted node.
 
 #[derive(Debug)]
 pub enum ExpressionEvaluationStatus {
@@ -1052,8 +1057,8 @@ pub fn update_wallet_instances_from_action_response(
 #[derive(Debug)]
 pub enum CommandInputEvaluationStatus {
     Complete(CommandInputsEvaluationResult),
-    NeedsUserInteraction,
-    Aborted(Vec<Diagnostic>),
+    NeedsUserInteraction(CommandInputsEvaluationResult),
+    Aborted(CommandInputsEvaluationResult, Vec<Diagnostic>),
 }
 
 pub fn perform_inputs_evaluation(
@@ -1070,6 +1075,7 @@ pub fn perform_inputs_evaluation(
     runtime_context: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
+    let mut require_user_interaction = false;
     let mut diags = vec![];
     let inputs = command_instance.specification.inputs.clone();
     let mut fatal_error = false;
@@ -1146,7 +1152,8 @@ pub fn perform_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 };
 
@@ -1222,7 +1229,8 @@ pub fn perform_inputs_evaluation(
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                    return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                    require_user_interaction = true;
+                    continue;
                 }
             };
 
@@ -1258,7 +1266,8 @@ pub fn perform_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 }
             };
@@ -1295,7 +1304,8 @@ pub fn perform_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 }
             };
@@ -1303,9 +1313,10 @@ pub fn perform_inputs_evaluation(
         }
     }
 
-    let status = match fatal_error {
-        false => CommandInputEvaluationStatus::Complete(results),
-        true => CommandInputEvaluationStatus::Aborted(diags),
+    let status = match (fatal_error, require_user_interaction) {
+        (false, false) => CommandInputEvaluationStatus::Complete(results),
+        (true, _) => CommandInputEvaluationStatus::Aborted(results, diags),
+        (false, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
     };
     Ok(status)
 }
@@ -1323,6 +1334,7 @@ pub fn perform_wallet_inputs_evaluation(
     runtime_context: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&wallet_instance.name);
+    let mut require_user_interaction = false;
     let mut diags = vec![];
     let inputs = wallet_instance.specification.inputs.clone();
     let mut fatal_error = false;
@@ -1369,7 +1381,8 @@ pub fn perform_wallet_inputs_evaluation(
                     Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
                     Err(e) => Err(e),
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 };
 
@@ -1494,7 +1507,8 @@ pub fn perform_wallet_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 }
             };
@@ -1531,7 +1545,8 @@ pub fn perform_wallet_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        require_user_interaction = true;
+                        continue;
                     }
                 }
             };
@@ -1540,9 +1555,10 @@ pub fn perform_wallet_inputs_evaluation(
         }
     }
 
-    let status = match fatal_error {
-        false => CommandInputEvaluationStatus::Complete(results),
-        true => CommandInputEvaluationStatus::Aborted(diags),
+    let status = match (fatal_error, require_user_interaction) {
+        (false, false) => CommandInputEvaluationStatus::Complete(results),
+        (true, _) => CommandInputEvaluationStatus::Aborted(results, diags),
+        (false, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
     };
     Ok(status)
 }

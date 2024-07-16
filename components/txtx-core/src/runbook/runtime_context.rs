@@ -46,6 +46,15 @@ impl RuntimeContext {
         }
     }
 
+    pub fn get_addon_defaults(&self, addon_key: &(PackageDid, String)) -> Option<&AddonDefaults> {
+        let addon_defaults = self
+            .addons_context
+            .addon_construct_factories
+            .get(&addon_key)
+            .and_then(|addon| Some(&addon.defaults));
+        addon_defaults
+    }
+
     pub fn build_from_sources(
         &mut self,
         runbook_sources: &RunbookSources,

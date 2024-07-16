@@ -508,10 +508,6 @@ impl RunbookWorkspaceContext {
             return Ok(None);
         };
 
-        let Some(mut current_package) = self.packages.get(source_package_id) else {
-            return Ok(None);
-        };
-
         let Some(root) = traversal.expr.as_variable() else {
             return Ok(None);
         };
@@ -546,6 +542,24 @@ impl RunbookWorkspaceContext {
         while let Some(component) = components.pop_front() {
             // Look for modules
             if is_root {
+                // Look for env variables
+                if component.eq_ignore_ascii_case("env") {
+                    let Some(env_variable_name) = components.pop_front() else {
+                        continue;
+                    };
+
+                    if let Some(construct_did) = self
+                        .environment_variables_did_lookup
+                        .get(&env_variable_name)
+                    {
+                        return Ok(Some((construct_did.clone(), components, subpath)));
+                    }
+                }
+
+                let Some(mut current_package) = self.packages.get(source_package_id) else {
+                    return Ok(None);
+                };
+
                 if component.eq_ignore_ascii_case("module") {
                     is_root = false;
                     let Some(module_name) = components.pop_front() else {
@@ -610,21 +624,10 @@ impl RunbookWorkspaceContext {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
                 }
-
-                // Look for env variables
-                if component.eq_ignore_ascii_case("env") {
-                    let Some(env_variable_name) = components.pop_front() else {
-                        continue;
-                    };
-
-                    if let Some(construct_did) = self
-                        .environment_variables_did_lookup
-                        .get(&env_variable_name)
-                    {
-                        return Ok(Some((construct_did.clone(), components, subpath)));
-                    }
-                }
             }
+            let Some(mut current_package) = self.packages.get(source_package_id) else {
+                return Ok(None);
+            };
 
             let imported_package = current_package
                 .imports_did_lookup

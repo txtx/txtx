@@ -42,7 +42,7 @@ impl ProtocolManifest {
         selector: &Option<String>,
     ) -> Result<RunbookInputsMap, String> {
         if let Some(selector) = selector {
-            if let Some(_) = self.environments.get(selector) {
+            if self.environments.get(selector).is_none() {
                 return Err(format!("environment '{}' unknown from manifest", selector));
             }
         }

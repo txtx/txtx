@@ -1,7 +1,7 @@
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     env,
     fs::{self, File},
     io::Write,
@@ -58,13 +58,27 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
         Some(RunbookState::File(file_path)) => {
             let ctx = RunbookSnapshotContext::new();
             let old = load_snapshot(file_path)?;
-            // let _ = run_constructs_dependencies_indexing(&mut runbook, &mut runtime_context);
-            let new = ctx
-                .snapshot_runbook_execution(&runbook.execution_context, &runbook.workspace_context);
+            let mut simulated_execution_context = runbook.execution_context.clone();
+            let frontier = HashSet::new();
+            let _res = simulated_execution_context
+                .simulate_execution(
+                    &runbook.runtime_context,
+                    &runbook.workspace_context,
+                    &runbook.supervision_context,
+                    &frontier,
+                )
+                .await;
+            let new = ctx.snapshot_runbook_execution(
+                &simulated_execution_context,
+                &runbook.workspace_context,
+            );
             // let old = load_snapshot("./state_old.json")?;
             // let new = load_snapshot("./state_new.json")?;
 
-            let _res = ctx.diff(&old, &new);
+            let data = serde_json::to_string_pretty(&new).unwrap().to_string();
+
+            println!("{data}");
+            let _res = ctx.diff(old, new);
         }
         None => {}
     }
