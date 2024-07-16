@@ -1009,17 +1009,25 @@ impl CommandInstance {
         for input in self.specification.inputs.iter() {
             match input.typing {
                 Type::Object(ref props) => {
-                    for prop in props.iter() {
-                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
-                        while let Some(block) = blocks_iter.next() {
-                            let Some(attr) = block.body.get_attribute(&prop.name) else {
-                                continue;
-                            };
-                            collect_constructs_references_from_expression(
-                                &attr.value,
-                                Some(input),
-                                &mut dependencies,
-                            );
+                    if let Some(attr) = self.block.body.get_attribute(&input.name) {
+                        collect_constructs_references_from_expression(
+                            &attr.value,
+                            Some(input),
+                            &mut dependencies,
+                        );
+                    } else {
+                        for prop in props.iter() {
+                            let mut blocks_iter = self.block.body.get_blocks(&input.name);
+                            while let Some(block) = blocks_iter.next() {
+                                let Some(attr) = block.body.get_attribute(&prop.name) else {
+                                    continue;
+                                };
+                                collect_constructs_references_from_expression(
+                                    &attr.value,
+                                    Some(input),
+                                    &mut dependencies,
+                                );
+                            }
                         }
                     }
                 }
