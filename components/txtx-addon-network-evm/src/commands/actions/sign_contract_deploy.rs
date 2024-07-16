@@ -1,4 +1,5 @@
 use alloy::rpc::types::TransactionRequest;
+use alloy::{consensus::Transaction, network::TransactionBuilder};
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
@@ -20,6 +21,12 @@ use txtx_addon_kit::types::{
     types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
 };
 use txtx_addon_kit::AddonDefaults;
+
+use crate::{
+    codec::get_typed_transaction_bytes,
+    constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+    typing::ETH_TRANSACTION,
+};
 
 use crate::codec::CommonTransactionFields;
 use crate::constants::{
@@ -164,18 +171,9 @@ impl CommandImplementation for SignEVMContractDeploy {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use alloy::{consensus::Transaction, network::TransactionBuilder};
-
-        use crate::{
-            codec::get_typed_transaction_bytes,
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
-            typing::ETH_TRANSACTION,
-        };
-
+        println!("check_signed_executability");
         let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+
         let wallet = wallets_instances
             .get(&signing_construct_did)
             .unwrap()
@@ -286,6 +284,7 @@ impl CommandImplementation for SignEVMContractDeploy {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
+        println!("run_signed_execution");
         let signing_construct_did = get_signing_construct_did(args).unwrap();
         let signing_command_state = wallets
             .pop_signing_command_state(&signing_construct_did)
@@ -346,7 +345,7 @@ async fn build_unsigned_contract_deploy(
 
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_string(CHAIN_ID, &defaults)?;
+    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let artifacts = args.get_expected_object(ARTIFACTS)?;
 

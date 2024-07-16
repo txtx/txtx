@@ -356,7 +356,7 @@ async fn build_unsigned_contract_call(
 
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_string(CHAIN_ID, &defaults)?;
+    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let contract_address = args.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi_loc = args.get_expected_string(CONTRACT_ABI)?;

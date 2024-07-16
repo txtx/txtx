@@ -7,6 +7,7 @@ environments:
     evm_network_id: devnet
     evm_api_url: "http://127.0.0.1:8545"
     evm_block_explorer_url: https://api.etherscan.io/api?apiKey=5RGQJXQ556G9PYNWDB7FBNSMV9M71PSJ7F
+    foundry_toml_path: "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
   testnet:
 runbooks:
 - name: Transfer ETH

@@ -1,7 +1,9 @@
-action "defaults" "evm::set_default_network" {
-    chain_id = 11155111
-    network_id = env.evm_network_id
-    rpc_api_url = env.evm_api_url
+addon "evm" {
+    defaults  {
+        chain_id = 11155111
+        network_id = env.evm_network_id
+        rpc_api_url = env.evm_api_url
+    }
 }
 
 wallet "alice" "evm::mnemonic" {
@@ -9,7 +11,7 @@ wallet "alice" "evm::mnemonic" {
 }
 
 action "artifacts" "evm::get_forge_deployment_artifacts" {
-    foundry_toml_path = "/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/foundry.toml"
+    foundry_toml_path = env.foundry_toml_path
     contract_filename = "SimpleStorage"
 }
 
@@ -24,24 +26,39 @@ action "verify" "evm::verify_deployment" {
     confirmations = 1
 }
 
+// action "store" "evm::sign_contract_call" {
+//     contract_address = evm::address("0x2331fb827792879D21e11f7e13bA0d57391393D5")
+//     function_name = "store"
+//     function_args = [3]
+//     contract_abi = "/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/out/SimpleStorage.sol/SimpleStorage.json"
+//     from = wallet.alice
+// }
 
-action "defaults" "evm::set_default_network" {
-    chain_id = 11155111
-    network_id = env.evm_network_id
-    rpc_api_url = env.evm_api_url
-    block_explorer_url = env.evm_block_explorer
-}
+// action "retrieve" "evm::call_view_function" {
+//     contract_address = evm::address("0x2331fb827792879D21e11f7e13bA0d57391393D5")
+//     function_name = "retrieve"
+//     function_args = []
+//     contract_abi = "/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/out/SimpleStorage.sol/SimpleStorage.json"
+//     depends_on = [action.store.tx_hash]
+// }
 
-wallet "alice" "evm::mnemonic" {
-    mnemonic = "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat"
-}
+// action "defaults" "evm::set_default_network" {
+//     chain_id = 11155111
+//     network_id = env.evm_network_id
+//     rpc_api_url = env.evm_api_url
+//     block_explorer_url = env.evm_block_explorer
+// }
 
-action "simple_storate" "evm::deploy_contract" {
-    description = "Deploy this bitch"
-    from = wallet.alice
-    artifacts = evm::get_forge_deployment_artifacts(,"/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/foundry.toml", "SimpleStorage")
-    confirmations = 1
-}
+// wallet "alice" "evm::mnemonic" {
+//     mnemonic = "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat"
+// }
+
+// action "simple_storate" "evm::deploy_contract" {
+//     description = "Deploy this bitch"
+//     from = wallet.alice
+//     artifacts = evm::get_forge_deployment_artifacts(,"/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/foundry.toml", "SimpleStorage")
+//     confirmations = 1
+// }
 
 // action "store" "evm::sign_contract_call" {
 //     contract_address = evm::address("0x2331fb827792879D21e11f7e13bA0d57391393D5")

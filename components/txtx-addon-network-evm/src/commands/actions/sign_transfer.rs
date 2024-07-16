@@ -341,7 +341,7 @@ async fn build_unsigned_transfer(
 
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_string(CHAIN_ID, &defaults)?;
+    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let to = args.get_expected_value(TRANSACTION_TO)?;
     let amount = args.get_expected_uint(TRANSACTION_AMOUNT)?;

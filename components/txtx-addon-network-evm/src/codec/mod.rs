@@ -52,7 +52,7 @@ pub struct CommonTransactionFields {
     pub to: Option<Value>,
     pub from: Value,
     pub nonce: Option<u64>,
-    pub chain_id: String,
+    pub chain_id: u64,
     pub amount: u64,
     pub gas_limit: Option<u64>,
     pub input: Option<Vec<u8>>,
@@ -83,11 +83,6 @@ pub async fn build_unsigned_transaction(
         None
     };
 
-    let chain_id: u64 = fields
-        .chain_id
-        .parse::<u64>()
-        .map_err(|e| format!("failed to parse chain_id: {}", e))?;
-
     let nonce = match fields.nonce {
         Some(nonce) => nonce,
         None => rpc.get_nonce(&from).await.map_err(|e| e.to_string())?,
@@ -97,7 +92,7 @@ pub async fn build_unsigned_transaction(
         to,
         from,
         nonce,
-        chain_id,
+        chain_id: fields.chain_id,
         amount: fields.amount,
         gas_limit: fields.gas_limit,
         input: fields.input,
@@ -216,6 +211,7 @@ async fn set_gas_limit(
     if let Some(gas_limit) = gas_limit {
         tx = tx.with_gas_limit(gas_limit.into());
     } else {
+        println!("estimating gas for tx: {:?}", tx);
         let gas_limit = rpc.estimate_gas(&tx).await.map_err(|e| e.to_string())?;
         tx = tx.with_gas_limit(gas_limit.into());
     }
