@@ -1,0 +1,15 @@
+---
+name: EVM Simple Runbooks
+id: evm-simple-runbooks
+environments:
+  devnet:
+    evm_chain_id: 1337
+    evm_network_id: devnet
+    evm_api_url: "http://127.0.0.1:8545"
+    evm_block_explorer_url: https://api.etherscan.io/api?apiKey=5RGQJXQ556G9PYNWDB7FBNSMV9M71PSJ7F
+  testnet:
+runbooks:
+- name: Transfer ETH
+  id: transfer-eth
+  description: 
+  location: "./maintenance/transfer-eth.tx"
