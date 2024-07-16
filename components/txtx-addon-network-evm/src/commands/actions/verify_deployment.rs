@@ -161,15 +161,7 @@ impl CommandImplementation for VerifyContractDeployment {
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
         let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
-        let chain_id = inputs
-            .get_defaulting_string(CHAIN_ID, &defaults)?
-            .parse::<u64>()
-            .map_err(|e| {
-                diagnosed_error!(
-                    "command 'evm::verify_deployment': failed to parse chain_id: {}",
-                    e
-                )
-            })?;
+        let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
         let tx_hash = inputs.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
