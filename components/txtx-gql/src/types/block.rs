@@ -286,8 +286,8 @@ impl GqlConstructProgressBarStatuses {
 }
 #[graphql_object(context = Context)]
 impl GqlConstructProgressBarStatuses {
-    pub fn construct_uuid(&self) -> String {
-        self.data.construct_uuid.to_string()
+    pub fn construct_did(&self) -> String {
+        self.data.construct_did.to_string()
     }
     pub fn statuses(&self) -> Vec<GqlProgressBarStatus> {
         self.data
@@ -342,8 +342,8 @@ impl GqlProgressBarStatusUpdate {
     pub fn progress_bar_uuid(&self) -> String {
         self.data.progress_bar_uuid.to_string()
     }
-    pub fn construct_uuid(&self) -> String {
-        self.data.construct_uuid.to_string()
+    pub fn construct_did(&self) -> String {
+        self.data.construct_did.to_string()
     }
     pub fn new_status(&self) -> GqlProgressBarStatus {
         GqlProgressBarStatus::new(self.data.new_status.clone())

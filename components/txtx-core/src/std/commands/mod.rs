@@ -1,8 +1,9 @@
 pub mod actions;
 
 use kit::types::frontend::{Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest};
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::ValueStore;
-use txtx_addon_kit::types::commands::{return_synchronous_result, CommandExecutionContext};
+use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
@@ -16,7 +17,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::ActionItemRequest,
         types::Type,
-        ConstructUuid,
+        ConstructDid,
     },
     AddonDefaults,
 };
@@ -56,18 +57,18 @@ impl CommandImplementation for Module {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -140,19 +141,20 @@ impl CommandImplementation for Input {
     }
 
     fn check_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let title = instance_name;
         let description = args
             .get_string("description")
             .and_then(|d| Some(d.to_string()));
 
-        if !execution_context.review_input_values && !execution_context.review_input_default_values
+        if !supervision_context.review_input_values
+            && !supervision_context.review_input_default_values
         {
             let executable =
                 args.get_value("value").is_some() || args.get_value("default").is_some();
@@ -173,10 +175,10 @@ impl CommandImplementation for Input {
                     return Ok(Actions::none());
                 }
             }
-            if execution_context.review_input_values {
+            if supervision_context.review_input_values {
                 return Ok(Actions::new_sub_group_of_items(vec![
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(construct_did.clone()),
                         &title,
                         description,
                         ActionItemStatus::Todo,
@@ -211,7 +213,7 @@ impl CommandImplementation for Input {
         };
 
         let action = ActionItemRequest::new(
-            &Some(uuid.value()),
+            &Some(construct_did.clone()),
             &title,
             description,
             ActionItemStatus::Todo,
@@ -231,7 +233,7 @@ impl CommandImplementation for Input {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -291,16 +293,16 @@ impl CommandImplementation for Output {
     }
 
     fn check_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
         let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest::new(
-            &Some(uuid.value()),
+            &Some(construct_did.clone()),
             instance_name,
             None,
             ActionItemStatus::Todo,
@@ -315,7 +317,7 @@ impl CommandImplementation for Output {
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -325,5 +327,66 @@ impl CommandImplementation for Output {
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".to_string(), value.clone());
         return_synchronous_result(Ok(result))
+    }
+}
+
+pub fn new_addon_specification() -> CommandSpecification {
+    let command: PreCommandSpecification = define_command! {
+        Input => {
+            name: "Addon",
+            matcher: "addon",
+            documentation: "Construct designed to import an addon",
+            implements_signing_capability: false,
+            implements_background_task_capability: false,
+            inputs: [
+                defaults: {
+                    documentation: "Value of the input",
+                    typing: Type::object(vec![]),
+                    optional: true,
+                    interpolable: true
+                }
+            ],
+            outputs: [
+            ],
+            example: "",
+        }
+    };
+    match command {
+        PreCommandSpecification::Atomic(command) => command,
+        PreCommandSpecification::Composite(_) => {
+            panic!("input should not be composite command specification")
+        }
+    }
+}
+
+pub struct Addon;
+
+impl CommandImplementation for Addon {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn check_executability(
+        _construct_did: &ConstructDid,
+        _instance_name: &str,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _supervision_context: &RunbookSupervisionContext,
+    ) -> Result<Actions, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run_execution(
+        _construct_id: &ConstructDid,
+        _spec: &CommandSpecification,
+        _args: &ValueStore,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+    ) -> CommandExecutionFutureResult {
+        unimplemented!()
     }
 }

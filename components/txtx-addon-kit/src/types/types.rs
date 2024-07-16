@@ -292,7 +292,16 @@ impl Value {
                 format!("0x{}", hex::encode(&val.bytes))
             }
             Value::Object(obj) => json!(obj).to_string(),
-            Value::Array(_) => todo!(),
+            Value::Array(array) => {
+                format!(
+                    "[{}]",
+                    array
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             Value::Addon(_) => todo!(),
         }
     }
@@ -611,4 +620,21 @@ pub struct Refinements {
 type TypeChecker = fn(&TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
 pub trait TypeImplementation {
     fn check(_ctx: &TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
+}
+
+#[derive(Clone, Debug)]
+pub struct RunbookSupervisionContext {
+    pub review_input_default_values: bool,
+    pub review_input_values: bool,
+    pub is_supervised: bool,
+}
+
+impl RunbookSupervisionContext {
+    pub fn new() -> Self {
+        Self {
+            review_input_default_values: false,
+            review_input_values: false,
+            is_supervised: false,
+        }
+    }
 }

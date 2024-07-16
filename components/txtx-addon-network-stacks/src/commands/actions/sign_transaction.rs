@@ -14,25 +14,24 @@ use clarity_repl::{
     },
 };
 use std::collections::HashMap;
-use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
+    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
     ReviewInputRequest,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_ok, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
-    WalletsState,
+    return_synchronous_ok, SigningCommandsState, WalletActionsFutureResult, WalletInstance,
+    WalletSignFutureResult,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
@@ -42,7 +41,7 @@ use crate::constants::{
 use crate::rpc::StacksRpc;
 use crate::typing::CLARITY_BUFFER;
 
-use super::get_wallet_uuid;
+use super::get_signing_construct_did;
 
 lazy_static! {
     pub static ref SIGN_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
@@ -127,43 +126,48 @@ impl CommandImplementation for SignStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn check_signed_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
-        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        supervision_context: &RunbookSupervisionContext,
+        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::STACKS_TRANSACTION,
         };
 
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
-        let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
-        let uuid = uuid.clone();
+        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let wallet = wallets_instances
+            .get(&signing_construct_did)
+            .unwrap()
+            .clone();
+        let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
         let args = args.clone();
         let defaults = defaults.clone();
-        let execution_context = execution_context.clone();
+        let supervision_context = supervision_context.clone();
         let wallets_instances = wallets_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
-            if let Some(_) =
-                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            let mut signing_command_state = wallets
+                .pop_signing_command_state(&signing_construct_did)
+                .unwrap();
+            if let Some(_) = signing_command_state
+                .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                return Ok((wallets, wallet_state, Actions::none()));
+                return Ok((wallets, signing_command_state, Actions::none()));
             }
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
             let transaction = match build_unsigned_transaction(
-                &wallet_state,
+                &signing_command_state,
                 &spec,
                 fee,
                 nonce,
@@ -174,7 +178,7 @@ impl CommandImplementation for SignStacksTransaction {
             {
                 Ok(transaction) => transaction,
                 Err(diag) => {
-                    return Err((wallets, wallet_state, diag));
+                    return Err((wallets, signing_command_state, diag));
                 }
             };
 
@@ -182,18 +186,18 @@ impl CommandImplementation for SignStacksTransaction {
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
             let payload = Value::buffer(bytes, STACKS_TRANSACTION.clone());
 
-            wallet_state.insert_scoped_value(
-                &uuid.value().to_string(),
+            signing_command_state.insert_scoped_value(
+                &construct_did.to_string(),
                 UNSIGNED_TRANSACTION_BYTES,
                 payload.clone(),
             );
-            wallets.push_wallet_state(wallet_state);
+            wallets.push_signing_command_state(signing_command_state);
 
-            if execution_context.review_input_values {
+            if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(construct_did.clone()),
                         "".into(),
                         Some(format!("Check account nonce")),
                         ActionItemStatus::Todo,
@@ -204,7 +208,7 @@ impl CommandImplementation for SignStacksTransaction {
                         ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(construct_did.clone()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),
                         ActionItemStatus::Todo,
@@ -217,42 +221,46 @@ impl CommandImplementation for SignStacksTransaction {
                 ])
             }
 
-            let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+            let signing_command_state = wallets
+                .pop_signing_command_state(&signing_construct_did)
+                .unwrap();
             let description = args
                 .get_expected_string("description")
                 .ok()
                 .and_then(|d| Some(d.to_string()));
-            let (wallets, wallet_state, mut wallet_actions) =
+            let (wallets, signing_command_state, mut wallet_actions) =
                 (wallet.specification.check_signability)(
-                    &uuid,
+                    &construct_did,
                     &instance_name,
                     &description,
                     &payload,
                     &wallet.specification,
                     &args,
-                    wallet_state,
+                    signing_command_state,
                     wallets,
                     &wallets_instances,
                     &defaults,
-                    &execution_context,
+                    &supervision_context,
                 )?;
             actions.append(&mut wallet_actions);
-            Ok((wallets, wallet_state, actions))
+            Ok((wallets, signing_command_state, actions))
         };
         Ok(Box::pin(future))
     }
 
     fn run_signed_execution(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
-        let wallet_uuid = get_wallet_uuid(args).unwrap();
-        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signing_command_state = wallets
+            .pop_signing_command_state(&signing_construct_did)
+            .unwrap();
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
@@ -260,13 +268,13 @@ impl CommandImplementation for SignStacksTransaction {
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
-            return return_synchronous_ok(wallets, wallet_state, result);
+            return return_synchronous_ok(wallets, signing_command_state, result);
         }
 
-        let wallet = wallets_instances.get(&wallet_uuid).unwrap();
+        let wallet = wallets_instances.get(&signing_construct_did).unwrap();
 
-        let payload = wallet_state
-            .get_scoped_value(&uuid.value().to_string(), UNSIGNED_TRANSACTION_BYTES)
+        let payload = signing_command_state
+            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
             .unwrap()
             .clone();
 
@@ -275,12 +283,12 @@ impl CommandImplementation for SignStacksTransaction {
             .unwrap_or("New Transaction".into());
 
         let res = (wallet.specification.sign)(
-            uuid,
+            construct_did,
             title,
             &payload,
             &wallet.specification,
             &args,
-            wallet_state,
+            signing_command_state,
             wallets,
             wallets_instances,
             &defaults,
@@ -291,7 +299,7 @@ impl CommandImplementation for SignStacksTransaction {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transaction(
-    wallet_state: &ValueStore,
+    signing_command_state: &ValueStore,
     _spec: &CommandSpecification,
     fee: Option<u64>,
     nonce: Option<u64>,
@@ -318,7 +326,12 @@ async fn build_unsigned_transaction(
             "mainnet" => "SP000000000000000000002Q6VF78",
             "testnet" => "ST000000000000000000002AMW42H",
             "devnet" => "ST000000000000000000002AMW42H",
-            _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+            _ => {
+                return Err(diagnosed_error!(
+                    "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                    network_id.as_str()
+                ))
+            }
         };
         TransactionPayload::ContractCall(TransactionContractCall {
             address: StacksAddress::from_string(boot_address).unwrap(),
@@ -349,10 +362,15 @@ async fn build_unsigned_transaction(
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
         "devnet" => TransactionVersion::Testnet,
-        _ => return Err(diagnosed_error!("Network {} unknown ('mainnet', 'testnet' or 'devnet')", network_id.as_str())),
+        _ => {
+            return Err(diagnosed_error!(
+                "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
+                network_id.as_str()
+            ))
+        }
     };
 
-    let public_keys = wallet_state.get_expected_array(PUBLIC_KEYS)?;
+    let public_keys = signing_command_state.get_expected_array(PUBLIC_KEYS)?;
 
     let stacks_public_keys: Vec<StacksPublicKey> = public_keys
         .iter()
@@ -363,7 +381,7 @@ async fn build_unsigned_transaction(
         })
         .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
-    let version: u8 = wallet_state
+    let version: u8 = signing_command_state
         .get_expected_uint("hash_flag")?
         .try_into()
         .unwrap();
@@ -389,7 +407,7 @@ async fn build_unsigned_transaction(
         }
     };
 
-    let is_multisig = wallet_state.get_expected_bool("multi_sig")?;
+    let is_multisig = signing_command_state.get_expected_bool("multi_sig")?;
 
     let spending_condition = match is_multisig {
         true => TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
