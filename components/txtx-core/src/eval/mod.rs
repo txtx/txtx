@@ -8,6 +8,7 @@ use kit::types::frontend::{
 };
 use kit::types::wallets::WalletsState;
 use petgraph::algo::toposort;
+use serde::de::value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use txtx_addon_kit::{
@@ -831,6 +832,7 @@ pub async fn run_constructs_evaluation(
                 .pending_background_tasks_constructs_uuids
                 .push(construct_uuid.clone());
         }
+
         runbook
             .constructs_execution_results
             .entry(construct_uuid)
@@ -1091,6 +1093,7 @@ pub fn eval_expression(
             else {
                 todo!("implement diagnostic for unresolvable references")
             };
+
             let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
             {
                 Some(res) => match res.clone() {
@@ -1306,7 +1309,6 @@ pub fn perform_inputs_evaluation(
     }
 
     for input in inputs.into_iter() {
-        // todo(micaiah): this value still needs to be for inputs that are objects
         let previously_evaluated_input = match input_evaluation_results {
             Some(input_evaluation_results) => {
                 input_evaluation_results.inputs.get_value(&input.name)
@@ -1314,65 +1316,100 @@ pub fn perform_inputs_evaluation(
             None => None,
         };
         if let Some(object_props) = input.as_object() {
-            // todo(micaiah) - figure out how user-input values work for this branch
-            let mut object_values = HashMap::new();
-            for prop in object_props.iter() {
-                if let Some(value) = previously_evaluated_input {
-                    match value.clone() {
-                        Value::Object(obj) => {
-                            for (k, v) in obj.into_iter() {
-                                object_values.insert(k, v);
-                            }
-                        }
-                        v => {
-                            object_values.insert(prop.name.to_string(), Ok(v));
-                        }
-                    };
-                }
-
-                let Some(expr) =
-                    command_instance.get_expression_from_object_property(&input, &prop)?
-                else {
-                    continue;
-                };
+            // get this object expression to check if it's a traversal. if the expected
+            // object type is a traversal, we should parse it as a regular field rather than
+            // looking at each property of the object
+            let Some(expr) = command_instance.get_expression_from_object(&input)? else {
+                continue;
+            };
+            if let Expression::Traversal(traversal) = expr {
                 let value = match eval_expression(
-                    &expr,
+                    &Expression::Traversal(traversal),
                     dependencies_execution_results,
                     package_uuid,
                     runbook,
                     runtime_ctx,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
                     }
                 };
-
-                if let Err(ref diag) = value {
-                    diags.push(diag.clone());
-                    if diag.is_error() {
-                        fatal_error = true;
+                results.insert(&input.name, value);
+            } else {
+                let mut object_values = HashMap::new();
+                for prop in object_props.iter() {
+                    if let Some(value) = previously_evaluated_input {
+                        match value.clone() {
+                            Value::Object(obj) => {
+                                for (k, v) in obj.into_iter() {
+                                    object_values.insert(k, v);
+                                }
+                            }
+                            v => {
+                                object_values.insert(prop.name.to_string(), Ok(v));
+                            }
+                        };
                     }
-                }
 
-                match value.clone() {
-                    Ok(Value::Object(obj)) => {
-                        for (k, v) in obj.into_iter() {
-                            object_values.insert(k, v);
+                    let Some(expr) =
+                        command_instance.get_expression_from_object_property(&input, &prop)?
+                    else {
+                        continue;
+                    };
+                    let value = match eval_expression(
+                        &expr,
+                        dependencies_execution_results,
+                        package_uuid,
+                        runbook,
+                        runtime_ctx,
+                    ) {
+                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                        Err(e) => Err(e),
+                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                            return Ok(CommandInputEvaluationStatus::NeedsUserInteraction);
+                        }
+                    };
+                    if let Err(ref diag) = value {
+                        diags.push(diag.clone());
+                        if diag.is_error() {
+                            fatal_error = true;
                         }
                     }
-                    Ok(v) => {
-                        object_values.insert(prop.name.to_string(), Ok(v));
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
-                    }
-                };
-            }
-            if !object_values.is_empty() {
-                results.insert(&input.name, Value::Object(object_values));
+
+                    match value.clone() {
+                        Ok(Value::Object(obj)) => {
+                            for (k, v) in obj.into_iter() {
+                                object_values.insert(k, v);
+                            }
+                        }
+                        Ok(v) => {
+                            object_values.insert(prop.name.to_string(), Ok(v));
+                        }
+                        Err(diag) => {
+                            object_values.insert(prop.name.to_string(), Err(diag));
+                        }
+                    };
+                }
+
+                if !object_values.is_empty() {
+                    results.insert(&input.name, Value::object(object_values));
+                }
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
