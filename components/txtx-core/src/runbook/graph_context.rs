@@ -222,13 +222,22 @@ impl RunbookGraphContext {
             execution_context
                 .order_for_signing_commands_initialization
                 .push(construct_did.clone());
-
+            // For each signing command instantiated
             if *instantiated {
-                let dependencies =
+                // We retrieve the downstream dependencies (signed commands)
+                let signed_commands =
                     self.get_downstream_dependencies_for_construct_did(construct_did);
-                for signed_dependency in dependencies.iter() {
-                    let upstream_dependencies =
-                        self.get_upstream_dependencies_for_construct_did(signed_dependency);
+                for signed_dependency in signed_commands.iter() {
+                    // For each signed commands, we retrieve the upstream dependencies, but:
+                    // - we ignore the signing commands
+                    // - we pop the last root synthetic ConstructDid
+                    let mut upstream_dependencies = self
+                        .get_upstream_dependencies_for_construct_did(signed_dependency)
+                        .into_iter()
+                        .filter(|c| !c.eq(&construct_did))
+                        .collect::<Vec<_>>();
+                    upstream_dependencies.remove(upstream_dependencies.len() - 1);
+
                     execution_context
                         .signed_commands_upstream_dependencies
                         .insert(signed_dependency.clone(), upstream_dependencies);
@@ -238,7 +247,7 @@ impl RunbookGraphContext {
                 }
                 execution_context
                     .signing_commands_downstream_dependencies
-                    .push((construct_did.clone(), dependencies));
+                    .push((construct_did.clone(), signed_commands));
             }
         }
 

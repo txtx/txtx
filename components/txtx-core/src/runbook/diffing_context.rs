@@ -24,7 +24,10 @@ pub struct RunbookExecutionSnapshot {
 }
 
 impl RunbookExecutionSnapshot {
-    pub fn get_command_with_construct_did(&self, construct_did: &ConstructDid) -> &CommandSnapshot {
+    pub fn get_command_with_construct_did(
+        &mut self,
+        construct_did: &ConstructDid,
+    ) -> &CommandSnapshot {
         for command in self.commands.iter() {
             if command.construct_did.eq(construct_did) {
                 return command;
@@ -278,37 +281,51 @@ impl RunbookSnapshotContext {
         snapshot
     }
 
-    pub fn diff(&self, old: &RunbookExecutionSnapshot, new: &RunbookExecutionSnapshot) {
+    pub fn diff(&self, mut old: RunbookExecutionSnapshot, mut new: RunbookExecutionSnapshot) {
+        let mut old_ref = old.clone();
+        let mut new_ref = new.clone();
+        // let mut refs = vec![];
+
         let mut diffs = vec![];
         let empty_string = "".to_string();
         TextDiff::from_lines(&old.name, &new.name);
-        diffs.push(ChangesType::Cosmectic(
+        diffs.push(evaluated_diff(
+            None,
             TextDiff::from_lines(&old.name, &new.name),
             format!("Runbook's name updated"),
+            false,
         ));
-        diffs.push(ChangesType::Cosmectic(
+        diffs.push(evaluated_diff(
+            None,
             TextDiff::from_lines(
                 old.org.as_ref().unwrap_or(&empty_string),
                 &new.org.as_ref().unwrap_or(&empty_string),
             ),
-            format!("Org's name updated"),
+            format!("Runbook's name updated"),
+            false,
         ));
-        diffs.push(ChangesType::Cosmectic(
+        diffs.push(evaluated_diff(
+            None,
             TextDiff::from_lines(
                 old.workspace.as_ref().unwrap_or(&empty_string),
-                &new.workspace.as_ref().unwrap_or(&empty_string),
+                new.workspace.as_ref().unwrap_or(&empty_string),
             ),
-            format!("Workspace's name updated"),
+            format!("Runbook's name updated"),
+            false,
         ));
 
         // if changes, we should recompute some temporary ids for packages and constructs
-        let old_signing_commands_dids = old
-            .signing_commands
+        let mut old_signing_commands = old_ref.signing_commands.clone();
+        let mut new_signing_commands = new_ref.signing_commands.clone();
+
+        old_signing_commands.sort_by(|a, b| a.construct_did.cmp(&b.construct_did));
+        new_signing_commands.sort_by(|a, b| a.construct_did.cmp(&b.construct_did));
+
+        let old_signing_commands_dids = old_signing_commands
             .iter()
             .map(|c| c.construct_did.to_string())
             .collect::<Vec<_>>();
-        let new_signing_commands_dids = new
-            .signing_commands
+        let new_signing_commands_dids = new_signing_commands
             .iter()
             .map(|c| c.construct_did.to_string())
             .collect::<Vec<_>>();
@@ -356,27 +373,39 @@ impl RunbookSnapshotContext {
         }
 
         for (old_index, new_index) in comparable_signing_constructs_list.into_iter() {
-            let old_signing_command = &old.signing_commands[old_index];
-            let new_signing_command = &new.signing_commands[new_index];
+            let (old_signing_command, new_signing_command) = match (
+                old_signing_commands.get(old_index),
+                new_signing_commands.get(new_index),
+            ) {
+                (Some(old), Some(new)) => (old, new),
+                _ => continue,
+            };
 
             // Construct name
-            diffs.push(ChangesType::Cosmectic(
+            diffs.push(evaluated_diff(
+                Some(old_signing_command.construct_did.clone()),
                 TextDiff::from_lines(
                     old_signing_command.construct_name.as_str(),
                     new_signing_command.construct_name.as_str(),
                 ),
                 format!("Signing command's name updated"),
+                false,
             ));
+
             // Construct path
-            diffs.push(ChangesType::Cosmectic(
+            diffs.push(evaluated_diff(
+                Some(old_signing_command.construct_did.clone()),
                 TextDiff::from_lines(
                     old_signing_command.construct_path.as_str(),
                     new_signing_command.construct_path.as_str(),
                 ),
                 format!("Signing command's path updated"),
+                false,
             ));
+
             // Construct driver
-            diffs.push(ChangesType::Critical(
+            diffs.push(evaluated_diff(
+                Some(old_signing_command.construct_did.clone()),
                 TextDiff::from_lines(
                     old_signing_command
                         .construct_addon
@@ -388,7 +417,9 @@ impl RunbookSnapshotContext {
                         .unwrap_or(&empty_string),
                 ),
                 format!("Signing command's driver updated"),
+                true,
             ));
+
             // Let's look at the signed constructs
             // First: Any new construct?
             let old_signed_commands_dids = old_signing_command
@@ -445,29 +476,46 @@ impl RunbookSnapshotContext {
             }
 
             for (old_index, new_index) in comparable_signed_constructs_list.into_iter() {
-                let old_construct_did = &old_signing_command.downstream_constructs_dids[old_index];
-                let new_construct_did = &new_signing_command.downstream_constructs_dids[new_index];
-                let old_construct = old.get_command_with_construct_did(old_construct_did);
-                let new_construct = new.get_command_with_construct_did(new_construct_did);
+                let (old_construct_did, new_construct_did) = match (
+                    old_signing_command
+                        .downstream_constructs_dids
+                        .get(old_index),
+                    new_signing_command
+                        .downstream_constructs_dids
+                        .get(new_index),
+                ) {
+                    (Some(old), Some(new)) => (old, new),
+                    _ => continue,
+                };
+
+                let mut old_construct = old_ref.get_command_with_construct_did(old_construct_did).clone();
+                let mut new_construct = new_ref.get_command_with_construct_did(new_construct_did).clone();
 
                 // Construct name
-                diffs.push(ChangesType::Cosmectic(
+                diffs.push(evaluated_diff(
+                    Some(old_signing_command.construct_did.clone()),
                     TextDiff::from_lines(
                         old_construct.construct_name.as_str(),
                         new_construct.construct_name.as_str(),
                     ),
                     format!("Signing command's name updated"),
+                    false,
                 ));
+
                 // Construct path
-                diffs.push(ChangesType::Cosmectic(
+                diffs.push(evaluated_diff(
+                    Some(old_signing_command.construct_did.clone()),
                     TextDiff::from_lines(
                         old_construct.construct_path.as_str(),
                         new_construct.construct_path.as_str(),
                     ),
                     format!("Signing command's path updated"),
+                    false,
                 ));
+
                 // Construct driver
-                diffs.push(ChangesType::Critical(
+                diffs.push(evaluated_diff(
+                    Some(old_signing_command.construct_did.clone()),
                     TextDiff::from_lines(
                         old_construct
                             .construct_addon
@@ -479,8 +527,11 @@ impl RunbookSnapshotContext {
                             .unwrap_or(&empty_string),
                     ),
                     format!("Signing command's driver updated"),
+                    false,
                 ));
-                // Value pre-evaluation
+
+                old_construct.inputs.sort_by(|a, b| a.name.cmp(&b.name));
+                new_construct.inputs.sort_by(|a, b| a.name.cmp(&b.name));
 
                 // Check inputs
                 let old_inputs = old_construct
@@ -535,16 +586,25 @@ impl RunbookSnapshotContext {
                 }
 
                 for (old_index, new_index) in comparable_inputs_list.into_iter() {
-                    let old_input = &old_construct.inputs[old_index];
-                    let new_input = &new_construct.inputs[new_index];
+                    let (old_input, new_input) = match (
+                        old_construct.inputs.get(old_index),
+                        new_construct.inputs.get(new_index),
+                    ) {
+                        (Some(old), Some(new)) => (old, new),
+                        _ => continue,
+                    };
 
                     // Input name
-                    diffs.push(ChangesType::Cosmectic(
+                    diffs.push(evaluated_diff(
+                        Some(old_signing_command.construct_did.clone()),
                         TextDiff::from_lines(old_input.name.as_str(), new_input.name.as_str()),
                         format!("Signing command's input name updated"),
+                        false,
                     ));
+
                     // Input value_pre_evaluation
-                    diffs.push(ChangesType::Cosmectic(
+                    diffs.push(evaluated_diff(
+                        Some(old_signing_command.construct_did.clone()),
                         TextDiff::from_lines(
                             old_input
                                 .value_pre_evaluation
@@ -556,47 +616,68 @@ impl RunbookSnapshotContext {
                                 .unwrap_or(&empty_string),
                         ),
                         format!("Signing command's input value_pre_evaluation updated"),
+                        true,
                     ));
-
-                    // Input value_post_evaluation
                 }
             }
         }
 
-        for diff_type in diffs.into_iter() {
-            let (_critical, fmt_critical, diff_results, label) = match diff_type {
-                ChangesType::Cosmectic(value, label) => (false, "[cosmetic]", value, label),
-                ChangesType::Critical(value, label) => (true, "[critical]", value, label),
-            };
-
-            let mut changes = vec![];
-            for diff_result in diff_results.iter_all_changes() {
-                if let ChangeTag::Equal = diff_result.tag() {
-                    continue;
-                }
-                changes.push(diff_result);
-            }
-
-            if changes.is_empty() {
-                continue;
-            }
-
-            println!("{}: {}", fmt_critical, label);
-            for change in changes.into_iter() {
-                let sign = match change.tag() {
-                    ChangeTag::Delete => "-",
-                    ChangeTag::Insert => "+",
-                    ChangeTag::Equal => unreachable!(),
+        for change in diffs.iter() {
+            if !change.description.is_empty() {
+                let fmt_critical = match change.critical {
+                    true => "[critical]",
+                    false => "[cosmetic]",
                 };
-                print!("{}{}", sign, change);
+    
+                println!(
+                    "{}: {}\n{}",
+                    fmt_critical,
+                    change.label,
+                    change.description.join("\n")
+                );    
             }
         }
     }
 }
 
-enum ChangesType<'a, 'b, 'c> {
-    Cosmectic(TextDiff<'a, 'b, 'c, str>, String),
-    Critical(TextDiff<'a, 'b, 'c, str>, String),
+struct Change {
+    pub critical: bool,
+    pub construct_did: Option<ConstructDid>,
+    pub label: String,
+    pub description: Vec<String>,
+}
+
+fn evaluated_diff<'a, 'b, 'c>(
+    construct_did: Option<ConstructDid>,
+    diff: TextDiff<'a, 'b, 'c, str>,
+    label: String,
+    critical: bool,
+) -> Change where 'a: 'b, 'b: 'a {
+    let mut result = Change {
+        critical,
+        construct_did: construct_did.clone(),
+        label,
+        description: vec![],
+    };
+
+    let mut changes = vec![];
+    for diff_result in diff.iter_all_changes() {
+        if let ChangeTag::Equal = diff_result.tag() {
+            continue;
+        }
+        changes.push((diff_result.tag(), diff_result.value().to_string()));
+    }
+
+    for (tag, change) in changes.into_iter() {
+        let sign = match tag {
+            ChangeTag::Delete => "-",
+            ChangeTag::Insert => "+",
+            ChangeTag::Equal => unreachable!(),
+        };
+        result.description.push(format!("{}{}", sign, change))
+    }
+
+    result
 }
 
 fn now_as_string() -> String {
@@ -611,3 +692,6 @@ fn now_as_string() -> String {
     // Display the DateTime using the RFC 3339 format
     datetime.to_rfc3339()
 }
+
+// Shortcut:
+// Support for constructs being removed / added / replaced
