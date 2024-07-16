@@ -1,15 +1,16 @@
 use alloy::dyn_abi::DynSolValue;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, CommandExecutionResult,
-    CommandImplementation, PreCommandSpecification,
+    CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{NETWORK_ID, RPC_API_URL};
@@ -95,18 +96,18 @@ impl CommandImplementation for CallEVMViewFunction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,

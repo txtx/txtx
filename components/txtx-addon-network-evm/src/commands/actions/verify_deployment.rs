@@ -1,22 +1,20 @@
 use foundry_block_explorers::Client as BlockExplorerClient;
-use std::collections::VecDeque;
-use std::fmt::Write;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
+use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
 lazy_static! {
@@ -104,19 +102,19 @@ impl CommandImplementation for VerifyContractDeployment {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -132,13 +130,14 @@ impl CommandImplementation for VerifyContractDeployment {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use alloy_chains::Chain;
         use foundry_block_explorers::verify::VerifyContract;
@@ -153,16 +152,16 @@ impl CommandImplementation for VerifyContractDeployment {
             typing::ETH_TX_HASH,
         };
 
-        let args = args.clone();
-        let uuid = uuid.clone();
+        let inputs = inputs.clone();
+        let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
-        let confirmations_required = args
+        let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
-        let network_id = args.get_defaulting_string(NETWORK_ID, &defaults)?;
-        let chain_id = args
+        let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
+        let chain_id = inputs
             .get_defaulting_string(CHAIN_ID, &defaults)?
             .parse::<u64>()
             .map_err(|e| {
@@ -172,12 +171,12 @@ impl CommandImplementation for VerifyContractDeployment {
                 )
             })?;
 
-        let tx_hash = args.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
-        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+        let tx_hash = inputs.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
+        let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
         let explorer_api_key =
-            args.get_optional_defaulting_value(BLOCK_EXPLORER_API_KEY, defaults)?;
+            inputs.get_optional_defaulting_string(BLOCK_EXPLORER_API_KEY, defaults)?;
 
-        let artifacts = args.get_object(ARTIFACTS)?;
+        let artifacts = inputs.get_object(ARTIFACTS)?;
 
         if explorer_api_key.is_none() && artifacts.is_some() {
             return Err(diagnosed_error!("command 'evm::verify_deployment': cannot deploy artifacts without block explorer api key"));
@@ -185,12 +184,12 @@ impl CommandImplementation for VerifyContractDeployment {
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-        let is_supervised = execution_context.is_supervised;
+        let is_supervised = supervision_context.is_supervised;
         let future = async move {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
-                &uuid.value(),
+                &construct_did,
                 &ProgressBarStatus {
                     status_color: ProgressBarStatusColor::Yellow,
                     status: format!("Pending {}", progress_symbol[progress]),

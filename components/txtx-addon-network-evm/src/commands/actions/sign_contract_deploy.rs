@@ -1,8 +1,7 @@
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
-use std::str::FromStr;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionResult, CommandImplementation, PreCommandSpecification,
+    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
@@ -10,15 +9,16 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::wallets::{
     return_synchronous_ok, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
-    WalletsState,
 };
+use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
-use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_kit::types::{
+    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::CommonTransactionFields;
@@ -27,6 +27,8 @@ use crate::constants::{
 };
 use crate::rpc::EVMRpc;
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
+
+use super::get_signing_construct_did;
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_DEPLOY: PreCommandSpecification = define_command! {
@@ -153,52 +155,59 @@ impl CommandImplementation for SignEVMContractDeploy {
 
     #[cfg(not(feature = "wasm"))]
     fn check_signed_executability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
-        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        supervision_context: &RunbookSupervisionContext,
+        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use alloy::{consensus::Transaction, hex, network::TransactionBuilder};
+        use alloy::{consensus::Transaction, network::TransactionBuilder};
 
         use crate::{
             codec::get_typed_transaction_bytes,
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_FROM},
+            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::ETH_TRANSACTION,
         };
 
-        let signer = args.get_expected_string(TRANSACTION_FROM).unwrap();
-        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
-        let wallet = wallets_instances.get(&wallet_uuid).unwrap().clone();
-        let uuid = uuid.clone();
+        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signing_command_state = wallets
+            .pop_signing_command_state(&signing_construct_did)
+            .unwrap();
+        let wallet = wallets_instances
+            .get(&signing_construct_did)
+            .unwrap()
+            .clone();
+        let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
         let args = args.clone();
         let defaults = defaults.clone();
-        let execution_context = execution_context.clone();
+        let supervision_context = supervision_context.clone();
         let wallets_instances = wallets_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
-            if let Some(_) =
-                wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            let mut signing_command_state = wallets
+                .pop_signing_command_state(&signing_construct_did)
+                .unwrap();
+            if let Some(_) = signing_command_state
+                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                return Ok((wallets, wallet_state, Actions::none()));
+                return Ok((wallets, signing_command_state, Actions::none()));
             }
 
             let transaction =
-                build_unsigned_contract_deploy(&wallet_state, &spec, &args, &defaults)
+                build_unsigned_contract_deploy(&signing_command_state, &spec, &args, &defaults)
                     .await
-                    .map_err(|diag| (wallets.clone(), wallet_state.clone(), diag))?;
+                    .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
                     wallets.clone(),
-                    wallet_state.clone(),
+                    signing_command_state.clone(),
                     diagnosed_error!("command 'evm::sign_transfer': {e}"),
                 )
             })?;
@@ -206,18 +215,18 @@ impl CommandImplementation for SignEVMContractDeploy {
 
             let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
 
-            wallet_state.insert_scoped_value(
-                &uuid.value().to_string(),
+            signing_command_state.insert_scoped_value(
+                &construct_did.value().to_string(),
                 UNSIGNED_TRANSACTION_BYTES,
                 payload.clone(),
             );
-            wallets.push_wallet_state(wallet_state);
+            wallets.push_signing_command_state(signing_command_state);
 
-            if execution_context.review_input_values {
+            if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
                 actions.push_sub_group(vec![
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(construct_did.clone()),
                         "".into(),
                         Some(format!("Check account nonce")),
                         ActionItemStatus::Todo,
@@ -228,7 +237,7 @@ impl CommandImplementation for SignEVMContractDeploy {
                         ACTION_ITEM_CHECK_NONCE,
                     ),
                     ActionItemRequest::new(
-                        &Some(uuid.value()),
+                        &Some(construct_did.clone()),
                         "µSTX".into(),
                         Some(format!("Check transaction fee")),
                         ActionItemStatus::Todo,
@@ -241,24 +250,26 @@ impl CommandImplementation for SignEVMContractDeploy {
                 ])
             }
 
-            let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+            let signing_command_state = wallets
+                .pop_signing_command_state(&signing_construct_did)
+                .unwrap();
             let description = args
                 .get_expected_string("description")
                 .ok()
                 .and_then(|d| Some(d.to_string()));
             let (wallets, wallet_state, mut wallet_actions) =
                 (wallet.specification.check_signability)(
-                    &uuid,
+                    &construct_did,
                     &instance_name,
                     &description,
                     &payload,
                     &wallet.specification,
                     &args,
-                    wallet_state,
+                    signing_command_state,
                     wallets,
                     &wallets_instances,
                     &defaults,
-                    &execution_context,
+                    &supervision_context,
                 )?;
             actions.append(&mut wallet_actions);
             Ok((wallets, wallet_state, actions))
@@ -267,17 +278,18 @@ impl CommandImplementation for SignEVMContractDeploy {
     }
 
     fn run_signed_execution(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        mut wallets: WalletsState,
+        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
-        let signer = args.get_expected_string("from").unwrap();
-        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
-        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
+        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signing_command_state = wallets
+            .pop_signing_command_state(&signing_construct_did)
+            .unwrap();
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
@@ -285,13 +297,15 @@ impl CommandImplementation for SignEVMContractDeploy {
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
-            return return_synchronous_ok(wallets, wallet_state, result);
+            return return_synchronous_ok(wallets, signing_command_state, result);
         }
 
-        let wallet = wallets_instances.get(&wallet_uuid).unwrap();
-
-        let payload = wallet_state
-            .get_scoped_value(&uuid.value().to_string(), UNSIGNED_TRANSACTION_BYTES)
+        let wallet = wallets_instances.get(&signing_construct_did).unwrap();
+        let payload = signing_command_state
+            .get_scoped_value(
+                &construct_did.value().to_string(),
+                UNSIGNED_TRANSACTION_BYTES,
+            )
             .unwrap()
             .clone();
 
@@ -300,12 +314,12 @@ impl CommandImplementation for SignEVMContractDeploy {
             .unwrap_or("New Transaction".into());
 
         let res = (wallet.specification.sign)(
-            uuid,
+            construct_did,
             title,
             &payload,
             &wallet.specification,
             &args,
-            wallet_state,
+            signing_command_state,
             wallets,
             wallets_instances,
             &defaults,

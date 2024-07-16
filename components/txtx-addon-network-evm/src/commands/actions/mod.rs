@@ -3,7 +3,9 @@ use std::str::FromStr;
 use alloy::primitives::Address;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification,
+    diagnostics::Diagnostic,
     types::{PrimitiveValue, Value},
+    ConstructDid, Did, ValueStore,
 };
 
 pub mod call_view_function;
@@ -21,6 +23,8 @@ use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
 use sign_contract_deploy::SIGN_EVM_CONTRACT_DEPLOY;
 use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_deployment::VERIFY_CONTRACT_DEPLOYMENT;
+
+use crate::constants::TRANSACTION_FROM;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -44,4 +48,10 @@ pub fn get_expected_address(value: &Value) -> Result<Address, String> {
         }
         value => Err(format!("unexpected address type: {:?}", value)),
     }
+}
+
+fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
+    let signer = args.get_expected_string(TRANSACTION_FROM)?;
+    let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
+    Ok(signing_construct_did)
 }

@@ -1,44 +1,41 @@
-use alloy::consensus::TypedTransaction;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
-use alloy::providers::{Provider, ProviderBuilder, WalletProvider};
-use alloy::rpc::types::{Transaction, TransactionReceipt, TransactionRequest};
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::rpc::types::TransactionRequest;
 use alloy::signers::k256::ecdsa::SigningKey;
 use alloy_signer_local::coins_bip39::English;
 use alloy_signer_local::{LocalSigner, MnemonicBuilder};
 use hmac::Hmac;
-use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
-use serde::Deserialize;
 use sha2::Sha512;
 use std::collections::HashMap;
-use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::reqwest::Url;
-use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::wallets::{
     return_synchronous_result, CheckSignabilityOk, WalletActionErr, WalletActionsFutureResult,
-    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult,
 };
 use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
+use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{
+    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+};
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, RPC_API_URL, SIGNED_MESSAGE_BYTES,
-};
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, RPC_API_URL};
 use crate::typing::ETH_TX_HASH;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
-use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
+use crate::constants::PUBLIC_KEYS;
 
 use super::DEFAULT_DERIVATION_PATH;
 
@@ -53,25 +50,29 @@ lazy_static! {
                 documentation: "The mnemonic phrase used to generate the secret key.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             },
             derivation_path: {
                 documentation: "The derivation path used to generate the secret key.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             },
             is_encrypted: {
                 documentation: "Coming soon",
                 typing: Type::bool(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: false
             },
             password: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                sensitive: true
             }
           ],
           outputs: [
@@ -105,22 +106,22 @@ impl WalletImplementation for EVMMnemonic {
 
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        mut signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
         let mut actions = Actions::none();
 
-        if wallet_state.get_value(PUBLIC_KEYS).is_some() {
-            return return_synchronous_actions(Ok((wallets, wallet_state, actions)));
+        if signing_command_state.get_value(PUBLIC_KEYS).is_some() {
+            return return_synchronous_actions(Ok((wallets, signing_command_state, actions)));
         }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
@@ -134,23 +135,23 @@ impl WalletImplementation for EVMMnemonic {
         };
         // let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
 
-        wallet_state.insert("mnemonic", mnemonic);
-        wallet_state.insert("derivation_path", derivation_path);
-        wallet_state.insert("is_encrypted", is_encrypted);
+        signing_command_state.insert("mnemonic", mnemonic);
+        signing_command_state.insert("derivation_path", derivation_path);
+        signing_command_state.insert("is_encrypted", is_encrypted);
 
-        let expected_wallet = match get_mnemonic_wallet(args, defaults, &wallet_state) {
+        let expected_wallet = match get_mnemonic_wallet(args, defaults, &signing_command_state) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, wallet_state, diag)),
+            Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
         let expected_address: Address = expected_wallet.address();
-        wallet_state.insert(
+        signing_command_state.insert(
             "signer_address",
             Value::string(expected_address.to_string()),
         );
         // wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         // wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
-        if execution_context.review_input_values {
+        if supervision_context.review_input_values {
             actions.push_sub_group(vec![ActionItemRequest::new(
                 &None,
                 &format!("Check {} expected address", instance_name),
@@ -163,49 +164,49 @@ impl WalletImplementation for EVMMnemonic {
                 ACTION_ITEM_CHECK_ADDRESS,
             )]);
         }
-        let future = async move { Ok((wallets, wallet_state, actions)) };
+        let future = async move { Ok((wallets, signing_command_state, actions)) };
         Ok(Box::pin(future))
     }
 
     fn activate(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
         let result = CommandExecutionResult::new();
-        return_synchronous_result(Ok((wallets, wallet_state, result)))
+        return_synchronous_result(Ok((wallets, signing_command_state, result)))
     }
 
     fn check_signability(
-        _caller_uuid: &ConstructUuid,
+        _caller_uuid: &ConstructDid,
         _title: &str,
         _description: &Option<String>,
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        Ok((wallets, wallet_state, Actions::none()))
+        Ok((wallets, signing_command_state, Actions::none()))
     }
 
     fn sign(
-        _caller_uuid: &ConstructUuid,
+        _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         let args = args.clone();
@@ -216,10 +217,11 @@ impl WalletImplementation for EVMMnemonic {
             let mut result = CommandExecutionResult::new();
 
             let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults).unwrap();
-            let mnemonic_signer = match get_mnemonic_wallet(&args, &defaults, &wallet_state) {
-                Ok(value) => value,
-                Err(diag) => return Err((wallets, wallet_state, diag)),
-            };
+            let mnemonic_signer =
+                match get_mnemonic_wallet(&args, &defaults, &signing_command_state) {
+                    Ok(value) => value,
+                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                };
             let eth_wallet = EthereumWallet::from(mnemonic_signer);
 
             let payload_buffer = payload.expect_buffer_data();
@@ -241,7 +243,7 @@ impl WalletImplementation for EVMMnemonic {
                 "tx_hash".to_string(),
                 Value::buffer(tx_hash.to_vec(), ETH_TX_HASH.clone()),
             );
-            Ok((wallets, wallet_state, result))
+            Ok((wallets, signing_command_state, result))
         };
         Ok(Box::pin(future))
     }

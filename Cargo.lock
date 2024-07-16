@@ -1518,9 +1518,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.37"
+version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a0d04d43504c61aa6c7531f1871dd0d418d91130162063b789da00fd7057a5e"
+checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -5119,6 +5119,7 @@ version = "1.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "455182ea6142b14f93f4bc5320a2b31c1f266b66a4a5c858b013302a5d8cbfc3"
 dependencies = [
+ "indexmap 2.2.6",
  "itoa",
  "ryu",
  "serde",
@@ -5332,6 +5333,12 @@ dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "similar"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa42c91313f1d05da9b26f267f931cf178d4aba455b4c4622dd7355eb80c6640"
 
 [[package]]
 name = "simple_asn1"
@@ -6234,6 +6241,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "sha2 0.10.8",
  "test-case",
  "url",
  "uuid",
@@ -6248,7 +6256,6 @@ dependencies = [
  "libsecp256k1 0.7.1",
  "pbkdf2 0.12.2",
  "serde_json",
- "sha2 0.10.8",
  "tiny-hderive",
  "txtx-addon-kit",
  "wasm-bindgen",
@@ -6295,7 +6302,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sha2 0.10.8",
  "tiny-hderive",
  "txtx-addon-kit",
  "wasm-bindgen",
@@ -6328,12 +6334,12 @@ dependencies = [
  "native-tls",
  "npm_rs",
  "ratatui",
+ "rusqlite",
  "rust-embed",
  "serde",
  "serde_derive",
  "serde_json",
  "serde_yml",
- "sha2 0.10.8",
  "test-case",
  "tokio",
  "tokio-tungstenite",
@@ -6351,6 +6357,7 @@ name = "txtx-core"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "daggy",
  "getrandom 0.2.13",
  "hiro-system-kit 0.3.4",
@@ -6365,8 +6372,9 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_yml",
- "sha2 0.10.8",
+ "similar",
  "txtx-addon-kit",
+ "txtx-addon-network-evm",
  "txtx-addon-network-stacks",
 ]
 

@@ -1,14 +1,15 @@
 use txtx_addon_kit::types::commands::{
-    return_synchronous_ok, CommandExecutionContext, CommandExecutionFutureResult,
-    CommandImplementation, PreCommandSpecification,
+    return_synchronous_ok, CommandExecutionFutureResult, CommandImplementation,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{CHAIN_ID, NETWORK_ID, RPC_API_URL};
@@ -79,21 +80,21 @@ impl CommandImplementation for SetStacksGlobals {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
-        _spec: &CommandSpecification,
+        _construct_id: &ConstructDid,
+        spec: &CommandSpecification,
         args: &ValueStore,
-        _defaults: &AddonDefaults,
+        defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();

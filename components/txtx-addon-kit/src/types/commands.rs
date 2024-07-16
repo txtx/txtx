@@ -27,20 +27,13 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
-    types::{ObjectProperty, Type, TypeSpecification, Value},
+    types::{ObjectProperty, RunbookSupervisionContext, Type, TypeSpecification, Value},
     wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
-        WalletActionsFutureResult, WalletInstance, WalletSignFutureResult, WalletsState,
+        SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
     },
-    ConstructUuid, PackageUuid, ValueStore,
+    ConstructDid, Did, PackageId, ValueStore,
 };
-
-#[derive(Clone, Debug)]
-pub struct CommandExecutionContext {
-    pub review_input_default_values: bool,
-    pub review_input_values: bool,
-    pub is_supervised: bool,
-}
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -94,7 +87,7 @@ impl Serialize for CommandInputsEvaluationResult {
 impl CommandInputsEvaluationResult {
     pub fn new(name: &str) -> Self {
         Self {
-            inputs: ValueStore::new(&format!("{name}_inputs"), &Uuid::new_v4()),
+            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()),
         }
     }
 
@@ -112,6 +105,7 @@ pub struct CommandInput {
     pub interpolable: bool,
     pub check_required: bool,
     pub check_performed: bool,
+    pub sensitive: bool,
 }
 
 impl CommandInput {
@@ -188,12 +182,6 @@ impl CommandId {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum CommandInstanceOrParts {
-    Instance(CommandInstance),
-    Parts(Vec<String>),
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum PreCommandSpecification {
     Atomic(CommandSpecification),
@@ -243,6 +231,19 @@ pub struct CompositeCommandSpecification {
 }
 
 impl CommandSpecification {
+    pub fn set_input_as_sensitive(&mut self, input_name: &str) {
+        for input in self.inputs.iter_mut() {
+            if input.name.eq(input_name) {
+                input.sensitive = true;
+            }
+        }
+        for input in self.default_inputs.iter_mut() {
+            if input.name.eq(input_name) {
+                input.sensitive = true;
+            }
+        }
+    }
+
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
@@ -253,6 +254,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -262,6 +264,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -271,6 +274,7 @@ impl CommandSpecification {
                 interpolable: false,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "sensitive".into(),
@@ -280,6 +284,7 @@ impl CommandSpecification {
                 interpolable: false,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "group".into(),
@@ -289,6 +294,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
             CommandInput {
                 name: "depends_on".into(),
@@ -298,6 +304,7 @@ impl CommandSpecification {
                 interpolable: true,
                 check_performed: false,
                 check_required: false,
+                sensitive: false,
             },
         ]
     }
@@ -337,7 +344,7 @@ pub type CommandExecutionFuture =
 
 pub type CommandExecutionClosure = Box<
     fn(
-        &ConstructUuid,
+        &ConstructDid,
         &CommandSpecification,
         &ValueStore,
         &AddonDefaults,
@@ -347,25 +354,26 @@ pub type CommandExecutionClosure = Box<
 
 pub type CommandBackgroundTaskExecutionClosure = Box<
     fn(
-        &ConstructUuid,
+        &ConstructDid,
         &CommandSpecification,
+        &ValueStore,
         &ValueStore,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
         &Uuid,
-        &CommandExecutionContext,
+        &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult,
 >;
 
 pub type CommandSignedExecutionClosure = Box<
     fn(
-        &ConstructUuid,
+        &ConstructDid,
         &CommandSpecification,
         &ValueStore,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
-        &HashMap<ConstructUuid, WalletInstance>,
-        WalletsState,
+        &HashMap<ConstructDid, WalletInstance>,
+        SigningCommandsState,
     ) -> WalletSignFutureResult,
 >;
 
@@ -373,23 +381,23 @@ type CommandRouter =
     fn(&String, &String, &Vec<PreCommandSpecification>) -> Result<Vec<String>, Diagnostic>;
 
 pub type CommandCheckExecutabilityClosure = fn(
-    &ConstructUuid,
+    &ConstructDid,
     &str,
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &CommandExecutionContext,
+    &RunbookSupervisionContext,
 ) -> Result<Actions, Diagnostic>;
 
 pub type CommandCheckSignedExecutabilityClosure = fn(
-    &ConstructUuid,
+    &ConstructDid,
     &str,
     &CommandSpecification,
     &ValueStore,
     &AddonDefaults,
-    &CommandExecutionContext,
-    &HashMap<ConstructUuid, WalletInstance>,
-    WalletsState,
+    &RunbookSupervisionContext,
+    &HashMap<ConstructDid, WalletInstance>,
+    SigningCommandsState,
 ) -> WalletActionsFutureResult;
 
 pub fn return_synchronous_result(
@@ -457,6 +465,7 @@ pub enum CommandInstanceType {
     Action,
     Prompt,
     Module,
+    Addon,
 }
 
 #[derive(Debug, Clone)]
@@ -464,7 +473,7 @@ pub struct CommandInstance {
     pub specification: CommandSpecification,
     pub name: String,
     pub block: Block,
-    pub package_uuid: PackageUuid,
+    pub package_id: PackageId,
     pub namespace: String,
     pub typing: CommandInstanceType,
 }
@@ -481,7 +490,7 @@ impl Serialize for CommandInstance {
         let mut ser = serializer.serialize_struct("CommandInstance", 6)?;
         ser.serialize_field("specification", &self.specification)?;
         ser.serialize_field("name", &self.name)?;
-        ser.serialize_field("packageUuid", &self.package_uuid)?;
+        ser.serialize_field("packageUuid", &self.package_id.did())?;
         ser.serialize_field("namespace", &self.namespace)?;
         ser.serialize_field("typing", &self.typing)?;
         ser.end()
@@ -521,7 +530,7 @@ impl CommandInstance {
 
     pub fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Result<Vec<Expression>, String> {
+    ) -> Result<Vec<(Option<&CommandInput>, Expression)>, String> {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -530,7 +539,11 @@ impl CommandInstance {
                         .map_err(|e| format!("{:?}", e))?;
                     if let Some(expr) = res {
                         let mut references = vec![];
-                        collect_constructs_references_from_expression(&expr, &mut references);
+                        collect_constructs_references_from_expression(
+                            &expr,
+                            Some(input),
+                            &mut references,
+                        );
                         expressions.append(&mut references);
                     }
                     for prop in props.iter() {
@@ -542,6 +555,7 @@ impl CommandInstance {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
                                     &expr,
+                                    Some(input),
                                     &mut references,
                                 );
                                 expressions.append(&mut references);
@@ -554,7 +568,11 @@ impl CommandInstance {
                         .map_err(|e| format!("{:?}", e))?;
                     if let Some(expr) = res {
                         let mut references = vec![];
-                        collect_constructs_references_from_expression(&expr, &mut references);
+                        collect_constructs_references_from_expression(
+                            &expr,
+                            Some(input),
+                            &mut references,
+                        );
                         expressions.append(&mut references);
                     }
                 }
@@ -563,7 +581,11 @@ impl CommandInstance {
         if self.specification.accepts_arbitrary_inputs {
             for attribute in self.block.body.attributes() {
                 let mut references = vec![];
-                collect_constructs_references_from_expression(&attribute.value, &mut references);
+                collect_constructs_references_from_expression(
+                    &attribute.value,
+                    None,
+                    &mut references,
+                );
                 expressions.append(&mut references);
             }
         }
@@ -655,16 +677,16 @@ impl CommandInstance {
 
     pub fn check_executability(
         &mut self,
-        construct_uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
+        _wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(
             &format!("{}_inputs", self.specification.matcher),
-            &construct_uuid.value(),
+            &construct_did.value(),
         );
 
         let mut consolidated_actions = Actions::none();
@@ -742,12 +764,12 @@ impl CommandInstance {
         let spec = &self.specification;
         if spec.matcher != "output" {
             let mut actions = (spec.check_executability)(
-                &construct_uuid,
+                &construct_did,
                 &self.name,
                 &spec,
                 &values,
                 &addon_defaults,
-                &execution_context,
+                &supervision_context,
             )?;
             consolidated_actions.append(&mut actions);
         }
@@ -756,21 +778,21 @@ impl CommandInstance {
 
     pub async fn perform_execution(
         &self,
-        construct_uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
         }
 
         let spec = &self.specification;
         let res = (spec.run_execution)(
-            &construct_uuid,
+            &construct_did,
             &self.specification,
             &values,
             &addon_defaults,
@@ -813,16 +835,16 @@ impl CommandInstance {
 
     pub async fn check_signed_executability(
         &mut self,
-        construct_uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         addon_defaults: AddonDefaults,
-        wallet_instances: &mut HashMap<ConstructUuid, WalletInstance>,
+        wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
-        execution_context: &CommandExecutionContext,
-    ) -> Result<(WalletsState, Actions), (WalletsState, Diagnostic)> {
-        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        supervision_context: &RunbookSupervisionContext,
+    ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
+        let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
         }
@@ -872,41 +894,42 @@ impl CommandInstance {
 
         let spec = &self.specification;
         let future = (spec.check_signed_executability)(
-            &construct_uuid,
+            &construct_did,
             &self.name,
             &self.specification,
             &values,
             &addon_defaults,
-            &execution_context,
+            &supervision_context,
             wallet_instances,
             wallets,
         );
         let res = consolidate_wallet_future_result(future).await?;
-        let (wallet_state, mut actions) = res?;
+        let (signing_command_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
-        Ok((wallet_state, consolidated_actions))
+        Ok((signing_command_state, consolidated_actions))
     }
 
     pub async fn perform_signed_execution(
         &self,
-        construct_uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        wallets: WalletsState,
+        wallets: SigningCommandsState,
         addon_defaults: AddonDefaults,
-        wallet_instances: &HashMap<ConstructUuid, WalletInstance>,
+        wallet_instances: &HashMap<ConstructDid, WalletInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
-    ) -> Result<(WalletsState, CommandExecutionResult), (WalletsState, Diagnostic)> {
-        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+    ) -> Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)>
+    {
+        let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
         }
 
         let spec = &self.specification;
         let future = (spec.run_signed_execution)(
-            &construct_uuid,
+            &construct_did,
             &self.specification,
             &values,
             &addon_defaults,
@@ -948,36 +971,40 @@ impl CommandInstance {
 
     pub fn build_background_task(
         &self,
-        construct_uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         execution_result: &CommandExecutionResult,
         addon_defaults: AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        let mut values = ValueStore::new(&self.name, &construct_uuid.value());
+        let mut inputs = ValueStore::new(&self.name, &construct_did.value());
+        let mut outputs = ValueStore::new(&self.name, &construct_did.value());
+
         for (key, value) in evaluated_inputs.inputs.iter() {
-            values.insert(key, value.clone());
+            inputs.insert(key, value.clone());
         }
         for (key, value) in execution_result.outputs.iter() {
-            values.insert(key, value.clone());
+            inputs.insert(key, value.clone());
+            outputs.insert(key, value.clone());
         }
 
         let spec = &self.specification;
         let res = (spec.build_background_task)(
-            &construct_uuid,
+            &construct_did,
             &self.specification,
-            &values,
+            &inputs,
+            &outputs,
             &addon_defaults,
             progress_tx,
             background_tasks_uuid,
-            execution_context,
+            supervision_context,
         );
         res
     }
 
-    pub fn collect_dependencies(&self) -> Vec<Expression> {
+    pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
@@ -990,6 +1017,7 @@ impl CommandInstance {
                             };
                             collect_constructs_references_from_expression(
                                 &attr.value,
+                                Some(input),
                                 &mut dependencies,
                             );
                         }
@@ -999,7 +1027,11 @@ impl CommandInstance {
                     let Some(attr) = self.block.body.get_attribute(&input.name) else {
                         continue;
                     };
-                    collect_constructs_references_from_expression(&attr.value, &mut dependencies);
+                    collect_constructs_references_from_expression(
+                        &attr.value,
+                        Some(input),
+                        &mut dependencies,
+                    );
                 }
             }
         }
@@ -1014,17 +1046,17 @@ pub trait CommandImplementation {
     ) -> Result<Type, Diagnostic>;
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -1034,38 +1066,39 @@ pub trait CommandImplementation {
     }
 
     fn check_signed_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _wallets_state: WalletsState,
+        _supervision_context: &RunbookSupervisionContext,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signing_commands_state: SigningCommandsState,
     ) -> WalletActionsFutureResult {
         unimplemented!()
     }
 
     fn run_signed_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        _wallets_state: WalletsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signing_commands_state: SigningCommandsState,
     ) -> WalletSignFutureResult {
         unimplemented!()
     }
 
     fn build_background_task(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
+        _inputs: &ValueStore,
+        _outputs: &ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

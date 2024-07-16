@@ -1,14 +1,12 @@
-use std::collections::hash_map::Iter;
-use std::collections::HashMap;
-use std::str::FromStr;
-
 use diagnostics::{Diagnostic, DiagnosticLevel};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use sha2::{Digest, Sha256};
+use std::collections::hash_map::Iter;
+use std::collections::HashMap;
 use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
-use uuid::Uuid;
 
-use crate::AddonDefaults;
+use crate::{helpers::fs::FileLocation, AddonDefaults};
 
 pub mod block_id;
 pub mod commands;
@@ -21,93 +19,207 @@ pub mod wallets;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum ConstructUuid {
-    Local(Uuid),
-}
+#[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct Did(pub [u8; 32]);
 
-impl ConstructUuid {
-    pub fn new() -> Self {
-        Self::Local(Uuid::new_v4())
-    }
-
-    pub fn from_uuid(uuid: &Uuid) -> Self {
-        Self::Local(uuid.clone())
-    }
-
-    pub fn value(&self) -> Uuid {
-        match &self {
-            Self::Local(v) => v.clone(),
+impl Did {
+    pub fn from_components(comps: Vec<impl AsRef<[u8]>>) -> Self {
+        let mut hasher = Sha256::new();
+        for comp in comps {
+            hasher.update(comp);
         }
+        let hash = hasher.finalize();
+        Did(hash.into())
+    }
+
+    pub fn from_hex_string(source_bytes_str: &str) -> Self {
+        let bytes = hex::decode(source_bytes_str).expect("invalid hex_string");
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(source_bytes: &Vec<u8>) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&source_bytes);
+        Did(bytes)
+    }
+
+    pub fn zero() -> Self {
+        Self([0u8; 32])
+    }
+
+    pub fn to_string(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }
 
-impl Serialize for ConstructUuid {
+impl Serialize for Did {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match self {
-            Self::Local(uuid) => serializer.serialize_str(&format!("local:{}", uuid.to_string())),
-        }
+        serializer.serialize_str(&format!("0x{}", self))
     }
 }
 
-impl<'de> Deserialize<'de> for ConstructUuid {
-    fn deserialize<D>(deserializer: D) -> Result<ConstructUuid, D::Error>
+impl<'de> Deserialize<'de> for Did {
+    fn deserialize<D>(deserializer: D) -> Result<Did, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let uuid: String = serde::Deserialize::deserialize(deserializer)?;
-        match uuid.strip_prefix("local:") {
-            Some(result) => {
-                let uuid = Uuid::from_str(&result).map_err(D::Error::custom)?;
-                Ok(ConstructUuid::from_uuid(&uuid))
-            }
-            None => Err(D::Error::custom(
-                "UUID string must be prefixed with 'local:'",
-            )),
-        }
+        let bytes_hex: String = serde::Deserialize::deserialize(deserializer)?;
+        let bytes = hex::decode(&bytes_hex[2..]).map_err(|e| D::Error::custom(e.to_string()))?;
+        Ok(Did::from_bytes(&bytes))
+    }
+}
+
+impl std::fmt::Display for Did {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl std::fmt::Debug for Did {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "0x{}", self.to_string())
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum PackageUuid {
-    Local(Uuid),
-}
+pub struct RunbookDid(pub Did);
 
-impl Serialize for PackageUuid {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Local(uuid) => serializer.serialize_str(&format!("local:{}", uuid.to_string())),
-        }
+impl RunbookDid {
+    pub fn value(&self) -> Did {
+        self.0.clone()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 
-impl PackageUuid {
-    pub fn new() -> Self {
-        Self::Local(Uuid::new_v4())
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct RunbookId {
+    /// Canonical name of the org authoring the workspace
+    pub org: Option<String>,
+    /// Canonical name of the workspace supporting the runbook
+    pub workspace: Option<String>,
+    /// Canonical name of the runbook
+    pub name: String,
+}
+
+impl RunbookId {
+    pub fn did(&self) -> RunbookDid {
+        let mut comps = vec![];
+        if let Some(ref org) = self.org {
+            comps.push(org.as_bytes());
+        }
+        if let Some(ref workspace) = self.workspace {
+            comps.push(workspace.as_bytes());
+        }
+        comps.push(self.name.as_bytes());
+        let did = Did::from_components(comps);
+        RunbookDid(did)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PackageDid(pub Did);
+
+impl PackageDid {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 
-    pub fn value(&self) -> Uuid {
-        match &self {
-            Self::Local(v) => v.clone(),
-        }
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct PackageId {
+    /// Id of the Runbook
+    pub runbook_id: RunbookId,
+    /// Location of the package within the workspace
+    pub package_location: FileLocation,
+    /// Name of the package
+    pub package_name: String,
+}
+
+impl PackageId {
+    pub fn did(&self) -> PackageDid {
+        let did = Did::from_components(vec![
+            self.runbook_id.did().as_bytes(),
+            self.package_location.to_string().as_bytes(),
+            self.package_name.to_string().as_bytes(),
+        ]);
+        PackageDid(did)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
+pub struct ConstructDid(pub Did);
+
+impl ConstructDid {
+    pub fn value(&self) -> Did {
+        self.0.clone()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
     }
 }
 
 #[derive(Debug, Clone)]
+pub struct ConstructId {
+    /// Id of the Package
+    pub package_id: PackageId,
+    /// Location of the file enclosing the construct
+    pub construct_location: FileLocation,
+    /// Type of construct (e.g. `input` in `input.value``)
+    pub construct_type: String,
+    /// Name of construct (e.g. `value` in `input.value``)
+    pub construct_name: String,
+}
+
+impl ConstructId {
+    pub fn did(&self) -> ConstructDid {
+        let did = Did::from_components(vec![
+            self.package_id.did().as_bytes(),
+            self.construct_location.to_string().as_bytes(),
+            self.construct_type.to_string().as_bytes(),
+            self.construct_name.to_string().as_bytes(),
+        ]);
+        ConstructDid(did)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Construct {
+    /// Id of the Construct
+    pub construct_id: ConstructId,
+}
+
+#[derive(Debug, Clone)]
 pub struct ValueStore {
-    pub uuid: Uuid,
+    pub uuid: Did,
     name: String,
     storage: HashMap<String, Value>,
 }
 
 impl ValueStore {
-    pub fn new(name: &str, uuid: &Uuid) -> ValueStore {
+    pub fn new(name: &str, uuid: &Did) -> ValueStore {
         ValueStore {
             name: name.to_string(),
             uuid: uuid.clone(),
@@ -121,15 +233,7 @@ impl ValueStore {
         defaults: &AddonDefaults,
     ) -> Result<String, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            let res =
-                defaults
-                    .keys
-                    .get(key)
-                    .map(|x| x.as_str())
-                    .ok_or(Diagnostic::error_from_string(format!(
-                        "store '{}': unable to retrieve key '{}'",
-                        self.name, key
-                    )))?;
+            let res = defaults.store.get_expected_string(key)?;
             return Ok(res.to_string());
         };
         let Some(value) = value.as_string() else {
@@ -149,13 +253,16 @@ impl ValueStore {
         Ok(value.to_string())
     }
 
-    pub fn get_optional_defaulting_value(
+    pub fn get_optional_defaulting_string(
         &self,
         key: &str,
         defaults: &AddonDefaults,
     ) -> Result<Option<String>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            let res = defaults.keys.get(key).map(|x| x.to_string());
+            let res = defaults
+                .store
+                .get_string(key)
+                .and_then(|s| Some(s.to_string()));
             return Ok(res);
         };
         let Some(value) = value.as_string() else {
@@ -183,12 +290,6 @@ impl ValueStore {
             )));
         };
         Ok(value)
-    }
-
-    pub fn get_wallet_uuid(&self) -> Result<ConstructUuid, Diagnostic> {
-        let signer = self.get_expected_string("signer")?;
-        let wallet_uuid = ConstructUuid::Local(Uuid::from_str(&signer).unwrap());
-        Ok(wallet_uuid)
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {

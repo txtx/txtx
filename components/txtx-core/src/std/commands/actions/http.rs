@@ -1,12 +1,11 @@
 use kit::types::frontend::{Actions, BlockEvent};
+use kit::types::types::RunbookSupervisionContext;
 use kit::types::ValueStore;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::types::ObjectProperty;
-use txtx_addon_kit::types::ConstructUuid;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
@@ -97,18 +96,18 @@ impl CommandImplementation for SendHttpRequest {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
         _defaults: &AddonDefaults,
