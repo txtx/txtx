@@ -75,10 +75,26 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
             // let old = load_snapshot("./state_old.json")?;
             // let new = load_snapshot("./state_new.json")?;
 
-            let data = serde_json::to_string_pretty(&new).unwrap().to_string();
+            // let data = serde_json::to_string_pretty(&new).unwrap().to_string();
 
-            println!("{data}");
-            let _res = ctx.diff(old, new);
+            // println!("{data}");
+            let res = ctx.diff(old, new);
+
+            for change in res.iter() {
+                if !change.description.is_empty() {
+                    let fmt_critical = match change.critical {
+                        true => "[critical]",
+                        false => "[cosmetic]",
+                    };
+
+                    println!(
+                        "{}: {}\n{}",
+                        fmt_critical,
+                        change.label,
+                        change.description.join("\n")
+                    );
+                }
+            }
         }
         None => {}
     }
