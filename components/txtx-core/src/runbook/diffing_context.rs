@@ -27,10 +27,7 @@ pub struct RunbookExecutionSnapshot {
 }
 
 impl RunbookExecutionSnapshot {
-    pub fn get_command_with_construct_did(
-        &mut self,
-        construct_did: &ConstructDid,
-    ) -> &CommandSnapshot {
+    pub fn get_command_with_construct_did(&self, construct_did: &ConstructDid) -> &CommandSnapshot {
         for command in self.commands.iter() {
             if command.construct_did.eq(construct_did) {
                 return command;
@@ -243,19 +240,27 @@ impl RunbookSnapshotContext {
             }
 
             let mut outputs: Vec<CommandOutputSnapshot> = vec![];
-            if let Some(outputs_results) = execution_context
-                .commands_execution_results
-                .get(construct_did)
+            if let Some(ref critical_output) = command_instance.specification.create_critical_output
             {
-                for output in command_instance.specification.outputs.iter() {
-                    let Some(value) = outputs_results.outputs.get(&output.name) else {
-                        continue;
-                    };
-                    outputs.push(CommandOutputSnapshot {
-                        name: output.name.clone(),
-                        value: value.clone(),
-                        signed: false, // todo
-                    });
+                if let Some(outputs_results) = execution_context
+                    .commands_execution_results
+                    .get(construct_did)
+                {
+                    for output in command_instance.specification.outputs.iter() {
+                        let Some(value) = outputs_results.outputs.get(&output.name) else {
+                            continue;
+                        };
+                        // This is a major shortcut, we should revisit this approach
+                        let value = match value.as_object().map(|o| o.get(critical_output)) {
+                            Some(Some(Ok(value))) => value.clone(),
+                            _ => Value::null(),
+                        };
+                        outputs.push(CommandOutputSnapshot {
+                            name: output.name.clone(),
+                            value: value,
+                            signed: true,
+                        });
+                    }
                 }
             }
 
@@ -265,7 +270,9 @@ impl RunbookSnapshotContext {
                 .get(construct_did)
             {
                 for construct_did in deps.iter() {
-                    upstream_constructs_dids.push(construct_did.clone());
+                    if workspace_context.constructs.get(construct_did).is_some() {
+                        upstream_constructs_dids.push(construct_did.clone());
+                    }
                 }
             }
 
@@ -430,445 +437,338 @@ impl RunbookSnapshotContext {
             ));
 
             // Let's look at the signed constructs
-            // First: Any new construct?
-            let old_signed_commands_dids = old_signing_command
-                .downstream_constructs_dids
-                .iter()
-                .map(|c| c.0.to_string())
-                .collect::<Vec<_>>();
-            let new_signed_commands_dids = new_signing_command
-                .downstream_constructs_dids
-                .iter()
-                .map(|c| c.0.to_string())
-                .collect::<Vec<_>>();
-            let signed_command_sequence_changes = capture_diff_slices(
-                Algorithm::Myers,
-                &old_signed_commands_dids,
-                &new_signed_commands_dids,
+            let mut changes = diff_command_snapshots(
+                &old_ref,
+                &old_signing_command.downstream_constructs_dids,
+                &new_ref,
+                &new_signing_command.downstream_constructs_dids,
+                &mut visited_constructs,
             );
 
-            // println!("Comparing \n{:?}\n{:?}", old_signed_commands_dids, new_signed_commands_dids);
-
-            let mut comparable_signed_constructs_list = vec![];
-            for change in signed_command_sequence_changes.iter() {
-                match change {
-                    DiffOp::Equal {
-                        old_index,
-                        new_index,
-                        len,
-                    } => {
-                        for i in 0..*len {
-                            comparable_signed_constructs_list.push((old_index + i, new_index + i));
-                        }
-                    }
-                    DiffOp::Delete {
-                        old_index,
-                        old_len: _,
-                        new_index,
-                    } => {
-                        // comparable_signed_constructs_list.push((*old_index, *new_index));
-                    }
-                    DiffOp::Insert {
-                        old_index,
-                        new_index,
-                        new_len: _,
-                    } => {
-                        // comparable_signed_constructs_list.push((*old_index, *new_index));
-                    }
-                    DiffOp::Replace {
-                        old_index,
-                        old_len: _,
-                        new_index,
-                        new_len: _,
-                    } => {
-                        // comparable_signed_constructs_list.push((*old_index, *new_index));
-                    }
-                }
-            }
-
-            for (old_index, new_index) in comparable_signed_constructs_list.into_iter() {
-                let (old_construct_did, new_construct_did) = match (
-                    old_signing_command
-                        .downstream_constructs_dids
-                        .get(old_index),
-                    new_signing_command
-                        .downstream_constructs_dids
-                        .get(new_index),
-                ) {
-                    (Some(old), Some(new)) => (old, new),
-                    _ => continue,
-                };
-
-                if visited_constructs.contains(old_construct_did) {
-                    continue;
-                }
-                visited_constructs.insert(old_construct_did.clone());
-
-                let mut old_signed_command = old_ref
-                    .get_command_with_construct_did(old_construct_did)
-                    .clone();
-                let mut new_signed_command = new_ref
-                    .get_command_with_construct_did(new_construct_did)
-                    .clone();
-
-                // Construct name
-                diffs.push(evaluated_diff(
-                    Some(old_signing_command.construct_did.clone()),
-                    TextDiff::from_lines(
-                        old_signed_command.construct_name.as_str(),
-                        new_signed_command.construct_name.as_str(),
-                    ),
-                    format!("Signing command's name updated"),
-                    false,
-                ));
-
-                // Construct path
-                diffs.push(evaluated_diff(
-                    Some(old_signing_command.construct_did.clone()),
-                    TextDiff::from_lines(
-                        old_signed_command.construct_path.as_str(),
-                        new_signed_command.construct_path.as_str(),
-                    ),
-                    format!("Signing command's path updated"),
-                    false,
-                ));
-
-                // Construct driver
-                diffs.push(evaluated_diff(
-                    Some(old_signing_command.construct_did.clone()),
-                    TextDiff::from_lines(
-                        old_signed_command
-                            .construct_addon
-                            .as_ref()
-                            .unwrap_or(&empty_string),
-                        new_signed_command
-                            .construct_addon
-                            .as_ref()
-                            .unwrap_or(&empty_string),
-                    ),
-                    format!("Signing command's driver updated"),
-                    false,
-                ));
-
-                old_signed_command
-                    .inputs
-                    .sort_by(|a, b| a.name.cmp(&b.name));
-                new_signed_command
-                    .inputs
-                    .sort_by(|a, b| a.name.cmp(&b.name));
-
-                // Check inputs
-                let old_inputs = old_signed_command
-                    .inputs
-                    .iter()
-                    .map(|i| i.name.to_string())
-                    .collect::<Vec<_>>();
-                let new_inputs = new_signed_command
-                    .inputs
-                    .iter()
-                    .map(|i| i.name.to_string())
-                    .collect::<Vec<_>>();
-
-                let inputs_sequence_changes =
-                    capture_diff_slices(Algorithm::Patience, &old_inputs, &new_inputs);
-
-                // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
-
-                let mut comparable_inputs_list = vec![];
-                for change in inputs_sequence_changes.iter() {
-                    // println!("{:?}", change);
-                    match change {
-                        DiffOp::Equal {
-                            old_index,
-                            new_index,
-                            len,
-                        } => {
-                            for i in 0..*len {
-                                comparable_inputs_list.push((old_index + i, new_index + i));
-                            }
-                        }
-                        DiffOp::Delete {
-                            old_index,
-                            old_len: _,
-                            new_index,
-                        } => {
-                            // comparable_inputs_list.push((*old_index, *new_index));
-                        }
-                        DiffOp::Insert {
-                            old_index,
-                            new_index,
-                            new_len: _,
-                        } => {
-                            // comparable_inputs_list.push((*old_index, *new_index));
-                        }
-                        DiffOp::Replace {
-                            old_index,
-                            old_len: _,
-                            new_index,
-                            new_len: _,
-                        } => {
-                            // comparable_inputs_list.push((*old_index, *new_index));
-                        }
-                    }
-                }
-                // println!("{:?}", comparable_inputs_list);
-
-                for (old_index, new_index) in comparable_inputs_list.into_iter() {
-                    let (old_input, new_input) = match (
-                        old_signed_command.inputs.get(old_index),
-                        new_signed_command.inputs.get(new_index),
-                    ) {
-                        (Some(old), Some(new)) => (old, new),
-                        _ => continue,
-                    };
-
-                    // println!("{}:{}", old_input.name, new_input.name);
-
-                    // Input name
-                    diffs.push(evaluated_diff(
-                        Some(old_signing_command.construct_did.clone()),
-                        TextDiff::from_lines(old_input.name.as_str(), new_input.name.as_str()),
-                        format!("Signing command's input name updated"),
-                        false,
-                    ));
-
-                    // Input value_pre_evaluation
-                    diffs.push(evaluated_diff(
-                        Some(old_signing_command.construct_did.clone()),
-                        TextDiff::from_lines(
-                            old_input
-                                .value_pre_evaluation
-                                .as_ref()
-                                .unwrap_or(&empty_string),
-                            new_input
-                                .value_pre_evaluation
-                                .as_ref()
-                                .unwrap_or(&empty_string),
-                        ),
-                        format!("Signing command's input value_pre_evaluation updated"),
-                        true,
-                    ));
-                }
-
-                // println!("COMPARING UPSTREAM DEPENDENCIES");
-
-                // Let's then consider upstream dependencies
-                let old_signed_commands_dids = old_signed_command
-                    .upstream_constructs_dids
-                    .iter()
-                    .map(|c| c.0.to_string())
-                    .collect::<Vec<_>>();
-                let new_signed_commands_dids = new_signed_command
-                    .upstream_constructs_dids
-                    .iter()
-                    .map(|c| c.0.to_string())
-                    .collect::<Vec<_>>();
-                let signed_command_sequence_changes = capture_diff_slices(
-                    Algorithm::Myers,
-                    &old_signed_commands_dids,
-                    &new_signed_commands_dids,
-                );
-
-                // println!("Comparing \n{:?}\n{:?}", old_signed_commands_dids, new_signed_commands_dids);
-
-                let mut comparable_signed_constructs_list = vec![];
-                for change in signed_command_sequence_changes.iter() {
-                    match change {
-                        DiffOp::Equal {
-                            old_index,
-                            new_index,
-                            len,
-                        } => {
-                            for i in 0..*len {
-                                comparable_signed_constructs_list
-                                    .push((old_index + i, new_index + i));
-                            }
-                        }
-                        DiffOp::Delete {
-                            old_index,
-                            old_len: _,
-                            new_index,
-                        } => {
-                            // comparable_signed_constructs_list.push((*old_index, *new_index));
-                        }
-                        DiffOp::Insert {
-                            old_index,
-                            new_index,
-                            new_len: _,
-                        } => {
-                            // comparable_signed_constructs_list.push((*old_index, *new_index));
-                        }
-                        DiffOp::Replace {
-                            old_index,
-                            old_len: _,
-                            new_index,
-                            new_len: _,
-                        } => {
-                            // comparable_signed_constructs_list.push((*old_index, *new_index));
-                        }
-                    }
-                }
-
-                for (old_index, new_index) in comparable_signed_constructs_list.into_iter() {
-                    let (old_construct_did, new_construct_did) = match (
-                        old_signed_command.upstream_constructs_dids.get(old_index),
-                        new_signed_command.upstream_constructs_dids.get(new_index),
-                    ) {
-                        (Some(old), Some(new)) => (old, new),
-                        _ => continue,
-                    };
-
-                    if visited_constructs.contains(old_construct_did) {
-                        continue;
-                    }
-                    visited_constructs.insert(old_construct_did.clone());
-
-                    let mut old_construct = old_ref
-                        .get_command_with_construct_did(old_construct_did)
-                        .clone();
-                    let mut new_construct = new_ref
-                        .get_command_with_construct_did(new_construct_did)
-                        .clone();
-
-                    // Construct name
-                    diffs.push(evaluated_diff(
-                        Some(old_construct_did.clone()),
-                        TextDiff::from_lines(
-                            old_construct.construct_name.as_str(),
-                            new_construct.construct_name.as_str(),
-                        ),
-                        format!("Signing command's name updated"),
-                        false,
-                    ));
-
-                    // Construct path
-                    diffs.push(evaluated_diff(
-                        Some(old_construct_did.clone()),
-                        TextDiff::from_lines(
-                            old_construct.construct_path.as_str(),
-                            new_construct.construct_path.as_str(),
-                        ),
-                        format!("Signing command's path updated"),
-                        false,
-                    ));
-
-                    // Construct driver
-                    diffs.push(evaluated_diff(
-                        Some(old_construct_did.clone()),
-                        TextDiff::from_lines(
-                            old_construct
-                                .construct_addon
-                                .as_ref()
-                                .unwrap_or(&empty_string),
-                            new_construct
-                                .construct_addon
-                                .as_ref()
-                                .unwrap_or(&empty_string),
-                        ),
-                        format!("Signing command's driver updated"),
-                        false,
-                    ));
-
-                    old_construct.inputs.sort_by(|a, b| a.name.cmp(&b.name));
-                    new_construct.inputs.sort_by(|a, b| a.name.cmp(&b.name));
-
-                    // Check inputs
-                    let old_inputs = old_construct
-                        .inputs
-                        .iter()
-                        .map(|i| i.name.to_string())
-                        .collect::<Vec<_>>();
-                    let new_inputs = new_construct
-                        .inputs
-                        .iter()
-                        .map(|i| i.name.to_string())
-                        .collect::<Vec<_>>();
-
-                    let inputs_sequence_changes =
-                        capture_diff_slices(Algorithm::Patience, &old_inputs, &new_inputs);
-
-                    // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
-
-                    let mut comparable_inputs_list = vec![];
-                    for change in inputs_sequence_changes.iter() {
-                        // println!("{:?}", change);
-                        match change {
-                            DiffOp::Equal {
-                                old_index,
-                                new_index,
-                                len,
-                            } => {
-                                for i in 0..*len {
-                                    comparable_inputs_list.push((old_index + i, new_index + i));
-                                }
-                            }
-                            DiffOp::Delete {
-                                old_index,
-                                old_len: _,
-                                new_index,
-                            } => {
-                                // comparable_inputs_list.push((*old_index, *new_index));
-                            }
-                            DiffOp::Insert {
-                                old_index,
-                                new_index,
-                                new_len: _,
-                            } => {
-                                // comparable_inputs_list.push((*old_index, *new_index));
-                            }
-                            DiffOp::Replace {
-                                old_index,
-                                old_len: _,
-                                new_index,
-                                new_len: _,
-                            } => {
-                                // comparable_inputs_list.push((*old_index, *new_index));
-                            }
-                        }
-                    }
-                    // println!("{:?}", comparable_inputs_list);
-
-                    for (old_index, new_index) in comparable_inputs_list.into_iter() {
-                        let (old_input, new_input) = match (
-                            old_construct.inputs.get(old_index),
-                            new_construct.inputs.get(new_index),
-                        ) {
-                            (Some(old), Some(new)) => (old, new),
-                            _ => continue,
-                        };
-
-                        // println!("{}:{}", old_input.name, new_input.name);
-
-                        // Input name
-                        diffs.push(evaluated_diff(
-                            Some(old_construct_did.clone()),
-                            TextDiff::from_lines(old_input.name.as_str(), new_input.name.as_str()),
-                            format!("Signing command's input name updated"),
-                            false,
-                        ));
-
-                        // Input value_pre_evaluation
-                        diffs.push(evaluated_diff(
-                            Some(old_construct_did.clone()),
-                            TextDiff::from_lines(
-                                old_input
-                                    .value_pre_evaluation
-                                    .as_ref()
-                                    .unwrap_or(&empty_string),
-                                new_input
-                                    .value_pre_evaluation
-                                    .as_ref()
-                                    .unwrap_or(&empty_string),
-                            ),
-                            format!("Signing command's input value_pre_evaluation updated"),
-                            true,
-                        ));
-                    }
-                }
-            }
+            diffs.append(&mut changes);
         }
         diffs
     }
+}
+
+pub fn diff_command_snapshots(
+    old_snapshot: &RunbookExecutionSnapshot,
+    old_construct_dids: &Vec<ConstructDid>,
+    new_snapshot: &RunbookExecutionSnapshot,
+    new_construct_dids: &Vec<ConstructDid>,
+    visited_constructs: &mut HashSet<ConstructDid>,
+) -> Vec<Change> {
+    let empty_string = "".to_string();
+    let mut diffs = vec![];
+
+    // Let's look at the signed constructs
+    // First: Any new construct?
+    let old_signed_commands_dids = old_construct_dids
+        .iter()
+        .map(|c| c.0.to_string())
+        .collect::<Vec<_>>();
+    let new_signed_commands_dids = new_construct_dids
+        .iter()
+        .map(|c| c.0.to_string())
+        .collect::<Vec<_>>();
+    let signed_command_sequence_changes = capture_diff_slices(
+        Algorithm::Myers,
+        &old_signed_commands_dids,
+        &new_signed_commands_dids,
+    );
+
+    // println!("Comparing \n{:?}\n{:?}", old_signed_commands_dids, new_signed_commands_dids);
+
+    let mut comparable_signed_constructs_list = vec![];
+    for change in signed_command_sequence_changes.iter() {
+        match change {
+            DiffOp::Equal {
+                old_index,
+                new_index,
+                len,
+            } => {
+                for i in 0..*len {
+                    comparable_signed_constructs_list.push((old_index + i, new_index + i));
+                }
+            }
+            DiffOp::Delete {
+                old_index,
+                old_len: _,
+                new_index,
+            } => {
+                // comparable_signed_constructs_list.push((*old_index, *new_index));
+            }
+            DiffOp::Insert {
+                old_index,
+                new_index,
+                new_len: _,
+            } => {
+                // comparable_signed_constructs_list.push((*old_index, *new_index));
+            }
+            DiffOp::Replace {
+                old_index,
+                old_len: _,
+                new_index,
+                new_len: _,
+            } => {
+                // comparable_signed_constructs_list.push((*old_index, *new_index));
+            }
+        }
+    }
+
+    for (old_index, new_index) in comparable_signed_constructs_list.into_iter() {
+        let (old_construct_did, new_construct_did) = match (
+            old_construct_dids.get(old_index),
+            new_construct_dids.get(new_index),
+        ) {
+            (Some(old), Some(new)) => (old, new),
+            _ => continue,
+        };
+
+        if visited_constructs.contains(old_construct_did) {
+            continue;
+        }
+        visited_constructs.insert(old_construct_did.clone());
+
+        let mut old_command = old_snapshot
+            .get_command_with_construct_did(old_construct_did)
+            .clone();
+        let mut new_command = new_snapshot
+            .get_command_with_construct_did(new_construct_did)
+            .clone();
+
+        // Construct name
+        diffs.push(evaluated_diff(
+            Some(old_command.construct_did.clone()),
+            TextDiff::from_lines(
+                old_command.construct_name.as_str(),
+                new_command.construct_name.as_str(),
+            ),
+            format!("Signing command's name updated"),
+            false,
+        ));
+
+        // Construct path
+        diffs.push(evaluated_diff(
+            Some(old_command.construct_did.clone()),
+            TextDiff::from_lines(
+                old_command.construct_path.as_str(),
+                new_command.construct_path.as_str(),
+            ),
+            format!("Signing command's path updated"),
+            false,
+        ));
+
+        // Construct driver
+        diffs.push(evaluated_diff(
+            Some(old_command.construct_did.clone()),
+            TextDiff::from_lines(
+                old_command
+                    .construct_addon
+                    .as_ref()
+                    .unwrap_or(&empty_string),
+                new_command
+                    .construct_addon
+                    .as_ref()
+                    .unwrap_or(&empty_string),
+            ),
+            format!("Signing command's driver updated"),
+            false,
+        ));
+
+        old_command.inputs.sort_by(|a, b| a.name.cmp(&b.name));
+        new_command.inputs.sort_by(|a, b| a.name.cmp(&b.name));
+
+        // Check inputs
+        let old_inputs = old_command
+            .inputs
+            .iter()
+            .map(|i| i.name.to_string())
+            .collect::<Vec<_>>();
+        let new_inputs = new_command
+            .inputs
+            .iter()
+            .map(|i| i.name.to_string())
+            .collect::<Vec<_>>();
+
+        let inputs_sequence_changes =
+            capture_diff_slices(Algorithm::Patience, &old_inputs, &new_inputs);
+
+        // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
+
+        let mut comparable_inputs_list = vec![];
+        for change in inputs_sequence_changes.iter() {
+            // println!("{:?}", change);
+            match change {
+                DiffOp::Equal {
+                    old_index,
+                    new_index,
+                    len,
+                } => {
+                    for i in 0..*len {
+                        comparable_inputs_list.push((old_index + i, new_index + i));
+                    }
+                }
+                DiffOp::Delete {
+                    old_index,
+                    old_len: _,
+                    new_index,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+                DiffOp::Insert {
+                    old_index,
+                    new_index,
+                    new_len: _,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+                DiffOp::Replace {
+                    old_index,
+                    old_len: _,
+                    new_index,
+                    new_len: _,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+            }
+        }
+        // println!("{:?}", comparable_inputs_list);
+
+        for (old_index, new_index) in comparable_inputs_list.into_iter() {
+            let (old_input, new_input) = match (
+                old_command.inputs.get(old_index),
+                new_command.inputs.get(new_index),
+            ) {
+                (Some(old), Some(new)) => (old, new),
+                _ => continue,
+            };
+
+            // println!("{}:{}", old_input.name, new_input.name);
+
+            // Input name
+            diffs.push(evaluated_diff(
+                Some(old_command.construct_did.clone()),
+                TextDiff::from_lines(old_input.name.as_str(), new_input.name.as_str()),
+                format!("Signing command's input name updated"),
+                false,
+            ));
+
+            // Input value_pre_evaluation
+            diffs.push(evaluated_diff(
+                Some(old_command.construct_did.clone()),
+                TextDiff::from_lines(
+                    old_input
+                        .value_pre_evaluation
+                        .as_ref()
+                        .unwrap_or(&empty_string),
+                    new_input
+                        .value_pre_evaluation
+                        .as_ref()
+                        .unwrap_or(&empty_string),
+                ),
+                format!("Signing command's input value_pre_evaluation updated"),
+                true,
+            ));
+        }
+
+        // Checking the outputs
+        let old_outputs = old_command
+            .outputs
+            .iter()
+            .map(|i| i.name.to_string())
+            .collect::<Vec<_>>();
+        let new_outputs = new_command
+            .outputs
+            .iter()
+            .map(|i| i.name.to_string())
+            .collect::<Vec<_>>();
+
+        let outputs_sequence_changes =
+            capture_diff_slices(Algorithm::Patience, &old_outputs, &new_outputs);
+
+        // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
+
+        let mut comparable_outputs_list = vec![];
+        for change in outputs_sequence_changes.iter() {
+            // println!("{:?}", change);
+            match change {
+                DiffOp::Equal {
+                    old_index,
+                    new_index,
+                    len,
+                } => {
+                    for i in 0..*len {
+                        comparable_outputs_list.push((old_index + i, new_index + i));
+                    }
+                }
+                DiffOp::Delete {
+                    old_index,
+                    old_len: _,
+                    new_index,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+                DiffOp::Insert {
+                    old_index,
+                    new_index,
+                    new_len: _,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+                DiffOp::Replace {
+                    old_index,
+                    old_len: _,
+                    new_index,
+                    new_len: _,
+                } => {
+                    // comparable_inputs_list.push((*old_index, *new_index));
+                }
+            }
+        }
+        // println!("{:?}", comparable_inputs_list);
+
+        for (old_index, new_index) in comparable_outputs_list.into_iter() {
+            let (old_output, new_output) = match (
+                old_command.outputs.get(old_index),
+                new_command.outputs.get(new_index),
+            ) {
+                (Some(old), Some(new)) => (old, new),
+                _ => continue,
+            };
+
+            // println!("{}:{}", old_input.name, new_input.name);
+
+            // Output name
+            diffs.push(evaluated_diff(
+                Some(old_command.construct_did.clone()),
+                TextDiff::from_lines(old_output.name.as_str(), new_output.name.as_str()),
+                format!("Signing command's output name updated"),
+                false,
+            ));
+
+            // Input value_pre_evaluation
+            diffs.push(evaluated_diff(
+                Some(new_command.construct_did.clone()),
+                TextDiff::from_lines(
+                    old_output.value.to_string().as_str(),
+                    new_output.value.to_string().as_str(),
+                ),
+                format!("Signing command's output value_pre_evaluation updated"),
+                true,
+            ));
+        }
+
+        let mut changes = diff_command_snapshots(
+            old_snapshot,
+            &old_command.upstream_constructs_dids,
+            new_snapshot,
+            &new_command.upstream_constructs_dids,
+            visited_constructs,
+        );
+        diffs.append(&mut changes);
+    }
+    diffs
 }
 
 pub struct Change {

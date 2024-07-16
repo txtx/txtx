@@ -204,6 +204,7 @@ pub struct CommandSpecification {
     pub documentation: String,
     pub accepts_arbitrary_inputs: bool,
     pub create_output_for_each_input: bool,
+    pub create_critical_output: Option<String>,
     pub update_addon_defaults: bool,
     pub implements_signing_capability: bool,
     pub implements_background_task_capability: bool,
@@ -598,10 +599,9 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
+            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) | Type::Object(_) => {
                 visit_optional_untyped_attribute(&input.name, &self.block)?
             }
-            Type::Object(_) => unreachable!(),
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),

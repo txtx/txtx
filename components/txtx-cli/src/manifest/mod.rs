@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use txtx_core::kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_core::kit::types::RunbookId;
@@ -73,7 +74,19 @@ pub fn read_manifest_at_path(manifest_file_path: &str) -> Result<ProtocolManifes
                 state: e
                     .state
                     .as_ref()
-                    .map(|s| s.file.clone().map(|f| RunbookState::File(f)))
+                    .map(|s| {
+                        s.file.clone().map(|f| {
+                            let root_path = PathBuf::from(manifest_file_path);
+                            let mut location = FileLocation::from_path(root_path);
+                            location = location
+                                .get_parent_location()
+                                .expect("unable to create state destination path");
+                            location
+                                .append_path(&f)
+                                .expect("unable to create state destination path");
+                            RunbookState::File(location)
+                        })
+                    })
                     .unwrap_or(None),
             })
             .collect::<Vec<_>>(),

@@ -42,11 +42,12 @@ pub const DEFAULT_PORT_TXTX: &str = "8488";
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
-pub fn load_snapshot(snapshot_path: &str) -> Result<RunbookExecutionSnapshot, String> {
-    let file = FileLocation::from_path(snapshot_path.into());
-    let snapshot_bytes = file.read_content()?;
+pub fn load_runbook_execution_snapshot(
+    state_file_location: &FileLocation,
+) -> Result<RunbookExecutionSnapshot, String> {
+    let snapshot_bytes = state_file_location.read_content()?;
     let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
-        .map_err(|e| format!("unable to read {}: {}", snapshot_path, e.to_string()))?;
+        .map_err(|e| format!("unable to read {}: {}", state_file_location, e.to_string()))?;
     Ok(snapshot)
 }
 
@@ -55,9 +56,9 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
         load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
 
     match &runbook_state {
-        Some(RunbookState::File(file_path)) => {
+        Some(RunbookState::File(state_file_location)) => {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_snapshot(file_path)?;
+            let old = load_runbook_execution_snapshot(state_file_location)?;
             let mut simulated_execution_context = runbook.execution_context.clone();
             let frontier = HashSet::new();
             let _res = simulated_execution_context
@@ -396,15 +397,18 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 println!("{} {}", red!("x"), diag);
             }
         } else {
-            println!("Saving to state.json");
-            let diff = RunbookSnapshotContext::new();
-            let snapshot = diff
-                .snapshot_runbook_execution(&runbook.execution_context, &runbook.workspace_context);
-
-            let state = FileLocation::from_path("state.json".into());
-            state
-                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-                .unwrap();
+            if let Some(RunbookState::File(state_file_location)) = runbook_state {
+                println!("Saving to {}", state_file_location);
+                let diff = RunbookSnapshotContext::new();
+                let snapshot = diff.snapshot_runbook_execution(
+                    &runbook.execution_context,
+                    &runbook.workspace_context,
+                );
+                state_file_location
+                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                    .expect("unable to save state");
+                ();
+            }
         }
         return Ok(());
     }

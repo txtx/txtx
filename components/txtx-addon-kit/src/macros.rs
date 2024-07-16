@@ -70,6 +70,7 @@ macro_rules! define_command {
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
             update_addon_defaults: false,
+            create_critical_output: None,
             implements_signing_capability,
             implements_background_task_capability,
             inputs: vec![$(CommandInput {

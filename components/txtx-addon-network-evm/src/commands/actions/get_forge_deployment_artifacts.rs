@@ -17,69 +17,75 @@ use crate::codec::foundry::FoundryConfig;
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
 lazy_static! {
-    pub static ref GET_FORGE_DEPLOYMENT_ARTIFACTS: PreCommandSpecification = define_command! {
-      GetForgeDeploymentArtifacts => {
-          name: "Get Forge Deployment Artifacts",
-          matcher: "get_forge_deployment_artifacts",
-          documentation: "The `evm::get_forge_deployment_artifacts` command gets all artifacts from a forge project that are required for deploying and verifying a contract.",
-          implements_signing_capability: false,
-          implements_background_task_capability: false,
-          inputs: [
-            description: {
-                documentation: "A description of the call.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
-            foundry_toml_path: {
-                documentation: "The path to the Foundry project's `foundry.toml` file.",
-                typing: Type::string(),
-                optional: false,
-                interpolable: true
-            },
-            contract_filename: {
-                documentation: "The name of the contract file contains the contract being deployed. For example, `SimpleStorage.sol`",
-                typing: Type::string(),
-                optional: false,
-                interpolable: true
-            },
-            contract_name: {
-                documentation: "The name of the contract being deployed. If omitted, the `contract_filename` argument (without extension) will be used.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
+    pub static ref GET_FORGE_DEPLOYMENT_ARTIFACTS: PreCommandSpecification = {
+        let mut command = define_command! {
+            GetForgeDeploymentArtifacts => {
+                name: "Get Forge Deployment Artifacts",
+                matcher: "get_forge_deployment_artifacts",
+                documentation: "The `evm::get_forge_deployment_artifacts` command gets all artifacts from a forge project that are required for deploying and verifying a contract.",
+                implements_signing_capability: false,
+                implements_background_task_capability: false,
+                inputs: [
+                    description: {
+                        documentation: "A description of the call.",
+                        typing: Type::string(),
+                        optional: true,
+                        interpolable: true
+                    },
+                    foundry_toml_path: {
+                        documentation: "The path to the Foundry project's `foundry.toml` file.",
+                        typing: Type::string(),
+                        optional: false,
+                        interpolable: true
+                    },
+                    contract_filename: {
+                        documentation: "The name of the contract file contains the contract being deployed. For example, `SimpleStorage.sol`",
+                        typing: Type::string(),
+                        optional: false,
+                        interpolable: true
+                    },
+                    contract_name: {
+                        documentation: "The name of the contract being deployed. If omitted, the `contract_filename` argument (without extension) will be used.",
+                        typing: Type::string(),
+                        optional: true,
+                        interpolable: true
+                    }
+                ],
+                outputs: [
+                        abi: {
+                            documentation: "The contract abi.",
+                            typing: Type::string()
+                        },
+                        bytecode: {
+                            documentation: "The compiled contract bytecode.",
+                            typing: Type::string()
+                        },
+                        source: {
+                            documentation: "The contract source code.",
+                            typing: Type::string()
+                        },
+                        compiler_version: {
+                            documentation: "The solc version used to compile the contract.",
+                            typing: Type::string()
+                        },
+                        contract_name: {
+                            documentation: "The name of the contract being deployed.",
+                            typing: Type::string()
+                        },
+                        value: {
+                            documentation: "The other outputs as one object.",
+                            typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
+                        }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                // Coming soon
+            "#},
             }
-          ],
-          outputs: [
-                abi: {
-                    documentation: "The contract abi.",
-                    typing: Type::string()
-                },
-                bytecode: {
-                    documentation: "The compiled contract bytecode.",
-                    typing: Type::string()
-                },
-                source: {
-                    documentation: "The contract source code.",
-                    typing: Type::string()
-                },
-                compiler_version: {
-                    documentation: "The solc version used to compile the contract.",
-                    typing: Type::string()
-                },
-                contract_name: {
-                    documentation: "The name of the contract being deployed.",
-                    typing: Type::string()
-                },
-                value: {
-                    documentation: "The other outputs as one object.",
-                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
-                }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
-      "#},
-      }
+        };
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("source".to_string());
+        }
+        command
     };
 }
 
@@ -105,9 +111,9 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
 
     fn run_execution(
         _construct_id: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
+        _defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
