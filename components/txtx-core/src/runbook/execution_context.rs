@@ -249,7 +249,7 @@ impl RunbookExecutionContext {
                 &None,
                 supervision_context,
             ) {
-                Ok(mut new_actions) => {
+                Ok(new_actions) => {
                     if new_actions.has_pending_actions() {
                         if let Some(deps) = self.commands_dependencies.get(&construct_did) {
                             for dep in deps.iter() {

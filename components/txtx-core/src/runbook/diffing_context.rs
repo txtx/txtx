@@ -296,8 +296,8 @@ impl RunbookSnapshotContext {
         old: RunbookExecutionSnapshot,
         new: RunbookExecutionSnapshot,
     ) -> Vec<Change> {
-        let mut old_ref = old.clone();
-        let mut new_ref = new.clone();
+        let old_ref = old.clone();
+        let new_ref = new.clone();
 
         let mut visited_constructs = HashSet::new();
 
@@ -364,23 +364,23 @@ impl RunbookSnapshotContext {
                     }
                 }
                 DiffOp::Delete {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                 } => {
                     // comparable_signing_constructs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Insert {
-                    old_index,
-                    new_index,
+                    old_index: _,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_signing_constructs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Replace {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_signing_constructs_list.push((*old_index, *new_index));
@@ -492,23 +492,23 @@ pub fn diff_command_snapshots(
                 }
             }
             DiffOp::Delete {
-                old_index,
+                old_index: _,
                 old_len: _,
-                new_index,
+                new_index: _,
             } => {
                 // comparable_signed_constructs_list.push((*old_index, *new_index));
             }
             DiffOp::Insert {
-                old_index,
-                new_index,
+                old_index: _,
+                new_index: _,
                 new_len: _,
             } => {
                 // comparable_signed_constructs_list.push((*old_index, *new_index));
             }
             DiffOp::Replace {
-                old_index,
+                old_index: _,
                 old_len: _,
-                new_index,
+                new_index: _,
                 new_len: _,
             } => {
                 // comparable_signed_constructs_list.push((*old_index, *new_index));
@@ -610,23 +610,23 @@ pub fn diff_command_snapshots(
                     }
                 }
                 DiffOp::Delete {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Insert {
-                    old_index,
-                    new_index,
+                    old_index: _,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Replace {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
@@ -703,23 +703,23 @@ pub fn diff_command_snapshots(
                     }
                 }
                 DiffOp::Delete {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Insert {
-                    old_index,
-                    new_index,
+                    old_index: _,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Replace {
-                    old_index,
+                    old_index: _,
                     old_len: _,
-                    new_index,
+                    new_index: _,
                     new_len: _,
                 } => {
                     // comparable_inputs_list.push((*old_index, *new_index));
@@ -754,7 +754,7 @@ pub fn diff_command_snapshots(
                     old_output.value.to_string().as_str(),
                     new_output.value.to_string().as_str(),
                 ),
-                format!("Signing command's output value_pre_evaluation updated"),
+                format!("Signing command's output result updated"),
                 true,
             ));
         }

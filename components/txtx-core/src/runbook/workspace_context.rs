@@ -556,7 +556,7 @@ impl RunbookWorkspaceContext {
                     }
                 }
 
-                let Some(mut current_package) = self.packages.get(source_package_id) else {
+                let Some(current_package) = self.packages.get(source_package_id) else {
                     return Ok(None);
                 };
 

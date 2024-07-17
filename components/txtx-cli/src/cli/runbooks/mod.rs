@@ -303,7 +303,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
     let res = load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await;
     let (runbook_name, mut runbook, runbook_state) = match res {
-        Ok((m, a, b, c)) => (a, b, c),
+        Ok((_manifest, runbook_name, runbook, runbook_state)) => {
+            (runbook_name, runbook, runbook_state)
+        }
         Err(_) => {
             let (runbook_name, runbook) = load_runbook_from_file_path(&cmd.runbook).await?;
             (runbook_name, runbook, None)

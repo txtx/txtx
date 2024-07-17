@@ -133,8 +133,6 @@ impl Runbook {
     pub fn get_active_inputs_selector(&self) -> Option<String> {
         self.inputs_map.current.clone()
     }
-
-    pub fn seed_runbook_inputs(&mut self, runbook_inputs: &HashMap<String, Value>) {}
 }
 
 #[derive(Clone, Debug)]
