@@ -74,7 +74,7 @@ fn normalize_user_input(input: &str) -> String {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum RunbookState {
-    File(String),
+    File(FileLocation),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

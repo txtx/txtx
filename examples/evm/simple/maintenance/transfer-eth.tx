@@ -1,5 +1,5 @@
 addon "evm" {
-    defaults  {
+    defaults {
         chain_id = 11155111
         network_id = env.evm_network_id
         rpc_api_url = env.evm_api_url
@@ -17,9 +17,9 @@ action "artifacts" "evm::get_forge_deployment_artifacts" {
 }
 
 action "deploy" "evm::sign_contract_deploy" {
-    description = "Deploy this bitch"
+    description = "Deploy this contract"
     from = wallet.alice
-    artifacts = action.artifacts.value
+    artifacts = action.artifacts
 } 
 
 action "verify" "evm::verify_deployment" {
@@ -56,9 +56,9 @@ action "verify" "evm::verify_deployment" {
 // }
 
 // action "simple_storate" "evm::deploy_contract" {
-//     description = "Deploy this bitch"
+//     description = "Deploy this contract"
 //     from = wallet.alice
-//     artifacts = evm::get_forge_deployment_artifacts(,"/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/foundry.toml", "SimpleStorage")
+//     artifacts = evm::get_forge_deployment_artifacts("/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/foundry.toml", "SimpleStorage")
 //     confirmations = 1
 // }
 
