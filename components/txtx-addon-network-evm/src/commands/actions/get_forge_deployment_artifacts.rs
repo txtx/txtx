@@ -148,7 +148,8 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
             let abi = Value::string(abi_string);
             let bytecode = Value::string(compiled_output.bytecode.object.clone());
             let source = Value::string(source);
-            let compiler_version = Value::string(compiled_output.metadata.compiler.version);
+            let compiler_version =
+                Value::string(format!("v{}", compiled_output.metadata.compiler.version));
             let contract_name = Value::string(contract_name.to_string());
 
             result.outputs.insert("abi".into(), abi.clone());

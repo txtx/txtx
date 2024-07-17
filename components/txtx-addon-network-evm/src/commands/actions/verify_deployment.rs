@@ -140,7 +140,7 @@ impl CommandImplementation for VerifyContractDeployment {
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use alloy_chains::Chain;
-        use foundry_block_explorers::verify::VerifyContract;
+        use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
         use txtx_addon_kit::{
             hex,
             types::{frontend::ProgressBarStatusColor, types::PrimitiveValue},
@@ -264,6 +264,15 @@ impl CommandImplementation for VerifyContractDeployment {
             };
 
             if let Some(artifacts) = artifacts {
+                progress = (progress + 1) % progress_symbol.len();
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    "Submitting to Explorer for Verification",
+                ));
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                 let Some(Value::Primitive(PrimitiveValue::String(source))) =
                     artifacts.get("source")
                 else {
@@ -293,22 +302,113 @@ impl CommandImplementation for VerifyContractDeployment {
                 .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': failed to create block explorer client: {e}"))?;
 
                 let guid = {
+                    progress = (progress + 1) % progress_symbol.len();
                     let verify_contract = VerifyContract::new(
                         receipt.contract_address.unwrap(),
                         contract_name.clone(),
                         source.clone(),
                         compiler_version.clone(),
-                    );
+                    )
+                    // todo: need to check if other formats
+                    .code_format(CodeFormat::SingleFile)
+                    // todo: need to set from compilation settings
+                    .optimization(true)
+                    .runs(200)
+                    .evm_version("paris");
 
-                    let guid = explorer_client
-                        .submit_contract_verification(&verify_contract)
-                        .await
-                        .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {e}"))?
-                        .result;
+                    let res = explorer_client
+                    .submit_contract_verification(&verify_contract)
+                    .await
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {e}"))?;
+
+                    if res.message.eq("NOTOK") {
+                        let diag = diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {}", res.result);
+                        status_update.update_status(&ProgressBarStatus::new_err(
+                            "Failed",
+                            "Contract Verification Failed",
+                            &diag,
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                        return Err(diag);
+                    }
+                    let guid = res.result;
+
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        ProgressBarStatusColor::Yellow,
+                        &format!("Pending {}", progress_symbol[progress]),
+                        "Submitted to Explorer for Verification",
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    println!("guid: {guid}");
                     guid
                 };
 
-                loop {}
+                let max_attempts = 5;
+                let mut attempts = 0;
+                loop {
+                    progress = (progress + 1) % progress_symbol.len();
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        ProgressBarStatusColor::Yellow,
+                        &format!("Pending {}", progress_symbol[progress]),
+                        "Checking Contract Verification Status",
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                    let res = match explorer_client
+                        .check_contract_verification_status(guid.clone())
+                        .await
+                    {
+                        Ok(res) => res,
+                        Err(e) => {
+                            attempts += 1;
+                            if attempts == max_attempts {
+                                let diag = diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {}", e);
+                                status_update.update_status(&ProgressBarStatus::new_err(
+                                    "Failed",
+                                    "Contract Verification Failed",
+                                    &diag,
+                                ));
+                                let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(
+                                    status_update.clone(),
+                                ));
+
+                                return Err(diag);
+                            } else {
+                                sleep_ms(5000);
+                                continue;
+                            }
+                        }
+                    };
+
+                    if res.message.eq("NOTOK") {
+                        attempts += 1;
+                        if attempts == max_attempts {
+                            let diag = diagnosed_error!("command 'evm::verify_deployment': received error response from contract verification: {}", res.result);
+                            status_update.update_status(&ProgressBarStatus::new_err(
+                                "Failed",
+                                "Contract Verification Failed",
+                                &diag,
+                            ));
+                            let _ = progress_tx
+                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                            return Err(diag);
+                        }
+                    }
+
+                    let contract_verified = res.result;
+
+                    if contract_verified.eq("Pass - Verified") {
+                        break;
+                    } else {
+                        println!("contract verified status: {}", contract_verified);
+                        sleep_ms(5000);
+                    }
+                }
             }
 
             status_update.update_status(&ProgressBarStatus::new_msg(

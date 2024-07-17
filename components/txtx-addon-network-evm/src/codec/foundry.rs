@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr};
 pub struct FoundryCompiledOutputJson {
     pub abi: JsonAbi,
     pub bytecode: ContractBytecode,
-    pub deployed_bytecode: JsonValue,
+    pub deployed_bytecode: ContractBytecode,
     pub method_identifiers: JsonValue,
     pub raw_metadata: String,
     pub metadata: ContractMetadataJson,
@@ -79,6 +79,14 @@ pub struct ContractMetadataJson {
 #[serde(rename_all = "camelCase")]
 pub struct ContractSettings {
     pub compilation_target: HashMap<String, String>,
+    pub optimizer: ContractOptimizerSettings,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContractOptimizerSettings {
+    pub enabled: bool,
+    pub runs: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

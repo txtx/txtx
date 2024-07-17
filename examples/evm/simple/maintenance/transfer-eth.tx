@@ -3,11 +3,12 @@ addon "evm" {
         chain_id = 11155111
         network_id = env.evm_network_id
         rpc_api_url = env.evm_api_url
+        block_explorer_api_key = env.evm_block_explorer_api_key
     }
 }
 
 wallet "alice" "evm::mnemonic" {
-    mnemonic = "candy maple cake sugar pudding cream honey rich smooth crumble sweet treat"
+    mnemonic = "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
 }
 
 action "artifacts" "evm::get_forge_deployment_artifacts" {
@@ -21,11 +22,11 @@ action "deploy" "evm::sign_contract_deploy" {
     artifacts = action.artifacts.value
 } 
 
-// action "verify" "evm::verify_deployment" {
-//     tx_hash = action.deploy.tx_hash
-//     artifacts = action.artifacts.value
-//     confirmations = 1
-// }
+action "verify" "evm::verify_deployment" {
+    tx_hash = action.deploy.tx_hash
+    artifacts = action.artifacts.value
+    confirmations = 2
+}
 
 // action "store" "evm::sign_contract_call" {
 //     contract_address = evm::address("0x2331fb827792879D21e11f7e13bA0d57391393D5")
