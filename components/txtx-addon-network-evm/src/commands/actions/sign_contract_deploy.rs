@@ -58,8 +58,8 @@ lazy_static! {
                 optional: false,
                 interpolable: true
             },
-            bytecode: {
-                documentation: "The contract bytecode to deploy",
+            init_code: {
+                documentation: "The contract init_code to deploy",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
@@ -332,9 +332,9 @@ async fn build_unsigned_contract_deploy(
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let bytecode = args.get_expected_string("bytecode")?;
+    let init_code = args.get_expected_string("init_code")?;
 
-    let bytecode = alloy::hex::decode(bytecode)
+    let init_code = alloy::hex::decode(init_code)
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_deploy': {}", e))?;
 
     let amount = args
@@ -362,7 +362,7 @@ async fn build_unsigned_contract_deploy(
         gas_limit,
         tx_type,
         input: None,
-        deploy_code: Some(bytecode),
+        deploy_code: Some(init_code),
     };
     let tx = build_unsigned_transaction(rpc, args, common)
         .await

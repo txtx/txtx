@@ -43,6 +43,8 @@ lazy_static! {
                         {
                             "abi": String,
                             "bytecode": String,
+                            "init_code": String,
+                            "constructor_args": String,
                             "source": String,
                             "compiler_version": String,
                             "contract_name": String
@@ -201,6 +203,10 @@ impl CommandImplementation for VerifyContract {
                     ));
             };
 
+            let constructor_args = artifacts
+                .get("constructor_args")
+                .and_then(|v| v.as_string());
+
             let chain = Chain::from(chain_id);
             let explorer_client = BlockExplorerClient::new(chain, explorer_api_key)
                 .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
@@ -218,7 +224,8 @@ impl CommandImplementation for VerifyContract {
                 // todo: need to set from compilation settings
                 .optimization(true)
                 .runs(200)
-                .evm_version("paris");
+                .evm_version("paris")
+                .constructor_arguments(constructor_args);
 
                 let res = explorer_client
                     .submit_contract_verification(&verify_contract)
