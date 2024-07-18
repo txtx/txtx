@@ -52,59 +52,60 @@ pub fn load_runbook_execution_snapshot(
 }
 
 pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
-    let (_manifest, runbook_name, runbook, runbook_state) =
+    let (_manifest, runbook_name, mut runbook, runbook_state) =
         load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
 
     match &runbook_state {
         Some(RunbookState::File(state_file_location)) => {
             let ctx = RunbookSnapshotContext::new();
             let old = load_runbook_execution_snapshot(state_file_location)?;
-            let mut simulated_execution_context = runbook.execution_context.clone();
-            let frontier = HashSet::new();
-            let _res = simulated_execution_context
-                .simulate_execution(
-                    &runbook.runtime_context,
-                    &runbook.workspace_context,
-                    &runbook.supervision_context,
-                    &frontier,
-                )
-                .await;
-            let new = ctx.snapshot_runbook_execution(
-                &simulated_execution_context,
-                &runbook.workspace_context,
-            );
-            let res = ctx.diff(old, new);
-            let mut logged_change = false;
-            for change in res.iter() {
-                if !change.description.is_empty() {
-                    if !logged_change {
-                        println!(
-                            "{} Changes detected since last execution of '{}': ",
-                            yellow!("→"),
-                            runbook_name
-                        );
-                    }
-                    logged_change = true;
-                    let fmt_critical = match change.critical {
-                        true => format!("{} [critical]", yellow!("→"),),
-                        false => format!("{} [cosmetic]", purple!("→"),),
-                    };
+            for run in runbook.running_contexts.iter_mut() {
+                let frontier = HashSet::new();
+                let _res = run
+                    .execution_context
+                    .simulate_execution(
+                        &runbook.runtime_context,
+                        &run.workspace_context,
+                        &runbook.supervision_context,
+                        &frontier,
+                    )
+                    .await;
+            }
+            let new =
+                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
 
+            let consolidated_changes = ctx.diff(old, new);
+
+            for (running_context_key, changes) in consolidated_changes.changes.into_iter() {
+                let critical_changes = changes
+                    .iter()
+                    .filter(|c| !c.description.is_empty() && c.critical)
+                    .collect::<Vec<_>>();
+                let has_cosmetic_changes = changes
+                    .iter()
+                    .any(|c| !c.description.is_empty() && !c.critical);
+                if critical_changes.is_empty() {
+                    let prefix = if has_cosmetic_changes {
+                        "Only cosmetic changes"
+                    } else {
+                        "No changes"
+                    };
                     println!(
-                        "{}: {}\n\t{}\n",
-                        fmt_critical,
-                        change.label,
-                        change.description.join("\t")
+                        "{} {} since last execution of '{}'. Skipping Execution.",
+                        yellow!("→"),
+                        prefix,
+                        runbook_name
                     );
                 }
             }
-            if !logged_change {
-                println!(
-                    "{} No changes detected since last execution of '{}'",
-                    green!("✓"),
-                    runbook_name
-                );
-            }
+
+            // if !logged_change {
+            //     println!(
+            //         "{} No changes detected since last execution of '{}'",
+            //         green!("✓"),
+            //         runbook_name
+            //     );
+            // }
         }
         None => {}
     }
@@ -328,126 +329,162 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     };
 
-    let mut batch_inputs;
+    // let mut batch_inputs;
 
-    for input in cmd.inputs.iter() {
-        let (input_name, input_value) = input.split_once("=").unwrap();
-        for (construct_did, command_instance) in
-            runbook.execution_context.commands_instances.iter_mut()
-        {
-            if command_instance.specification.matcher.eq("input")
-                && input_name.eq(&command_instance.name)
-            {
-                let mut result = CommandInputsEvaluationResult::new(input_name);
+    // for input in cmd.inputs.iter() {
+    //     let (input_name, input_value) = input.split_once("=").unwrap();
+    //     for (construct_did, command_instance) in
+    //         runbook.execution_context.commands_instances.iter_mut()
+    //     {
+    //         if command_instance.specification.matcher.eq("input")
+    //             && input_name.eq(&command_instance.name)
+    //         {
+    //             let mut result = CommandInputsEvaluationResult::new(input_name);
 
-                if input_value.starts_with("[") {
-                    batch_inputs = input_value[1..(input_value.len() - 2)]
-                        .split(",")
-                        .map(|v| Value::uint(v.parse::<u64>().unwrap()))
-                        .collect::<Vec<Value>>();
-                    let v = batch_inputs.remove(0);
-                    result.inputs.insert("value", v);
-                    runbook
-                        .execution_context
-                        .commands_inputs_evaluations_results
-                        .insert(construct_did.clone(), result);
-                } else {
-                    let value = match input_value.parse::<u64>() {
-                        Ok(uint) => Value::uint(uint),
-                        Err(_) => Value::string(input_value.into()),
-                    };
-                    result.inputs.insert("value", value);
-                    runbook
-                        .execution_context
-                        .commands_inputs_evaluations_results
-                        .insert(construct_did.clone(), result);
-                }
-            }
-        }
-    }
+    //             if input_value.starts_with("[") {
+    //                 batch_inputs = input_value[1..(input_value.len() - 2)]
+    //                     .split(",")
+    //                     .map(|v| Value::uint(v.parse::<u64>().unwrap()))
+    //                     .collect::<Vec<Value>>();
+    //                 let v = batch_inputs.remove(0);
+    //                 result.inputs.insert("value", v);
+    //                 runbook
+    //                     .execution_context
+    //                     .commands_inputs_evaluations_results
+    //                     .insert(construct_did.clone(), result);
+    //             } else {
+    //                 let value = match input_value.parse::<u64>() {
+    //                     Ok(uint) => Value::uint(uint),
+    //                     Err(_) => Value::string(input_value.into()),
+    //                 };
+    //                 result.inputs.insert("value", value);
+    //                 runbook
+    //                     .execution_context
+    //                     .commands_inputs_evaluations_results
+    //                     .insert(construct_did.clone(), result);
+    //             }
+    //         }
+    //     }
+    // }
 
     println!("{} Starting runbook '{}'", purple!("→"), runbook_name);
 
+
+    let previous_state_opt = if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
+        match load_runbook_execution_snapshot(&state_file_location) {
+            Ok(snapshot) => Some(snapshot),
+            Err(e) => {
+                println!("{} {}", red!("x"), e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     if !cmd.force_execution {
-        if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
+        if let Some(old) = previous_state_opt {
+        // if !cmd.force_execution {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_runbook_execution_snapshot(&state_file_location)?;
-            let mut simulated_execution_context = runbook.execution_context.clone();
+
+            let mut simulated_running_contexts = HashMap::new();
+
             let frontier = HashSet::new();
 
-            let res = simulated_execution_context
-                .simulate_execution(
-                    &runbook.runtime_context,
-                    &runbook.workspace_context,
-                    &runbook.supervision_context,
-                    &frontier,
-                )
-                .await;
-            if !res.diagnostics.is_empty() {
-                for diag in res.diagnostics.iter() {
-                    println!("{} simulation {}", red!("x"), diag);
+            for running_context in runbook.running_contexts.iter() {
+                let mut simulated_execution_context = running_context.execution_context.clone();
+                let res = simulated_execution_context
+                    .simulate_execution(
+                        &runbook.runtime_context,
+                        &running_context.workspace_context,
+                        &runbook.supervision_context,
+                        &frontier,
+                    )
+                    .await;
+                if !res.diagnostics.is_empty() {
+                    for diag in res.diagnostics.iter() {
+                        println!("{} simulation {}", red!("x"), diag);
+                    }
                 }
+                simulated_running_contexts.insert(
+                    running_context.inputs_set.name.clone(),
+                    simulated_execution_context,
+                );
             }
 
-            let new = ctx.snapshot_runbook_execution(
-                &simulated_execution_context,
-                &runbook.workspace_context,
-            );
-            let diff = ctx.diff(old, new);
-            let critical_changes = diff
-                .iter()
-                .filter(|c| !c.description.is_empty() && c.critical)
-                .collect::<Vec<_>>();
-            let has_cosmetic_changes = diff
-                .iter()
-                .any(|c| !c.description.is_empty() && !c.critical);
-            if critical_changes.is_empty() {
-                let prefix = if has_cosmetic_changes {
-                    "Only cosmetic changes"
-                } else {
-                    "No changes"
-                };
-                println!(
-                    "{} {} since last execution of '{}'. Skipping Execution.",
-                    yellow!("→"),
-                    prefix,
-                    runbook_name
-                );
-                return Ok(());
-            } else {
-                let descendants_of_critically_changed_commands = critical_changes
+            let new =
+                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
+
+            let consolidated_changes = ctx.diff(old, new);
+
+            for (running_context_key, changes) in consolidated_changes.changes.into_iter() {
+                let critical_changes = changes
                     .iter()
-                    .filter_map(|c| {
-                        if let Some(construct_did) = &c.construct_did {
-                            Some(
-                                runbook
-                                    .graph_context
-                                    .get_downstream_dependencies_for_construct_did(&construct_did),
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                    .flatten()
+                    .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
+                let has_cosmetic_changes = changes
+                    .iter()
+                    .any(|c| !c.description.is_empty() && !c.critical);
+                if critical_changes.is_empty() {
+                    let prefix = if has_cosmetic_changes {
+                        "Only cosmetic changes"
+                    } else {
+                        "No changes"
+                    };
+                    println!(
+                        "{} {} since last execution of '{}'. Skipping Execution.",
+                        yellow!("→"),
+                        prefix,
+                        runbook_name
+                    );
+                    return Ok(());
+                } else {
+                    // for running_context in
+                    let running_context =
+                        runbook.find_expected_running_context_mut(&running_context_key);
 
-                runbook.execution_context.order_for_commands_execution = runbook
-                    .execution_context
-                    .order_for_commands_execution
-                    .into_iter()
-                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
-                    .collect();
+                    let descendants_of_critically_changed_commands = critical_changes
+                        .iter()
+                        .filter_map(|c| {
+                            if let Some(construct_did) = &c.construct_did {
+                                Some(
+                                    running_context
+                                        .graph_context
+                                        .get_downstream_dependencies_for_construct_did(
+                                            &construct_did,
+                                        ),
+                                )
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                        .collect::<Vec<_>>();
 
-                runbook
-                    .execution_context
-                    .order_for_signing_commands_initialization = runbook
-                    .execution_context
-                    .order_for_signing_commands_initialization
-                    .into_iter()
-                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
-                    .collect();
+                    running_context
+                        .execution_context
+                        .order_for_commands_execution = running_context
+                        .execution_context
+                        .order_for_commands_execution
+                        .clone()
+                        .into_iter()
+                        .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                        .collect();
 
-                runbook.execution_context = simulated_execution_context;
+                    running_context
+                        .execution_context
+                        .order_for_signing_commands_initialization = running_context
+                        .execution_context
+                        .order_for_signing_commands_initialization
+                        .clone()
+                        .into_iter()
+                        .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                        .collect();
+
+                    running_context.execution_context = simulated_running_contexts
+                        .remove(&running_context_key)
+                        .unwrap();
+                }
             }
         }
     } else {
@@ -510,10 +547,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     state_file_location
                 );
                 let diff = RunbookSnapshotContext::new();
-                let snapshot = diff.snapshot_runbook_execution(
-                    &runbook.execution_context,
-                    &runbook.workspace_context,
-                );
+                let snapshot =
+                    diff.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
                 state_file_location
                     .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
                     .expect("unable to save state");
@@ -523,7 +558,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         return Ok(());
     }
 
-    let runbook_description = runbook.workspace_context.description.clone();
+    let runbook_description = runbook.description.clone();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (action_item_updates_tx, _action_item_updates_rx) =

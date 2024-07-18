@@ -410,13 +410,12 @@ impl CommandImplementation for VerifyContractDeployment {
             status_update.update_status(&ProgressBarStatus::new_msg(
                 ProgressBarStatusColor::Green,
                 "Confirmed",
-                "Transaction Receipt Found",
+                &format!(
+                    "Contract {} deployment successfully verified",
+                    receipt.contract_address.unwrap()
+                ),
             ));
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-            println!(
-                "contract address for deployed contract {:?}",
-                receipt.contract_address.unwrap()
-            );
             result.outputs.insert(
                 "contract_address".into(),
                 Value::string(receipt.contract_address.unwrap().to_string()),

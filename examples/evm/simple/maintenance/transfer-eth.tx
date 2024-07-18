@@ -1,10 +1,23 @@
-addon "evm" {
-    defaults {
-        chain_id = 11155111
-        network_id = env.evm_network_id
-        rpc_api_url = env.evm_api_url
+runtime "batch" {
+    concurrency = 25
+    inputs = [{
+        evm_chain_id = 11155111
+    }, {
+        evm_chain_id = 11155112
+    }, {
+        evm_chain_id = 11155113
+    }, {
+        evm_chain_id = 11155114
+    }, {
+        evm_chain_id = 11155115
+    }]
+}
+
+runtime "evm::defaults" {
+    network_id = env.evm_network_id
+    chain_id = env.evm_chain_id
+    foundry_toml_path = env.foundry_toml_path
         block_explorer_api_key = env.evm_block_explorer_api_key
-    }
 }
 
 wallet "alice" "evm::mnemonic" {
@@ -14,6 +27,7 @@ wallet "alice" "evm::mnemonic" {
 // deploy simple storage contract
 action "artifacts" "evm::get_forge_deployment_artifacts" {
     foundry_toml_path = env.foundry_toml_path
+    // foundry_toml_path = "/Users/ludovic/Coding/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
     contract_filename = "SimpleStorage"
 }
 
@@ -99,8 +113,6 @@ action "verify_another" "evm::verify_deployment" {
 //     contract_abi = "/Users/micaiahreid/work/eth-experimentation/foundry-experimentation/out/SimpleStorage.sol/SimpleStorage.json"
 //     depends_on = [action.store.tx_hash]
 // }
-
-
 
 // output "bytes" {
 //     value = action.transfer_tx.bytes

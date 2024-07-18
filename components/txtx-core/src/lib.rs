@@ -43,6 +43,7 @@ use kit::types::frontend::ValidateBlockData;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
+use runbook::RunningContext;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
@@ -74,46 +75,14 @@ pub async fn start_unsupervised_runbook_runloop(
         review_input_values: false,
         is_supervised: false,
     };
+    for running_context in runbook.running_contexts.iter_mut() {
+        let mut action_item_requests = BTreeMap::new();
+        let action_item_responses = BTreeMap::new();
 
-    let mut action_item_requests = BTreeMap::new();
-    let action_item_responses = BTreeMap::new();
-    let runbook_workspace_context = runbook.workspace_context.clone();
-
-    let pass_result = run_wallets_evaluation(
-        &runbook_workspace_context,
-        &mut runbook.execution_context,
-        &mut runbook.runtime_context,
-        &runbook.supervision_context,
-        &mut action_item_requests,
-        &action_item_responses,
-        &progress_tx,
-    )
-    .await;
-
-    if pass_result.actions.has_pending_actions() {
-        return Err(vec![diagnosed_error!(
-            "error: unsupervised executions should not be generating actions"
-        )]);
-    }
-
-    if !pass_result.diagnostics.is_empty() {
-        println!("Diagnostics");
-        for diag in pass_result.diagnostics.iter() {
-            println!("- {}", diag);
-        }
-    }
-
-    let mut uuid = Uuid::new_v4();
-    let mut background_tasks_futures = vec![];
-    let mut background_tasks_contructs_dids = vec![];
-    let mut runbook_completed = false;
-
-    loop {
-        let mut pass_results = run_constructs_evaluation(
-            &uuid,
-            &runbook_workspace_context,
-            &mut runbook.execution_context,
-            &mut runbook.runtime_context,
+        let pass_result = run_wallets_evaluation(
+            &running_context.workspace_context,
+            &mut running_context.execution_context,
+            &runbook.runtime_context,
             &runbook.supervision_context,
             &mut action_item_requests,
             &action_item_responses,
@@ -121,66 +90,101 @@ pub async fn start_unsupervised_runbook_runloop(
         )
         .await;
 
-        if !pass_results.diagnostics.is_empty() {
+        if pass_result.actions.has_pending_actions() {
+            return Err(vec![diagnosed_error!(
+                "error: unsupervised executions should not be generating actions"
+            )]);
+        }
+
+        if !pass_result.diagnostics.is_empty() {
             println!("Diagnostics");
-            for diag in pass_results.diagnostics.iter() {
+            for diag in pass_result.diagnostics.iter() {
                 println!("- {}", diag);
             }
         }
 
-        if !pass_results
-            .pending_background_tasks_constructs_uuids
-            .is_empty()
-        {
-            background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
-            background_tasks_contructs_dids
-                .append(&mut pass_results.pending_background_tasks_constructs_uuids);
-        }
+        let mut uuid = Uuid::new_v4();
+        let mut background_tasks_futures = vec![];
+        let mut background_tasks_contructs_dids = vec![];
+        let mut runbook_completed = false;
 
-        if !pass_results.actions.has_pending_actions() && background_tasks_contructs_dids.is_empty()
-        {
-            let grouped_actions_items = runbook
-                .execution_context
-                .collect_outputs_constructs_results();
-            for (group, items) in grouped_actions_items.iter() {
-                println!("{}", group);
-                for item in items.iter() {
-                    if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                        println!("- {}: {}", output.name, output.value.to_string());
-                    }
+        loop {
+            let mut pass_results = run_constructs_evaluation(
+                &uuid,
+                &running_context.workspace_context,
+                &mut running_context.execution_context,
+                &mut runbook.runtime_context,
+                &runbook.supervision_context,
+                &mut action_item_requests,
+                &action_item_responses,
+                &progress_tx,
+            )
+            .await;
+
+            if !pass_results.diagnostics.is_empty() {
+                println!("Diagnostics");
+                for diag in pass_results.diagnostics.iter() {
+                    println!("- {}", diag);
                 }
             }
-            runbook_completed = true;
-        }
 
-        if background_tasks_futures.is_empty() {
-            sleep(time::Duration::from_secs(3));
-        } else {
-            let results = kit::futures::future::join_all(background_tasks_futures).await;
-            for (construct_did, result) in background_tasks_contructs_dids.into_iter().zip(results)
+            if !pass_results
+                .pending_background_tasks_constructs_uuids
+                .is_empty()
             {
-                match result {
-                    Ok(result) => {
-                        runbook
-                            .execution_context
-                            .commands_execution_results
-                            .insert(construct_did, result);
-                    }
-                    Err(diag) => {
-                        let diags = vec![diag];
-                        return Err(diags);
+                background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
+                background_tasks_contructs_dids
+                    .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+            }
+
+            if !pass_results.actions.has_pending_actions()
+                && background_tasks_contructs_dids.is_empty()
+            {
+                let grouped_actions_items = running_context
+                    .execution_context
+                    .collect_outputs_constructs_results();
+                for (group, items) in grouped_actions_items.iter() {
+                    println!("{}", group);
+                    for item in items.iter() {
+                        if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                            println!("- {}: {}", output.name, output.value.to_string());
+                        }
                     }
                 }
+                runbook_completed = true;
             }
-            background_tasks_futures = vec![];
-            background_tasks_contructs_dids = vec![];
-        }
 
-        uuid = Uuid::new_v4();
-        if runbook_completed {
-            break;
+            if background_tasks_futures.is_empty() {
+                sleep(time::Duration::from_secs(3));
+            } else {
+                let results = kit::futures::future::join_all(background_tasks_futures).await;
+                for (construct_did, result) in
+                    background_tasks_contructs_dids.into_iter().zip(results)
+                {
+                    match result {
+                        Ok(result) => {
+                            running_context
+                                .execution_context
+                                .commands_execution_results
+                                .insert(construct_did, result);
+                        }
+                        Err(diag) => {
+                            let diags = vec![diag];
+                            return Err(diags);
+                        }
+                    }
+                }
+                background_tasks_futures = vec![];
+                background_tasks_contructs_dids = vec![];
+            }
+
+            uuid = Uuid::new_v4();
+            if runbook_completed {
+                break;
+            }
         }
     }
+
     Ok(())
 }
 
@@ -192,6 +196,9 @@ pub async fn start_supervised_runbook_runloop(
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
+    unimplemented!();
+
+    /*
     let runbook_workspace_context = runbook.workspace_context.clone();
 
     let mut runbook_initialized = false;
@@ -500,6 +507,7 @@ pub async fn start_supervised_runbook_runloop(
             }
         };
     }
+    */
 }
 
 pub fn register_action_items_from_actions(
@@ -539,6 +547,7 @@ pub fn retrieve_related_action_items_requests<'a>(
 
 pub async fn reset_runbook_execution(
     runbook: &mut Runbook,
+    running_context: &mut RunningContext,
     payload: &ActionItemResponseType,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
@@ -560,6 +569,7 @@ pub async fn reset_runbook_execution(
     let _ = progress_tx.send(BlockEvent::Clear);
     let genesis_events = build_genesis_panel(
         runbook,
+        running_context,
         action_item_requests,
         action_item_responses,
         &progress_tx,
@@ -572,7 +582,8 @@ pub async fn reset_runbook_execution(
 }
 
 pub async fn build_genesis_panel(
-    runbook: &mut Runbook,
+    runbook: &Runbook,
+    running_context: &mut RunningContext,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
@@ -619,9 +630,9 @@ pub async fn build_genesis_panel(
     }
 
     let mut pass_result = run_wallets_evaluation(
-        &runbook.workspace_context,
-        &mut runbook.execution_context,
-        &mut runbook.runtime_context,
+        &running_context.workspace_context,
+        &mut running_context.execution_context,
+        &runbook.runtime_context,
         &runbook.supervision_context,
         &mut BTreeMap::new(),
         &action_item_responses,

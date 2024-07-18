@@ -259,6 +259,13 @@ impl Value {
             _ => unimplemented!(),
         }
     }
+
+    pub fn parse_and_default_to_string(value_str: &str) -> Value {
+        match value_str.parse::<u64>() {
+            Ok(uint) => Value::uint(uint),
+            Err(_) => Value::string(value_str.into()),
+        }
+    }
 }
 
 impl Value {

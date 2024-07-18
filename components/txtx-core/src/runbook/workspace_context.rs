@@ -21,12 +21,10 @@ pub enum ConstructInstanceType {
     Import,
 }
 
-#[derive(Debug, Clone)]
+#[derive(better_debug::BetterDebug, Clone)]
 pub struct RunbookWorkspaceContext {
     /// Id of the Runbook
     pub runbook_id: RunbookId,
-    /// Description of the Runbook
-    pub description: Option<String>,
     /// Map of packages. A package is either a standalone .tx file, or a directory enclosing multiple .tx files
     pub packages: HashMap<PackageId, Package>,
     /// Map of constructs. A construct refers to root level objects (input, action, output, wallet, import, ...)
@@ -38,10 +36,9 @@ pub struct RunbookWorkspaceContext {
 }
 
 impl RunbookWorkspaceContext {
-    pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
+    pub fn new(runbook_id: RunbookId) -> Self {
         Self {
             runbook_id,
-            description,
             packages: HashMap::new(),
             constructs: HashMap::new(),
             environment_variables_did_lookup: BTreeMap::new(),
@@ -52,7 +49,7 @@ impl RunbookWorkspaceContext {
     pub fn build_from_sources(
         &mut self,
         runbook_sources: &RunbookSources,
-        runtime_context: &mut RuntimeContext,
+        runtime_context: &RuntimeContext,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -322,7 +319,7 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "addon" => {}
+                    "runtime" => {}
                     _ => {
                         diagnostics.push(Diagnostic {
                             location: Some(location.clone()),
@@ -429,7 +426,7 @@ impl RunbookWorkspaceContext {
                     .addons_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
-                    specification: commands::new_addon_specification(),
+                    specification: commands::new_runtime_setting(),
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),

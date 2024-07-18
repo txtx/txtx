@@ -23,6 +23,7 @@ chrono = "0.4.38"
 similar = "2.5.0"
 txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks"}
 txtx-addon-network-evm = { path = "../txtx-addon-network-evm"}
+better-debug = "1.0.1"
 
 [dev-dependencies]
 txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks"}
