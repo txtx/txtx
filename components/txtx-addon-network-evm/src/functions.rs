@@ -88,7 +88,7 @@ impl FunctionImplementation for EncodeEVMAddress {
     }
 
     fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
+        let mut entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
             other => {
                 return Err(diagnosed_error!(
@@ -97,7 +97,13 @@ impl FunctionImplementation for EncodeEVMAddress {
                 ))
             }
         };
-        let address = Address::from_str(&entry)
+        entry = entry.replace("0x", "");
+        // hack: we're assuming that if the address is 32 bytes, it's a sol value that's padded with 0s, so we trim them
+        if entry.len() == 64 {
+            let split_pos = entry.char_indices().nth_back(39).unwrap().0;
+            entry = (entry[split_pos..]).to_owned();
+        }
+        let address = Address::from_hex(&entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: invalid address: {}", e))?;
         let bytes = address.0 .0;
         Ok(Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()))
