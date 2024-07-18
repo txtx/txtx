@@ -1,3 +1,4 @@
+use alloy::consensus::Transaction;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy::providers::{Provider, ProviderBuilder};
@@ -31,7 +32,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, RPC_API_URL};
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL};
 use crate::typing::ETH_TX_HASH;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
@@ -204,7 +205,7 @@ impl WalletImplementation for EVMMnemonic {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        signing_command_state: ValueStore,
+        mut signing_command_state: ValueStore,
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
@@ -231,6 +232,7 @@ impl WalletImplementation for EVMMnemonic {
             tx.set_create();
 
             let tx_envelope = tx.build(&eth_wallet).await.unwrap();
+            let tx_nonce = tx_envelope.nonce();
 
             let url = Url::try_from(rpc_api_url.as_ref()).unwrap();
             let provider = ProviderBuilder::new()
@@ -243,6 +245,7 @@ impl WalletImplementation for EVMMnemonic {
                 "tx_hash".to_string(),
                 Value::buffer(tx_hash.to_vec(), ETH_TX_HASH.clone()),
             );
+            signing_command_state.insert(NONCE, Value::uint(tx_nonce));
             Ok((wallets, signing_command_state, result))
         };
         Ok(Box::pin(future))
