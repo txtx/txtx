@@ -225,9 +225,11 @@ impl RunbookGraphContext {
             // For each signing command instantiated
             if *instantiated {
                 // We retrieve the downstream dependencies (signed commands)
-                let signed_commands =
-                    self.get_downstream_dependencies_for_construct_did(construct_did);
-                for signed_dependency in signed_commands.iter() {
+                let unordered_signed_commands =
+                    self.get_downstream_dependencies_for_construct_did(construct_did, false);
+                let mut ordered_signed_commands = vec![];
+
+                for signed_dependency in unordered_signed_commands.iter() {
                     // For each signed commands, we retrieve the upstream dependencies, but:
                     // - we ignore the signing commands
                     // - we pop the last root synthetic ConstructDid
@@ -238,6 +240,9 @@ impl RunbookGraphContext {
                         .collect::<Vec<_>>();
                     upstream_dependencies.remove(upstream_dependencies.len() - 1);
 
+                    ordered_signed_commands
+                        .push((signed_dependency.clone(), upstream_dependencies.len()));
+
                     execution_context
                         .signed_commands_upstream_dependencies
                         .insert(signed_dependency.clone(), upstream_dependencies);
@@ -245,9 +250,23 @@ impl RunbookGraphContext {
                         .signed_commands
                         .insert(signed_dependency.clone());
                 }
+                ordered_signed_commands.sort_by(|(a_id, a_len), (b_id, b_len)| {
+                    if a_len.eq(b_len) {
+                        a_id.cmp(b_id)
+                    } else {
+                        a_len.cmp(&b_len)
+                    }
+                });
+
                 execution_context
                     .signing_commands_downstream_dependencies
-                    .push((construct_did.clone(), signed_commands));
+                    .push((
+                        construct_did.clone(),
+                        ordered_signed_commands
+                            .into_iter()
+                            .map(|(construct_id, _)| construct_id)
+                            .collect(),
+                    ));
             }
         }
 
@@ -258,7 +277,8 @@ impl RunbookGraphContext {
         }
 
         for (construct_did, _) in execution_context.commands_instances.iter() {
-            let dependencies = self.get_downstream_dependencies_for_construct_did(construct_did);
+            let dependencies =
+                self.get_downstream_dependencies_for_construct_did(construct_did, true);
             execution_context
                 .commands_dependencies
                 .insert(construct_did.clone(), dependencies);
@@ -288,7 +308,11 @@ impl RunbookGraphContext {
     }
 
     /// Gets all descendants of `node` within `graph`.
-    pub fn get_nodes_descending_from_node(&self, node: NodeIndex) -> IndexSet<NodeIndex> {
+    pub fn get_nodes_descending_from_node(
+        &self,
+        node: NodeIndex,
+        recursive: bool,
+    ) -> IndexSet<NodeIndex> {
         let mut descendant_nodes = VecDeque::new();
         descendant_nodes.push_front(node);
         let mut descendants = IndexSet::new();
@@ -298,7 +322,9 @@ impl RunbookGraphContext {
                 .children(node)
                 .iter(&self.constructs_dag)
             {
-                descendant_nodes.push_back(child);
+                if recursive {
+                    descendant_nodes.push_back(child);
+                }
                 descendants.insert(child);
             }
         }
@@ -309,25 +335,30 @@ impl RunbookGraphContext {
     pub fn get_downstream_dependencies_for_construct_did(
         &self,
         construct_did: &ConstructDid,
+        recursive: bool,
     ) -> Vec<ConstructDid> {
         let node_index = self
             .constructs_dag_node_lookup
             .get(construct_did)
             .expect("construct_did not indexed in graph");
-        let nodes = self.get_nodes_descending_from_node(node_index.clone());
+        let nodes = self.get_nodes_descending_from_node(node_index.clone(), recursive);
         self.resolve_constructs_dids(nodes)
     }
 
     /// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
     /// Legacy, dead code
     #[allow(dead_code)]
-    pub fn get_sorted_descendants_of_node(&self, node: NodeIndex) -> Vec<ConstructDid> {
+    pub fn get_sorted_descendants_of_node(
+        &self,
+        node: NodeIndex,
+        recursive: bool,
+    ) -> Vec<ConstructDid> {
         let sorted = toposort(&self.constructs_dag, None)
             .unwrap()
             .into_iter()
             .collect::<IndexSet<NodeIndex>>();
 
-        let start_node_descendants = self.get_nodes_descending_from_node(node);
+        let start_node_descendants = self.get_nodes_descending_from_node(node, recursive);
         let mut sorted_descendants = IndexSet::new();
 
         for this_node in sorted.into_iter() {

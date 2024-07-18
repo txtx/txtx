@@ -261,7 +261,7 @@ impl RunbookExecutionContext {
                 }
                 Err(diag) => {
                     pass_result.diagnostics.push(diag);
-                    return pass_result;
+                    continue;
                 }
             }
 

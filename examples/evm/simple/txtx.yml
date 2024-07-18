@@ -5,7 +5,7 @@ environments:
   devnet:
     evm_chain_id: 11155111
     evm_network_id: sepolia
-    evm_api_url: "http://127.0.0.1:8545"
+    evm_rpc_api_url: "http://127.0.0.1:8545"
     evm_block_explorer_api_key: 5RGQJXQ556G9PYNWDB7FBNSMV9M71PSJ7F
     foundry_toml_path: "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
   testnet:
