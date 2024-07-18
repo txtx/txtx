@@ -214,8 +214,8 @@ pub struct Construct {
 #[derive(Debug, Clone)]
 pub struct ValueStore {
     pub uuid: Did,
-    name: String,
-    storage: HashMap<String, Value>,
+    pub name: String,
+    pub storage: HashMap<String, Value>,
 }
 
 impl ValueStore {

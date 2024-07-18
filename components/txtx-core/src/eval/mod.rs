@@ -33,7 +33,7 @@ use txtx_addon_kit::{
 pub async fn run_wallets_evaluation(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_context: &mut RuntimeContext,
+    runtime_context: &RuntimeContext,
     supervision_context: &RunbookSupervisionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
@@ -881,6 +881,10 @@ pub fn eval_expression(
             let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
             else {
+                println!(
+                    "\n\nLooking for {} in {:?}\n\n",
+                    expr, runbook_workspace_context
+                );
                 return Err(diagnosed_error!(
                     "unable to resolve expression '{}'",
                     expr.to_string().trim()

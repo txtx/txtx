@@ -51,7 +51,7 @@ impl ProtocolManifest {
         for (selector, inputs) in self.environments.iter() {
             let mut values = vec![];
             for (key, value) in inputs.iter() {
-                values.push((key.to_string(), Value::string(value.into())));
+                values.push((key.to_string(), Value::parse_and_default_to_string(value)));
             }
             inputs_map.environments.push(selector.into());
             inputs_map.values.insert(Some(selector.to_string()), values);

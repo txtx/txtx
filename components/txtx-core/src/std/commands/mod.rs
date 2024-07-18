@@ -330,11 +330,11 @@ impl CommandImplementation for Output {
     }
 }
 
-pub fn new_addon_specification() -> CommandSpecification {
+pub fn new_runtime_setting() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
-        Input => {
-            name: "Addon",
-            matcher: "addon",
+        Runtime => {
+            name: "Runtime",
+            matcher: "runtime",
             documentation: "Construct designed to import an addon",
             implements_signing_capability: false,
             implements_background_task_capability: false,
@@ -359,9 +359,9 @@ pub fn new_addon_specification() -> CommandSpecification {
     }
 }
 
-pub struct Addon;
+pub struct Runtime;
 
-impl CommandImplementation for Addon {
+impl CommandImplementation for Runtime {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
