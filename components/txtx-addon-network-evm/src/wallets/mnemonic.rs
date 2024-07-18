@@ -242,7 +242,13 @@ impl WalletImplementation for EVMMnemonic {
                 .with_recommended_fillers()
                 .wallet(eth_wallet)
                 .on_http(url);
-            let pending_tx = provider.send_tx_envelope(tx_envelope).await.unwrap();
+            let pending_tx = provider.send_tx_envelope(tx_envelope).await.map_err(|e| {
+                (
+                    wallets.clone(),
+                    signing_command_state.clone(),
+                    diagnosed_error!("error signing transaction: {e}"),
+                )
+            })?;
             let tx_hash = pending_tx.tx_hash().0;
             result.outputs.insert(
                 "tx_hash".to_string(),
