@@ -128,6 +128,10 @@ pub struct ExecuteRunbook {
     /// A set of inputs to use for batch processing
     #[arg(long = "input")]
     pub inputs: Vec<String>,
+
+    /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
+    #[arg(long = "force", short = 'f')]
+    pub force_execution: bool,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
