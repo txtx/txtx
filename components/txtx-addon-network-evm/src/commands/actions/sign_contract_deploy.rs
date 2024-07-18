@@ -197,7 +197,7 @@ impl CommandImplementation for SignEVMContractDeploy {
             }
 
             let transaction =
-                build_unsigned_contract_deploy(&signing_command_state, &spec, &args, &defaults)
+                build_unsigned_contract_deploy(&mut signing_command_state, &spec, &args, &defaults)
                     .await
                     .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
 
@@ -327,7 +327,7 @@ impl CommandImplementation for SignEVMContractDeploy {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_contract_deploy(
-    wallet_state: &ValueStore,
+    wallet_state: &mut ValueStore,
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
@@ -339,7 +339,7 @@ async fn build_unsigned_contract_deploy(
         constants::{ARTIFACTS, CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE},
     };
 
-    let from = wallet_state.get_expected_value("signer_address")?;
+    let from = wallet_state.get_expected_value("signer_address")?.clone();
 
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
@@ -360,7 +360,12 @@ async fn build_unsigned_contract_deploy(
         .map(|v| v.expect_uint())
         .unwrap_or(0);
     let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let mut nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    if nonce.is_none() {
+        if let Some(wallet_nonce) = wallet_state.get_value(NONCE).map(|v| v.expect_uint()) {
+            nonce = Some(wallet_nonce + 1);
+        }
+    }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)

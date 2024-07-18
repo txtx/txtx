@@ -52,7 +52,7 @@ pub fn load_runbook_execution_snapshot(
 }
 
 pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
-    let (_manifest, _runbook_name, runbook, runbook_state) =
+    let (_manifest, runbook_name, runbook, runbook_state) =
         load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
 
     match &runbook_state {
@@ -74,20 +74,36 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
                 &runbook.workspace_context,
             );
             let res = ctx.diff(old, new);
+            let mut logged_change = false;
             for change in res.iter() {
                 if !change.description.is_empty() {
+                    if !logged_change {
+                        println!(
+                            "{} Changes detected since last execution of '{}': ",
+                            yellow!("→"),
+                            runbook_name
+                        );
+                    }
+                    logged_change = true;
                     let fmt_critical = match change.critical {
-                        true => "[critical]",
-                        false => "[cosmetic]",
+                        true => format!("{} [critical]", yellow!("→"),),
+                        false => format!("{} [cosmetic]", purple!("→"),),
                     };
 
                     println!(
-                        "{}: {}\n{}",
+                        "{}: {}\n\t{}\n",
                         fmt_critical,
                         change.label,
-                        change.description.join("\n")
+                        change.description.join("\t")
                     );
                 }
+            }
+            if !logged_change {
+                println!(
+                    "{} No changes detected since last execution of '{}'",
+                    green!("✓"),
+                    runbook_name
+                );
             }
         }
         None => {}
@@ -350,9 +366,96 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     }
 
-    println!("\n{} Starting runbook '{}'", purple!("→"), runbook_name);
+    println!("{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-    let runbook_description = runbook.workspace_context.description.clone();
+    if !cmd.force_execution {
+        if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
+            let ctx = RunbookSnapshotContext::new();
+            let old = load_runbook_execution_snapshot(&state_file_location)?;
+            let mut simulated_execution_context = runbook.execution_context.clone();
+            let frontier = HashSet::new();
+
+            let res = simulated_execution_context
+                .simulate_execution(
+                    &runbook.runtime_context,
+                    &runbook.workspace_context,
+                    &runbook.supervision_context,
+                    &frontier,
+                )
+                .await;
+            if !res.diagnostics.is_empty() {
+                for diag in res.diagnostics.iter() {
+                    println!("{} simulation {}", red!("x"), diag);
+                }
+            }
+
+            let new = ctx.snapshot_runbook_execution(
+                &simulated_execution_context,
+                &runbook.workspace_context,
+            );
+            let diff = ctx.diff(old, new);
+            let critical_changes = diff
+                .iter()
+                .filter(|c| !c.description.is_empty() && c.critical)
+                .collect::<Vec<_>>();
+            let has_cosmetic_changes = diff
+                .iter()
+                .any(|c| !c.description.is_empty() && !c.critical);
+            if critical_changes.is_empty() {
+                let prefix = if has_cosmetic_changes {
+                    "Only cosmetic changes"
+                } else {
+                    "No changes"
+                };
+                println!(
+                    "{} {} since last execution of '{}'. Skipping Execution.",
+                    yellow!("→"),
+                    prefix,
+                    runbook_name
+                );
+                return Ok(());
+            } else {
+                let descendants_of_critically_changed_commands = critical_changes
+                    .iter()
+                    .filter_map(|c| {
+                        if let Some(construct_did) = &c.construct_did {
+                            Some(
+                                runbook
+                                    .graph_context
+                                    .get_downstream_dependencies_for_construct_did(&construct_did),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                runbook.execution_context.order_for_commands_execution = runbook
+                    .execution_context
+                    .order_for_commands_execution
+                    .into_iter()
+                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .collect();
+
+                runbook
+                    .execution_context
+                    .order_for_signing_commands_initialization = runbook
+                    .execution_context
+                    .order_for_signing_commands_initialization
+                    .into_iter()
+                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .collect();
+
+                runbook.execution_context = simulated_execution_context;
+            }
+        }
+    } else {
+        println!(
+            "{} Executing Runbook with 'force' flag - ignoring previous execution state",
+            yellow!("→"),
+        );
+    }
 
     // should not be generating actions
     if is_execution_unsupervised {
@@ -392,6 +495,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 }
             }
         });
+
         println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
         if let Err(diags) = res {
@@ -400,7 +504,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         } else {
             if let Some(RunbookState::File(state_file_location)) = runbook_state {
-                println!("Saving to {}", state_file_location);
+                println!(
+                    "{} Saving execution state to {}",
+                    green!("✓"),
+                    state_file_location
+                );
                 let diff = RunbookSnapshotContext::new();
                 let snapshot = diff.snapshot_runbook_execution(
                     &runbook.execution_context,
@@ -415,6 +523,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         return Ok(());
     }
 
+    let runbook_description = runbook.workspace_context.description.clone();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (action_item_updates_tx, _action_item_updates_rx) =
@@ -623,7 +732,7 @@ pub async fn load_runbook_from_manifest(
                 }
                 std::process::exit(1);
             }
-            println!("{} '{}' successfully checked", green!("✓"), runbook_name);
+            println!("{} '{}' successfully loaded", green!("✓"), runbook_name);
             return Ok((manifest, runbook_name, runbook, runbook_state));
         }
     }

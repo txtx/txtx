@@ -755,7 +755,12 @@ impl CommandInstance {
                 Some(value) => value.clone(),
                 None => match input.optional {
                     true => continue,
-                    false => unreachable!("{} missing?", input.name), // todo: return diagnostic
+                    false => {
+                        return Err(Diagnostic::error_from_string(format!(
+                            "Could not execute command '{}': Required input '{}' missing",
+                            self.name, input.name
+                        )));
+                    }
                 },
             };
             values.insert(&input.name, value);

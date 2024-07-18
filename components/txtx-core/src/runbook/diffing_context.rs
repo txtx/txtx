@@ -316,7 +316,7 @@ impl RunbookSnapshotContext {
                 old.org.as_ref().unwrap_or(&empty_string),
                 &new.org.as_ref().unwrap_or(&empty_string),
             ),
-            format!("Runbook's name updated"),
+            format!("Runbook's org updated"),
             false,
         ));
         diffs.push(evaluated_diff(
@@ -325,7 +325,7 @@ impl RunbookSnapshotContext {
                 old.workspace.as_ref().unwrap_or(&empty_string),
                 new.workspace.as_ref().unwrap_or(&empty_string),
             ),
-            format!("Runbook's name updated"),
+            format!("Runbook's workspace updated"),
             false,
         ));
 
@@ -465,11 +465,11 @@ pub fn diff_command_snapshots(
     // First: Any new construct?
     let old_signed_commands_dids = old_construct_dids
         .iter()
-        .map(|c| c.0.to_string())
+        .map(|c| c.to_string())
         .collect::<Vec<_>>();
     let new_signed_commands_dids = new_construct_dids
         .iter()
-        .map(|c| c.0.to_string())
+        .map(|c| c.to_string())
         .collect::<Vec<_>>();
     let signed_command_sequence_changes = capture_diff_slices(
         Algorithm::Myers,
@@ -544,7 +544,7 @@ pub fn diff_command_snapshots(
                 old_command.construct_name.as_str(),
                 new_command.construct_name.as_str(),
             ),
-            format!("Signing command's name updated"),
+            format!("Non-signing command's name updated"),
             false,
         ));
 
@@ -555,7 +555,7 @@ pub fn diff_command_snapshots(
                 old_command.construct_path.as_str(),
                 new_command.construct_path.as_str(),
             ),
-            format!("Signing command's path updated"),
+            format!("Non-signing command's path updated"),
             false,
         ));
 
@@ -572,7 +572,7 @@ pub fn diff_command_snapshots(
                     .as_ref()
                     .unwrap_or(&empty_string),
             ),
-            format!("Signing command's driver updated"),
+            format!("Non-signing command's driver updated"),
             false,
         ));
 
@@ -650,7 +650,7 @@ pub fn diff_command_snapshots(
             diffs.push(evaluated_diff(
                 Some(old_command.construct_did.clone()),
                 TextDiff::from_lines(old_input.name.as_str(), new_input.name.as_str()),
-                format!("Signing command's input name updated"),
+                format!("Non-signing command's input name updated"),
                 false,
             ));
 
@@ -667,7 +667,7 @@ pub fn diff_command_snapshots(
                         .as_ref()
                         .unwrap_or(&empty_string),
                 ),
-                format!("Signing command's input value_pre_evaluation updated"),
+                format!("Non-signing command's input value_pre_evaluation updated"),
                 true,
             ));
         }
@@ -707,14 +707,14 @@ pub fn diff_command_snapshots(
                     old_len: _,
                     new_index: _,
                 } => {
-                    // comparable_inputs_list.push((*old_index, *new_index));
+                    // comparable_outputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Insert {
                     old_index: _,
                     new_index: _,
                     new_len: _,
                 } => {
-                    // comparable_inputs_list.push((*old_index, *new_index));
+                    // comparable_outputs_list.push((*old_index, *new_index));
                 }
                 DiffOp::Replace {
                     old_index: _,
@@ -722,7 +722,7 @@ pub fn diff_command_snapshots(
                     new_index: _,
                     new_len: _,
                 } => {
-                    // comparable_inputs_list.push((*old_index, *new_index));
+                    // comparable_outputs_list.push((*old_index, *new_index));
                 }
             }
         }
@@ -743,7 +743,7 @@ pub fn diff_command_snapshots(
             diffs.push(evaluated_diff(
                 Some(old_command.construct_did.clone()),
                 TextDiff::from_lines(old_output.name.as_str(), new_output.name.as_str()),
-                format!("Signing command's output name updated"),
+                format!("Non-signing command's output name updated"),
                 false,
             ));
 
@@ -754,7 +754,7 @@ pub fn diff_command_snapshots(
                     old_output.value.to_string().as_str(),
                     new_output.value.to_string().as_str(),
                 ),
-                format!("Signing command's output result updated"),
+                format!("Non-signing command's output value_pre_evaluation updated"),
                 true,
             ));
         }
@@ -771,6 +771,7 @@ pub fn diff_command_snapshots(
     diffs
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Change {
     pub critical: bool,
     pub construct_did: Option<ConstructDid>,
