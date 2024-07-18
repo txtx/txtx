@@ -50,7 +50,7 @@ lazy_static! {
                     ```
                     "# },
                     typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
-                    optional: true,
+                    optional: false,
                     interpolable: true
                 }
             ],
@@ -143,7 +143,7 @@ impl CommandImplementation for VerifyContract {
 
         let contract_address = inputs.get_expected_value(CONTRACT_ADDRESS)?;
         let explorer_api_key = inputs.get_defaulting_string(BLOCK_EXPLORER_API_KEY, defaults)?;
-        let artifacts = inputs.get_object(ARTIFACTS)?;
+        let artifacts = inputs.get_expected_object(ARTIFACTS)?;
 
         let contract_address = get_expected_address(&contract_address).map_err(|e| {
             diagnosed_error!("command: 'verify_contract' failed to parse contract address: {e}")
@@ -167,86 +167,121 @@ impl CommandImplementation for VerifyContract {
 
             let mut result = CommandExecutionResult::new();
 
-            if let Some(artifacts) = artifacts {
+            progress = (progress + 1) % progress_symbol.len();
+            status_update.update_status(&ProgressBarStatus::new_msg(
+                ProgressBarStatusColor::Yellow,
+                &format!("Pending {}", progress_symbol[progress]),
+                &format!(
+                    "Submitting Contract {} to Explorer for Verification",
+                    contract_address.to_string()
+                ),
+            ));
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+            let Some(Value::Primitive(PrimitiveValue::String(source))) = artifacts.get("source")
+            else {
+                return Err(diagnosed_error!(
+                        "command: 'evm::verify_contract': contract deployment artifacts missing contract source"
+                    ));
+            };
+
+            let Some(Value::Primitive(PrimitiveValue::String(compiler_version))) =
+                artifacts.get("compiler_version")
+            else {
+                return Err(diagnosed_error!(
+                        "command: 'evm::verify_contract': contract deployment artifacts missing compiler version"
+                    ));
+            };
+
+            let Some(Value::Primitive(PrimitiveValue::String(contract_name))) =
+                artifacts.get("contract_name")
+            else {
+                return Err(diagnosed_error!(
+                        "command: 'evm::verify_contract': contract deployment artifacts missing contract name"
+                    ));
+            };
+
+            let chain = Chain::from(chain_id);
+            let explorer_client = BlockExplorerClient::new(chain, explorer_api_key)
+                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
+
+            let guid = {
                 progress = (progress + 1) % progress_symbol.len();
+                let verify_contract = VerifyContract::new(
+                    contract_address,
+                    contract_name.clone(),
+                    source.clone(),
+                    compiler_version.clone(),
+                )
+                // todo: need to check if other formats
+                .code_format(CodeFormat::SingleFile)
+                // todo: need to set from compilation settings
+                .optimization(true)
+                .runs(200)
+                .evm_version("paris");
+
+                let res = explorer_client
+                    .submit_contract_verification(&verify_contract)
+                    .await
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {e}"))?;
+
+                if res.message.eq("NOTOK") {
+                    result
+                        .outputs
+                        .insert("result".into(), Value::string(res.result.clone()));
+
+                    let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", res.result);
+                    status_update.update_status(&ProgressBarStatus::new_err(
+                        "Failed",
+                        "Contract Verification Failed",
+                        &diag,
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                    return Err(diag);
+                }
+                let guid = res.result;
+
                 status_update.update_status(&ProgressBarStatus::new_msg(
                     ProgressBarStatusColor::Yellow,
                     &format!("Pending {}", progress_symbol[progress]),
                     &format!(
-                        "Submitting Contract {} to Explorer for Verification",
+                        "Contract {} Submitted to Explorer for Verification",
                         contract_address.to_string()
                     ),
                 ));
                 let _ =
                     progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                guid
+            };
 
-                let Some(Value::Primitive(PrimitiveValue::String(source))) =
-                    artifacts.get("source")
-                else {
-                    return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing contract source"
-                    ));
-                };
+            let max_attempts = 5;
+            let mut attempts = 0;
+            let backoff_ms = 500;
+            let status_msg = format!(
+                "Checking Verification Status for Contract {}",
+                contract_address.to_string()
+            );
+            loop {
+                progress = (progress + 1) % progress_symbol.len();
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &status_msg,
+                ));
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                let Some(Value::Primitive(PrimitiveValue::String(compiler_version))) =
-                    artifacts.get("compiler_version")
-                else {
-                    return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing compiler version"
-                    ));
-                };
-
-                let Some(Value::Primitive(PrimitiveValue::String(contract_name))) =
-                    artifacts.get("contract_name")
-                else {
-                    return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing contract name"
-                    ));
-                };
-
-                let chain = Chain::from(chain_id);
-                let explorer_client = BlockExplorerClient::new(chain, explorer_api_key)
-                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
-
-                let guid = {
-                    progress = (progress + 1) % progress_symbol.len();
-                    let verify_contract = VerifyContract::new(
-                        contract_address,
-                        contract_name.clone(),
-                        source.clone(),
-                        compiler_version.clone(),
-                    )
-                    // todo: need to check if other formats
-                    .code_format(CodeFormat::SingleFile)
-                    // todo: need to set from compilation settings
-                    .optimization(true)
-                    .runs(200)
-                    .evm_version("paris");
-
-                    let res = explorer_client
-                    .submit_contract_verification(&verify_contract)
+                let res = match explorer_client
+                    .check_contract_verification_status(guid.clone())
                     .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {e}"))?;
-
-                    if res.message.eq("NOTOK") {
-                        result
-                            .outputs
-                            .insert("result".into(), Value::string(res.result.clone()));
-
-                        if res.result.eq("Already Verified") {
-                            status_update.update_status(&ProgressBarStatus::new_msg(
-                                ProgressBarStatusColor::Green,
-                                "Verified",
-                                &format!(
-                                    "Contract {} Already Verified",
-                                    contract_address.to_string()
-                                ),
-                            ));
-                            let _ = progress_tx
-                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                            return Ok(result);
-                        } else {
-                            let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", res.result);
+                {
+                    Ok(res) => res,
+                    Err(e) => {
+                        attempts += 1;
+                        if attempts == max_attempts {
+                            let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", e);
                             status_update.update_status(&ProgressBarStatus::new_err(
                                 "Failed",
                                 "Contract Verification Failed",
@@ -256,86 +291,47 @@ impl CommandImplementation for VerifyContract {
                                 .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
                             return Err(diag);
-                        }
-                    }
-                    let guid = res.result;
+                        } else {
+                            // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
+                            let mut count = 0;
+                            loop {
+                                count += 1;
+                                progress = (progress + 1) % progress_symbol.len();
 
-                    status_update.update_status(&ProgressBarStatus::new_msg(
-                        ProgressBarStatusColor::Yellow,
-                        &format!("Pending {}", progress_symbol[progress]),
-                        &format!(
-                            "Contract {} Submitted to Explorer for Verification",
-                            contract_address.to_string()
-                        ),
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                    guid
-                };
-
-                let max_attempts = 5;
-                let mut attempts = 0;
-                let backoff_ms = 500;
-                let status_msg = format!(
-                    "Checking Verification Status for Contract {}",
-                    contract_address.to_string()
-                );
-                loop {
-                    progress = (progress + 1) % progress_symbol.len();
-                    status_update.update_status(&ProgressBarStatus::new_msg(
-                        ProgressBarStatusColor::Yellow,
-                        &format!("Pending {}", progress_symbol[progress]),
-                        &status_msg,
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-
-                    let res = match explorer_client
-                        .check_contract_verification_status(guid.clone())
-                        .await
-                    {
-                        Ok(res) => res,
-                        Err(e) => {
-                            attempts += 1;
-                            if attempts == max_attempts {
-                                let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", e);
-                                status_update.update_status(&ProgressBarStatus::new_err(
-                                    "Failed",
-                                    "Contract Verification Failed",
-                                    &diag,
+                                status_update.update_status(&ProgressBarStatus::new_msg(
+                                    ProgressBarStatusColor::Yellow,
+                                    &format!("Pending {}", progress_symbol[progress]),
+                                    &status_msg,
                                 ));
                                 let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(
                                     status_update.clone(),
                                 ));
 
-                                return Err(diag);
-                            } else {
-                                // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
-                                let mut count = 0;
-                                loop {
-                                    count += 1;
-                                    progress = (progress + 1) % progress_symbol.len();
-
-                                    status_update.update_status(&ProgressBarStatus::new_msg(
-                                        ProgressBarStatusColor::Yellow,
-                                        &format!("Pending {}", progress_symbol[progress]),
-                                        &status_msg,
-                                    ));
-                                    let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(
-                                        status_update.clone(),
-                                    ));
-
-                                    sleep_ms(backoff_ms);
-                                    if count == 10 {
-                                        break;
-                                    }
+                                sleep_ms(backoff_ms);
+                                if count == 10 {
+                                    break;
                                 }
-                                continue;
                             }
+                            continue;
                         }
-                    };
+                    }
+                };
 
-                    if res.message.eq("NOTOK") {
+                if res.message.eq("NOTOK") {
+                    result
+                        .outputs
+                        .insert("result".into(), Value::string(res.result.clone()));
+
+                    if res.result.eq("Already Verified") {
+                        status_update.update_status(&ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Verified",
+                            &format!("Contract {} Already Verified", contract_address.to_string()),
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        return Ok(result);
+                    } else {
                         attempts += 1;
                         if attempts == max_attempts {
                             let diag = diagnosed_error!("command 'evm::verify_contract': received error response from contract verification: {}", res.result);
@@ -350,48 +346,49 @@ impl CommandImplementation for VerifyContract {
                             return Err(diag);
                         }
                     }
+                }
 
-                    let contract_verified = res.result;
+                let contract_verified = res.result;
 
-                    if contract_verified.eq("Pass - Verified") {
-                        result
-                            .outputs
-                            .insert("result".into(), Value::string(contract_verified));
-                        break;
-                    } else {
-                        // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
-                        let mut count = 0;
-                        loop {
-                            count += 1;
-                            progress = (progress + 1) % progress_symbol.len();
+                if contract_verified.eq("Pass - Verified") {
+                    result
+                        .outputs
+                        .insert("result".into(), Value::string(contract_verified));
 
-                            status_update.update_status(&ProgressBarStatus::new_msg(
-                                ProgressBarStatusColor::Yellow,
-                                &format!("Pending {}", progress_symbol[progress]),
-                                &status_msg,
-                            ));
-                            let _ = progress_tx
-                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        ProgressBarStatusColor::Green,
+                        "Verified",
+                        &format!("Contract {} Verified", contract_address.to_string()),
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    break;
+                } else {
+                    // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
+                    let mut count = 0;
+                    loop {
+                        count += 1;
+                        progress = (progress + 1) % progress_symbol.len();
 
-                            sleep_ms(backoff_ms);
-                            if count == 10 {
-                                result
-                                    .outputs
-                                    .insert("result".into(), Value::string(contract_verified));
-                                break;
-                            }
+                        status_update.update_status(&ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Yellow,
+                            &format!("Pending {}", progress_symbol[progress]),
+                            &status_msg,
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                        sleep_ms(backoff_ms);
+                        if count == 10 {
+                            result
+                                .outputs
+                                .insert("result".into(), Value::string(contract_verified));
+                            break;
                         }
-                        continue;
                     }
+                    continue;
                 }
             }
-
-            status_update.update_status(&ProgressBarStatus::new_msg(
-                ProgressBarStatusColor::Green,
-                "Verified",
-                &format!("Contract {} Verified", contract_address.to_string()),
-            ));
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             Ok(result)
         };
