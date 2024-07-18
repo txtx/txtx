@@ -13,14 +13,14 @@ pub mod get_forge_deployment_artifacts;
 pub mod sign_contract_call;
 pub mod sign_contract_deploy;
 pub mod sign_transfer;
-pub mod verify_deployment;
+pub mod verify_contract;
 
 use call_view_function::CALL_VIEW_FUNCTION;
 use get_forge_deployment_artifacts::GET_FORGE_DEPLOYMENT_ARTIFACTS;
 use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
 use sign_contract_deploy::SIGN_EVM_CONTRACT_DEPLOY;
 use sign_transfer::SIGN_EVM_TRANSFER;
-use verify_deployment::VERIFY_CONTRACT_DEPLOYMENT;
+use verify_contract::VERIFY_CONTRACT_DEPLOYMENT;
 
 use crate::constants::TRANSACTION_FROM;
 

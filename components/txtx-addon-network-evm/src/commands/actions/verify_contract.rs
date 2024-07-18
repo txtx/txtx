@@ -21,7 +21,7 @@ lazy_static! {
     pub static ref VERIFY_CONTRACT_DEPLOYMENT: PreCommandSpecification = define_command! {
         VerifyContractDeployment => {
             name: "Broadcast Stacks Transaction",
-            matcher: "verify_deployment",
+            matcher: "verify_contract",
             documentation: "Coming soon",
             implements_signing_capability: false,
             implements_background_task_capability: true,
@@ -168,7 +168,7 @@ impl CommandImplementation for VerifyContractDeployment {
         let artifacts = inputs.get_object(ARTIFACTS)?;
 
         if explorer_api_key.is_none() && artifacts.is_some() {
-            return Err(diagnosed_error!("command 'evm::verify_deployment': cannot deploy artifacts without block explorer api key"));
+            return Err(diagnosed_error!("command 'evm::verify_contract': cannot deploy artifacts without block explorer api key"));
         }
 
         let progress_tx = progress_tx.clone();
@@ -193,7 +193,7 @@ impl CommandImplementation for VerifyContractDeployment {
             let mut backoff_ms = 5000;
 
             let rpc = EVMRpc::new(&rpc_api_url)
-                .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': {e}"))?;
+                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
 
             let mut included_block = u64::MAX - confirmations_required as u64;
             let mut latest_block = 0;
@@ -203,7 +203,7 @@ impl CommandImplementation for VerifyContractDeployment {
                 let Some(receipt) = rpc
                     .get_receipt(&tx_hash.bytes)
                     .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': {e}"))?
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?
                 else {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
@@ -235,7 +235,7 @@ impl CommandImplementation for VerifyContractDeployment {
 
                 let Some(contract_address) = receipt.contract_address else {
                     return Err(diagnosed_error!(
-                        "command 'evm::verify_deployment': cannot verify transaction that did not deploy contract: {}",
+                        "command 'evm::verify_contract': cannot verify transaction that did not deploy contract: {}",
                         hex::encode(tx_hash.bytes)
                     ));
                 };
@@ -254,7 +254,7 @@ impl CommandImplementation for VerifyContractDeployment {
                     latest_block = rpc
                         .get_block_number()
                         .await
-                        .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': {e}"))?;
+                        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
                     sleep_ms(backoff_ms);
                     continue;
                 }
@@ -274,7 +274,7 @@ impl CommandImplementation for VerifyContractDeployment {
                     artifacts.get("source")
                 else {
                     return Err(diagnosed_error!(
-                        "command: 'evm::verify_deployment': contract deployment artifacts missing contract source"
+                        "command: 'evm::verify_contract': contract deployment artifacts missing contract source"
                     ));
                 };
 
@@ -282,7 +282,7 @@ impl CommandImplementation for VerifyContractDeployment {
                     artifacts.get("compiler_version")
                 else {
                     return Err(diagnosed_error!(
-                        "command: 'evm::verify_deployment': contract deployment artifacts missing compiler version"
+                        "command: 'evm::verify_contract': contract deployment artifacts missing compiler version"
                     ));
                 };
 
@@ -290,13 +290,13 @@ impl CommandImplementation for VerifyContractDeployment {
                     artifacts.get("contract_name")
                 else {
                     return Err(diagnosed_error!(
-                        "command: 'evm::verify_deployment': contract deployment artifacts missing contract name"
+                        "command: 'evm::verify_contract': contract deployment artifacts missing contract name"
                     ));
                 };
 
                 let chain = Chain::from(chain_id);
                 let explorer_client = BlockExplorerClient::new(chain, explorer_api_key.unwrap())
-                .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': failed to create block explorer client: {e}"))?;
+                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
 
                 let guid = {
                     progress = (progress + 1) % progress_symbol.len();
@@ -316,10 +316,10 @@ impl CommandImplementation for VerifyContractDeployment {
                     let res = explorer_client
                     .submit_contract_verification(&verify_contract)
                     .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {e}"))?;
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {e}"))?;
 
                     if res.message.eq("NOTOK") {
-                        let diag = diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {}", res.result);
+                        let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", res.result);
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failed",
                             "Contract Verification Failed",
@@ -363,7 +363,7 @@ impl CommandImplementation for VerifyContractDeployment {
                         Err(e) => {
                             attempts += 1;
                             if attempts == max_attempts {
-                                let diag = diagnosed_error!("command 'evm::verify_deployment': failed to verify contract with block explorer: {}", e);
+                                let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", e);
                                 status_update.update_status(&ProgressBarStatus::new_err(
                                     "Failed",
                                     "Contract Verification Failed",
@@ -384,7 +384,7 @@ impl CommandImplementation for VerifyContractDeployment {
                     if res.message.eq("NOTOK") {
                         attempts += 1;
                         if attempts == max_attempts {
-                            let diag = diagnosed_error!("command 'evm::verify_deployment': received error response from contract verification: {}", res.result);
+                            let diag = diagnosed_error!("command 'evm::verify_contract': received error response from contract verification: {}", res.result);
                             status_update.update_status(&ProgressBarStatus::new_err(
                                 "Failed",
                                 "Contract Verification Failed",
