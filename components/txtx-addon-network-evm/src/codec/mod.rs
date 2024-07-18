@@ -195,6 +195,7 @@ async fn build_unsigned_eip1559_transaction(
     if let Some(code) = &fields.deploy_code {
         tx = tx.with_deploy_code(code.clone());
     }
+
     Ok(tx)
 }
 
@@ -264,22 +265,4 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Tuple(_) => todo!(),
     };
     Ok(value)
-}
-
-pub async fn get_contract_abi(contract_abi_loc: &str) -> Result<Interface, String> {
-    let compiled_output = FoundryCompiledOutputJson::get_from_path(contract_abi_loc).await?;
-
-    // let abi = serde_json::from_str(&compiled_output.abi.to_string()).map_err(|e| {
-    //     format!(
-    //         "invalid contract abi at location {}: {}",
-    //         contract_abi_loc, e
-    //     )
-    // })?;
-
-    return Ok(Interface::new(compiled_output.abi));
-}
-
-pub async fn get_contract_bytecode(contract_abi_loc: &str) -> Result<String, String> {
-    let compiled_output = FoundryCompiledOutputJson::get_from_path(contract_abi_loc).await?;
-    return Ok(compiled_output.bytecode.object);
 }
