@@ -358,8 +358,6 @@ impl RunbookSnapshotContext {
             changes: IndexMap::new(),
         };
 
-        let mut visited_constructs = HashSet::new();
-
         let empty_string = "".to_string();
 
         // TextDiff::from_lines(&old.name, &new.name);
@@ -466,11 +464,8 @@ impl RunbookSnapshotContext {
             ));
 
             // if changes, we should recompute some temporary ids for packages and constructs
-            let mut old_signing_commands = old_run.signing_commands.clone();
-            let mut new_signing_commands = new_run.signing_commands.clone();
-
-            old_signing_commands.sort_by(|a, b| a.construct_did.cmp(&b.construct_did));
-            new_signing_commands.sort_by(|a, b| a.construct_did.cmp(&b.construct_did));
+            let old_signing_commands = old_run.signing_commands.clone();
+            let new_signing_commands = new_run.signing_commands.clone();
 
             let old_signing_commands_dids = old_signing_commands
                 .iter()
@@ -573,6 +568,7 @@ impl RunbookSnapshotContext {
                 ));
 
                 // Let's look at the signed constructs
+                let mut visited_constructs = HashSet::new();
                 let mut changes = diff_command_snapshots(
                     &old_run,
                     &old_signing_command.downstream_constructs_dids,
@@ -605,8 +601,9 @@ pub fn diff_command_snapshots(
     new_construct_dids: &Vec<ConstructDid>,
     visited_constructs: &mut HashSet<ConstructDid>,
 ) -> Vec<Change> {
-    let empty_string = "".to_string();
     let mut diffs = vec![];
+
+    let empty_string = "".to_string();
 
     // Let's look at the signed constructs
     // First: Any new construct?
@@ -738,8 +735,7 @@ pub fn diff_command_snapshots(
             .map(|i| i.name.to_string())
             .collect::<Vec<_>>();
 
-        let inputs_sequence_changes =
-            capture_diff_slices(Algorithm::Patience, &old_inputs, &new_inputs);
+        let inputs_sequence_changes = capture_diff_slices(Algorithm::Lcs, &old_inputs, &new_inputs);
 
         // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
 
@@ -818,6 +814,9 @@ pub fn diff_command_snapshots(
                 true,
             ));
         }
+
+        old_command.outputs.sort_by(|a, b| a.name.cmp(&b.name));
+        new_command.outputs.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Checking the outputs
         let old_outputs = old_command
@@ -904,6 +903,12 @@ pub fn diff_command_snapshots(
                 format!("Non-signing command's output value_pre_evaluation updated"),
                 true,
             ));
+        }
+
+        if old_command.upstream_constructs_dids.is_empty()
+            && new_command.upstream_constructs_dids.is_empty()
+        {
+            continue;
         }
 
         let mut changes = diff_command_snapshots(
