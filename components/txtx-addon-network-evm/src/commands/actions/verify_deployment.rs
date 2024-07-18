@@ -67,11 +67,7 @@ lazy_static! {
                 }
             ],
             outputs: [
-              tx_id: {
-                    documentation: "The transaction id.",
-                    typing: Type::string()
-              },
-              result: {
+              contract_address: {
                   documentation: "The transaction result.",
                   typing: Type::buffer()
               }
@@ -420,6 +416,10 @@ impl CommandImplementation for VerifyContractDeployment {
             println!(
                 "contract address for deployed contract {:?}",
                 receipt.contract_address.unwrap()
+            );
+            result.outputs.insert(
+                "contract_address".into(),
+                Value::string(receipt.contract_address.unwrap().to_string()),
             );
 
             Ok(result)
