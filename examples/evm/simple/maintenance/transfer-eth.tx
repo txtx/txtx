@@ -20,8 +20,9 @@ action "artifacts" "evm::get_forge_deployment_artifacts" {
 action "deploy_simple_storage" "evm::sign_contract_deploy" {
     description = "Deploy SimpleStorage"
     from = wallet.alice
-    artifacts = action.artifacts
-}
+    bytecode = action.artifacts.bytecode
+} 
+
 
 action "verify_simple_storage" "evm::verify_deployment" {
     tx_hash = action.deploy_simple_storage.tx_hash
@@ -37,7 +38,7 @@ action "other_artifacts" "evm::get_forge_deployment_artifacts" {
 action "deploy_another" "evm::sign_contract_deploy" {
     description = "Deploy Another"
     from = wallet.alice
-    artifacts = action.other_artifacts
+    bytecode = action.other_artifacts.bytecode
 }
 action "verify_another" "evm::verify_deployment" {
     tx_hash = action.deploy_another.tx_hash

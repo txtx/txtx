@@ -51,7 +51,8 @@ lazy_static! {
                             "abi": String,
                             "bytecode": String,
                             "source": String,
-                            "compiler_version": String
+                            "compiler_version": String,
+                            "contract_name": String
                         }
                     ```
                     "# },

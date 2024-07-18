@@ -58,18 +58,9 @@ lazy_static! {
                 optional: false,
                 interpolable: true
             },
-            artifacts: {
-                documentation: indoc!{ r#"An object containing the deployment artifacts. Schema:
-                ```json
-                    {
-                        "abi": String,
-                        "bytecode": String,
-                        "source": String,
-                        "compiler_version": String
-                    }
-                ```
-                "# },
-                typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
+            bytecode: {
+                documentation: "The contract bytecode to deploy",
+                typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
@@ -345,13 +336,8 @@ async fn build_unsigned_contract_deploy(
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let artifacts = args.get_expected_object(ARTIFACTS)?;
+    let bytecode = args.get_expected_string("bytecode")?;
 
-    let Some(Value::Primitive(PrimitiveValue::String(bytecode))) = artifacts.get("bytecode") else {
-        return Err(diagnosed_error!(
-            "command: 'evm::sign_contract_deploy': contract deployment artifacts missing bytecode"
-        ));
-    };
     let bytecode = alloy::hex::decode(bytecode)
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_deploy': {}", e))?;
 
