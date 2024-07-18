@@ -47,6 +47,10 @@ impl Value {
         Value::Object(object)
     }
 
+    pub fn addon(value: Value, typing: TypeSpecification) -> Value {
+        Value::Addon(Box::new(AddonData { value, typing }))
+    }
+
     pub fn expect_string(&self) -> &str {
         match &self {
             Value::Primitive(PrimitiveValue::String(value)) => value,

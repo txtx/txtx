@@ -10,6 +10,18 @@ lazy_static! {
             documentation: "A 20-byte Ethereum address.",
         }
     };
+    pub static ref BYTES: TypeSpecification = define_addon_type! {
+        EthereumBytes => {
+            name: "eth_bytes",
+            documentation: "",
+        }
+    };
+    pub static ref BYTES32: TypeSpecification = define_addon_type! {
+        EthereumBytes32 => {
+            name: "eth_bytes32",
+            documentation: "",
+        }
+    };
     pub static ref ETH_TRANSACTION: TypeSpecification = define_addon_type! {
         EthereumTransaction => {
             name: "eth_transaction",
@@ -58,6 +70,18 @@ lazy_static! {
 
 pub struct EthereumAddress;
 impl TypeImplementation for EthereumAddress {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct EthereumBytes;
+impl TypeImplementation for EthereumBytes {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct EthereumBytes32;
+impl TypeImplementation for EthereumBytes32 {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }

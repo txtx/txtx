@@ -1,20 +1,15 @@
 pub mod foundry;
 
-use std::collections::HashMap;
-use std::ops::Add;
-
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
-use crate::typing::ETH_ADDRESS;
+use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
 use alloy::contract::Interface;
-use alloy::dyn_abi::DynSolValue;
-use alloy::json_abi::JsonAbi;
+use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, U256};
 use alloy::rpc::types::TransactionRequest;
 use foundry::FoundryCompiledOutputJson;
-use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::types::{PrimitiveValue, Value};
 use txtx_addon_kit::types::ValueStore;
@@ -230,7 +225,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
         }
         Value::Primitive(PrimitiveValue::String(value)) => DynSolValue::String(value.clone()),
         Value::Primitive(PrimitiveValue::Float(value)) => todo!(),
-        Value::Primitive(PrimitiveValue::Buffer(value)) => todo!(),
+        Value::Primitive(PrimitiveValue::Buffer(value)) => DynSolValue::Bytes(value.bytes.clone()),
         Value::Primitive(PrimitiveValue::Null) => {
             todo!()
         }
@@ -239,6 +234,13 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
         Value::Addon(addon) => {
             if addon.typing.id == ETH_ADDRESS.clone().id {
                 todo!()
+            } else if addon.typing.id == BYTES32.clone().id {
+                let value = addon.value.as_buffer_data().unwrap();
+                let word = Word::from_slice(&value.bytes);
+                DynSolValue::FixedBytes(word, 32)
+            } else if addon.typing.id == BYTES.clone().id {
+                let value = addon.value.as_buffer_data().unwrap();
+                DynSolValue::Bytes(value.bytes.clone())
             } else {
                 todo!()
             }
