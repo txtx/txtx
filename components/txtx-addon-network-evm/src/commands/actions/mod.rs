@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use alloy::primitives::Address;
+use check_confirmations::CHECK_CONFIRMATIONS;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification,
     diagnostics::Diagnostic,
@@ -9,6 +10,7 @@ use txtx_addon_kit::types::{
 };
 
 pub mod call_view_function;
+pub mod check_confirmations;
 pub mod get_forge_deployment_artifacts;
 pub mod sign_contract_call;
 pub mod sign_contract_deploy;
@@ -20,7 +22,7 @@ use get_forge_deployment_artifacts::GET_FORGE_DEPLOYMENT_ARTIFACTS;
 use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
 use sign_contract_deploy::SIGN_EVM_CONTRACT_DEPLOY;
 use sign_transfer::SIGN_EVM_TRANSFER;
-use verify_contract::VERIFY_CONTRACT_DEPLOYMENT;
+use verify_contract::VERIFY_CONTRACT;
 
 use crate::constants::TRANSACTION_FROM;
 
@@ -31,7 +33,8 @@ lazy_static! {
         CALL_VIEW_FUNCTION.clone(),
         SIGN_EVM_CONTRACT_DEPLOY.clone(),
         GET_FORGE_DEPLOYMENT_ARTIFACTS.clone(),
-        VERIFY_CONTRACT_DEPLOYMENT.clone()
+        VERIFY_CONTRACT.clone(),
+        CHECK_CONFIRMATIONS.clone()
     ];
 }
 
