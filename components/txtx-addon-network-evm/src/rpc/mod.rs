@@ -1,5 +1,4 @@
-use alloy::contract::Interface;
-use alloy::dyn_abi::DynSolValue;
+use alloy::hex;
 use alloy::primitives::{Address, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{Provider, ProviderBuilder, RootProvider};
@@ -25,6 +24,7 @@ impl std::fmt::Display for RpcError {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct EVMRpc {
     pub url: Url,
     pub provider: RootProvider<Http<Client>>,
@@ -80,27 +80,14 @@ impl EVMRpc {
             })
     }
 
-    pub async fn call(
-        &self,
-        interface: Interface,
-        contract_address: &Address,
-        function_name: &str,
-        function_args: &[DynSolValue],
-    ) -> Result<Vec<DynSolValue>, String> {
-        let contract = interface.connect(contract_address.clone(), self.provider.clone());
-
-        let result = contract
-            .function(function_name, function_args)
-            .map_err(|e| {
-                format!(
-                    "failed to create call contract function {}: {}",
-                    function_name, e
-                )
-            })?
-            .call()
+    pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
+        let result = self
+            .provider
+            .call(tx)
             .await
-            .map_err(|e| format!("failed to call contract function {}: {}", function_name, e))?;
-        Ok(result)
+            .map_err(|e| format!("failed to create call contract function : {}", e))?;
+
+        Ok(hex::encode(result))
     }
 
     pub async fn get_receipt(

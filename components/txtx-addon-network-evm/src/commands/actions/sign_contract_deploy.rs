@@ -126,12 +126,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
-                  typing: Type::string()
-              },
-              network_id: {
-                  documentation: "Network id of the signed transaction.",
+              tx_hash: {
+                  documentation: "The hash of the transaction.",
                   typing: Type::string()
               }
           ],

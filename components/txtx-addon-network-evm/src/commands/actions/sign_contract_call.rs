@@ -59,9 +59,9 @@ lazy_static! {
                 interpolable: true
             },
             contract_abi: {
-                documentation: "The path to the contract ABI in the local filesystem, or a URL to download it.",
+                documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
                 typing: Type::addon(ETH_ADDRESS.clone()),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             function_name: {
@@ -138,12 +138,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
-                  typing: Type::string()
-              },
-              network_id: {
-                  documentation: "Network id of the signed transaction.",
+              tx_hash: {
+                  documentation: "The hash of the transaction.",
                   typing: Type::string()
               }
           ],
@@ -174,7 +170,7 @@ impl CommandImplementation for SignEVMContractCall {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use alloy::{consensus::Transaction, hex, network::TransactionBuilder};
+        use alloy::{consensus::Transaction, network::TransactionBuilder};
 
         use crate::{
             codec::get_typed_transaction_bytes,
@@ -340,10 +336,10 @@ async fn build_unsigned_contract_call(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<TransactionRequest, Diagnostic> {
+    use alloy::{contract::Interface, json_abi::JsonAbi};
+
     use crate::{
-        codec::{
-            build_unsigned_transaction, get_contract_abi, value_to_sol_value, TransactionType,
-        },
+        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
             CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE,
@@ -357,7 +353,7 @@ async fn build_unsigned_contract_call(
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let contract_address = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let contract_abi_loc = args.get_expected_string(CONTRACT_ABI)?;
+    let contract_abi = args.get_string(CONTRACT_ABI);
     let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
     let function_args: Vec<DynSolValue> = args
         .get_value(CONTRACT_FUNCTION_ARGS)
@@ -382,11 +378,25 @@ async fn build_unsigned_contract_call(
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
 
-    let abi = get_contract_abi(contract_abi_loc)
-        .await
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
+    let input = if let Some(abi_str) = contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str).map_err(|e| {
+            diagnosed_error!("command 'sign_contract_call': invalid contract abi: {}", e)
+        })?;
 
-    let input = abi.encode_input(function_name, &function_args).unwrap();
+        let interface = Interface::new(abi);
+        interface
+            .encode_input(function_name, &function_args)
+            .map_err(|e| {
+                diagnosed_error!(
+                    "command 'sign_contract_call': failed to encode contract inputs: {e}"
+                )
+            })?
+    } else {
+        function_args
+            .iter()
+            .flat_map(|v| v.abi_encode_params())
+            .collect()
+    };
 
     let common = CommonTransactionFields {
         to: Some(contract_address.clone()),

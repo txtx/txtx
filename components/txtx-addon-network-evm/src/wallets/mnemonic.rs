@@ -6,9 +6,6 @@ use alloy::rpc::types::TransactionRequest;
 use alloy::signers::k256::ecdsa::SigningKey;
 use alloy_signer_local::coins_bip39::English;
 use alloy_signer_local::{LocalSigner, MnemonicBuilder};
-use hmac::Hmac;
-use pbkdf2::pbkdf2;
-use sha2::Sha512;
 use std::collections::HashMap;
 use txtx_addon_kit::reqwest::Url;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -81,9 +78,9 @@ lazy_static! {
                 documentation: "The public key of the account generated from the secret key.",
                 typing: Type::array(Type::buffer())
               },
-              tx_hash: {
-                documentation: "The hash of the broadcasted transaction",
-                typing: Type::string()
+              address: {
+                documentation: "The address generated from the secret key.",
+                typing: Type::array(Type::buffer())
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -179,7 +176,11 @@ impl WalletImplementation for EVMMnemonic {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
-        let result = CommandExecutionResult::new();
+        let mut result = CommandExecutionResult::new();
+        let address = signing_command_state
+            .get_expected_value("signer_address")
+            .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+        result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((wallets, signing_command_state, result)))
     }
 
@@ -228,8 +229,10 @@ impl WalletImplementation for EVMMnemonic {
             let payload_buffer = payload.expect_buffer_data();
 
             let mut tx: TransactionRequest = serde_json::from_slice(&payload_buffer.bytes).unwrap();
-            // there's no to address on the tx, which is invalid unless it's set as "create"
-            tx.set_create();
+            if tx.to.is_none() {
+                // there's no to address on the tx, which is invalid unless it's set as "create"
+                tx.set_create();
+            }
 
             let tx_envelope = tx.build(&eth_wallet).await.unwrap();
             let tx_nonce = tx_envelope.nonce();
@@ -254,8 +257,8 @@ impl WalletImplementation for EVMMnemonic {
 
 type MnemonicSigner = LocalSigner<SigningKey>;
 pub fn get_mnemonic_wallet(
-    args: &ValueStore,
-    defaults: &AddonDefaults,
+    _args: &ValueStore,
+    _defaults: &AddonDefaults,
     wallet_state: &ValueStore,
 ) -> Result<MnemonicSigner, Diagnostic> {
     let mnemonic = wallet_state.get_expected_string("mnemonic")?;
@@ -273,20 +276,4 @@ pub fn get_mnemonic_wallet(
     }
     let wallet = mnemonic_builder.build().unwrap();
     Ok(wallet)
-}
-
-pub fn get_bip39_seed_from_mnemonic(mnemonic: &str, password: &str) -> Result<Vec<u8>, String> {
-    const PBKDF2_ROUNDS: u32 = 2048;
-    const PBKDF2_BYTES: usize = 64;
-    let salt = format!("mnemonic{}", password);
-    let mut seed = vec![0u8; PBKDF2_BYTES];
-
-    pbkdf2::<Hmac<Sha512>>(
-        mnemonic.as_bytes(),
-        salt.as_bytes(),
-        PBKDF2_ROUNDS,
-        &mut seed,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(seed)
 }
