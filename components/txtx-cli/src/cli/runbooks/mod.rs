@@ -1,5 +1,5 @@
 use console::Style;
-use dialoguer::{theme::ColorfulTheme, Input, Select};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -73,20 +73,34 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
             let new =
                 ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
 
-            let consolidated_changes = ctx.diff(old, new).get_synthesized_changes();
+            let consolidated_changes = ctx.diff(old, new);
 
             println!("\n{}\n", yellow!("Chain updates"));
-            for (i, ((change, critical), impacted)) in consolidated_changes.into_iter().enumerate() {
+            for (i, ((change, critical), impacted)) in consolidated_changes
+                .get_synthesized_changes()
+                .into_iter()
+                .enumerate()
+            {
                 let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
-                let formatted_change = change.iter().map(|c| {
-                    if c.starts_with("-") {
-                        red!(c)
-                    } else {
-                        green!(c)
-                    }
-                }).join("");
+                let formatted_change = change
+                    .iter()
+                    .map(|c| {
+                        if c.starts_with("-") {
+                            red!(c)
+                        } else {
+                            green!(c)
+                        }
+                    })
+                    .join("");
                 println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-                println!("\rwill trigger an update for the chains ids {}\n\n\n", yellow!(format!("{}", formatted_impacts)));
+                println!(
+                    "\rwill trigger an update for the chains ids {}\n\n\n",
+                    yellow!(format!("{}", formatted_impacts))
+                );
+            }
+
+            for new_to_add in consolidated_changes.new_to_add.iter() {
+                println!("{}", new_to_add)
             }
         }
         None => {}
@@ -335,25 +349,18 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
             let frontier = HashSet::new();
 
-            for running_context in runbook.running_contexts.iter() {
-                let mut simulated_execution_context = running_context.execution_context.clone();
-                let res = simulated_execution_context
+            for run in runbook.running_contexts.iter_mut() {
+                let mut simulated_execution_context = run.execution_context.clone();
+                let _res = simulated_execution_context
                     .simulate_execution(
                         &runbook.runtime_context,
-                        &running_context.workspace_context,
+                        &run.workspace_context,
                         &runbook.supervision_context,
                         &frontier,
                     )
                     .await;
-                if !res.diagnostics.is_empty() {
-                    for diag in res.diagnostics.iter() {
-                        println!("{} simulation {}", red!("x"), diag);
-                    }
-                }
-                simulated_running_contexts.insert(
-                    running_context.inputs_set.name.clone(),
-                    simulated_execution_context,
-                );
+                simulated_running_contexts
+                    .insert(run.inputs_set.name.clone(), simulated_execution_context);
             }
 
             let new =
@@ -362,74 +369,106 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             let consolidated_changes = ctx.diff(old, new);
 
             println!("\n{}\n", yellow!("Chain updates"));
-            for (i, ((change, critical), impacted)) in consolidated_changes.get_synthesized_changes().into_iter().enumerate() {
+            for (i, ((change, critical), impacted)) in consolidated_changes
+                .get_synthesized_changes()
+                .into_iter()
+                .enumerate()
+            {
                 let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
-                let formatted_change = change.iter().map(|c| {
-                    if c.starts_with("-") {
-                        red!(c)
-                    } else {
-                        green!(c)
-                    }
-                }).join("");
+                let formatted_change = change
+                    .iter()
+                    .map(|c| {
+                        if c.starts_with("-") {
+                            red!(c)
+                        } else {
+                            green!(c)
+                        }
+                    })
+                    .join("");
                 println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-                println!("\rwill trigger an update for the chains ids {}\n\n\n", yellow!(format!("{}", formatted_impacts)));
+                println!(
+                    "\rwill trigger an update for the chains ids {}\n\n\n",
+                    yellow!(format!("{}", formatted_impacts))
+                );
             }
 
-            for (running_context_key, changes) in consolidated_changes.changes.into_iter() {
+            for new_to_add in consolidated_changes.new_to_add.iter() {
+                println!("{}", new_to_add)
+            }
+
+            let theme = ColorfulTheme {
+                values_style: Style::new().green(),
+                ..ColorfulTheme::default()
+            };
+
+            if Confirm::with_theme(&theme)
+                .with_prompt("Do you want to continue?")
+                .interact()
+                .unwrap()
+            {
+                println!("Looks like you want to continue");
+            } else {
+                println!("nevermind then :(");
+            }
+
+            for (running_context_key, changes) in consolidated_changes.changes.iter() {
                 let critical_changes = changes
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
-                if critical_changes.is_empty() {
-                    return Ok(());
-                } else {
-                    // for running_context in
-                    let running_context =
-                        runbook.find_expected_running_context_mut(&running_context_key);
 
-                    let descendants_of_critically_changed_commands = critical_changes
-                        .iter()
-                        .filter_map(|c| {
-                            if let Some(construct_did) = &c.construct_did {
-                                Some(
-                                    running_context
-                                        .graph_context
-                                        .get_downstream_dependencies_for_construct_did(
-                                            &construct_did,
-                                            true,
-                                        ),
-                                )
-                            } else {
-                                None
-                            }
-                        })
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                    running_context
-                        .execution_context
-                        .order_for_commands_execution = running_context
-                        .execution_context
-                        .order_for_commands_execution
-                        .clone()
-                        .into_iter()
-                        .filter(|c| descendants_of_critically_changed_commands.contains(&c))
-                        .collect();
-
-                    running_context
-                        .execution_context
-                        .order_for_signing_commands_initialization = running_context
-                        .execution_context
-                        .order_for_signing_commands_initialization
-                        .clone()
-                        .into_iter()
-                        .filter(|c| descendants_of_critically_changed_commands.contains(&c))
-                        .collect();
-
-                    running_context.execution_context = simulated_running_contexts
-                        .remove(&running_context_key)
-                        .unwrap();
+                if consolidated_changes
+                    .new_to_add
+                    .contains(running_context_key)
+                {
+                    continue;
                 }
+                // for running_context in
+                let running_context =
+                    runbook.find_expected_running_context_mut(&running_context_key);
+
+                let descendants_of_critically_changed_commands = critical_changes
+                    .iter()
+                    .filter_map(|c| {
+                        if let Some(construct_did) = &c.construct_did {
+                            Some(
+                                running_context
+                                    .graph_context
+                                    .get_downstream_dependencies_for_construct_did(
+                                        &construct_did,
+                                        true,
+                                    ),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                running_context
+                    .execution_context
+                    .order_for_commands_execution = running_context
+                    .execution_context
+                    .order_for_commands_execution
+                    .clone()
+                    .into_iter()
+                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .collect();
+
+                running_context
+                    .execution_context
+                    .order_for_signing_commands_initialization = running_context
+                    .execution_context
+                    .order_for_signing_commands_initialization
+                    .clone()
+                    .into_iter()
+                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .collect();
+
+                running_context.execution_context = simulated_running_contexts
+                    .remove(running_context_key)
+                    .unwrap();
             }
         }
     } else {

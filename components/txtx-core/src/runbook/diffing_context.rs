@@ -415,19 +415,24 @@ impl RunbookSnapshotContext {
                     }
                 }
                 DiffOp::Delete {
-                    old_index: _,
-                    old_len: _,
+                    old_index,
+                    old_len,
                     new_index: _,
                 } => {
-                    println!("DELETION: {:?}", change);
+                    for i in 0..*old_len {
+                        let entry = old_ref.runs.get(old_index + i).unwrap().id.clone();
+                        consolidated_changes.old_to_rem.push(entry)
+                    }
                 }
                 DiffOp::Insert {
                     old_index: _,
-                    new_index: _,
-                    new_len: _,
+                    new_index,
+                    new_len,
                 } => {
-                    println!("INSERTION: {:?}", change);
-                    // comparable_signing_constructs_list.push((*old_index, *new_index));
+                    for i in 0..*new_len {
+                        let entry = new_ref.runs.get(new_index + i).unwrap().id.clone();
+                        consolidated_changes.new_to_add.push(entry)
+                    }
                 }
                 DiffOp::Replace {
                     old_index,
@@ -435,13 +440,12 @@ impl RunbookSnapshotContext {
                     new_index,
                     new_len,
                 } => {
-                    println!("REPLACE: {:?}", change);
-
-                    for i in 0..*old_len {
-                        for j in 0..*new_len {
-                            comparable_runs_ids_list.push((old_index + i, new_index + j));
-                        }
-                    }
+                    println!("REPLACE UNSUPPORTED: {:?}", change);
+                    // for i in 0..*old_len {
+                    //     for j in 0..*new_len {
+                    //         comparable_runs_ids_list.push((old_index + i, new_index + j));
+                    //     }
+                    // }
                 }
             }
         }
@@ -595,15 +599,16 @@ pub struct ConsolidatedChanges {
 }
 
 impl ConsolidatedChanges {
-
-
-    pub fn get_synthesized_changes(&self) -> IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> {
-        let mut reverse_lookup: IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> = IndexMap::new();
+    pub fn get_synthesized_changes(
+        &self,
+    ) -> IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> {
+        let mut reverse_lookup: IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> =
+            IndexMap::new();
 
         for (id, changes) in self.changes.iter() {
             for change in changes.iter() {
                 if change.description.is_empty() {
-                    continue
+                    continue;
                 }
                 let key = (change.description.clone(), change.critical);
                 let value = (id.to_string(), change.construct_did.clone());

@@ -59,23 +59,26 @@ impl Runbook {
         // Re-initialize some shiny new contexts
         self.running_contexts.clear();
         let mut runtime_context = RuntimeContext::new();
-
-        // Step 0: inject runbook inputs (environment variables, etc)
-        let root_running_context =
-            RunningContext::new(&self.runbook_id, &inputs_map.current_inputs_set());
-
-        // Step 1: identify the addons at play and their globals
-        runtime_context.build_from_sources(
+        let inputs_sets = runtime_context.collect_environment_variables(
             &self.runbook_id,
             &inputs_map,
             &sources,
-            &root_running_context.workspace_context,
-            &root_running_context.execution_context,
         )?;
+
         // At this point we know if some batching is required
-        for inputs_set in runtime_context.inputs_sets.iter() {
+        for inputs_set in inputs_sets.iter() {
             // We're initializing some new contexts
             let mut running_context = RunningContext::new(&self.runbook_id, inputs_set);
+
+            // Step 1: identify the addons at play and their globals
+            runtime_context.build_from_sources(
+                &self.runbook_id,
+                &inputs_map,
+                &sources,
+                &running_context.workspace_context,
+                &running_context.execution_context,
+            )?;
+
             // Step 2: identify and index all the constructs (nodes)
             running_context.workspace_context.build_from_sources(
                 &sources,
@@ -157,25 +160,31 @@ pub struct RunningContext {
 
 impl RunningContext {
     pub fn new(runbook_id: &RunbookId, inputs_set: &ValueStore) -> Self {
-        let mut workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
-        let mut graph_context = RunbookGraphContext::new();
-        let mut execution_context = RunbookExecutionContext::new();
-
-        // Step 0: inject runbook inputs (environment variables, etc)
-        for (key, value) in inputs_set.iter() {
-            let construct_did = workspace_context.index_environment_variable(key, value);
-            graph_context.index_environment_variable(&construct_did);
-            let mut result = CommandExecutionResult::new();
-            result.outputs.insert("value".into(), value.clone());
-            execution_context
-                .commands_execution_results
-                .insert(construct_did, result);
-        }
-        Self {
+        let workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
+        let graph_context = RunbookGraphContext::new();
+        let execution_context = RunbookExecutionContext::new();
+        let mut running_context = Self {
             workspace_context,
             graph_context,
             execution_context,
             inputs_set: inputs_set.clone(),
+        };
+        running_context.index_environment_variables(inputs_set);
+        running_context
+    }
+
+    pub fn index_environment_variables(&mut self, inputs_set: &ValueStore) {
+        for (key, value) in inputs_set.iter() {
+            let construct_did = self
+                .workspace_context
+                .index_environment_variable(key, value);
+            self.graph_context
+                .index_environment_variable(&construct_did);
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert("value".into(), value.clone());
+            self.execution_context
+                .commands_execution_results
+                .insert(construct_did, result);
         }
     }
 }

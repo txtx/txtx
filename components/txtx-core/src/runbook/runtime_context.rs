@@ -56,6 +56,120 @@ impl RuntimeContext {
         addon_defaults
     }
 
+    pub fn collect_environment_variables(
+        &self,
+        runbook_id: &RunbookId,
+        inputs_map: &RunbookInputsMap,
+        runbook_sources: &RunbookSources,
+    ) -> Result<Vec<ValueStore>, Vec<Diagnostic>> {
+        let dummy_workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
+        let dummy_execution_context = &RunbookExecutionContext::new();
+
+        let mut sources = VecDeque::new();
+        // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
+        let mut files_visited = HashSet::new();
+        for (location, (module_name, raw_content)) in runbook_sources.tree.iter() {
+            files_visited.insert(location);
+            sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
+        }
+        let dependencies_execution_results = HashMap::new();
+        let mut addons_context = AddonsContext::new();
+
+        let mut inputs_sets = vec![];
+
+        while let Some((location, package_name, raw_content)) = sources.pop_front() {
+            let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
+                vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
+            })?;
+            let package_location = location
+                .get_parent_location()
+                .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
+            let package_id = PackageId {
+                runbook_id: runbook_id.clone(),
+                package_location: package_location.clone(),
+                package_name: package_name.clone(),
+            };
+            addons_context.register(
+                &package_id.did(),
+                Box::new(StdAddon::new()),
+                false,
+                AddonDefaults::new(),
+            );
+
+            let mut blocks = content
+                .into_blocks()
+                .into_iter()
+                .collect::<VecDeque<Block>>();
+            while let Some(block) = blocks.pop_front() {
+                match block.ident.value().as_str() {
+                    "runtime" => {
+                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                            continue;
+                        };
+                        if name.to_string().eq("batch") {
+                            if let Some(attr) = block.body.get_attribute("inputs") {
+                                let res = eval::eval_expression(
+                                    &attr.value,
+                                    &dependencies_execution_results,
+                                    &package_id,
+                                    &dummy_workspace_context,
+                                    &dummy_execution_context,
+                                    self,
+                                )
+                                .map_err(|e| vec![e])?;
+                                match res {
+                                    ExpressionEvaluationStatus::CompleteOk(value) => {
+                                        let batches =
+                                            value.as_array().ok_or(vec![diagnosed_error!(
+                                                "attribute batch.inputs should be of type array"
+                                            )])?;
+                                        for (index, inputs_set) in batches.iter().enumerate() {
+                                            let inputs = inputs_set.as_object().ok_or(vec![
+                                                diagnosed_error!(
+                                                "attribute batch.inputs.* should be of type object"
+                                            ),
+                                            ])?;
+                                            let batch_name = match inputs.get("evm_chain_id") {
+                                                Some(Ok(value)) => value.to_string(),
+                                                _ => format!("{}", index),
+                                            };
+                                            let mut values =
+                                                ValueStore::new(&batch_name, &&Did::zero());
+
+                                            for (key, value_res) in inputs.into_iter() {
+                                                let value =
+                                                    value_res.clone().map_err(|e| vec![e])?;
+                                                values.insert(key, value);
+                                            }
+                                            inputs_sets.push(values);
+                                        }
+                                    }
+                                    ExpressionEvaluationStatus::DependencyNotComputed
+                                    | ExpressionEvaluationStatus::CompleteErr(_) => {
+                                        return Err(vec![diagnosed_error!(
+                                            "unable to read attribute 'concurrency'"
+                                        )])
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        for inputs_set in inputs_sets.iter_mut() {
+            for (key, value) in inputs_map.current_inputs_set().iter() {
+                if inputs_set.get_value(key).is_none() {
+                    inputs_set.insert(key, value.clone());
+                }
+            }
+        }
+
+        Ok(inputs_sets)
+    }
+
     pub fn build_from_sources(
         &mut self,
         runbook_id: &RunbookId,
@@ -229,6 +343,17 @@ impl RuntimeContext {
                 }
             }
 
+            if self.inputs_sets.is_empty() {
+                self.inputs_sets.push(ValueStore::new("main", &Did::zero()))
+            }
+
+            for inputs_set in self.inputs_sets.iter_mut() {
+                for (key, value) in inputs_map.current_inputs_set().iter() {
+                    if inputs_set.get_value(key).is_none() {
+                        inputs_set.insert(key, value.clone());
+                    }
+                }
+            }
             // Loop over the sequence of addons identified
             for (package_did, addon_name, defaults) in addons_configs.into_iter() {
                 match addon_name.split_once("::") {
@@ -254,18 +379,6 @@ impl RuntimeContext {
                 };
             }
             self.addons_context = addons_context;
-
-            if self.inputs_sets.is_empty() {
-                self.inputs_sets.push(ValueStore::new("main", &Did::zero()))
-            }
-
-            for inputs_set in self.inputs_sets.iter_mut() {
-                for (key, value) in inputs_map.current_inputs_set().iter() {
-                    if inputs_set.get_value(key).is_none() {
-                        inputs_set.insert(key, value.clone());
-                    }
-                }
-            }
 
             if diagnostics.is_empty() {
                 return Ok(());
