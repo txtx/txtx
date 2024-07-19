@@ -131,16 +131,14 @@ impl CommandImplementation for VerifyContract {
 
         use crate::{
             commands::actions::get_expected_address,
-            constants::{
-                ARTIFACTS, BLOCK_EXPLORER_API_KEY, CHAIN_ID, CONTRACT_ADDRESS, NETWORK_ID,
-            },
+            constants::{ARTIFACTS, BLOCK_EXPLORER_API_KEY, CHAIN_ID, CONTRACT_ADDRESS},
         };
 
         let inputs = inputs.clone();
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
-        let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
+        // let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
         let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
         let contract_address = inputs.get_expected_value(CONTRACT_ADDRESS)?;

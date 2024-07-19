@@ -29,11 +29,8 @@ use crate::{
 };
 
 use crate::codec::CommonTransactionFields;
-use crate::constants::{
-    NETWORK_ID, RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES,
-};
+use crate::constants::{RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
-use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
 use super::get_signing_construct_did;
 
@@ -100,12 +97,12 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
-            network_id: {
-                documentation: "The network id.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
+            // network_id: {
+            //     documentation: "The network id.",
+            //     typing: Type::string(),
+            //     optional: true,
+            //     interpolable: true
+            // },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::uint(),
@@ -334,7 +331,7 @@ async fn build_unsigned_contract_deploy(
 
     let from = wallet_state.get_expected_value("signer_address")?.clone();
 
-    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+    // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
