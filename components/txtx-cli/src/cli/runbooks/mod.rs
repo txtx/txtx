@@ -487,26 +487,26 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         match update.new_status.status_color {
                             ProgressBarStatusColor::Yellow => {
                                 print!(
-                                    "\r{} {} - {}",
+                                    "\r{} {} {:<100}",
                                     yellow!("→"),
-                                    update.new_status.message,
                                     yellow!(format!("{}", update.new_status.status)),
+                                    update.new_status.message,
                                 );
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{} {} - {:<100}\n",
+                                    "\r{} {} {:<100}\n",
                                     green!("✓"),
-                                    update.new_status.message,
                                     green!(format!("{}", update.new_status.status)),
+                                    update.new_status.message,
                                 );
                             }
                             ProgressBarStatusColor::Red => {
                                 print!(
-                                    "\r{} {} - {:<100}\n",
+                                    "\r{} {} {:<100}\n",
                                     red!("x"),
-                                    update.new_status.message,
                                     red!(format!("{}", update.new_status.status)),
+                                    update.new_status.message,
                                 );
                             }
                         };
