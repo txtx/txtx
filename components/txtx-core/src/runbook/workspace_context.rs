@@ -36,6 +36,8 @@ pub struct RunbookWorkspaceContext {
     pub environment_variables_values: BTreeMap<ConstructDid, Value>,
 
     pub addons_defaults: HashMap<(PackageDid, String), AddonDefaults>,
+
+    std_defaults: AddonDefaults,
 }
 
 impl RunbookWorkspaceContext {
@@ -47,13 +49,14 @@ impl RunbookWorkspaceContext {
             environment_variables_did_lookup: BTreeMap::new(),
             environment_variables_values: BTreeMap::new(),
             addons_defaults: HashMap::new(),
+            std_defaults: AddonDefaults::new("std"),
         }
     }
 
     pub fn get_addon_defaults(&self, key: &(PackageDid, String)) -> &AddonDefaults {
         self.addons_defaults
             .get(key)
-            .expect("unable to retrieve addon defaults")
+            .unwrap_or(&self.std_defaults)
     }
 
     pub fn build_from_sources(
