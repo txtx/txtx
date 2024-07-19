@@ -18,7 +18,7 @@ use txtx_core::{
             ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
         },
     },
-    runbook::{RunbookExecutionSnapshot, RunbookInputsMap},
+    runbook::{ConsolidatedChanges, RunbookExecutionSnapshot, RunbookInputsMap},
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{
         ProtocolManifest, Runbook, RunbookMetadata, RunbookSnapshotContext, RunbookSources,
@@ -45,9 +45,61 @@ pub fn load_runbook_execution_snapshot(
     state_file_location: &FileLocation,
 ) -> Result<RunbookExecutionSnapshot, String> {
     let snapshot_bytes = state_file_location.read_content()?;
+    if snapshot_bytes.is_empty() {
+        return Err(format!(
+            "unable to read {}: file empty",
+            state_file_location
+        ));
+    }
     let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
         .map_err(|e| format!("unable to read {}: {}", state_file_location, e.to_string()))?;
     Ok(snapshot)
+}
+
+pub fn display_snapshot_diffing(
+    consolidated_changes: ConsolidatedChanges,
+) -> Option<ConsolidatedChanges> {
+    let synthesized_changes = consolidated_changes.get_synthesized_changes();
+
+    if synthesized_changes.is_empty() && consolidated_changes.new_to_add.is_empty() {
+        println!(
+            "{} Latest snapshot in sync with latest runbook updates",
+            green!("✓")
+        );
+        return None;
+    }
+
+    if !consolidated_changes.new_to_add.is_empty() {
+        println!("\n{}", yellow!("New chain to synchronize:"));
+        println!("{}\n", consolidated_changes.new_to_add.join(", "));
+    }
+
+    if !synthesized_changes.is_empty() {
+        println!("\n{}\n", yellow!("Chains to update:"));
+        for (i, ((change, critical), impacted)) in consolidated_changes
+            .get_synthesized_changes()
+            .into_iter()
+            .enumerate()
+        {
+            let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
+            let formatted_change = change
+                .iter()
+                .map(|c| {
+                    if c.starts_with("-") {
+                        red!(c)
+                    } else {
+                        green!(c)
+                    }
+                })
+                .join("");
+            println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
+            println!(
+                "\rwill trigger an update for the chains ids {}\n\n\n",
+                yellow!(format!("{}", formatted_impacts))
+            );
+        }
+    }
+    Some(consolidated_changes)
 }
 
 pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
@@ -75,33 +127,7 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
 
             let consolidated_changes = ctx.diff(old, new);
 
-            println!("\n{}\n", yellow!("Chain updates"));
-            for (i, ((change, critical), impacted)) in consolidated_changes
-                .get_synthesized_changes()
-                .into_iter()
-                .enumerate()
-            {
-                let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
-                let formatted_change = change
-                    .iter()
-                    .map(|c| {
-                        if c.starts_with("-") {
-                            red!(c)
-                        } else {
-                            green!(c)
-                        }
-                    })
-                    .join("");
-                println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-                println!(
-                    "\rwill trigger an update for the chains ids {}\n\n\n",
-                    yellow!(format!("{}", formatted_impacts))
-                );
-            }
-
-            for new_to_add in consolidated_changes.new_to_add.iter() {
-                println!("{}", new_to_add)
-            }
+            display_snapshot_diffing(consolidated_changes);
         }
         None => {}
     }
@@ -325,8 +351,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     };
 
-    println!("{} Starting runbook '{}'", purple!("→"), runbook_name);
-
     let previous_state_opt =
         if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
             match load_runbook_execution_snapshot(&state_file_location) {
@@ -368,33 +392,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
             let consolidated_changes = ctx.diff(old, new);
 
-            println!("\n{}\n", yellow!("Chain updates"));
-            for (i, ((change, critical), impacted)) in consolidated_changes
-                .get_synthesized_changes()
-                .into_iter()
-                .enumerate()
-            {
-                let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
-                let formatted_change = change
-                    .iter()
-                    .map(|c| {
-                        if c.starts_with("-") {
-                            red!(c)
-                        } else {
-                            green!(c)
-                        }
-                    })
-                    .join("");
-                println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-                println!(
-                    "\rwill trigger an update for the chains ids {}\n\n\n",
-                    yellow!(format!("{}", formatted_impacts))
-                );
-            }
-
-            for new_to_add in consolidated_changes.new_to_add.iter() {
-                println!("{}", new_to_add)
-            }
+            let Some(consolidated_changes) = display_snapshot_diffing(consolidated_changes) else {
+                return Ok(());
+            };
 
             let theme = ColorfulTheme {
                 values_style: Style::new().green(),
@@ -517,7 +517,12 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         });
 
-        println!("{} Executing Runbook in unsupervised mode", yellow!("→"));
+        println!(
+            "{} Starting runbook '{}' execution in unsupervised mode",
+            purple!("→"),
+            runbook_name
+        );
+
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
         if let Err(diags) = res {
             for diag in diags.iter() {
@@ -751,7 +756,6 @@ pub async fn load_runbook_from_manifest(
                 }
                 std::process::exit(1);
             }
-            println!("{} '{}' successfully loaded", green!("✓"), runbook_name);
             return Ok((manifest, runbook_name, runbook, runbook_state));
         }
     }

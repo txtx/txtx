@@ -10,7 +10,8 @@ use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
 use kit::types::types::Value;
 use kit::types::wallets::WalletInstance;
-use kit::types::{ConstructDid, ConstructId, Did, PackageId, RunbookId};
+use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
+use kit::AddonDefaults;
 use txtx_addon_kit::hcl;
 
 use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, RuntimeContext};
@@ -33,6 +34,8 @@ pub struct RunbookWorkspaceContext {
     pub environment_variables_did_lookup: BTreeMap<String, ConstructDid>,
     /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
     pub environment_variables_values: BTreeMap<ConstructDid, Value>,
+
+    pub addons_defaults: HashMap<(PackageDid, String), AddonDefaults>,
 }
 
 impl RunbookWorkspaceContext {
@@ -43,7 +46,14 @@ impl RunbookWorkspaceContext {
             constructs: HashMap::new(),
             environment_variables_did_lookup: BTreeMap::new(),
             environment_variables_values: BTreeMap::new(),
+            addons_defaults: HashMap::new(),
         }
+    }
+
+    pub fn get_addon_defaults(&self, key: &(PackageDid, String)) -> &AddonDefaults {
+        self.addons_defaults
+            .get(key)
+            .expect("unable to retrieve addon defaults")
     }
 
     pub fn build_from_sources(

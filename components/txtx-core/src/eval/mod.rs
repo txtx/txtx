@@ -105,12 +105,8 @@ pub async fn run_wallets_evaluation(
                     .get(&construct_did.clone());
 
                 let addon_context_key = (package_id.did(), wallet_instance.namespace.clone());
-                let addon_defaults = runtime_context
-                    .addons_context
-                    .addon_construct_factories
-                    .get(&addon_context_key)
-                    .and_then(|addon| Some(addon.defaults.clone()))
-                    .unwrap_or(AddonDefaults::new());
+                let addon_defaults =
+                    runbook_workspace_context.get_addon_defaults(&addon_context_key);
 
                 let res = perform_wallet_inputs_evaluation(
                     &wallet_instance,
@@ -280,7 +276,7 @@ pub async fn run_constructs_evaluation(
     background_tasks_uuid: &Uuid,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &mut RunbookExecutionContext,
-    runtime_context: &mut RuntimeContext,
+    runtime_context: &RuntimeContext,
     supervision_context: &RunbookSupervisionContext,
     action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
@@ -356,12 +352,7 @@ pub async fn run_constructs_evaluation(
         let package_id = command_instance.package_id.clone();
 
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
-        let addon_defaults = runtime_context
-            .addons_context
-            .addon_construct_factories
-            .get(&addon_context_key)
-            .and_then(|addon| Some(addon.defaults.clone()))
-            .unwrap_or(AddonDefaults::new()); // todo(lgalabru): to investigate
+        let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
 
         // in general we want to ignore previous input evaluation results when evaluating for outputs.
         // we want to recompute the whole graph in case anything has changed since our last traversal.
@@ -517,19 +508,6 @@ pub async fn run_constructs_evaluation(
             let execution_result = match execution_result {
                 // todo(lgalabru): return Diagnostic instead
                 Ok((updated_wallets, result)) => {
-                    if command_instance.specification.update_addon_defaults {
-                        let addon_context_key =
-                            (package_id.did(), command_instance.namespace.clone());
-                        if let Some(ref mut addon_context) = runtime_context
-                            .addons_context
-                            .addon_construct_factories
-                            .get_mut(&addon_context_key)
-                        {
-                            for (k, v) in result.outputs.iter() {
-                                addon_context.defaults.store.insert(k, v.clone());
-                            }
-                        }
-                    }
                     runbook_execution_context.signing_commands_state = Some(updated_wallets);
                     Ok(result)
                 }
@@ -602,22 +580,7 @@ pub async fn run_constructs_evaluation(
 
             let execution_result = match execution_result {
                 // todo(lgalabru): return Diagnostic instead
-                Ok(result) => {
-                    if command_instance.specification.update_addon_defaults {
-                        let addon_context_key =
-                            (package_id.did(), command_instance.namespace.clone());
-                        if let Some(ref mut addon_context) = runtime_context
-                            .addons_context
-                            .addon_construct_factories
-                            .get_mut(&addon_context_key)
-                        {
-                            for (k, v) in result.outputs.iter() {
-                                addon_context.defaults.store.insert(&k, v.clone());
-                            }
-                        }
-                    }
-                    Ok(result)
-                }
+                Ok(result) => Ok(result),
                 Err(e) => {
                     if let Some(deps) = runbook_execution_context
                         .commands_dependencies

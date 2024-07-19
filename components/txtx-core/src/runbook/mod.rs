@@ -11,6 +11,7 @@ mod graph_context;
 mod runtime_context;
 mod workspace_context;
 
+pub use diffing_context::ConsolidatedChanges;
 pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext};
 pub use execution_context::RunbookExecutionContext;
 pub use graph_context::RunbookGraphContext;
@@ -72,10 +73,10 @@ impl Runbook {
 
             // Step 1: identify the addons at play and their globals
             runtime_context.build_from_sources(
+                &mut running_context.workspace_context,
                 &self.runbook_id,
-                &inputs_map,
+                &inputs_sets,
                 &sources,
-                &running_context.workspace_context,
                 &running_context.execution_context,
             )?;
 

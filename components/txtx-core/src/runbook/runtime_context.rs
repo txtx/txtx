@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use indexmap::IndexMap;
 use kit::{
     hcl::structure::{Block, BlockLabel},
     helpers::fs::FileLocation,
@@ -47,15 +48,6 @@ impl RuntimeContext {
         }
     }
 
-    pub fn get_addon_defaults(&self, addon_key: &(PackageDid, String)) -> Option<&AddonDefaults> {
-        let addon_defaults = self
-            .addons_context
-            .addon_construct_factories
-            .get(&addon_key)
-            .and_then(|addon| Some(&addon.defaults));
-        addon_defaults
-    }
-
     pub fn collect_environment_variables(
         &self,
         runbook_id: &RunbookId,
@@ -73,7 +65,6 @@ impl RuntimeContext {
             sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
         }
         let dependencies_execution_results = HashMap::new();
-        let mut addons_context = AddonsContext::new();
 
         let mut inputs_sets = vec![];
 
@@ -89,12 +80,6 @@ impl RuntimeContext {
                 package_location: package_location.clone(),
                 package_name: package_name.clone(),
             };
-            addons_context.register(
-                &package_id.did(),
-                Box::new(StdAddon::new()),
-                false,
-                AddonDefaults::new(),
-            );
 
             let mut blocks = content
                 .into_blocks()
@@ -159,6 +144,10 @@ impl RuntimeContext {
             }
         }
 
+        if inputs_sets.is_empty() {
+            inputs_sets.push(ValueStore::new("main", &Did::zero()))
+        }
+
         for inputs_set in inputs_sets.iter_mut() {
             for (key, value) in inputs_map.current_inputs_set().iter() {
                 if inputs_set.get_value(key).is_none() {
@@ -172,10 +161,10 @@ impl RuntimeContext {
 
     pub fn build_from_sources(
         &mut self,
+        runbook_workspace_context: &mut RunbookWorkspaceContext,
         runbook_id: &RunbookId,
-        inputs_map: &RunbookInputsMap,
+        inputs_sets: &Vec<ValueStore>,
         runbook_sources: &RunbookSources,
-        runbook_workspace_context: &RunbookWorkspaceContext,
         runbook_execution_context: &RunbookExecutionContext,
     ) -> Result<(), Vec<Diagnostic>> {
         {
@@ -190,7 +179,6 @@ impl RuntimeContext {
             }
             let mut addons_configs = vec![];
             let dependencies_execution_results = HashMap::new();
-            let mut addons_context = AddonsContext::new();
 
             // Register standard functions at the root level
             let std_addon = StdAddon::new();
@@ -198,6 +186,8 @@ impl RuntimeContext {
                 self.functions
                     .insert(function.name.clone(), function.clone());
             }
+
+            self.inputs_sets = inputs_sets.clone();
 
             while let Some((location, package_name, raw_content)) = sources.pop_front() {
                 let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
@@ -211,12 +201,8 @@ impl RuntimeContext {
                     package_location: package_location.clone(),
                     package_name: package_name.clone(),
                 };
-                addons_context.register(
-                    &package_id.did(),
-                    Box::new(StdAddon::new()),
-                    false,
-                    AddonDefaults::new(),
-                );
+                self.addons_context
+                    .register(&package_id.did(), Box::new(StdAddon::new()), false);
 
                 let mut blocks = content
                     .into_blocks()
@@ -271,54 +257,10 @@ impl RuntimeContext {
                                         1
                                     };
                                 self.concurrency = concurrency;
-
-                                if let Some(attr) = block.body.get_attribute("inputs") {
-                                    let res = eval::eval_expression(
-                                        &attr.value,
-                                        &dependencies_execution_results,
-                                        &package_id,
-                                        runbook_workspace_context,
-                                        runbook_execution_context,
-                                        self,
-                                    )
-                                    .map_err(|e| vec![e])?;
-                                    match res {
-                                        ExpressionEvaluationStatus::CompleteOk(value) => {
-                                            let batches =
-                                                value.as_array().ok_or(vec![diagnosed_error!(
-                                                "attribute batch.inputs should be of type array"
-                                            )])?;
-                                            for (index, inputs_set) in batches.iter().enumerate() {
-                                                let inputs = inputs_set.as_object().ok_or(vec![diagnosed_error!(
-                                                    "attribute batch.inputs.* should be of type object"
-                                                )])?;
-                                                let batch_name = match inputs.get("evm_chain_id") {
-                                                    Some(Ok(value)) => value.to_string(),
-                                                    _ => format!("{}", index),
-                                                };
-                                                let mut values =
-                                                    ValueStore::new(&batch_name, &&Did::zero());
-
-                                                for (key, value_res) in inputs.into_iter() {
-                                                    let value =
-                                                        value_res.clone().map_err(|e| vec![e])?;
-                                                    values.insert(key, value);
-                                                }
-                                                self.inputs_sets.push(values);
-                                            }
-                                        }
-                                        ExpressionEvaluationStatus::DependencyNotComputed
-                                        | ExpressionEvaluationStatus::CompleteErr(_) => {
-                                            return Err(vec![diagnosed_error!(
-                                                "unable to read attribute 'concurrency'"
-                                            )])
-                                        }
-                                    }
-                                }
                             }
 
                             if name.to_string().ends_with("::defaults") {
-                                let mut defaults = AddonDefaults::new();
+                                let mut defaults = IndexMap::new();
                                 for attribute in block.body.attributes() {
                                     let eval_result = eval::eval_expression(
                                         &attribute.value,
@@ -328,12 +270,13 @@ impl RuntimeContext {
                                         runbook_execution_context,
                                         self,
                                     );
+                                    let key = attribute.key.to_string();
                                     let value = match eval_result {
                                         Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
                                         Err(diag) => return Err(vec![diag]),
                                         _ => unimplemented!(),
                                     };
-                                    defaults.store.insert(&attribute.key.to_string(), value);
+                                    defaults.insert(key, value);
                                 }
                                 addons_configs.push((package_id.did(), name.to_string(), defaults));
                             }
@@ -343,34 +286,45 @@ impl RuntimeContext {
                 }
             }
 
-            if self.inputs_sets.is_empty() {
-                self.inputs_sets.push(ValueStore::new("main", &Did::zero()))
-            }
-
-            for inputs_set in self.inputs_sets.iter_mut() {
-                for (key, value) in inputs_map.current_inputs_set().iter() {
-                    if inputs_set.get_value(key).is_none() {
-                        inputs_set.insert(key, value.clone());
-                    }
-                }
-            }
             // Loop over the sequence of addons identified
-            for (package_did, addon_name, defaults) in addons_configs.into_iter() {
+            let default_key = "chain_id".to_string();
+            for (package_did, addon_name, defaults_src) in addons_configs.into_iter() {
+                let addon_id = match defaults_src.get(&default_key) {
+                    Some(entry) => entry.to_string(),
+                    None => defaults_src
+                        .first()
+                        .map(|(_, v)| v.clone())
+                        .unwrap_or(Value::null())
+                        .to_string(),
+                };
+                let mut defaults = AddonDefaults::new(&addon_id);
+                for (k, v) in defaults_src.into_iter() {
+                    defaults.store.insert(&k, v);
+                }
+
                 match addon_name.split_once("::") {
                     Some(("stacks", _)) => {
-                        addons_context.register(
+                        let addon = StacksNetworkAddon::new();
+                        runbook_workspace_context.addons_defaults.insert(
+                            (package_did.clone(), addon.get_namespace().into()),
+                            defaults,
+                        );
+                        self.addons_context.register(
                             &package_did,
                             Box::new(StacksNetworkAddon::new()),
                             true,
-                            defaults,
                         );
                     }
                     Some(("evm", _)) => {
-                        addons_context.register(
+                        let addon = EVMNetworkAddon::new();
+                        runbook_workspace_context.addons_defaults.insert(
+                            (package_did.clone(), addon.get_namespace().into()),
+                            defaults,
+                        );
+                        self.addons_context.register(
                             &package_did,
                             Box::new(EVMNetworkAddon::new()),
                             true,
-                            defaults,
                         );
                     }
                     _ => {
@@ -378,7 +332,6 @@ impl RuntimeContext {
                     }
                 };
             }
-            self.addons_context = addons_context;
 
             if diagnostics.is_empty() {
                 return Ok(());
@@ -437,13 +390,7 @@ impl AddonsContext {
         }
     }
 
-    pub fn register(
-        &mut self,
-        package_did: &PackageDid,
-        addon: Box<dyn Addon>,
-        scope: bool,
-        defaults: AddonDefaults,
-    ) {
+    pub fn register(&mut self, package_did: &PackageDid, addon: Box<dyn Addon>, scope: bool) {
         let key = addon.get_namespace().to_string();
         if self.registered_addons.get(&key).is_some() {
             return;
@@ -454,7 +401,6 @@ impl AddonsContext {
             functions: addon.build_function_lookup(),
             commands: addon.build_command_lookup(),
             signing_commands: addon.build_wallet_lookup(),
-            defaults,
         };
         self.registered_addons
             .insert(addon.get_namespace().to_string(), (addon, scope));
@@ -515,8 +461,6 @@ pub struct AddonConstructFactory {
     pub commands: HashMap<CommandId, PreCommandSpecification>,
     /// Signing commands supported by addon
     pub signing_commands: HashMap<String, WalletSpecification>,
-    /// Defaults registered
-    pub defaults: AddonDefaults,
 }
 
 impl AddonConstructFactory {

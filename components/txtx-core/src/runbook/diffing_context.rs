@@ -179,17 +179,19 @@ impl RunbookSnapshotContext {
 
                         let _should_values_be_hashed = is_construct_sensitive || is_input_sensitive;
 
-                        let value_pre_evaluation = command_instance
-                            .get_expression_from_input(input)
-                            .unwrap()
-                            .map(|e| e.to_string().trim().to_string());
-
-                        inputs.push(CommandInputSnapshot {
-                            name: input.name.clone(),
-                            value_pre_evaluation,
-                            value_post_evaluation: value.clone(),
-                            critical: true,
-                        });
+                        match command_instance.get_expression_from_input(input) {
+                            Ok(Some(entry)) => {
+                                inputs.push(CommandInputSnapshot {
+                                    name: input.name.clone(),
+                                    value_pre_evaluation: Some(
+                                        entry.to_string().trim().to_string(),
+                                    ),
+                                    value_post_evaluation: value.clone(),
+                                    critical: true,
+                                });
+                            }
+                            _ => {}
+                        };
                     }
                 }
 

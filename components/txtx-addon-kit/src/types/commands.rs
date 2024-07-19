@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    diagnostics::Diagnostic,
+    diagnostics::{Diagnostic, DiagnosticLevel},
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
@@ -606,12 +606,18 @@ impl CommandInstance {
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => todo!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+            (None, false) => Err(vec![Diagnostic {
+                span: None,
+                location: None,
+                message: format!(
+                    "command '{}' (type '{}') is missing value for field '{}'",
+                    self.name, self.specification.matcher, input.name
+                ),
+                level: DiagnosticLevel::Error,
+                documentation: None,
+                example: None,
+                parent_diagnostic: None,
+            }]),
         }
     }
 

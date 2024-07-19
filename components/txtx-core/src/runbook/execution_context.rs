@@ -133,7 +133,7 @@ impl RunbookExecutionContext {
 
         let (tx, _rx) = unbounded();
 
-        let addon_defaults = AddonDefaults::new();
+        let addon_defaults = AddonDefaults::new("simulation");
 
         for construct_did in ordered_constructs.into_iter() {
             // Is a command being considered? (vs signing_command, env, etc)
@@ -150,9 +150,7 @@ impl RunbookExecutionContext {
                 command_instance.package_id.did(),
                 command_instance.namespace.clone(),
             );
-            let addon_defaults = runtime_context
-                .get_addon_defaults(&addon_context_key)
-                .unwrap_or(&addon_defaults);
+            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
 
             let input_evaluation_results =
                 self.commands_inputs_evaluations_results.get(&construct_did);
