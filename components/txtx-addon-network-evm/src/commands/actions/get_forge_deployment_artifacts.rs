@@ -1,5 +1,4 @@
-use alloy::contract::Interface;
-use alloy::dyn_abi::{abi, DynSolValue};
+use alloy::dyn_abi::DynSolValue;
 use alloy::hex;
 use alloy::json_abi::JsonAbi;
 use std::collections::HashMap;
@@ -42,6 +41,12 @@ lazy_static! {
                         documentation: "The path to the Foundry project's `foundry.toml` file.",
                         typing: Type::string(),
                         optional: false,
+                        interpolable: true
+                    },
+                    foundry_profile: {
+                        documentation: "The profile to use from the `foundry.toml` file. The default is `default`.",
+                        typing: Type::string(),
+                        optional: true,
                         interpolable: true
                     },
                     contract_filename: {
@@ -142,6 +147,7 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
             let mut result = CommandExecutionResult::new();
 
             let foundry_toml_path = args.get_expected_string("foundry_toml_path")?;
+            let foundry_profile = args.get_string("foundry_profile");
             let contract_filename = args.get_expected_string("contract_filename")?;
             let contract_name = args
                 .get_string("contract_name")
@@ -169,7 +175,7 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 })?;
 
             let compiled_output = foundry_config
-                .get_compiled_output(contract_filename, contract_name)
+                .get_compiled_output(contract_filename, contract_name, foundry_profile)
                 .map_err(|e| {
                     diagnosed_error!("'evm::get_forge_deployment_artifacts' function: {e}")
                 })?;

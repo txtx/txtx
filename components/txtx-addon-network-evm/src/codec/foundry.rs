@@ -103,8 +103,7 @@ pub struct FoundryProfile {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FoundryToml {
-    #[serde(rename = "profile")]
-    pub profile_default: FoundryProfile,
+    pub profile: HashMap<String, FoundryProfile>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -118,10 +117,17 @@ impl FoundryConfig {
         &self,
         contract_filename: &str,
         contract_name: &str,
+        profile_name: Option<&str>,
     ) -> Result<FoundryCompiledOutputJson, String> {
+        let profile_name = profile_name.unwrap_or("default");
+        let Some(profile) = self.toml.profile.get(profile_name) else {
+            return Err(format!(
+                "foundry.toml does not include profile {profile_name}",
+            ));
+        };
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
-        path.push(&format!("{}", self.toml.profile_default.out));
+        path.push(&format!("{}", profile.out));
         path.push(&format!("{}.sol", contract_filename));
         path.push(&format!("{}.json", contract_name));
 
