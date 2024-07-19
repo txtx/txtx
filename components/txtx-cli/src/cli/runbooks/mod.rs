@@ -369,13 +369,12 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             // if !cmd.force_execution {
             let ctx = RunbookSnapshotContext::new();
 
-            let mut simulated_running_contexts = HashMap::new();
-
-            let frontier = HashSet::new();
+            let mut execution_context_backups = HashMap::new();
 
             for run in runbook.running_contexts.iter_mut() {
-                let mut simulated_execution_context = run.execution_context.clone();
-                let _res = simulated_execution_context
+                let frontier = HashSet::new();
+                let mut execution_context_backup = run.execution_context.clone();
+                let _res = run.execution_context
                     .simulate_execution(
                         &runbook.runtime_context,
                         &run.workspace_context,
@@ -383,8 +382,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         &frontier,
                     )
                     .await;
-                simulated_running_contexts
-                    .insert(run.inputs_set.name.clone(), simulated_execution_context);
+                execution_context_backups
+                    .insert(run.inputs_set.name.clone(), execution_context_backup);
             }
 
             let new =
@@ -466,7 +465,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .filter(|c| descendants_of_critically_changed_commands.contains(&c))
                     .collect();
 
-                running_context.execution_context = simulated_running_contexts
+                running_context.execution_context = execution_context_backups
                     .remove(running_context_key)
                     .unwrap();
             }
