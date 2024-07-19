@@ -97,6 +97,18 @@ lazy_static! {
                             documentation: "The name of the contract being deployed.",
                             typing: Type::string()
                         },
+                        optimizer_enabled: {
+                            documentation: "Whether the optimizer is enabled during contract compilation.",
+                            typing: Type::bool()
+                        },
+                        optimizer_runs: {
+                            documentation: "The number of runs the optimizer performed.",
+                            typing: Type::uint()
+                        },
+                        evm_version: {
+                            documentation: "The EVM version used to compile the contract.",
+                            typing: Type::uint()
+                        },
                         value: {
                             documentation: "The other outputs as one object.",
                             typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
@@ -226,6 +238,10 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
             let compiler_version =
                 Value::string(format!("v{}", compiled_output.metadata.compiler.version));
             let contract_name = Value::string(contract_name.to_string());
+            let optimizer_enabled =
+                Value::bool(compiled_output.metadata.settings.optimizer.enabled);
+            let optimizer_runs = Value::uint(compiled_output.metadata.settings.optimizer.runs);
+            let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
 
             result.outputs.insert("abi".into(), abi.clone());
             result.outputs.insert("bytecode".into(), bytecode.clone());
@@ -237,6 +253,15 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
             result
                 .outputs
                 .insert("contract_name".into(), contract_name.clone());
+            result
+                .outputs
+                .insert("optimizer_enabled".into(), optimizer_enabled.clone());
+            result
+                .outputs
+                .insert("optimizer_runs".into(), optimizer_runs.clone());
+            result
+                .outputs
+                .insert("evm_version".into(), evm_version.clone());
 
             let mut obj_props = HashMap::from([
                 ("abi".to_string(), Ok(abi)),
@@ -245,6 +270,9 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 ("source".to_string(), Ok(source)),
                 ("compiler_version".to_string(), Ok(compiler_version)),
                 ("contract_name".to_string(), Ok(contract_name)),
+                ("optimizer_enabled".to_string(), Ok(optimizer_enabled)),
+                ("optimizer_runs".to_string(), Ok(optimizer_runs)),
+                ("evm_version".to_string(), Ok(evm_version)),
             ]);
             if let Some(constructor_args) = constructor_args.clone() {
                 result
