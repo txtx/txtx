@@ -594,6 +594,30 @@ pub struct ConsolidatedChanges {
     pub changes: IndexMap<String, Vec<Change>>,
 }
 
+impl ConsolidatedChanges {
+
+
+    pub fn get_synthesized_changes(&self) -> IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> {
+        let mut reverse_lookup: IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> = IndexMap::new();
+
+        for (id, changes) in self.changes.iter() {
+            for change in changes.iter() {
+                if change.description.is_empty() {
+                    continue
+                }
+                let key = (change.description.clone(), change.critical);
+                let value = (id.to_string(), change.construct_did.clone());
+                if let Some(list) = reverse_lookup.get_mut(&key) {
+                    list.push(value)
+                } else {
+                    reverse_lookup.insert(key, vec![value]);
+                }
+            }
+        }
+        reverse_lookup
+    }
+}
+
 pub fn diff_command_snapshots(
     old_run: &RunbookRunSnapshot,
     old_construct_dids: &Vec<ConstructDid>,
@@ -980,6 +1004,5 @@ fn now_as_string() -> String {
     // Display the DateTime using the RFC 3339 format
     datetime.to_rfc3339()
 }
-
 // Shortcut:
 // Support for constructs being removed / added / replaced

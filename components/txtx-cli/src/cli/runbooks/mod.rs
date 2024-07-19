@@ -1,5 +1,6 @@
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Input, Select};
+use itertools::Itertools;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env,
@@ -13,10 +14,8 @@ use txtx_core::{
     kit::{
         channel,
         helpers::fs::FileLocation,
-        types::{
-            commands::CommandInputsEvaluationResult,
-            frontend::{ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor},
-            types::Value,
+        types::frontend::{
+            ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
         },
     },
     runbook::{RunbookExecutionSnapshot, RunbookInputsMap},
@@ -74,38 +73,21 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
             let new =
                 ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
 
-            let consolidated_changes = ctx.diff(old, new);
+            let consolidated_changes = ctx.diff(old, new).get_synthesized_changes();
 
-            for (running_context_key, changes) in consolidated_changes.changes.into_iter() {
-                let critical_changes = changes
-                    .iter()
-                    .filter(|c| !c.description.is_empty() && c.critical)
-                    .collect::<Vec<_>>();
-                let has_cosmetic_changes = changes
-                    .iter()
-                    .any(|c| !c.description.is_empty() && !c.critical);
-                if critical_changes.is_empty() {
-                    let prefix = if has_cosmetic_changes {
-                        "Only cosmetic changes"
+            println!("\n{}\n", yellow!("Chain updates"));
+            for (i, ((change, critical), impacted)) in consolidated_changes.into_iter().enumerate() {
+                let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
+                let formatted_change = change.iter().map(|c| {
+                    if c.starts_with("-") {
+                        red!(c)
                     } else {
-                        "No changes"
-                    };
-                    println!(
-                        "{} {} since last execution of '{}'. Skipping Execution.",
-                        yellow!("→"),
-                        prefix,
-                        runbook_name
-                    );
-                }
+                        green!(c)
+                    }
+                }).join("");
+                println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
+                println!("\rwill trigger an update for the chains ids {}\n\n\n", yellow!(format!("{}", formatted_impacts)));
             }
-
-            // if !logged_change {
-            //     println!(
-            //         "{} No changes detected since last execution of '{}'",
-            //         green!("✓"),
-            //         runbook_name
-            //     );
-            // }
         }
         None => {}
     }
@@ -329,62 +311,24 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         }
     };
 
-    // let mut batch_inputs;
-
-    // for input in cmd.inputs.iter() {
-    //     let (input_name, input_value) = input.split_once("=").unwrap();
-    //     for (construct_did, command_instance) in
-    //         runbook.execution_context.commands_instances.iter_mut()
-    //     {
-    //         if command_instance.specification.matcher.eq("input")
-    //             && input_name.eq(&command_instance.name)
-    //         {
-    //             let mut result = CommandInputsEvaluationResult::new(input_name);
-
-    //             if input_value.starts_with("[") {
-    //                 batch_inputs = input_value[1..(input_value.len() - 2)]
-    //                     .split(",")
-    //                     .map(|v| Value::uint(v.parse::<u64>().unwrap()))
-    //                     .collect::<Vec<Value>>();
-    //                 let v = batch_inputs.remove(0);
-    //                 result.inputs.insert("value", v);
-    //                 runbook
-    //                     .execution_context
-    //                     .commands_inputs_evaluations_results
-    //                     .insert(construct_did.clone(), result);
-    //             } else {
-    //                 let value = match input_value.parse::<u64>() {
-    //                     Ok(uint) => Value::uint(uint),
-    //                     Err(_) => Value::string(input_value.into()),
-    //                 };
-    //                 result.inputs.insert("value", value);
-    //                 runbook
-    //                     .execution_context
-    //                     .commands_inputs_evaluations_results
-    //                     .insert(construct_did.clone(), result);
-    //             }
-    //         }
-    //     }
-    // }
-
     println!("{} Starting runbook '{}'", purple!("→"), runbook_name);
 
-
-    let previous_state_opt = if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
-        match load_runbook_execution_snapshot(&state_file_location) {
-            Ok(snapshot) => Some(snapshot),
-            Err(e) => {
-                println!("{} {}", red!("x"), e);
-                None
+    let previous_state_opt =
+        if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
+            match load_runbook_execution_snapshot(&state_file_location) {
+                Ok(snapshot) => Some(snapshot),
+                Err(e) => {
+                    println!("{} {}", red!("x"), e);
+                    None
+                }
             }
-        }
-    } else {
-        None
-    };
+        } else {
+            None
+        };
 
     if !cmd.force_execution {
         if let Some(old) = previous_state_opt {
-        // if !cmd.force_execution {
+            // if !cmd.force_execution {
             let ctx = RunbookSnapshotContext::new();
 
             let mut simulated_running_contexts = HashMap::new();
@@ -417,26 +361,26 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
             let consolidated_changes = ctx.diff(old, new);
 
+            println!("\n{}\n", yellow!("Chain updates"));
+            for (i, ((change, critical), impacted)) in consolidated_changes.get_synthesized_changes().into_iter().enumerate() {
+                let formatted_impacts = impacted.iter().map(|(c, _)| c.to_string()).join(", ");
+                let formatted_change = change.iter().map(|c| {
+                    if c.starts_with("-") {
+                        red!(c)
+                    } else {
+                        green!(c)
+                    }
+                }).join("");
+                println!("{}. The following changes:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
+                println!("\rwill trigger an update for the chains ids {}\n\n\n", yellow!(format!("{}", formatted_impacts)));
+            }
+
             for (running_context_key, changes) in consolidated_changes.changes.into_iter() {
                 let critical_changes = changes
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
-                let has_cosmetic_changes = changes
-                    .iter()
-                    .any(|c| !c.description.is_empty() && !c.critical);
                 if critical_changes.is_empty() {
-                    let prefix = if has_cosmetic_changes {
-                        "Only cosmetic changes"
-                    } else {
-                        "No changes"
-                    };
-                    println!(
-                        "{} {} since last execution of '{}'. Skipping Execution.",
-                        yellow!("→"),
-                        prefix,
-                        runbook_name
-                    );
                     return Ok(());
                 } else {
                     // for running_context in
@@ -452,6 +396,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                                         .graph_context
                                         .get_downstream_dependencies_for_construct_did(
                                             &construct_did,
+                                            true,
                                         ),
                                 )
                             } else {
