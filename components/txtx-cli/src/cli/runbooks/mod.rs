@@ -123,7 +123,7 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
                     .await;
             }
             let new =
-                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
+                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None);
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -387,7 +387,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
 
             let new =
-                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
+                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None);
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -400,15 +400,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 ..ColorfulTheme::default()
             };
 
-            if Confirm::with_theme(&theme)
+            Confirm::with_theme(&theme)
                 .with_prompt("Do you want to continue?")
                 .interact()
-                .unwrap()
-            {
-                println!("Looks like you want to continue");
-            } else {
-                println!("nevermind then :(");
-            }
+                .unwrap();
 
             for (running_context_key, changes) in consolidated_changes.changes.iter() {
                 let critical_changes = changes
@@ -419,18 +414,21 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
 
+                let pristine_execution_context = execution_context_backups
+                    .remove(running_context_key)
+                    .unwrap();
+
                 if consolidated_changes
                     .new_to_add
                     .contains(running_context_key)
                 {
                     // Restore a pristing execution context
-                    running_context.execution_context = execution_context_backups
-                        .remove(running_context_key)
-                        .unwrap();
+                    running_context.execution_context = pristine_execution_context;
                     continue;
                 }
 
                 if critical_changes.is_empty() {
+                    running_context.enabled = false;
                     continue
                 }
 
@@ -472,6 +470,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .into_iter()
                     .filter(|c| descendants_of_critically_changed_commands.contains(&c))
                     .collect();
+
+                running_context.execution_context = pristine_execution_context;
             }
         }
     } else {
@@ -533,6 +533,13 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         } else {
             if let Some(RunbookState::File(state_file_location)) = runbook_state {
+                let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
+                    Ok(snapshot) => Some(snapshot),
+                    Err(e) => {
+                        None
+                    }
+                };
+
                 println!(
                     "{} Saving execution state to {}",
                     green!("✓"),
@@ -540,7 +547,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 );
                 let diff = RunbookSnapshotContext::new();
                 let snapshot =
-                    diff.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts);
+                    diff.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, previous_snapshot);
                 state_file_location
                     .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
                     .expect("unable to save state");

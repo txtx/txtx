@@ -76,6 +76,10 @@ pub async fn start_unsupervised_runbook_runloop(
         is_supervised: false,
     };
     for running_context in runbook.running_contexts.iter_mut() {
+        if !running_context.enabled {
+            continue;
+        }
+
         let mut action_item_requests = BTreeMap::new();
         let action_item_responses = BTreeMap::new();
 

@@ -120,6 +120,7 @@ impl RunbookSnapshotContext {
         &self,
         runbook_id: &RunbookId,
         running_contexts: &Vec<RunningContext>,
+        previous_snapshot: Option<RunbookExecutionSnapshot>,
     ) -> RunbookExecutionSnapshot {
         // &runbook.workspace_context,
         // workspace_context: &RunbookWorkspaceContext,
@@ -127,6 +128,14 @@ impl RunbookSnapshotContext {
         let mut snapshot = RunbookExecutionSnapshot::new(&runbook_id);
 
         for running_context in running_contexts.iter() {
+            if !running_context.enabled {
+                for previous_context in previous_snapshot.as_ref().unwrap().runs.iter() {
+                    if previous_context.id.eq(&running_context.inputs_set.name) {
+                        snapshot.runs.push(previous_context.clone());
+                    }
+                }
+            } 
+
             let mut run = RunbookRunSnapshot {
                 inputs: running_context.inputs_set.storage.clone(),
                 id: running_context.inputs_set.name.clone(),

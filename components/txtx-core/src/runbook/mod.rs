@@ -155,8 +155,10 @@ pub struct RunningContext {
     pub execution_context: RunbookExecutionContext,
     /// The workspace context keeps track of packages and constructs reachable
     pub workspace_context: RunbookWorkspaceContext,
-    ///
+    /// The set of environment variables used during the execution
     pub inputs_set: ValueStore,
+    /// Wether or not this running context is enabled
+    pub enabled: bool
 }
 
 impl RunningContext {
@@ -169,6 +171,7 @@ impl RunningContext {
             graph_context,
             execution_context,
             inputs_set: inputs_set.clone(),
+            enabled: true,
         };
         running_context.index_environment_variables(inputs_set);
         running_context
