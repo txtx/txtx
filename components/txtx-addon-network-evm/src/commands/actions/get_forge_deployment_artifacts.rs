@@ -1,3 +1,7 @@
+use alloy::contract::Interface;
+use alloy::dyn_abi::{abi, DynSolValue};
+use alloy::hex;
+use alloy::json_abi::JsonAbi;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -14,6 +18,8 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::foundry::FoundryConfig;
+use crate::codec::value_to_sol_value;
+use crate::constants::CONTRACT_CONSTRUCTOR_ARGS;
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
 lazy_static! {
@@ -49,6 +55,12 @@ lazy_static! {
                         typing: Type::string(),
                         optional: true,
                         interpolable: true
+                    },
+                    constructor_args: {
+                        documentation: "The constructor args to initialize a contract requiring constructor arguments..",
+                        typing: Type::array(Type::buffer()),
+                        optional: true,
+                        interpolable: true
                     }
                 ],
                 outputs: [
@@ -58,6 +70,14 @@ lazy_static! {
                         },
                         bytecode: {
                             documentation: "The compiled contract bytecode.",
+                            typing: Type::string()
+                        },
+                        constructor_args: {
+                            documentation: "The abi encoded constructor arguments, if provided.",
+                            typing: Type::string()
+                        },
+                        init_code: {
+                            documentation: "The compiled contract bytecode concatenated with the abi encoded constructor arguments, if provided.",
                             typing: Type::string()
                         },
                         source: {
@@ -126,6 +146,21 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
             let contract_name = args
                 .get_string("contract_name")
                 .unwrap_or(contract_filename);
+            let constructor_args =
+                if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
+                    let sol_args = function_args
+                        .expect_array()
+                        .iter()
+                        .map(|v| {
+                            value_to_sol_value(&v).map_err(|e| {
+                                diagnosed_error!("command 'evm::sign_contract_call': {}", e)
+                            })
+                        })
+                        .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
+                    Some(sol_args)
+                } else {
+                    None
+                };
 
             let foundry_config = FoundryConfig::get_from_path(&foundry_toml_path)
                 .await
@@ -145,6 +180,33 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 )
             })?;
 
+            let mut init_code = compiled_output.bytecode.object.clone();
+            let json_abi: JsonAbi = serde_json::from_str(&abi_string).map_err(|e| {
+                diagnosed_error!(
+                    "command 'get_forge_deployment_artifacts': failed to decode contract abi: {e}"
+                )
+            })?;
+
+            let constructor_args = if let Some(constructor_args) = constructor_args {
+                if json_abi.constructor.is_none() {
+                    return Err(diagnosed_error!("command 'get_forge_deployment_artifacts': invalid arguments: constructor arguments provided, but abi has no constructor"));
+                }
+                let mut abi_encoded_args = constructor_args
+                    .iter()
+                    .flat_map(|s| s.abi_encode())
+                    .collect::<Vec<u8>>();
+                let mut hex_init_code = hex::decode(&init_code).map_err(|e| diagnosed_error!("command 'get_forge_deployment_artifacts': failed to decode contract bytecode: {e}"))?;
+                let encoded_args = hex::encode(&abi_encoded_args);
+                hex_init_code.append(&mut abi_encoded_args);
+                init_code = hex::encode(hex_init_code);
+                Some(Value::string(encoded_args))
+            } else {
+                if json_abi.constructor.is_some() {
+                    return Err(diagnosed_error!("command 'get_forge_deployment_artifacts': invalid arguments: no constructor arguments provided, but abi has constructor"));
+                }
+                None
+            };
+
             let source = compiled_output
                 .get_contract_source(foundry_toml_path, contract_filename)
                 .map_err(|e| {
@@ -153,6 +215,7 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
 
             let abi = Value::string(abi_string);
             let bytecode = Value::string(compiled_output.bytecode.object.clone());
+            let init_code = Value::string(init_code);
             let source = Value::string(source);
             let compiler_version =
                 Value::string(format!("v{}", compiled_output.metadata.compiler.version));
@@ -160,6 +223,7 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
 
             result.outputs.insert("abi".into(), abi.clone());
             result.outputs.insert("bytecode".into(), bytecode.clone());
+            result.outputs.insert("init_code".into(), init_code.clone());
             result.outputs.insert("source".into(), source.clone());
             result
                 .outputs
@@ -168,16 +232,24 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 .outputs
                 .insert("contract_name".into(), contract_name.clone());
 
-            result.outputs.insert(
-                "value".into(),
-                Value::object(HashMap::from([
-                    ("abi".to_string(), Ok(abi)),
-                    ("bytecode".to_string(), Ok(bytecode)),
-                    ("source".to_string(), Ok(source)),
-                    ("compiler_version".to_string(), Ok(compiler_version)),
-                    ("contract_name".to_string(), Ok(contract_name)),
-                ])),
-            );
+            let mut obj_props = HashMap::from([
+                ("abi".to_string(), Ok(abi)),
+                ("bytecode".to_string(), Ok(bytecode)),
+                ("init_code".to_string(), Ok(init_code)),
+                ("source".to_string(), Ok(source)),
+                ("compiler_version".to_string(), Ok(compiler_version)),
+                ("contract_name".to_string(), Ok(contract_name)),
+            ]);
+            if let Some(constructor_args) = constructor_args.clone() {
+                result
+                    .outputs
+                    .insert("constructor_args".into(), constructor_args.clone());
+                obj_props.insert("constructor_args".into(), Ok(constructor_args));
+            }
+
+            result
+                .outputs
+                .insert("value".into(), Value::object(obj_props));
             Ok(result)
         };
 

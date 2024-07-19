@@ -39,8 +39,14 @@ lazy_static! {
                 interpolable: true
             },
             contract_abi: {
-                documentation: "The path to the contract ABI in the local filesystem, or a URL to download it.",
+                documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
                 typing: Type::addon(ETH_ADDRESS.clone()),
+                optional: true,
+                interpolable: true
+            },
+            from: {
+                documentation: "The address that will be used as the sender of this contract call.",
+                typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
@@ -53,6 +59,54 @@ lazy_static! {
             function_args: {
                 documentation: "The contract function argument.",
                 typing: Type::array(Type::buffer()),
+                optional: true,
+                interpolable: true
+            },
+            amount: {
+                documentation: "The amount, in Wei, to send in the call to the `view` function.",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+            },
+            type: {
+                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
+            max_fee_per_gas: {
+                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+            },
+            max_priority_fee_per_gas: {
+                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+            },
+            chain_id: {
+                documentation: "The chain id.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
+            nonce: {
+                documentation: "The account nonce of the sender. This value will be retrieved from the network if omitted.",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+            },
+            gas_limit: {
+                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
+                typing: Type::uint(),
+                optional: true,
+                interpolable: true
+            },
+            gas_price: {
+                documentation: "Sets the gas price for Legacy transactions.",
+                typing: Type::uint(),
                 optional: true,
                 interpolable: true
             },
@@ -70,12 +124,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
-                  typing: Type::string()
-              },
-              network_id: {
-                  documentation: "Network id of the signed transaction.",
+              result: {
+                  documentation: "The contract call result.",
                   typing: Type::string()
               }
           ],
@@ -120,9 +170,7 @@ impl CommandImplementation for CallEVMViewFunction {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             let call_result = build_view_call(&spec, &args, &defaults).await?;
-            result
-                .outputs
-                .insert("value".into(), Value::Array(Box::new(call_result)));
+            result.outputs.insert("result".into(), call_result);
 
             Ok(result)
         };
@@ -136,20 +184,28 @@ async fn build_view_call(
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
-) -> Result<Vec<Value>, Diagnostic> {
+) -> Result<Value, Diagnostic> {
+    use alloy::{contract::Interface, json_abi::JsonAbi};
+
     use crate::{
-        codec::{get_contract_abi, sol_value_to_value, value_to_sol_value},
-        commands::actions::get_expected_address,
+        codec::{
+            build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
+            TransactionType,
+        },
         constants::{
-            CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS, CONTRACT_FUNCTION_NAME,
+            CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
+            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_FROM,
+            TRANSACTION_TYPE,
         },
     };
 
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
+    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let contract_address = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let contract_abi_loc = args.get_expected_string(CONTRACT_ABI)?;
+    let contract_address: &Value = args.get_expected_value(CONTRACT_ADDRESS)?;
+    let from = args.get_expected_value(TRANSACTION_FROM)?;
+    let contract_abi = args.get_string(CONTRACT_ABI);
     let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
     let function_args: Vec<DynSolValue> = args
         .get_value(CONTRACT_FUNCTION_ARGS)
@@ -164,24 +220,56 @@ async fn build_view_call(
         })
         .unwrap_or(Ok(vec![]))?;
 
+    let amount = args
+        .get_value(TRANSACTION_AMOUNT)
+        .map(|v| v.expect_uint())
+        .unwrap_or(0);
+    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
+    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
+
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?;
 
-    let abi = get_contract_abi(contract_abi_loc)
+    let input = if let Some(abi_str) = contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str).map_err(|e| {
+            diagnosed_error!("command 'call_view_function': invalid contract abi: {}", e)
+        })?;
+
+        let interface = Interface::new(abi);
+        interface
+            .encode_input(function_name, &function_args)
+            .map_err(|e| {
+                diagnosed_error!(
+                    "command 'call_view_function': failed to encode contract inputs: {e}"
+                )
+            })?
+    } else {
+        function_args
+            .iter()
+            .flat_map(|v| v.abi_encode_params())
+            .collect()
+    };
+
+    let common = CommonTransactionFields {
+        to: Some(contract_address.clone()),
+        from: from.clone(),
+        nonce,
+        chain_id,
+        amount: amount,
+        gas_limit,
+        tx_type,
+        input: Some(input),
+        deploy_code: None,
+    };
+    let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?;
-    let contract_address = get_expected_address(&contract_address).map_err(|e| {
-        diagnosed_error!("command 'evm::call_view_function': failed to parse to address: {e}")
-    })?;
+        .map_err(|e| diagnosed_error!("command: 'evm::call_view_function': {e}"))?;
 
     let call_result = rpc
-        .call(abi, &contract_address, function_name, &function_args)
+        .call(&tx)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?
-        .iter()
-        .map(|s| sol_value_to_value(s))
-        .collect::<Result<Vec<Value>, String>>()
         .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?;
 
-    Ok(call_result)
+    Ok(Value::string(call_result))
 }

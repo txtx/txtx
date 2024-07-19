@@ -33,6 +33,7 @@ pub const CONTRACT_ADDRESS: &str = "contract_address";
 pub const CONTRACT_ABI: &str = "contract_abi";
 pub const CONTRACT_FUNCTION_NAME: &str = "function_name";
 pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
+pub const CONTRACT_CONSTRUCTOR_ARGS: &str = "constructor_args";
 pub const ARTIFACTS: &str = "artifacts";
 
 // Default values

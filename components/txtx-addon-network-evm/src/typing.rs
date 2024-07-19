@@ -10,6 +10,18 @@ lazy_static! {
             documentation: "A 20-byte Ethereum address.",
         }
     };
+    pub static ref BYTES: TypeSpecification = define_addon_type! {
+        EthereumBytes => {
+            name: "eth_bytes",
+            documentation: "",
+        }
+    };
+    pub static ref BYTES32: TypeSpecification = define_addon_type! {
+        EthereumBytes32 => {
+            name: "eth_bytes32",
+            documentation: "",
+        }
+    };
     pub static ref ETH_TRANSACTION: TypeSpecification = define_addon_type! {
         EthereumTransaction => {
             name: "eth_transaction",
@@ -31,6 +43,18 @@ lazy_static! {
         },
         bytecode: {
             documentation: "The compiled contract bytecode.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
+        },
+        constructor_args: {
+            documentation: "The abi encoded constructor arguments, if provided.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        },
+        init_code: {
+            documentation: "The compiled contract bytecode concatenated with the abi encoded constructor arguments, if provided.",
             typing: Type::string(),
             optional: false,
             interpolable: false
@@ -58,6 +82,18 @@ lazy_static! {
 
 pub struct EthereumAddress;
 impl TypeImplementation for EthereumAddress {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct EthereumBytes;
+impl TypeImplementation for EthereumBytes {
+    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
+        unimplemented!()
+    }
+}
+pub struct EthereumBytes32;
+impl TypeImplementation for EthereumBytes32 {
     fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
         unimplemented!()
     }
