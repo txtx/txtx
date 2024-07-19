@@ -33,7 +33,7 @@ lazy_static! {
                 rpc_api_url: {
                   documentation: "The URL of the EVM API used to get the transaction receipt.",
                   typing: Type::string(),
-                  optional: true,
+                  optional: false,
                   interpolable: true
                 },
                 confirmations: {

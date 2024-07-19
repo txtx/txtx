@@ -32,6 +32,12 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
+            rpc_api_url: {
+              documentation: "The URL of the EVM API used to get the transaction receipt.",
+              typing: Type::string(),
+              optional: false,
+              interpolable: true
+            },
             contract_address: {
                 documentation: "The address of the contract being called.",
                 typing: Type::addon(ETH_ADDRESS.clone()),
