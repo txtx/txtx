@@ -58,18 +58,9 @@ lazy_static! {
                 optional: false,
                 interpolable: true
             },
-            artifacts: {
-                documentation: indoc!{ r#"An object containing the deployment artifacts. Schema:
-                ```json
-                    {
-                        "abi": String,
-                        "bytecode": String,
-                        "source": String,
-                        "compiler_version": String
-                    }
-                ```
-                "# },
-                typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
+            init_code: {
+                documentation: "The contract init_code to deploy",
+                typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
@@ -135,12 +126,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
-                  typing: Type::string()
-              },
-              network_id: {
-                  documentation: "Network id of the signed transaction.",
+              tx_hash: {
+                  documentation: "The hash of the transaction.",
                   typing: Type::string()
               }
           ],
@@ -345,14 +332,9 @@ async fn build_unsigned_contract_deploy(
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let artifacts = args.get_expected_object(ARTIFACTS)?;
+    let init_code = args.get_expected_string("init_code")?;
 
-    let Some(Value::Primitive(PrimitiveValue::String(bytecode))) = artifacts.get("bytecode") else {
-        return Err(diagnosed_error!(
-            "command: 'evm::sign_contract_deploy': contract deployment artifacts missing bytecode"
-        ));
-    };
-    let bytecode = alloy::hex::decode(bytecode)
+    let init_code = alloy::hex::decode(init_code)
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_deploy': {}", e))?;
 
     let amount = args
@@ -380,7 +362,7 @@ async fn build_unsigned_contract_deploy(
         gas_limit,
         tx_type,
         input: None,
-        deploy_code: Some(bytecode),
+        deploy_code: Some(init_code),
     };
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
