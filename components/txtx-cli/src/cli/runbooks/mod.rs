@@ -415,16 +415,24 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
+                // for running_context in
+                let running_context =
+                    runbook.find_expected_running_context_mut(&running_context_key);
 
                 if consolidated_changes
                     .new_to_add
                     .contains(running_context_key)
                 {
+                    // Restore a pristing execution context
+                    running_context.execution_context = execution_context_backups
+                        .remove(running_context_key)
+                        .unwrap();
                     continue;
                 }
-                // for running_context in
-                let running_context =
-                    runbook.find_expected_running_context_mut(&running_context_key);
+
+                if critical_changes.is_empty() {
+                    continue
+                }
 
                 let descendants_of_critically_changed_commands = critical_changes
                     .iter()
@@ -464,10 +472,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .into_iter()
                     .filter(|c| descendants_of_critically_changed_commands.contains(&c))
                     .collect();
-
-                running_context.execution_context = execution_context_backups
-                    .remove(running_context_key)
-                    .unwrap();
             }
         }
     } else {
