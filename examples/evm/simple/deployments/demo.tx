@@ -1,29 +1,22 @@
 runtime "batch" {
-    concurrency = 25
     inputs = [
-        // {
-        //     evm_chain_id = 11155111
-        //     evm_block_explorer_api_key = "5RGQJXQ556G9PYNWDB7FBNSMV9M71PSJ7F"
-        //     evm_rpc_api_url = "https://sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
-        // },
-        {
-            evm_chain_id = 421614
-            evm_block_explorer_api_key = "DWQ5CWSPSH8PCRPJDZES35HFUSUUZE9VEY"
-            evm_rpc_api_url = "https://arbitrum-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
-        },
-        {
+		{
             evm_chain_id = 168587773
-            evm_block_explorer_api_key = "G39ACBVXRR9Y2D4T4X8RVXF6I12RJT7KYK"
             evm_rpc_api_url = "https://blast-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+            evm_block_explorer_api_key = "G39ACBVXRR9Y2D4T4X8RVXF6I12RJT7KYK"
+        },        
+        {
+            evm_chain_id = "arbitrum-sepolia"
+            evm_rpc_api_url = "https://arbitrum-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+            evm_block_explorer_api_key = "DWQ5CWSPSH8PCRPJDZES35HFUSUUZE9VEY"
         }
     ]
 }
 
 runtime "evm::defaults" {
     chain_id = env.evm_chain_id
-    foundry_toml_path = env.foundry_toml_path
-    block_explorer_api_key = env.evm_block_explorer_api_key
     rpc_api_url = env.evm_rpc_api_url
+    block_explorer_api_key = env.evm_block_explorer_api_key
 }
 
 wallet "alice" "evm::mnemonic" {
@@ -32,22 +25,25 @@ wallet "alice" "evm::mnemonic" {
 
 // deploy simple storage contract
 action "artifacts" "evm::get_forge_deployment_artifacts" {
-    contract_filename = "SimpleStorage"
     foundry_toml_path = env.foundry_toml_path
+    contract_filename = "SimpleStorage"
     constructor_args = [1]
+    chain_id = env.evm_chain_id
 }
 
 action "deploy_simple_storage" "evm::sign_contract_deploy" {
     description = "Deploy SimpleStorage"
     from = wallet.alice
-    rpc_api_url = env.evm_rpc_api_url
     init_code = action.artifacts.init_code
+    chain_id = env.evm_chain_id
+    rpc_api_url = env.evm_rpc_api_url
 } 
 
 action "check_simple_storage_confs" "evm::check_confirmations" {
     tx_hash = action.deploy_simple_storage.tx_hash
+    confirmations = 3
+    chain_id = env.evm_chain_id
     rpc_api_url = env.evm_rpc_api_url
-    confirmations = 2
 }
 
 action "verify_simple_storage" "evm::verify_contract" {
