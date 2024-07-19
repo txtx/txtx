@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use foundry_block_explorers::Client as BlockExplorerClient;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
-use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::types::{PrimitiveValue, RunbookSupervisionContext};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
@@ -47,7 +49,10 @@ lazy_static! {
                             "constructor_args": String,
                             "source": String,
                             "compiler_version": String,
-                            "contract_name": String
+                            "contract_name": String,
+                            "optimizer_enabled": Bool,
+                            "optimizer_runs": UInt,
+                            "evn_version": String
                         }
                     ```
                     "# },
@@ -178,28 +183,18 @@ impl CommandImplementation for VerifyContract {
             ));
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-            let Some(Value::Primitive(PrimitiveValue::String(source))) = artifacts.get("source")
-            else {
-                return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing contract source"
-                    ));
-            };
-
-            let Some(Value::Primitive(PrimitiveValue::String(compiler_version))) =
-                artifacts.get("compiler_version")
-            else {
-                return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing compiler version"
-                    ));
-            };
-
-            let Some(Value::Primitive(PrimitiveValue::String(contract_name))) =
-                artifacts.get("contract_name")
-            else {
-                return Err(diagnosed_error!(
-                        "command: 'evm::verify_contract': contract deployment artifacts missing contract name"
-                    ));
-            };
+            let source = get_expected_string_from_map(&artifacts, "source")?;
+            let compiler_version = get_expected_string_from_map(&artifacts, "compiler_version")?;
+            let contract_name = get_expected_string_from_map(&artifacts, "contract_name")?;
+            let evm_version = get_expected_string_from_map(&artifacts, "evm_version")?;
+            let optimizer_enabled = get_expected_bool_from_map(&artifacts, "optimizer_enabled")?;
+            let optimizer_runs: u32 = get_expected_uint_from_map(&artifacts, "optimizer_runs")?
+                .try_into()
+                .map_err(|e| {
+                    diagnosed_error!(
+                        "command 'evm::verify_contract': invalid number of optimizer runs: {e}"
+                    )
+                })?;
 
             let constructor_args = artifacts
                 .get("constructor_args")
@@ -220,9 +215,9 @@ impl CommandImplementation for VerifyContract {
                 // todo: need to check if other formats
                 .code_format(CodeFormat::SingleFile)
                 // todo: need to set from compilation settings
-                .optimization(true)
-                .runs(200)
-                .evm_version("paris")
+                .optimization(optimizer_enabled)
+                .runs(optimizer_runs)
+                .evm_version(evm_version)
                 .constructor_arguments(constructor_args);
 
                 let res = explorer_client
@@ -404,4 +399,38 @@ impl CommandImplementation for VerifyContract {
 pub fn sleep_ms(millis: u64) -> () {
     let t = std::time::Duration::from_millis(millis);
     std::thread::sleep(t);
+}
+
+pub fn get_expected_string_from_map(
+    map: &HashMap<String, Value>,
+    key: &str,
+) -> Result<String, Diagnostic> {
+    let Some(Value::Primitive(PrimitiveValue::String(val))) = map.get(key) else {
+        return Err(diagnosed_error!(
+            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+        ));
+    };
+    Ok(val.into())
+}
+pub fn get_expected_uint_from_map(
+    map: &HashMap<String, Value>,
+    key: &str,
+) -> Result<u64, Diagnostic> {
+    let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) = map.get(key) else {
+        return Err(diagnosed_error!(
+            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+        ));
+    };
+    Ok(*val)
+}
+pub fn get_expected_bool_from_map(
+    map: &HashMap<String, Value>,
+    key: &str,
+) -> Result<bool, Diagnostic> {
+    let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) else {
+        return Err(diagnosed_error!(
+            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+        ));
+    };
+    Ok(*val)
 }

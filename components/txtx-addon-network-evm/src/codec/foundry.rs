@@ -80,6 +80,7 @@ pub struct ContractMetadataJson {
 pub struct ContractSettings {
     pub compilation_target: HashMap<String, String>,
     pub optimizer: ContractOptimizerSettings,
+    pub evm_version: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

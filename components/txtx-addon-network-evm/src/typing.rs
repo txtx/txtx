@@ -76,6 +76,24 @@ lazy_static! {
             typing: Type::string(),
             optional: false,
             interpolable: false
+        },
+        optimizer_enabled: {
+            documentation: "Whether the optimizer is enabled during contract compilation.",
+            typing: Type::bool(),
+            optional: false,
+            interpolable: false
+        },
+        optimizer_runs: {
+            documentation: "The number of runs the optimizer performed.",
+            typing: Type::uint(),
+            optional: false,
+            interpolable: false
+        },
+        evm_version: {
+            documentation: "The EVM version used to compile the contract.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
         }
     };
 }
