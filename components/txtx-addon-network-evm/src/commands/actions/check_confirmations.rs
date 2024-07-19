@@ -33,7 +33,7 @@ lazy_static! {
                 rpc_api_url: {
                   documentation: "The URL of the EVM API used to get the transaction receipt.",
                   typing: Type::string(),
-                  optional: true,
+                  optional: false,
                   interpolable: true
                 },
                 confirmations: {
@@ -114,11 +114,7 @@ impl CommandImplementation for CheckConfirmations {
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
 
-        use crate::{
-            constants::{CONTRACT_ADDRESS, NETWORK_ID},
-            rpc::EVMRpc,
-            typing::ETH_TX_HASH,
-        };
+        use crate::{constants::CONTRACT_ADDRESS, rpc::EVMRpc, typing::ETH_TX_HASH};
 
         let inputs = inputs.clone();
         let construct_did = construct_did.clone();
@@ -128,7 +124,7 @@ impl CommandImplementation for CheckConfirmations {
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
-        let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
+        // let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
 
         let tx_hash = inputs.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;

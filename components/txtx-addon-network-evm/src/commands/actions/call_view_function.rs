@@ -13,7 +13,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{NETWORK_ID, RPC_API_URL};
+use crate::constants::RPC_API_URL;
 use crate::rpc::EVMRpc;
 use crate::typing::ETH_ADDRESS;
 
@@ -31,6 +31,12 @@ lazy_static! {
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
+            },
+            rpc_api_url: {
+              documentation: "The URL of the EVM API used to get the transaction receipt.",
+              typing: Type::string(),
+              optional: false,
+              interpolable: true
             },
             contract_address: {
                 documentation: "The address of the contract being called.",
@@ -110,12 +116,12 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
-            network_id: {
-                documentation: "The network id.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
+            // network_id: {
+            //     documentation: "The network id.",
+            //     typing: Type::string(),
+            //     optional: true,
+            //     interpolable: true
+            // },
             depends_on: {
               documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
               typing: Type::string(),
@@ -199,7 +205,7 @@ async fn build_view_call(
         },
     };
 
-    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+    // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 

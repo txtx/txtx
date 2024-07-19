@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use alloy::{
     hex::FromHex,
     primitives::{Address, Bytes, B256},
