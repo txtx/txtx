@@ -27,6 +27,7 @@ highway = "1.1.0"
 rand = "0.8.5"
 serde_json = "1"
 sha2 = "0.10.8"
+indexmap = { version = "2.2.6", features = ["serde"] } 
 
 [dev-dependencies]
 test-case = "*"

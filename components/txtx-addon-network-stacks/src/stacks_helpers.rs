@@ -9,9 +9,12 @@ use clarity::vm::{
     ClarityName,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    types::{BufferData, PrimitiveValue, TypeSpecification, Value},
+use txtx_addon_kit::{
+    indexmap::IndexMap,
+    types::{
+        diagnostics::Diagnostic,
+        types::{BufferData, PrimitiveValue, TypeSpecification, Value},
+    },
 };
 
 use crate::typing::CLARITY_BUFFER;
@@ -191,7 +194,7 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
             Ok(Value::Primitive(PrimitiveValue::String(val.to_string())))
         }
         ClarityValue::Tuple(TupleData { data_map, .. }) => {
-            let mut map = HashMap::new();
+            let mut map = IndexMap::new();
             data_map.into_iter().for_each(|(k, v)| {
                 map.insert(k.to_string(), clarity_value_to_value(v));
             });

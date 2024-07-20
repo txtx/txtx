@@ -13,7 +13,7 @@ mod workspace_context;
 
 pub use diffing_context::ConsolidatedChanges;
 pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext};
-pub use execution_context::RunbookExecutionContext;
+pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
 pub use runtime_context::RuntimeContext;
 pub use workspace_context::RunbookWorkspaceContext;
@@ -50,6 +50,12 @@ impl Runbook {
 
     pub fn runbook_id(&self) -> RunbookId {
         self.runbook_id.clone()
+    }
+
+    pub fn enable_full_execution_mode(&mut self) {
+        for r in self.running_contexts.iter_mut() {
+            r.execution_context.execution_mode = RunbookExecutionMode::Full
+        }
     }
 
     pub fn build_contexts_from_sources(
@@ -157,8 +163,6 @@ pub struct RunningContext {
     pub workspace_context: RunbookWorkspaceContext,
     /// The set of environment variables used during the execution
     pub inputs_set: ValueStore,
-    /// Wether or not this running context is enabled
-    pub enabled: bool
 }
 
 impl RunningContext {
@@ -171,10 +175,16 @@ impl RunningContext {
             graph_context,
             execution_context,
             inputs_set: inputs_set.clone(),
-            enabled: true,
         };
         running_context.index_environment_variables(inputs_set);
         running_context
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        !self
+            .execution_context
+            .execution_mode
+            .eq(&RunbookExecutionMode::Ignored)
     }
 
     pub fn index_environment_variables(&mut self, inputs_set: &ValueStore) {

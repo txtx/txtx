@@ -18,7 +18,9 @@ use txtx_core::{
             ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
         },
     },
-    runbook::{ConsolidatedChanges, RunbookExecutionSnapshot, RunbookInputsMap},
+    runbook::{
+        ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot, RunbookInputsMap,
+    },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{
         ProtocolManifest, Runbook, RunbookMetadata, RunbookSnapshotContext, RunbookSources,
@@ -61,7 +63,7 @@ pub fn display_snapshot_diffing(
 ) -> Option<ConsolidatedChanges> {
     let synthesized_changes = consolidated_changes.get_synthesized_changes();
 
-    if synthesized_changes.is_empty() && consolidated_changes.new_to_add.is_empty() {
+    if synthesized_changes.is_empty() && consolidated_changes.new_plans_to_add.is_empty() {
         println!(
             "{} Latest snapshot in sync with latest runbook updates",
             green!("✓")
@@ -69,9 +71,9 @@ pub fn display_snapshot_diffing(
         return None;
     }
 
-    if !consolidated_changes.new_to_add.is_empty() {
+    if !consolidated_changes.new_plans_to_add.is_empty() {
         println!("\n{}", yellow!("New chain to synchronize:"));
-        println!("{}\n", consolidated_changes.new_to_add.join(", "));
+        println!("{}\n", consolidated_changes.new_plans_to_add.join(", "));
     }
 
     if !synthesized_changes.is_empty() {
@@ -122,8 +124,12 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
                     )
                     .await;
             }
-            let new =
-                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None);
+            runbook.enable_full_execution_mode();
+            let new = ctx.snapshot_runbook_execution(
+                &runbook.runbook_id,
+                &runbook.running_contexts,
+                None,
+            );
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -364,6 +370,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             None
         };
 
+    runbook.enable_full_execution_mode();
+
     if !cmd.force_execution {
         if let Some(old) = previous_state_opt {
             // if !cmd.force_execution {
@@ -374,7 +382,8 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             for run in runbook.running_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let mut execution_context_backup = run.execution_context.clone();
-                let _res = run.execution_context
+                let _res = run
+                    .execution_context
                     .simulate_execution(
                         &runbook.runtime_context,
                         &run.workspace_context,
@@ -386,8 +395,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .insert(run.inputs_set.name.clone(), execution_context_backup);
             }
 
-            let new =
-                ctx.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None);
+            let new = ctx.snapshot_runbook_execution(
+                &runbook.runbook_id,
+                &runbook.running_contexts,
+                None,
+            );
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -405,8 +417,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 .interact()
                 .unwrap();
 
-            for (running_context_key, changes) in consolidated_changes.changes.iter() {
+            for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
                 let critical_changes = changes
+                    .contructs_to_update
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
@@ -419,18 +432,23 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .unwrap();
 
                 if consolidated_changes
-                    .new_to_add
+                    .new_plans_to_add
                     .contains(running_context_key)
                 {
                     // Restore a pristing execution context
+                    running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
                     running_context.execution_context = pristine_execution_context;
                     continue;
                 }
 
                 if critical_changes.is_empty() {
-                    running_context.enabled = false;
-                    continue
+                    running_context.execution_context.execution_mode =
+                        RunbookExecutionMode::Ignored;
+                    continue;
                 }
+
+                running_context.execution_context.execution_mode =
+                    RunbookExecutionMode::Partial(vec![]);
 
                 let descendants_of_critically_changed_commands = critical_changes
                     .iter()
@@ -460,18 +478,6 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     .into_iter()
                     .filter(|c| descendants_of_critically_changed_commands.contains(&c))
                     .collect();
-
-                running_context
-                    .execution_context
-                    .order_for_signing_commands_initialization = running_context
-                    .execution_context
-                    .order_for_signing_commands_initialization
-                    .clone()
-                    .into_iter()
-                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
-                    .collect();
-
-                running_context.execution_context = pristine_execution_context;
             }
         }
     } else {
@@ -533,11 +539,10 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             }
         } else {
             if let Some(RunbookState::File(state_file_location)) = runbook_state {
-                let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
+                let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location)
+                {
                     Ok(snapshot) => Some(snapshot),
-                    Err(e) => {
-                        None
-                    }
+                    Err(e) => None,
                 };
 
                 println!(
@@ -546,8 +551,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                     state_file_location
                 );
                 let diff = RunbookSnapshotContext::new();
-                let snapshot =
-                    diff.snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, previous_snapshot);
+                let snapshot = diff.snapshot_runbook_execution(
+                    &runbook.runbook_id,
+                    &runbook.running_contexts,
+                    previous_snapshot,
+                );
                 state_file_location
                     .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
                     .expect("unable to save state");

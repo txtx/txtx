@@ -46,6 +46,15 @@ pub struct RunbookExecutionContext {
     pub order_for_commands_execution: Vec<ConstructDid>,
     /// Signing commands initialization order.
     pub order_for_signing_commands_initialization: Vec<ConstructDid>,
+    /// Wether or not this running context is enabled
+    pub execution_mode: RunbookExecutionMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RunbookExecutionMode {
+    Ignored,
+    Partial(Vec<ConstructDid>),
+    Full,
 }
 
 impl RunbookExecutionContext {
@@ -62,6 +71,7 @@ impl RunbookExecutionContext {
             signed_commands: HashSet::new(),
             order_for_commands_execution: vec![],
             order_for_signing_commands_initialization: vec![],
+            execution_mode: RunbookExecutionMode::Ignored,
         }
     }
 

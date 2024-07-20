@@ -1,5 +1,6 @@
-use crate::runbook::{RunbookWorkspaceContext, RuntimeContext};
+use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
 use crate::types::RunbookExecutionContext;
+use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
@@ -24,7 +25,6 @@ use txtx_addon_kit::{
         ConstructDid,
     },
     uuid::Uuid,
-    AddonDefaults,
 };
 
 // The flow for wallet evaluation should be drastically different
@@ -45,6 +45,7 @@ pub async fn run_wallets_evaluation(
     let instantiated_wallets = runbook_execution_context
         .order_for_signing_commands_initialization
         .clone();
+
     for construct_did in instantiated_wallets.into_iter() {
         let package_id = {
             let Some(command) = runbook_execution_context
@@ -630,6 +631,12 @@ pub async fn run_constructs_evaluation(
                 .push(construct_did.clone());
         }
 
+        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
+            runbook_execution_context.execution_mode
+        {
+            executed_constructs.push(construct_did.clone());
+        }
+
         runbook_execution_context
             .commands_execution_results
             .entry(construct_did)
@@ -708,7 +715,7 @@ pub fn eval_expression(
         }
         // Represents an HCL object.
         Expression::Object(object) => {
-            let mut map = HashMap::new();
+            let mut map = IndexMap::new();
             for (k, v) in object.into_iter() {
                 let key = match k {
                     txtx_addon_kit::hcl::expr::ObjectKey::Expression(k_expr) => {
@@ -1124,7 +1131,7 @@ pub fn perform_inputs_evaluation(
                 };
                 results.insert(&input.name, value);
             } else {
-                let mut object_values = HashMap::new();
+                let mut object_values = IndexMap::new();
                 for prop in object_props.iter() {
                     if let Some(value) = previously_evaluated_input {
                         match value.clone() {
@@ -1354,7 +1361,7 @@ pub fn perform_wallet_inputs_evaluation(
         };
         if let Some(object_props) = input.as_object() {
             // todo(micaiah) - figure out how user-input values work for this branch
-            let mut object_values = HashMap::new();
+            let mut object_values = IndexMap::new();
             for prop in object_props.iter() {
                 if let Some(value) = previously_evaluated_input {
                     match value.clone() {

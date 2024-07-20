@@ -138,8 +138,6 @@ pub async fn open_channel(
 }
 
 pub async fn get_channel(relayer_context: Data<RelayerContext>) -> actix_web::Result<HttpResponse> {
-    println!("GET /api/v1/channels");
-
     let Some(channel_data) = relayer_context.channel_data.read().await.clone() else {
         return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND).finish());
     };

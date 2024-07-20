@@ -1,9 +1,7 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-
-use indexmap::IndexMap;
 use kit::{
     hcl::structure::{Block, BlockLabel},
     helpers::fs::FileLocation,
+    indexmap::IndexMap,
     types::{
         commands::{CommandId, CommandInstance, CommandInstanceType, PreCommandSpecification},
         diagnostics::{Diagnostic, DiagnosticLevel},
@@ -15,6 +13,7 @@ use kit::{
     Addon, AddonDefaults,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl;
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;

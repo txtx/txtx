@@ -1,7 +1,7 @@
 use alloy::dyn_abi::DynSolValue;
 use alloy::hex;
 use alloy::json_abi::JsonAbi;
-use std::collections::HashMap;
+use txtx_addon_kit::indexmap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
@@ -263,17 +263,17 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 .outputs
                 .insert("evm_version".into(), evm_version.clone());
 
-            let mut obj_props = HashMap::from([
-                ("abi".to_string(), Ok(abi)),
-                ("bytecode".to_string(), Ok(bytecode)),
-                ("init_code".to_string(), Ok(init_code)),
-                ("source".to_string(), Ok(source)),
-                ("compiler_version".to_string(), Ok(compiler_version)),
-                ("contract_name".to_string(), Ok(contract_name)),
-                ("optimizer_enabled".to_string(), Ok(optimizer_enabled)),
-                ("optimizer_runs".to_string(), Ok(optimizer_runs)),
-                ("evm_version".to_string(), Ok(evm_version)),
-            ]);
+            let mut obj_props = indexmap::indexmap! {
+                "abi".to_string() => Ok(abi),
+                "bytecode".to_string() => Ok(bytecode),
+                "init_code".to_string() => Ok(init_code),
+                "source".to_string() => Ok(source),
+                "compiler_version".to_string() => Ok(compiler_version),
+                "contract_name".to_string() => Ok(contract_name),
+                "optimizer_enabled".to_string() => Ok(optimizer_enabled),
+                "optimizer_runs".to_string() => Ok(optimizer_runs),
+                "evm_version".to_string() => Ok(evm_version),
+            };
             if let Some(constructor_args) = constructor_args.clone() {
                 result
                     .outputs

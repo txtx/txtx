@@ -54,9 +54,7 @@ impl RunbookWorkspaceContext {
     }
 
     pub fn get_addon_defaults(&self, key: &(PackageDid, String)) -> &AddonDefaults {
-        self.addons_defaults
-            .get(key)
-            .unwrap_or(&self.std_defaults)
+        self.addons_defaults.get(key).unwrap_or(&self.std_defaults)
     }
 
     pub fn build_from_sources(

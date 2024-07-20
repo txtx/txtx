@@ -17,6 +17,7 @@ use types::ValueStore;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 pub use futures;
+pub use indexmap;
 
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};

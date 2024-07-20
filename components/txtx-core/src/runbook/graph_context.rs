@@ -1,6 +1,6 @@
 use daggy::Walker;
 use daggy::{Dag, NodeIndex};
-use indexmap::IndexSet;
+use kit::indexmap::IndexSet;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::ConstructDid;
 use kit::types::ConstructId;

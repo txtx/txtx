@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use jaq_interpret::Val;
 use serde::de::Error;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
@@ -13,7 +14,7 @@ use super::diagnostics::Diagnostic;
 #[serde(tag = "type", content = "value")]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(HashMap<String, Result<Value, Diagnostic>>),
+    Object(IndexMap<String, Result<Value, Diagnostic>>),
     Array(Box<Vec<Value>>),
     Addon(Box<AddonData>),
 }
@@ -43,7 +44,7 @@ impl Value {
     pub fn array(array: Vec<Value>) -> Value {
         Value::Array(Box::new(array))
     }
-    pub fn object(object: HashMap<String, Result<Value, Diagnostic>>) -> Value {
+    pub fn object(object: IndexMap<String, Result<Value, Diagnostic>>) -> Value {
         Value::Object(object)
     }
 
@@ -118,7 +119,7 @@ impl Value {
         }
     }
 
-    pub fn expect_object(&self) -> &HashMap<String, Result<Value, Diagnostic>> {
+    pub fn expect_object(&self) -> &IndexMap<String, Result<Value, Diagnostic>> {
         match &self {
             Value::Object(value) => value,
             _ => unreachable!(),
@@ -174,7 +175,7 @@ impl Value {
         }
     }
 
-    pub fn as_object(&self) -> Option<&HashMap<String, Result<Value, Diagnostic>>> {
+    pub fn as_object(&self) -> Option<&IndexMap<String, Result<Value, Diagnostic>>> {
         match &self {
             Value::Object(value) => Some(value),
             _ => None,
@@ -333,7 +334,7 @@ impl Value {
                 Value::array(arr)
             }
             Val::Obj(val) => {
-                let mut obj = HashMap::new();
+                let mut obj = IndexMap::new();
                 val.iter().for_each(|(k, v)| {
                     obj.insert(k.to_string(), Ok(Value::from_jaq_value(v.clone())));
                 });

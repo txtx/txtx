@@ -1,8 +1,8 @@
 use diagnostics::{Diagnostic, DiagnosticLevel};
+use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::collections::hash_map::Iter;
 use std::collections::HashMap;
 use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
 
@@ -215,7 +215,7 @@ pub struct Construct {
 pub struct ValueStore {
     pub uuid: Did,
     pub name: String,
-    pub storage: HashMap<String, Value>,
+    pub storage: IndexMap<String, Value>,
 }
 
 impl ValueStore {
@@ -223,7 +223,7 @@ impl ValueStore {
         ValueStore {
             name: name.to_string(),
             uuid: uuid.clone(),
-            storage: HashMap::new(),
+            storage: IndexMap::new(),
         }
     }
 
@@ -480,7 +480,7 @@ impl ValueStore {
         self.storage.insert(key.to_string(), value);
     }
 
-    pub fn iter(&self) -> Iter<String, Value> {
+    pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
         self.storage.iter()
     }
 
