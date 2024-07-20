@@ -2,6 +2,8 @@ use kit::types::commands::CommandExecutionResult;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::{diagnostics::Diagnostic, types::Value};
 use kit::types::{Did, RunbookId, ValueStore};
+use kit::Addon;
+use runtime_context::AddonsContext;
 use std::collections::HashMap;
 use txtx_addon_kit::helpers::fs::FileLocation;
 
@@ -41,7 +43,7 @@ impl Runbook {
             runbook_id,
             description,
             running_contexts: vec![],
-            runtime_context: RuntimeContext::new(),
+            runtime_context: RuntimeContext::new(vec![]),
             sources: RunbookSources::new(),
             supervision_context: RunbookSupervisionContext::new(),
             inputs_map: RunbookInputsMap::new(),
@@ -62,10 +64,11 @@ impl Runbook {
         &mut self,
         sources: RunbookSources,
         inputs_map: RunbookInputsMap,
+        available_addons: Vec<Box<dyn Addon>>,
     ) -> Result<bool, Vec<Diagnostic>> {
         // Re-initialize some shiny new contexts
         self.running_contexts.clear();
-        let mut runtime_context = RuntimeContext::new();
+        let mut runtime_context = RuntimeContext::new(available_addons);
         let inputs_sets = runtime_context.collect_environment_variables(
             &self.runbook_id,
             &inputs_map,
@@ -141,7 +144,8 @@ impl Runbook {
         // Rebuild contexts
         let mut inputs_map = self.inputs_map.clone();
         inputs_map.current = selector;
-        self.build_contexts_from_sources(self.sources.clone(), inputs_map)
+        let available_addons = self.runtime_context.collect_available_addons();
+        self.build_contexts_from_sources(self.sources.clone(), inputs_map, available_addons)
     }
 
     pub fn get_inputs_selectors(&self) -> Vec<String> {

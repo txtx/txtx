@@ -15,8 +15,6 @@ use kit::{
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl;
-use txtx_addon_network_evm::EVMNetworkAddon;
-use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
     eval::{self, ExpressionEvaluationStatus},
@@ -29,8 +27,10 @@ use super::{RunbookExecutionContext, RunbookInputsMap, RunbookSources, RunbookWo
 pub struct RuntimeContext {
     /// Functions accessible at runtime
     pub functions: HashMap<String, FunctionSpecification>,
-    /// Addons accessible at runtime
+    /// Addons instantiated by runtime
     pub addons_context: AddonsContext,
+    /// Addons available for runtime
+    pub available_addons: Vec<Box<dyn Addon>>,
     /// Number of threads allowed to work on the inputs_sets concurrently
     pub concurrency: u64,
     /// Sets of inputs indicating batches inputs
@@ -38,13 +38,23 @@ pub struct RuntimeContext {
 }
 
 impl RuntimeContext {
-    pub fn new() -> RuntimeContext {
+    pub fn new(available_addons: Vec<Box<dyn Addon>>) -> RuntimeContext {
         RuntimeContext {
             functions: HashMap::new(),
             addons_context: AddonsContext::new(),
+            available_addons,
             concurrency: 1,
             inputs_sets: vec![],
         }
+    }
+
+    pub fn collect_available_addons(&mut self) -> Vec<Box<dyn Addon>> {
+        let mut addons = vec![];
+        addons.append(&mut self.available_addons);
+        for (_, (addon, _)) in self.addons_context.registered_addons.drain() {
+            addons.push(addon);
+        }
+        addons
     }
 
     pub fn collect_environment_variables(
@@ -302,29 +312,24 @@ impl RuntimeContext {
                 }
 
                 match addon_name.split_once("::") {
-                    Some(("stacks", _)) => {
-                        let addon = StacksNetworkAddon::new();
+                    Some((addon_id, _)) => {
+                        let mut index = None;
+                        for (i, addon) in self.available_addons.iter().enumerate() {
+                            if addon.get_namespace().eq(addon_id) {
+                                index = Some(i);
+                                break;
+                            }
+                        }
+                        let Some(index) = index else {
+                            return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                        };
+
+                        let addon = self.available_addons.remove(index);
                         runbook_workspace_context.addons_defaults.insert(
                             (package_did.clone(), addon.get_namespace().into()),
                             defaults,
                         );
-                        self.addons_context.register(
-                            &package_did,
-                            Box::new(StacksNetworkAddon::new()),
-                            true,
-                        );
-                    }
-                    Some(("evm", _)) => {
-                        let addon = EVMNetworkAddon::new();
-                        runbook_workspace_context.addons_defaults.insert(
-                            (package_did.clone(), addon.get_namespace().into()),
-                            defaults,
-                        );
-                        self.addons_context.register(
-                            &package_did,
-                            Box::new(EVMNetworkAddon::new()),
-                            true,
-                        );
+                        self.addons_context.register(&package_did, addon, true);
                     }
                     _ => {
                         diagnostics.push(diagnosed_error!("addon '{}' unknown", addon_name));

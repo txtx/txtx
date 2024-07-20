@@ -10,6 +10,8 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
+use txtx_addon_network_evm::EVMNetworkAddon;
+use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::{
     kit::{
         channel,
@@ -17,6 +19,7 @@ use txtx_core::{
         types::frontend::{
             ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
         },
+        Addon,
     },
     runbook::{
         ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot, RunbookInputsMap,
@@ -767,7 +770,12 @@ pub async fn load_runbook_from_manifest(
     {
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             let inputs_map = manifest.get_runbook_inputs(environment_selector)?;
-            let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map);
+            let available_addons: Vec<Box<dyn Addon>> = vec![
+                Box::new(StacksNetworkAddon::new()),
+                Box::new(EVMNetworkAddon::new()),
+            ];
+            let res =
+                runbook.build_contexts_from_sources(runbook_sources, inputs_map, available_addons);
             if let Err(diags) = res {
                 for diag in diags.iter() {
                     println!("{} {}", red!("x"), diag);
@@ -790,8 +798,11 @@ pub async fn load_runbook_from_file_path(file_path: &str) -> Result<(String, Run
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let inputs_map = RunbookInputsMap::new();
-
-    let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map);
+    let available_addons: Vec<Box<dyn Addon>> = vec![
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EVMNetworkAddon::new()),
+    ];
+    let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map, available_addons);
     if let Err(diags) = res {
         for diag in diags.iter() {
             println!("{} {}", red!("x"), diag);

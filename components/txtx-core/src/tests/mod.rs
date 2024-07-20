@@ -10,6 +10,7 @@ use kit::{
         },
         RunbookId,
     },
+    Addon,
 };
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
@@ -22,6 +23,7 @@ use txtx_addon_kit::{
         types::Value,
     },
 };
+use txtx_addon_network_stacks::StacksNetworkAddon;
 
 use crate::{
     runbook::RunbookInputsMap,
@@ -218,9 +220,10 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
         name: "test".into(),
     };
 
+    let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
     let mut runbook = Runbook::new(runbook_id, None);
     runbook
-        .build_contexts_from_sources(runbook_sources, runbook_inputs)
+        .build_contexts_from_sources(runbook_sources, runbook_inputs, available_addons)
         .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
@@ -780,8 +783,9 @@ fn test_bns_runbook_no_env() {
     };
 
     let mut runbook = Runbook::new(runbook_id, None);
+    let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
     runbook
-        .build_contexts_from_sources(runbook_sources, runbook_inputs)
+        .build_contexts_from_sources(runbook_sources, runbook_inputs, available_addons)
         .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();

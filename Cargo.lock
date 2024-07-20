@@ -6429,7 +6429,6 @@ dependencies = [
  "serde_yml",
  "similar",
  "txtx-addon-kit",
- "txtx-addon-network-evm",
  "txtx-addon-network-stacks",
 ]
 
