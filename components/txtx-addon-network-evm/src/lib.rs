@@ -9,6 +9,7 @@ extern crate serde_derive;
 
 mod codec;
 mod commands;
+#[allow(dead_code)]
 mod constants;
 mod functions;
 pub mod rpc;

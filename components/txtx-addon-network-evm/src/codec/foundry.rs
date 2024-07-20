@@ -44,6 +44,7 @@ impl FoundryCompiledOutputJson {
         Ok(source)
     }
 
+    #[allow(dead_code)]
     pub async fn get_from_path(path: &str) -> Result<Self, String> {
         if path.starts_with("http") {
             todo!()

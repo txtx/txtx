@@ -3,10 +3,7 @@ use jaq_interpret::Val;
 use serde::de::Error;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Debug,
-};
+use std::{collections::BTreeMap, fmt::Debug};
 
 use super::diagnostics::Diagnostic;
 

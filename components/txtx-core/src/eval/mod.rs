@@ -208,6 +208,7 @@ pub async fn run_wallets_evaluation(
         let (mut result, signing_commands_state) = match res {
             Ok((signing_commands_state, result)) => (Some(result), Some(signing_commands_state)),
             Err((signing_commands_state, diag)) => {
+                runbook_execution_context.signing_commands_state = Some(signing_commands_state);
                 pass_result.diagnostics.push(diag);
                 return pass_result;
             }

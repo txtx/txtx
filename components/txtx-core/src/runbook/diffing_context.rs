@@ -542,10 +542,10 @@ impl RunbookSnapshotContext {
                     }
                 }
                 DiffOp::Replace {
-                    old_index,
-                    old_len,
-                    new_index,
-                    new_len,
+                    old_index: _,
+                    old_len: _,
+                    new_index: _,
+                    new_len: _,
                 } => {
                     println!("REPLACE UNSUPPORTED: {:?}", change);
                     // for i in 0..*old_len {
@@ -633,16 +633,14 @@ impl RunbookSnapshotContext {
             }
 
             for (old_index, new_index) in comparable_signing_constructs_list.into_iter() {
-                let (
-                    (old_signing_command_id, old_signing_command),
-                    (new_signing_command_id, new_signing_command),
-                ) = match (
-                    old_signing_commands.get_index(old_index),
-                    new_signing_commands.get_index(new_index),
-                ) {
-                    (Some(old), Some(new)) => (old, new),
-                    _ => continue,
-                };
+                let ((old_signing_command_id, old_signing_command), (_, new_signing_command)) =
+                    match (
+                        old_signing_commands.get_index(old_index),
+                        new_signing_commands.get_index(new_index),
+                    ) {
+                        (Some(old), Some(new)) => (old, new),
+                        _ => continue,
+                    };
 
                 // Construct name
                 plan_changes.contructs_to_update.push(evaluated_diff(
@@ -797,8 +795,8 @@ pub fn diff_command_snapshots(
         }
         visited_constructs.insert(old_construct_did.clone());
 
-        let mut old_command = old_run.commands.get(old_construct_did).unwrap().clone();
-        let mut new_command = new_run.commands.get(new_construct_did).unwrap().clone();
+        let old_command = old_run.commands.get(old_construct_did).unwrap().clone();
+        let new_command = new_run.commands.get(new_construct_did).unwrap().clone();
 
         // Construct name
         consolidated_changes

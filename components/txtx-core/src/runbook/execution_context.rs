@@ -7,7 +7,6 @@ use kit::types::types::RunbookSupervisionContext;
 use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
-use kit::AddonDefaults;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -142,8 +141,6 @@ impl RunbookExecutionContext {
         let ordered_constructs = self.order_for_commands_execution.clone();
 
         let (tx, _rx) = unbounded();
-
-        let addon_defaults = AddonDefaults::new("simulation");
 
         for construct_did in ordered_constructs.into_iter() {
             // Is a command being considered? (vs signing_command, env, etc)

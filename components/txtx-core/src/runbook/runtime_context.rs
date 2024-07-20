@@ -321,7 +321,10 @@ impl RuntimeContext {
                             }
                         }
                         let Some(index) = index else {
-                            return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                            return Err(vec![diagnosed_error!(
+                                "unable to find addon {}",
+                                addon_id
+                            )]);
                         };
 
                         let addon = self.available_addons.remove(index);

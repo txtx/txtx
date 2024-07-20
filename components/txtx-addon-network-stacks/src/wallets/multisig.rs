@@ -612,24 +612,6 @@ impl WalletImplementation for StacksConnect {
     }
 }
 
-fn get_current_tx_cursor_key(
-    origin_uuid: &ConstructDid,
-    signing_command_state: &ValueStore,
-) -> (String, usize) {
-    let cursor = signing_command_state
-        .get_expected_uint(&get_tx_cursor(origin_uuid))
-        .unwrap_or(0) as usize;
-    (get_tx_cursor_key(origin_uuid, cursor), cursor)
-}
-
-fn get_tx_cursor(origin_uuid: &ConstructDid) -> String {
-    format!("{}:cursor", origin_uuid.value())
-}
-
-fn get_tx_cursor_key(origin_uuid: &ConstructDid, cursor: usize) -> String {
-    format!("{}:{}", origin_uuid.value(), cursor)
-}
-
 fn get_signers(
     args: &ValueStore,
     wallets_instances: &HashMap<ConstructDid, WalletInstance>,

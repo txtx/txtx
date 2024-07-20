@@ -128,11 +128,11 @@ impl CommandImplementation for VerifyContract {
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        supervision_context: &RunbookSupervisionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use alloy_chains::Chain;
         use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
-        use txtx_addon_kit::types::{frontend::ProgressBarStatusColor, types::PrimitiveValue};
+        use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
         use crate::{
             commands::actions::get_expected_address,
@@ -156,7 +156,6 @@ impl CommandImplementation for VerifyContract {
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-        let is_supervised = supervision_context.is_supervised;
         let future = async move {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(

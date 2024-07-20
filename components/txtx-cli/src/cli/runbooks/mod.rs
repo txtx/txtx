@@ -108,7 +108,7 @@ pub fn display_snapshot_diffing(
 }
 
 pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<(), String> {
-    let (_manifest, runbook_name, mut runbook, runbook_state) =
+    let (_manifest, _runbook_name, mut runbook, runbook_state) =
         load_runbook_from_manifest(&cmd.manifest_path, &cmd.runbook, &cmd.environment).await?;
 
     match &runbook_state {
@@ -384,7 +384,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
 
             for run in runbook.running_contexts.iter_mut() {
                 let frontier = HashSet::new();
-                let mut execution_context_backup = run.execution_context.clone();
+                let execution_context_backup = run.execution_context.clone();
                 let _res = run
                     .execution_context
                     .simulate_execution(
@@ -545,7 +545,7 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                 let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location)
                 {
                     Ok(snapshot) => Some(snapshot),
-                    Err(e) => None,
+                    Err(_e) => None,
                 };
 
                 println!(

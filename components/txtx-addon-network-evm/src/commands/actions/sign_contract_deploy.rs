@@ -322,11 +322,9 @@ async fn build_unsigned_contract_deploy(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<TransactionRequest, Diagnostic> {
-    use txtx_addon_kit::types::types::PrimitiveValue;
-
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
-        constants::{ARTIFACTS, CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE},
+        constants::{CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE},
     };
 
     let from = wallet_state.get_expected_value("signer_address")?.clone();

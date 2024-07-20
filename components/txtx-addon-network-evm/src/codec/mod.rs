@@ -4,12 +4,10 @@ use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
 use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
-use alloy::contract::Interface;
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, U256};
 use alloy::rpc::types::TransactionRequest;
-use foundry::FoundryCompiledOutputJson;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::types::{PrimitiveValue, Value};
 use txtx_addon_kit::types::ValueStore;
@@ -250,6 +248,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
     Ok(sol_value)
 }
 
+#[allow(dead_code)]
 pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
     let value = match sol_value {
         DynSolValue::Bool(value) => Value::bool(*value),

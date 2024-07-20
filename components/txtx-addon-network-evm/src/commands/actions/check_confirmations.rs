@@ -110,7 +110,7 @@ impl CommandImplementation for CheckConfirmations {
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        supervision_context: &RunbookSupervisionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
 
@@ -131,7 +131,6 @@ impl CommandImplementation for CheckConfirmations {
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-        let is_supervised = supervision_context.is_supervised;
 
         let tx_hash_str = hex::encode(tx_hash.bytes.clone());
         let receipt_msg = format!("Checking Tx 0x{} Receipt", &tx_hash_str);
