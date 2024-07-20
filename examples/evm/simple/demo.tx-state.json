@@ -1,0 +1,1096 @@
+{
+  "org": null,
+  "workspace": null,
+  "name": "demo.tx",
+  "ended_at": "2024-07-19T15:11:19.492232+00:00",
+  "runs": [
+    {
+      "id": "168587773",
+      "inputs": {
+        "foundry_toml_path": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
+          }
+        },
+        "evm_block_explorer_api_key": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "G39ACBVXRR9Y2D4T4X8RVXF6I12RJT7KYK"
+          }
+        },
+        "evm_chain_id": {
+          "type": "Primitive",
+          "value": {
+            "type": "UInt",
+            "value": 168587773
+          }
+        },
+        "evm_rpc_api_url": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "https://blast-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+          }
+        }
+      },
+      "packages": [
+        {
+          "did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "path": "././deployments",
+          "name": "demo.tx"
+        }
+      ],
+      "signing_commands": [
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x739f7add39d933e1da160fc4be5db7ee6f4ef96fc2f1324a9ed0410e15edf233",
+          "construct_type": "wallet",
+          "construct_name": "alice",
+          "construct_addon": null,
+          "construct_path": "././deployments/demo.tx",
+          "downstream_constructs_dids": [
+            "0x7062a35522ef0caeebfc04f766f2e062bb81ac8aaee796cd365b321e2c5a5111"
+          ],
+          "inputs": [
+            {
+              "name": "mnemonic",
+              "value_pre_evaluation": "\"model elbow sunny fashion orient nominee symbol odor joy clown range lake\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
+                }
+              },
+              "critical": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "address",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+                }
+              },
+              "signed": false
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x6d6146e9c48628d118adb674025a9c1cdbb4080539e2eda6eb78f8dd679cf811",
+          "construct_type": "action",
+          "construct_name": "artifacts",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "foundry_toml_path",
+              "value_pre_evaluation": "env.foundry_toml_path",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "contract_filename",
+              "value_pre_evaluation": "\"SimpleStorage\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "SimpleStorage"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "constructor_args",
+              "value_pre_evaluation": "[1]",
+              "value_post_evaluation": {
+                "type": "Array",
+                "value": [
+                  {
+                    "type": "Primitive",
+                    "value": {
+                      "type": "UInt",
+                      "value": 1
+                    }
+                  }
+                ]
+              },
+              "critical": false
+            }
+          ],
+          "outputs": [
+            {
+              "name": "abi",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "bytecode",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "constructor_args",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "init_code",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "source",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "compiler_version",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "contract_name",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "optimizer_enabled",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "optimizer_runs",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "evm_version",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "value",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.13;\n\n/// Some docs\ncontract SimpleStorage {\n\n  struct People {\n    string name;\n    uint256 favoriteNumber;\n  }\n\n  mapping(string => uint256) public nameToFavoriteNumber;\n\n  uint256 favoriteNumber;\n\n  People[] public people;\n\n  constructor(uint256 init) {\n    favoriteNumber = init;\n  }\n\n  // function store(uint256 _favoriteNumber) public virtual {\n  //   favoriteNumber = _favoriteNumber;\n  // }\n\n  function retrieve() public view returns (uint256) {\n    return favoriteNumber;\n  }\n\n  function addPerson(string memory _name, uint256 _favoriteNumber) public {\n    people.push(People({favoriteNumber: _favoriteNumber, name: _name}));\n    nameToFavoriteNumber[_name] = _favoriteNumber;\n  }\n\n  function removeLastPerson() public {\n    people.pop();\n  }\n}"
+                }
+              },
+              "signed": true
+            }
+          ]
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x7062a35522ef0caeebfc04f766f2e062bb81ac8aaee796cd365b321e2c5a5111",
+          "construct_type": "action",
+          "construct_name": "deploy_simple_storage",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [
+            "0x6d6146e9c48628d118adb674025a9c1cdbb4080539e2eda6eb78f8dd679cf811"
+          ],
+          "inputs": [
+            {
+              "name": "description",
+              "value_pre_evaluation": "\"Deploy SimpleStorage\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "Deploy SimpleStorage"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "rpc_api_url",
+              "value_pre_evaluation": "env.evm_rpc_api_url",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "https://blast-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "from",
+              "value_pre_evaluation": "wallet.alice",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "739f7add39d933e1da160fc4be5db7ee6f4ef96fc2f1324a9ed0410e15edf233"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "init_code",
+              "value_pre_evaluation": "action.artifacts.init_code",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a00330000000000000000000000000000000000000000000000000000000000000001"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "chain_id",
+              "value_pre_evaluation": "env.evm_chain_id",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "UInt",
+                  "value": 168587773
+                }
+              },
+              "critical": true
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x34a0af0758e5cd2d5bc0af71e1642ce3d0b02cbd83d5f463226515cfaa9d7def",
+          "construct_type": "action",
+          "construct_name": "check_simple_storage_confs",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "tx_hash",
+              "value_pre_evaluation": "action.deploy_simple_storage.tx_hash",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Buffer",
+                  "value": {
+                    "bytes": [
+                      183,
+                      22,
+                      224,
+                      229,
+                      163,
+                      30,
+                      34,
+                      137,
+                      58,
+                      17,
+                      216,
+                      189,
+                      155,
+                      170,
+                      120,
+                      218,
+                      215,
+                      19,
+                      244,
+                      237,
+                      161,
+                      247,
+                      196,
+                      144,
+                      26,
+                      53,
+                      241,
+                      194,
+                      50,
+                      187,
+                      119,
+                      81
+                    ],
+                    "typing": {
+                      "id": "eth_tx_hash",
+                      "documentation": "A 32-byte Ethereum transaction hash."
+                    }
+                  }
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "rpc_api_url",
+              "value_pre_evaluation": "env.evm_rpc_api_url",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "https://blast-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "confirmations",
+              "value_pre_evaluation": "3",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "UInt",
+                  "value": 3
+                }
+              },
+              "critical": false
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x6c2720b5c77ac8efbac026c42bac81713230fbada056ba01898c2e887d9c506a",
+          "construct_type": "action",
+          "construct_name": "verify_simple_storage",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "block_explorer_api_key",
+              "value_pre_evaluation": "env.evm_block_explorer_api_key",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "G39ACBVXRR9Y2D4T4X8RVXF6I12RJT7KYK"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "contract_address",
+              "value_pre_evaluation": "action.check_simple_storage_confs.contract_address",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "0x4e61e7Bf1692B485943d9e4e527F232c5DFb69Cc"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "artifacts",
+              "value_pre_evaluation": "action.artifacts",
+              "value_post_evaluation": {
+                "type": "Object",
+                "value": {
+                  "constructor_args": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "0000000000000000000000000000000000000000000000000000000000000001"
+                      }
+                    }
+                  },
+                  "optimizer_enabled": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "Bool",
+                        "value": true
+                      }
+                    }
+                  },
+                  "init_code": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a00330000000000000000000000000000000000000000000000000000000000000001"
+                      }
+                    }
+                  },
+                  "evm_version": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "paris"
+                      }
+                    }
+                  },
+                  "abi": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"init\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"addPerson\",\"inputs\":[{\"name\":\"_name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"_favoriteNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"nameToFavoriteNumber\",\"inputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"people\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"favoriteNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"removeLastPerson\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"retrieve\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"}]"
+                      }
+                    }
+                  },
+                  "source": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.13;\n\n/// Some docs\ncontract SimpleStorage {\n\n  struct People {\n    string name;\n    uint256 favoriteNumber;\n  }\n\n  mapping(string => uint256) public nameToFavoriteNumber;\n\n  uint256 favoriteNumber;\n\n  People[] public people;\n\n  constructor(uint256 init) {\n    favoriteNumber = init;\n  }\n\n  // function store(uint256 _favoriteNumber) public virtual {\n  //   favoriteNumber = _favoriteNumber;\n  // }\n\n  function retrieve() public view returns (uint256) {\n    return favoriteNumber;\n  }\n\n  function addPerson(string memory _name, uint256 _favoriteNumber) public {\n    people.push(People({favoriteNumber: _favoriteNumber, name: _name}));\n    nameToFavoriteNumber[_name] = _favoriteNumber;\n  }\n\n  function removeLastPerson() public {\n    people.pop();\n  }\n}"
+                      }
+                    }
+                  },
+                  "compiler_version": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "v0.8.26+commit.8a97fa7a"
+                      }
+                    }
+                  },
+                  "bytecode": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "0x6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a0033"
+                      }
+                    }
+                  },
+                  "contract_name": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "SimpleStorage"
+                      }
+                    }
+                  },
+                  "optimizer_runs": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "UInt",
+                        "value": 200
+                      }
+                    }
+                  }
+                }
+              },
+              "critical": false
+            }
+          ],
+          "outputs": []
+        }
+      ]
+    },
+    {
+      "id": "421614",
+      "inputs": {
+        "foundry_toml_path": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
+          }
+        },
+        "evm_rpc_api_url": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "https://arbitrum-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+          }
+        },
+        "evm_block_explorer_api_key": {
+          "type": "Primitive",
+          "value": {
+            "type": "String",
+            "value": "DWQ5CWSPSH8PCRPJDZES35HFUSUUZE9VEY"
+          }
+        },
+        "evm_chain_id": {
+          "type": "Primitive",
+          "value": {
+            "type": "UInt",
+            "value": 421614
+          }
+        }
+      },
+      "packages": [
+        {
+          "did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "path": "././deployments",
+          "name": "demo.tx"
+        }
+      ],
+      "signing_commands": [
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x739f7add39d933e1da160fc4be5db7ee6f4ef96fc2f1324a9ed0410e15edf233",
+          "construct_type": "wallet",
+          "construct_name": "alice",
+          "construct_addon": null,
+          "construct_path": "././deployments/demo.tx",
+          "downstream_constructs_dids": [
+            "0x7062a35522ef0caeebfc04f766f2e062bb81ac8aaee796cd365b321e2c5a5111"
+          ],
+          "inputs": [
+            {
+              "name": "mnemonic",
+              "value_pre_evaluation": "\"model elbow sunny fashion orient nominee symbol odor joy clown range lake\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
+                }
+              },
+              "critical": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "address",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+                }
+              },
+              "signed": false
+            }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x6d6146e9c48628d118adb674025a9c1cdbb4080539e2eda6eb78f8dd679cf811",
+          "construct_type": "action",
+          "construct_name": "artifacts",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "foundry_toml_path",
+              "value_pre_evaluation": "env.foundry_toml_path",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "/Users/micaiahreid/work/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "contract_filename",
+              "value_pre_evaluation": "\"SimpleStorage\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "SimpleStorage"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "constructor_args",
+              "value_pre_evaluation": "[1]",
+              "value_post_evaluation": {
+                "type": "Array",
+                "value": [
+                  {
+                    "type": "Primitive",
+                    "value": {
+                      "type": "UInt",
+                      "value": 1
+                    }
+                  }
+                ]
+              },
+              "critical": false
+            }
+          ],
+          "outputs": [
+            {
+              "name": "abi",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "bytecode",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "constructor_args",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "init_code",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "source",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "compiler_version",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "contract_name",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "optimizer_enabled",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "optimizer_runs",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "evm_version",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Null"
+                }
+              },
+              "signed": true
+            },
+            {
+              "name": "value",
+              "value": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.13;\n\n/// Some docs\ncontract SimpleStorage {\n\n  struct People {\n    string name;\n    uint256 favoriteNumber;\n  }\n\n  mapping(string => uint256) public nameToFavoriteNumber;\n\n  uint256 favoriteNumber;\n\n  People[] public people;\n\n  constructor(uint256 init) {\n    favoriteNumber = init;\n  }\n\n  // function store(uint256 _favoriteNumber) public virtual {\n  //   favoriteNumber = _favoriteNumber;\n  // }\n\n  function retrieve() public view returns (uint256) {\n    return favoriteNumber;\n  }\n\n  function addPerson(string memory _name, uint256 _favoriteNumber) public {\n    people.push(People({favoriteNumber: _favoriteNumber, name: _name}));\n    nameToFavoriteNumber[_name] = _favoriteNumber;\n  }\n\n  function removeLastPerson() public {\n    people.pop();\n  }\n}"
+                }
+              },
+              "signed": true
+            }
+          ]
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x7062a35522ef0caeebfc04f766f2e062bb81ac8aaee796cd365b321e2c5a5111",
+          "construct_type": "action",
+          "construct_name": "deploy_simple_storage",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [
+            "0x6d6146e9c48628d118adb674025a9c1cdbb4080539e2eda6eb78f8dd679cf811"
+          ],
+          "inputs": [
+            {
+              "name": "description",
+              "value_pre_evaluation": "\"Deploy SimpleStorage\"",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "Deploy SimpleStorage"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "rpc_api_url",
+              "value_pre_evaluation": "env.evm_rpc_api_url",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "https://arbitrum-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "from",
+              "value_pre_evaluation": "wallet.alice",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "739f7add39d933e1da160fc4be5db7ee6f4ef96fc2f1324a9ed0410e15edf233"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "init_code",
+              "value_pre_evaluation": "action.artifacts.init_code",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a00330000000000000000000000000000000000000000000000000000000000000001"
+                }
+              },
+              "critical": true
+            },
+            {
+              "name": "chain_id",
+              "value_pre_evaluation": "env.evm_chain_id",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "UInt",
+                  "value": 421614
+                }
+              },
+              "critical": true
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x34a0af0758e5cd2d5bc0af71e1642ce3d0b02cbd83d5f463226515cfaa9d7def",
+          "construct_type": "action",
+          "construct_name": "check_simple_storage_confs",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "tx_hash",
+              "value_pre_evaluation": "action.deploy_simple_storage.tx_hash",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "Buffer",
+                  "value": {
+                    "bytes": [
+                      5,
+                      153,
+                      118,
+                      214,
+                      184,
+                      87,
+                      236,
+                      229,
+                      166,
+                      172,
+                      43,
+                      163,
+                      36,
+                      90,
+                      71,
+                      5,
+                      2,
+                      72,
+                      243,
+                      93,
+                      147,
+                      91,
+                      199,
+                      150,
+                      197,
+                      69,
+                      147,
+                      66,
+                      45,
+                      121,
+                      76,
+                      52
+                    ],
+                    "typing": {
+                      "id": "eth_tx_hash",
+                      "documentation": "A 32-byte Ethereum transaction hash."
+                    }
+                  }
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "rpc_api_url",
+              "value_pre_evaluation": "env.evm_rpc_api_url",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "https://arbitrum-sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "confirmations",
+              "value_pre_evaluation": "3",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "UInt",
+                  "value": 3
+                }
+              },
+              "critical": false
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "package_did": "0xa21d5bf22847eb096a4585bbee1ddb8bb381ffd0ab41a59691bb1eeea2c2873c",
+          "construct_did": "0x6c2720b5c77ac8efbac026c42bac81713230fbada056ba01898c2e887d9c506a",
+          "construct_type": "action",
+          "construct_name": "verify_simple_storage",
+          "construct_path": "././deployments/demo.tx",
+          "construct_addon": null,
+          "upstream_constructs_dids": [],
+          "inputs": [
+            {
+              "name": "block_explorer_api_key",
+              "value_pre_evaluation": "env.evm_block_explorer_api_key",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "DWQ5CWSPSH8PCRPJDZES35HFUSUUZE9VEY"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "contract_address",
+              "value_pre_evaluation": "action.check_simple_storage_confs.contract_address",
+              "value_post_evaluation": {
+                "type": "Primitive",
+                "value": {
+                  "type": "String",
+                  "value": "0xC2e8A1673a8210aAe9Ab463c97bd8FeB0175CaE6"
+                }
+              },
+              "critical": false
+            },
+            {
+              "name": "artifacts",
+              "value_pre_evaluation": "action.artifacts",
+              "value_post_evaluation": {
+                "type": "Object",
+                "value": {
+                  "abi": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"init\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"addPerson\",\"inputs\":[{\"name\":\"_name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"_favoriteNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"nameToFavoriteNumber\",\"inputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"people\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"favoriteNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"removeLastPerson\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"retrieve\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"}]"
+                      }
+                    }
+                  },
+                  "init_code": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a00330000000000000000000000000000000000000000000000000000000000000001"
+                      }
+                    }
+                  },
+                  "optimizer_runs": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "UInt",
+                        "value": 200
+                      }
+                    }
+                  },
+                  "optimizer_enabled": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "Bool",
+                        "value": true
+                      }
+                    }
+                  },
+                  "contract_name": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "SimpleStorage"
+                      }
+                    }
+                  },
+                  "constructor_args": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "0000000000000000000000000000000000000000000000000000000000000001"
+                      }
+                    }
+                  },
+                  "bytecode": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "0x6080604052348015600f57600080fd5b5060405161065e38038061065e833981016040819052602c916033565b600155604b565b600060208284031215604457600080fd5b5051919050565b6106048061005a6000396000f3fe608060405234801561001057600080fd5b50600436106100575760003560e01c80632e64cec11461005c5780636f760f41146100735780638bab8dd5146100885780639e7a13ad146100b3578063b15962bc146100d4575b600080fd5b6001545b6040519081526020015b60405180910390f35b61008661008136600461035a565b6100dc565b005b61006061009636600461039f565b805160208183018101805160008252928201919093012091525481565b6100c66100c13660046103dc565b610164565b60405161006a929190610419565b610086610220565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061013290826104dd565b5060208201518160010155505080600083604051610150919061059c565b908152604051908190036020019020555050565b6002818154811061017457600080fd5b906000526020600020906002020160009150905080600001805461019790610454565b80601f01602080910402602001604051908101604052809291908181526020018280546101c390610454565b80156102105780601f106101e557610100808354040283529160200191610210565b820191906000526020600020905b8154815290600101906020018083116101f357829003601f168201915b5050505050908060010154905082565b6002805480610231576102316105b8565b60008281526020812060001990920191600283020190610251828261025f565b600182016000905550509055565b50805461026b90610454565b6000825580601f1061027b575050565b601f016020900490600052602060002090810190610299919061029c565b50565b5b808211156102b1576000815560010161029d565b5090565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126102dc57600080fd5b813567ffffffffffffffff8111156102f6576102f66102b5565b604051601f8201601f19908116603f0116810167ffffffffffffffff81118282101715610325576103256102b5565b60405281815283820160200185101561033d57600080fd5b816020850160208301376000918101602001919091529392505050565b6000806040838503121561036d57600080fd5b823567ffffffffffffffff81111561038457600080fd5b610390858286016102cb565b95602094909401359450505050565b6000602082840312156103b157600080fd5b813567ffffffffffffffff8111156103c857600080fd5b6103d4848285016102cb565b949350505050565b6000602082840312156103ee57600080fd5b5035919050565b60005b838110156104105781810151838201526020016103f8565b50506000910152565b60408152600083518060408401526104388160608501602088016103f5565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061046857607f821691505b60208210810361048857634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104d857806000526020600020601f840160051c810160208510156104b55750805b601f840160051c820191505b818110156104d557600081556001016104c1565b50505b505050565b815167ffffffffffffffff8111156104f7576104f76102b5565b61050b816105058454610454565b8461048e565b6020601f82116001811461053f57600083156105275750848201515b600019600385901b1c1916600184901b1784556104d5565b600084815260208120601f198516915b8281101561056f578785015182556020948501946001909201910161054f565b508482101561058d5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105ae8184602087016103f5565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea264697066735822122088d3cc448be84de5bfd8809edb505d917f2b5b8bc8fc21671a57729bacbce09864736f6c634300081a0033"
+                      }
+                    }
+                  },
+                  "evm_version": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "paris"
+                      }
+                    }
+                  },
+                  "source": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.13;\n\n/// Some docs\ncontract SimpleStorage {\n\n  struct People {\n    string name;\n    uint256 favoriteNumber;\n  }\n\n  mapping(string => uint256) public nameToFavoriteNumber;\n\n  uint256 favoriteNumber;\n\n  People[] public people;\n\n  constructor(uint256 init) {\n    favoriteNumber = init;\n  }\n\n  // function store(uint256 _favoriteNumber) public virtual {\n  //   favoriteNumber = _favoriteNumber;\n  // }\n\n  function retrieve() public view returns (uint256) {\n    return favoriteNumber;\n  }\n\n  function addPerson(string memory _name, uint256 _favoriteNumber) public {\n    people.push(People({favoriteNumber: _favoriteNumber, name: _name}));\n    nameToFavoriteNumber[_name] = _favoriteNumber;\n  }\n\n  function removeLastPerson() public {\n    people.pop();\n  }\n}"
+                      }
+                    }
+                  },
+                  "compiler_version": {
+                    "Ok": {
+                      "type": "Primitive",
+                      "value": {
+                        "type": "String",
+                        "value": "v0.8.26+commit.8a97fa7a"
+                      }
+                    }
+                  }
+                }
+              },
+              "critical": false
+            }
+          ],
+          "outputs": []
+        }
+      ]
+    }
+  ]
+}
