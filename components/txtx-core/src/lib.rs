@@ -76,7 +76,7 @@ pub async fn start_unsupervised_runbook_runloop(
         is_supervised: false,
     };
     for running_context in runbook.running_contexts.iter_mut() {
-        if !running_context.enabled {
+        if !running_context.is_enabled() {
             continue;
         }
 
@@ -200,10 +200,7 @@ pub async fn start_supervised_runbook_runloop(
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
-    unimplemented!();
-
-    /*
-    let runbook_workspace_context = runbook.workspace_context.clone();
+    let mut running_context = runbook.running_contexts.first().unwrap().clone();
 
     let mut runbook_initialized = false;
     runbook.supervision_context = RunbookSupervisionContext {
@@ -236,6 +233,7 @@ pub async fn start_supervised_runbook_runloop(
 
             let genesis_events = build_genesis_panel(
                 runbook,
+                &mut running_context,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
@@ -259,6 +257,7 @@ pub async fn start_supervised_runbook_runloop(
         if action_item_id == SET_ENV_ACTION.id {
             reset_runbook_execution(
                 runbook,
+                &mut running_context,
                 &payload,
                 &mut action_item_requests,
                 &action_item_responses,
@@ -302,7 +301,7 @@ pub async fn start_supervised_runbook_runloop(
                     {
                         match result {
                             Ok(result) => {
-                                runbook
+                                running_context
                                     .execution_context
                                     .commands_execution_results
                                     .insert(construct_did, result);
@@ -335,8 +334,8 @@ pub async fn start_supervised_runbook_runloop(
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
-                    &runbook_workspace_context,
-                    &mut runbook.execution_context,
+                    &running_context.workspace_context,
+                    &mut running_context.execution_context,
                     &mut runbook.runtime_context,
                     &runbook.supervision_context,
                     &mut map,
@@ -352,7 +351,7 @@ pub async fn start_supervised_runbook_runloop(
                     && background_tasks_contructs_dids.is_empty()
                 {
                     runbook_completed = true;
-                    let grouped_actions_items = runbook
+                    let grouped_actions_items = running_context
                         .execution_context
                         .collect_outputs_constructs_results();
                     let mut actions = Actions::new_panel("output review", "");
@@ -438,8 +437,8 @@ pub async fn start_supervised_runbook_runloop(
                 map.insert(wallet_construct_did, scoped_requests);
 
                 let pass_result = run_wallets_evaluation(
-                    &runbook_workspace_context,
-                    &mut runbook.execution_context,
+                    &running_context.workspace_context,
+                    &mut running_context.execution_context,
                     &mut runbook.runtime_context,
                     &runbook.supervision_context,
                     &mut map,
@@ -476,8 +475,8 @@ pub async fn start_supervised_runbook_runloop(
 
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
-                    &runbook_workspace_context,
-                    &mut runbook.execution_context,
+                    &running_context.workspace_context,
+                    &mut running_context.execution_context,
                     &mut runbook.runtime_context,
                     &runbook.supervision_context,
                     &mut map,
@@ -511,7 +510,6 @@ pub async fn start_supervised_runbook_runloop(
             }
         };
     }
-    */
 }
 
 pub fn register_action_items_from_actions(
