@@ -1219,7 +1219,11 @@ pub fn perform_inputs_evaluation(
                 runtime_context,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
+                    Value::Addon(_) => unreachable!(),
+                    Value::Object(_) => unreachable!(),
+                    Value::Primitive(_) => {
+                        result
+                    },
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?

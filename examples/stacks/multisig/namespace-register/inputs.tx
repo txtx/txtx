@@ -19,3 +19,7 @@ input "salt" {
   description = "Random salt to use for preventing front-running"
   value = "00000000000000"
 }
+
+input "cost_namespace" {
+  value = 64000000000
+}

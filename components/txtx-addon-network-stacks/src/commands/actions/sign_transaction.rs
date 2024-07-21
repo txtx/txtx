@@ -135,6 +135,8 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
+        use txtx_addon_kit::types::types::PrimitiveValue;
+
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::STACKS_TRANSACTION,
@@ -166,9 +168,12 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
-            let post_conditions = args
-                .get_value("post_conditions")
-                .map(|v| v.expect_array().clone());
+            let post_conditions = match args
+                .get_value("post_conditions") {
+                    Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
+                    Some(Value::Array(data)) => *data.clone(),
+                    _ => vec![]
+                };
 
             let transaction = match build_unsigned_transaction(
                 &signing_command_state,
@@ -308,7 +313,7 @@ async fn build_unsigned_transaction(
     _spec: &CommandSpecification,
     fee: Option<u64>,
     nonce: Option<u64>,
-    post_conditions: Option<Box<Vec<Value>>>,
+    post_conditions: Vec<Value>,
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
@@ -443,22 +448,19 @@ async fn build_unsigned_transaction(
         unsigned_tx.chain_id = 0x80000000;
     }
     unsigned_tx.post_condition_mode = TransactionPostConditionMode::Deny;
-    if let Some(post_conditions) = post_conditions {
-        for post_condition_bytes in post_conditions.iter() {
-            let post_condition = match TransactionPostCondition::consensus_deserialize(
-                &mut &post_condition_bytes.expect_buffer_data().bytes[..],
-            ) {
-                Ok(res) => res,
-                Err(e) => {
-                    return Err(diagnosed_error!(
-                        "transaction payload invalid, return diagnostic ({})",
-                        e.to_string()
-                    ))
-                }
-            };
-            unsigned_tx.post_conditions.push(post_condition);
-        }
+    for post_condition_bytes in post_conditions.iter() {
+        let post_condition = match TransactionPostCondition::consensus_deserialize(
+            &mut &post_condition_bytes.expect_buffer_data().bytes[..],
+        ) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(diagnosed_error!(
+                    "transaction payload invalid, return diagnostic ({})",
+                    e.to_string()
+                ))
+            }
+        };
+        unsigned_tx.post_conditions.push(post_condition);
     }
-
     Ok(unsigned_tx)
 }

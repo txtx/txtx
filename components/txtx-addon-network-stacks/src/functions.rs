@@ -1,8 +1,8 @@
 use clarity::{
     types::chainstate::StacksAddress,
     vm::types::{
-        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier, SequenceData,
-        SequencedValue, UTF8Data,
+        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+        SequenceData, SequencedValue, UTF8Data,
     },
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
@@ -283,8 +283,8 @@ lazy_static! {
         },
         define_function! {
             RevertIfAccountSendingMoreThan => {
-                name: "revert_if_account_sending_more_than",
-                documentation: "`stacks::revert_if_account_sending_more_than` returns a post condition camcelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
+                name: "revert_if_account_sends_more_than",
+                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition camcelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     account_address: {
@@ -308,8 +308,8 @@ lazy_static! {
         },
         define_function! {
             RevertIfAccountNotSending => {
-                name: "revert_if_account_not_sending",
-                documentation: "`stacks::revert_if_account_not_sending` returns a post condition camcelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
+                name: "revert_if_account_not_sending_exactly",
+                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition camcelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     account_address: {
@@ -832,10 +832,18 @@ fn encode_nft_post_condition(
     asset_id: &str,
     condition: NonfungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
-    let principal_monitored = if address.eq("origin") {
+    let principal_monitored = if address.eq("signer") {
         PostConditionPrincipal::Origin
     } else {
-        unimplemented!()
+        match PrincipalData::parse(address)
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
+                PrincipalData::Contract(contract) => {
+                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
+                }
+                PrincipalData::Standard(contract) => {
+                    PostConditionPrincipal::Standard(contract.into())
+                }
+            }
     };
 
     let Some((contract_id_specified, asset_name)) = contract_asset_id.split_once("::") else {
@@ -864,10 +872,18 @@ fn encode_stx_post_condition(
     token_amount: u64,
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
-    let principal_monitored = if address.eq("origin") {
+    let principal_monitored = if address.eq("signer") {
         PostConditionPrincipal::Origin
     } else {
-        unimplemented!()
+        match PrincipalData::parse(address)
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
+                PrincipalData::Contract(contract) => {
+                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
+                }
+                PrincipalData::Standard(contract) => {
+                    PostConditionPrincipal::Standard(contract.into())
+                }
+            }
     };
 
     let post_condition =
@@ -906,11 +922,11 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
                 address,
                 *token_amount,
                 token_id,
-                FungibleConditionCode::SentGt,
+                FungibleConditionCode::SentLe,
             )?
             .serialize_to_vec(),
             None => {
-                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentGt)?
+                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentLe)?
                     .serialize_to_vec()
             }
         };
@@ -996,11 +1012,11 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
                 address,
                 *token_amount,
                 token_id,
-                FungibleConditionCode::SentLt,
+                FungibleConditionCode::SentGe,
             )?
             .serialize_to_vec(),
             None => {
-                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentLt)?
+                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentGe)?
                     .serialize_to_vec()
             }
         };
