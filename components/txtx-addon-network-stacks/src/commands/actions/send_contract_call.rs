@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
@@ -18,6 +19,8 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
+use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
+use crate::typing::STACKS_POST_CONDITION;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
     typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
@@ -83,6 +86,12 @@ lazy_static! {
               fee: {
                 documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::uint(),
+                optional: true,
+                interpolable: true
+              },
+              post_conditions: {
+                documentation: "The post conditions to include to the transaction.",
+                typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
                 optional: true,
                 interpolable: true
               },
@@ -175,6 +184,8 @@ impl CommandImplementation for SendContractCall {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
+        let empty_vec = vec![];
+        let post_conditions_values = args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let bytes = match encode_contract_call(
             spec,
             function_name,
@@ -189,6 +200,10 @@ impl CommandImplementation for SendContractCall {
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        args.insert(
+            TRANSACTION_POST_CONDITIONS_BYTES,
+            Value::array(post_conditions_values.clone()),
+        );
 
         SignStacksTransaction::check_signed_executability(
             construct_did,
@@ -211,10 +226,13 @@ impl CommandImplementation for SendContractCall {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
+        let empty_vec = vec![];
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
+        let post_conditions_values = args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+
         let bytes = encode_contract_call(
             spec,
             function_name,
@@ -233,6 +251,10 @@ impl CommandImplementation for SendContractCall {
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        args.insert(
+            TRANSACTION_POST_CONDITIONS_BYTES,
+            Value::array(post_conditions_values.clone()),
+        );
 
         let future = async move {
             let run_signing_future = SignStacksTransaction::run_signed_execution(

@@ -10,8 +10,6 @@ runbooks:
   id: namespace-register
   description: Register a BNS namespace
   location: "./namespace-register"
-  state:
-    file: state.json
 environments:
   devnet:
     stacks_network_id: testnet

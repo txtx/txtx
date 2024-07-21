@@ -1,22 +1,7 @@
-addon "stacks" {
-  defaults {
+runtime "stacks::defaults" {
     network_id = env.stacks_network_id
     rpc_api_url = env.stacks_api_url
-  }
 }
-// output "out" {
-//   value =  [
-//       stacks::cv_buff(
-//         ripemd160(sha256(
-//           [
-//             encode_hex(input.namespace),
-//             encode_hex(input.salt)
-//           ]
-//         ))
-//       ),
-//       stacks::cv_uint(6400000), 
-//   ]
-// }
 
 action "send_namespace_preorder" "stacks::send_contract_call" {
   description = "Send Namespace Preorder transaction"
@@ -31,9 +16,10 @@ action "send_namespace_preorder" "stacks::send_contract_call" {
           ]
         ))
       ),
-      stacks::cv_uint(64000000000), 
+      stacks::cv_uint(input.cost_namespace), 
   ]
   signer = wallet.alice
+  post_conditions = [stacks::revert_if_account_sends_more_than("signer", input.cost_namespace)]
   confirmations = 0
 }
 
