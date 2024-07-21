@@ -18,11 +18,11 @@ use crate::rpc::EVMRpc;
 use crate::typing::ETH_ADDRESS;
 
 lazy_static! {
-    pub static ref CALL_VIEW_FUNCTION: PreCommandSpecification = define_command! {
-      CallEVMViewFunction => {
-          name: "Call EVM Contract View Function",
-          matcher: "call_view_function",
-          documentation: "The `evm::call_view_function` calls a contract function that is marked as `view`.",
+    pub static ref ETH_CALL: PreCommandSpecification = define_command! {
+      EthCall => {
+          name: "Eth Call",
+          matcher: "eth_call",
+          documentation: "The `evm::eth_call` command simulates an Ethereum transaction using the `eth_call` RPC endpoint.",
           implements_signing_capability: false,
           implements_background_task_capability: false,
           inputs: [
@@ -33,7 +33,7 @@ lazy_static! {
                 interpolable: true
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to get the transaction receipt.",
+              documentation: "The URL of the EVM API used to send the RPC request.",
               typing: Type::string(),
               optional: false,
               interpolable: true
@@ -69,7 +69,7 @@ lazy_static! {
                 interpolable: true
             },
             amount: {
-                documentation: "The amount, in Wei, to send in the call to the `view` function.",
+                documentation: "The amount, in Wei, to send in the transaction.",
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
@@ -142,8 +142,8 @@ lazy_static! {
     };
 }
 
-pub struct CallEVMViewFunction;
-impl CommandImplementation for CallEVMViewFunction {
+pub struct EthCall;
+impl CommandImplementation for EthCall {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -175,7 +175,7 @@ impl CommandImplementation for CallEVMViewFunction {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            let call_result = build_view_call(&spec, &args, &defaults).await?;
+            let call_result = build_eth_call(&spec, &args, &defaults).await?;
             result.outputs.insert("result".into(), call_result);
 
             Ok(result)
@@ -186,7 +186,7 @@ impl CommandImplementation for CallEVMViewFunction {
 }
 
 #[cfg(not(feature = "wasm"))]
-async fn build_view_call(
+async fn build_eth_call(
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
@@ -220,7 +220,7 @@ async fn build_view_call(
                 .iter()
                 .map(|v| {
                     value_to_sol_value(&v)
-                        .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))
+                        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
                 })
                 .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
         })
@@ -235,20 +235,17 @@ async fn build_view_call(
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
-        let abi: JsonAbi = serde_json::from_str(&abi_str).map_err(|e| {
-            diagnosed_error!("command 'call_view_function': invalid contract abi: {}", e)
-        })?;
+        let abi: JsonAbi = serde_json::from_str(&abi_str)
+            .map_err(|e| diagnosed_error!("command 'eth_call': invalid contract abi: {}", e))?;
 
         let interface = Interface::new(abi);
         interface
             .encode_input(function_name, &function_args)
             .map_err(|e| {
-                diagnosed_error!(
-                    "command 'call_view_function': failed to encode contract inputs: {e}"
-                )
+                diagnosed_error!("command 'eth_call': failed to encode contract inputs: {e}")
             })?
     } else {
         function_args
@@ -270,12 +267,12 @@ async fn build_view_call(
     };
     let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::call_view_function': {e}"))?;
+        .map_err(|e| diagnosed_error!("command: 'evm::eth_call': {e}"))?;
 
     let call_result = rpc
         .call(&tx)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::call_view_function': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     Ok(Value::string(call_result))
 }

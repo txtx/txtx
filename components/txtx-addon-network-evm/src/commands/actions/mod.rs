@@ -9,15 +9,15 @@ use txtx_addon_kit::types::{
     ConstructDid, Did, ValueStore,
 };
 
-pub mod call_view_function;
 pub mod check_confirmations;
+pub mod eth_call;
 pub mod get_forge_deployment_artifacts;
 pub mod sign_contract_call;
 pub mod sign_contract_deploy;
 pub mod sign_transfer;
 pub mod verify_contract;
 
-use call_view_function::CALL_VIEW_FUNCTION;
+use eth_call::ETH_CALL;
 use get_forge_deployment_artifacts::GET_FORGE_DEPLOYMENT_ARTIFACTS;
 use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
 use sign_contract_deploy::SIGN_EVM_CONTRACT_DEPLOY;
@@ -30,7 +30,7 @@ lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_EVM_TRANSFER.clone(),
         SIGN_EVM_CONTRACT_CALL.clone(),
-        CALL_VIEW_FUNCTION.clone(),
+        ETH_CALL.clone(),
         SIGN_EVM_CONTRACT_DEPLOY.clone(),
         GET_FORGE_DEPLOYMENT_ARTIFACTS.clone(),
         VERIFY_CONTRACT.clone(),
