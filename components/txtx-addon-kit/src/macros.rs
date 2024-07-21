@@ -70,6 +70,7 @@ macro_rules! define_command {
             accepts_arbitrary_inputs: false,
             create_output_for_each_input: false,
             update_addon_defaults: false,
+            create_critical_output: None,
             implements_signing_capability,
             implements_background_task_capability,
             inputs: vec![$(CommandInput {
@@ -79,7 +80,8 @@ macro_rules! define_command {
                 optional: $optional,
                 interpolable: $interpolable,
                 check_required: false,
-                check_performed: false
+                check_performed: false,
+                sensitive: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -168,7 +170,7 @@ macro_rules! define_wallet {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr, sensitive: $sensitive:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
@@ -186,8 +188,9 @@ macro_rules! define_wallet {
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
+                sensitive: $sensitive,
                 check_required: false,
-                check_performed: false
+                check_performed: false,
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {

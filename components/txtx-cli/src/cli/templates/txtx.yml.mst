@@ -1,6 +1,6 @@
 ---
-name: {{ project_name }}
-id: {{ project_id }}
+name: {{ workspace_name }}
+id: {{ workspace_id }}
 runbooks:
 {{# runbooks }}
   - name: {{ name }}

@@ -1,16 +1,15 @@
 use clarity::util::sleep_ms;
 use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::Value;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::Type,
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
@@ -20,7 +19,7 @@ use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
 
 lazy_static! {
     pub static ref CALL_READONLY_FN: PreCommandSpecification = define_command! {
-        BroadcastStacksTransaction => {
+        CallReadonlyStacksFunction => {
             name: "Call Clarity Read only function",
             matcher: "call_readonly_fn",
             documentation: "The `call_readonly_fn` action queries a public readonly function.",
@@ -76,8 +75,8 @@ lazy_static! {
     };
 }
 
-pub struct BroadcastStacksTransaction;
-impl CommandImplementation for BroadcastStacksTransaction {
+pub struct CallReadonlyStacksFunction;
+impl CommandImplementation for CallReadonlyStacksFunction {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -86,18 +85,18 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,

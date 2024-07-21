@@ -1,13 +1,13 @@
 use txtx_addon_kit::{
     types::{
         commands::{
-            CommandExecutionContext, CommandExecutionFutureResult, CommandImplementation,
-            CommandSpecification, PreCommandSpecification,
+            CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+            PreCommandSpecification,
         },
         diagnostics::Diagnostic,
         frontend::{Actions, BlockEvent},
-        types::Type,
-        ConstructUuid, ValueStore,
+        types::{RunbookSupervisionContext, Type},
+        ConstructDid, ValueStore,
     },
     AddonDefaults,
 };
@@ -51,18 +51,18 @@ impl CommandImplementation for StacksDeployContract {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }
 
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,

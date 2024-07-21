@@ -1,17 +1,16 @@
 use clarity::util::sleep_ms;
 use std::fmt::Write;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
@@ -101,19 +100,19 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -129,13 +128,14 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        execution_context: &CommandExecutionContext,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
@@ -143,8 +143,10 @@ impl CommandImplementation for BroadcastStacksTransaction {
             constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
         };
 
-        let args = args.clone();
-        let uuid = uuid.clone();
+        let args = inputs.clone();
+        let outputs = outputs.clone();
+
+        let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
         let confirmations_required = args
@@ -162,12 +164,12 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-        let is_supervised = execution_context.is_supervised;
+        let is_supervised = supervision_context.is_supervised;
         let future = async move {
             let mut progress = 0;
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
-                &uuid.value(),
+                &construct_did,
                 &ProgressBarStatus {
                     status_color: ProgressBarStatusColor::Yellow,
                     status: format!("Pending {}", progress_symbol[progress]),
@@ -178,6 +180,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut result = CommandExecutionResult::new();
+            for (k, v) in outputs.iter() {
+                result.outputs.insert(k.clone(), v.clone());
+            }
 
             let mut s = String::from("0x");
             s.write_str(
