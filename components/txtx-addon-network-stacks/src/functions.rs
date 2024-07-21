@@ -1,6 +1,9 @@
-use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, SequenceData, SequencedValue,
-    UTF8Data,
+use clarity::{
+    types::chainstate::StacksAddress,
+    vm::types::{
+        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+        SequenceData, SequencedValue, UTF8Data,
+    },
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
@@ -10,10 +13,14 @@ use txtx_addon_kit::types::{
 };
 
 use crate::{
+    codec::codec::{
+        AssetInfo, FungibleConditionCode, NonfungibleConditionCode, PostConditionPrincipal,
+        TransactionPostCondition,
+    },
     stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
         CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
-        CLARITY_UTF8, CLARITY_VALUE,
+        CLARITY_UTF8, CLARITY_VALUE, STACKS_POST_CONDITION,
     },
 };
 
@@ -270,6 +277,131 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input wrapped in an `Err` Clarity type.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            RevertIfAccountSendingMoreThan => {
+                name: "revert_if_account_sends_more_than",
+                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition camcelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    account_address: {
+                        documentation: "Address of the account to monitor.",
+                        typing: vec![Type::string()]
+                    },
+                    tokens_amount: {
+                        documentation: "Threshold of tokens that triggers the revert action to prevent overspending.",
+                        typing: vec![Type::uint()]
+                    },
+                    token_id: {
+                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The buffer that encodes the post-condition.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            RevertIfAccountNotSending => {
+                name: "revert_if_account_not_sending_exactly",
+                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition camcelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    account_address: {
+                        documentation: "Address of the account to monitor.",
+                        typing: vec![Type::string()]
+                    },
+                    tokens_amount: {
+                        documentation: "The number of tokens required to be sent.",
+                        typing: vec![Type::uint()]
+                    },
+                    token_id: {
+                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The buffer that encodes the post-condition.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            RevertIfAccountNotSendingAtLeast => {
+                name: "revert_if_account_not_sending_at_least",
+                documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition camcelling a transaction successfully executed, failing to meet the minimum specified amount of tokens sent by a given account. Default token is µSTX.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    account_address: {
+                        documentation: "Address of the account to monitor.",
+                        typing: vec![Type::string()]
+                    },
+                    tokens_amount: {
+                        documentation: "The minimum number of tokens required to be sent.",
+                        typing: vec![Type::uint()]
+                    },
+                    token_id: {
+                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The buffer that encodes the post-condition.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            RevertIfNFTNotOwnedByAccount => {
+                name: "revert_if_nft_not_owned_by_account",
+                documentation: "`stacks::revert_if_account_still_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT not being owned by a given account address.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    account_address: {
+                        documentation: "Address of the account to monitor.",
+                        typing: vec![Type::string()]
+                    },
+                    contract_asset_id: {
+                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
+                        typing: vec![Type::string()]
+                    },
+                    asset_id: {
+                        documentation: "The NFT Id to check.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The buffer that encodes the post-condition.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
+            RevertIfNFTOwnedByAccount => {
+                name: "revert_if_nft_owned_by_account",
+                documentation: "`stacks::revert_if_account_not_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT being owned by a given account address.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    account_address: {
+                        documentation: "Address of the account to monitor.",
+                        typing: vec![Type::string()]
+                    },
+                    contract_asset_id: {
+                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
+                        typing: vec![Type::string()]
+                    },
+                    asset_id: {
+                        documentation: "The NFT Id to check.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The buffer that encodes the post-condition.",
                     typing: Type::bool()
                 },
             }
@@ -574,6 +706,404 @@ impl FunctionImplementation for EncodeClarityValueTuple {
         };
         let bytes = clarity_value.serialize_to_vec();
         Ok(Value::buffer(bytes, CLARITY_TUPLE.clone()))
+    }
+}
+
+pub struct StacksEncodeInt;
+impl FunctionImplementation for StacksEncodeInt {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksEncodeBuffer;
+impl FunctionImplementation for StacksEncodeBuffer {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksEncodeList;
+impl FunctionImplementation for StacksEncodeList {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksEncodeAsciiString;
+impl FunctionImplementation for StacksEncodeAsciiString {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksEncodePrincipal;
+impl FunctionImplementation for StacksEncodePrincipal {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct StacksEncodeTuple;
+impl FunctionImplementation for StacksEncodeTuple {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+fn encode_ft_post_condition(
+    address: &str,
+    token_amount: u64,
+    token_id: &str,
+    condition: FungibleConditionCode,
+) -> Result<TransactionPostCondition, Diagnostic> {
+    let principal_monitored = if address.eq("origin") {
+        PostConditionPrincipal::Origin
+    } else {
+        unimplemented!()
+    };
+
+    let Some((contract_id_specified, asset_name)) = token_id.split_once("::") else {
+        unimplemented!()
+    };
+
+    let contract_id = QualifiedContractIdentifier::parse(contract_id_specified).unwrap();
+    let asset_info = AssetInfo {
+        contract_address: contract_id.issuer.into(),
+        contract_name: contract_id.name,
+        asset_name: asset_name.try_into().unwrap(),
+    };
+
+    let post_condition = TransactionPostCondition::Fungible(
+        principal_monitored,
+        asset_info,
+        condition,
+        token_amount,
+    );
+
+    Ok(post_condition)
+}
+
+fn encode_nft_post_condition(
+    address: &str,
+    contract_asset_id: &str,
+    asset_id: &str,
+    condition: NonfungibleConditionCode,
+) -> Result<TransactionPostCondition, Diagnostic> {
+    let principal_monitored = if address.eq("signer") {
+        PostConditionPrincipal::Origin
+    } else {
+        match PrincipalData::parse(address)
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
+                PrincipalData::Contract(contract) => {
+                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
+                }
+                PrincipalData::Standard(contract) => {
+                    PostConditionPrincipal::Standard(contract.into())
+                }
+            }
+    };
+
+    let Some((contract_id_specified, asset_name)) = contract_asset_id.split_once("::") else {
+        unimplemented!()
+    };
+
+    let contract_id = QualifiedContractIdentifier::parse(contract_id_specified).unwrap();
+    let asset_info = AssetInfo {
+        contract_address: contract_id.issuer.into(),
+        contract_name: contract_id.name,
+        asset_name: asset_name.try_into().unwrap(),
+    };
+
+    let post_condition = TransactionPostCondition::Nonfungible(
+        principal_monitored,
+        asset_info,
+        ClarityValue::none(),
+        condition,
+    );
+
+    Ok(post_condition)
+}
+
+fn encode_stx_post_condition(
+    address: &str,
+    token_amount: u64,
+    condition: FungibleConditionCode,
+) -> Result<TransactionPostCondition, Diagnostic> {
+    let principal_monitored = if address.eq("signer") {
+        PostConditionPrincipal::Origin
+    } else {
+        match PrincipalData::parse(address)
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
+                PrincipalData::Contract(contract) => {
+                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
+                }
+                PrincipalData::Standard(contract) => {
+                    PostConditionPrincipal::Standard(contract.into())
+                }
+            }
+    };
+
+    let post_condition =
+        TransactionPostCondition::STX(principal_monitored, condition, token_amount);
+
+    Ok(post_condition)
+}
+
+pub struct RevertIfAccountSendingMoreThan;
+impl FunctionImplementation for RevertIfAccountSendingMoreThan {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let address = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_amount = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_id_opt = match args.get(2) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            _ => None,
+        };
+
+        let post_condition_bytes = match token_id_opt {
+            Some(token_id) => encode_ft_post_condition(
+                address,
+                *token_amount,
+                token_id,
+                FungibleConditionCode::SentLe,
+            )?
+            .serialize_to_vec(),
+            None => {
+                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentLe)?
+                    .serialize_to_vec()
+            }
+        };
+        Ok(Value::buffer(
+            post_condition_bytes,
+            STACKS_POST_CONDITION.clone(),
+        ))
+    }
+}
+
+pub struct RevertIfAccountNotSending;
+impl FunctionImplementation for RevertIfAccountNotSending {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let address = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_amount = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_id_opt = match args.get(2) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            _ => None,
+        };
+
+        let post_condition_bytes = match token_id_opt {
+            Some(token_id) => encode_ft_post_condition(
+                address,
+                *token_amount,
+                token_id,
+                FungibleConditionCode::SentEq,
+            )?
+            .serialize_to_vec(),
+            None => {
+                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentEq)?
+                    .serialize_to_vec()
+            }
+        };
+        Ok(Value::buffer(
+            post_condition_bytes,
+            STACKS_POST_CONDITION.clone(),
+        ))
+    }
+}
+
+pub struct RevertIfAccountNotSendingAtLeast;
+impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let address = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_amount = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let token_id_opt = match args.get(2) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            _ => None,
+        };
+
+        let post_condition_bytes = match token_id_opt {
+            Some(token_id) => encode_ft_post_condition(
+                address,
+                *token_amount,
+                token_id,
+                FungibleConditionCode::SentGe,
+            )?
+            .serialize_to_vec(),
+            None => {
+                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentGe)?
+                    .serialize_to_vec()
+            }
+        };
+        Ok(Value::buffer(
+            post_condition_bytes,
+            STACKS_POST_CONDITION.clone(),
+        ))
+    }
+}
+
+pub struct RevertIfNFTNotOwnedByAccount;
+impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let address = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let contract_asset_id = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let asset_id = match args.get(2) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let post_condition_bytes = encode_nft_post_condition(
+            address,
+            contract_asset_id,
+            asset_id,
+            NonfungibleConditionCode::NotSent,
+        )?
+        .serialize_to_vec();
+
+        Ok(Value::buffer(
+            post_condition_bytes,
+            STACKS_POST_CONDITION.clone(),
+        ))
+    }
+}
+
+pub struct RevertIfNFTOwnedByAccount;
+impl FunctionImplementation for RevertIfNFTOwnedByAccount {
+    fn check_instantiability(
+        _ctx: &FunctionSpecification,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+        let address = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let contract_asset_id = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let asset_id = match args.get(2) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            _ => unreachable!(),
+        };
+
+        let post_condition_bytes = encode_nft_post_condition(
+            address,
+            contract_asset_id,
+            asset_id,
+            NonfungibleConditionCode::Sent,
+        )?
+        .serialize_to_vec();
+
+        Ok(Value::buffer(
+            post_condition_bytes,
+            STACKS_POST_CONDITION.clone(),
+        ))
     }
 }
 

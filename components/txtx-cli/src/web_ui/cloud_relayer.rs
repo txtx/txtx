@@ -6,7 +6,6 @@ use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
 use native_tls::TlsConnector;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_tungstenite::connect_async_tls_with_config;
@@ -18,6 +17,7 @@ use totp_rs::{Algorithm, TOTP};
 use txtx_core::kit::channel::{select, Receiver, Sender};
 use txtx_core::kit::futures::{SinkExt, StreamExt};
 use txtx_core::kit::reqwest::{self};
+use txtx_core::kit::sha2::{Digest, Sha256};
 use txtx_core::kit::types::frontend::{
     ActionItemResponse, BlockEvent, DeleteChannelRequest, OpenChannelRequest, OpenChannelResponse,
     OpenChannelResponseBrowser,
@@ -138,8 +138,6 @@ pub async fn open_channel(
 }
 
 pub async fn get_channel(relayer_context: Data<RelayerContext>) -> actix_web::Result<HttpResponse> {
-    println!("GET /api/v1/channels");
-
     let Some(channel_data) = relayer_context.channel_data.read().await.clone() else {
         return Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND).finish());
     };

@@ -5,6 +5,7 @@ use std::process;
 
 mod docs;
 mod runbooks;
+mod snapshots;
 mod templates;
 
 #[derive(Clone)]
@@ -47,7 +48,7 @@ struct Opts {
 enum Command {
     /// Inspect deployment protocol
     #[clap(name = "check", bin_name = "check")]
-    Check(CheckRunbooks),
+    Check(CheckRunbook),
     /// New Runbook
     #[clap(name = "new", bin_name = "new")]
     New(CreateRunbook),
@@ -57,16 +58,54 @@ enum Command {
     /// Execute Runbook
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
+    /// Execute Runbook
+    #[clap(subcommand)]
+    Snapshots(SnapshotCommand),
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
 }
 
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+enum SnapshotCommand {
+    /// Begin new snapshot
+    #[clap(name = "begin", bin_name = "begin")]
+    Begin(BeginSnapshot),
+    /// New Runbook
+    #[clap(name = "end", bin_name = "end")]
+    Commit(CommitSnapshot),
+}
+
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct CheckRunbooks {
+pub struct BeginSnapshot {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
+    /// Path to the snapshot
+    #[arg(long = "snapshot-file-path", short = 's')]
+    pub snapshot_path: String,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct CommitSnapshot {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Path to the snapshot
+    #[arg(long = "snapshot-file-path", short = 's')]
+    pub snapshot_path: String,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct CheckRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
+    pub runbook: String,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -116,6 +155,10 @@ pub struct ExecuteRunbook {
     /// A set of inputs to use for batch processing
     #[arg(long = "input")]
     pub inputs: Vec<String>,
+
+    /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
+    #[arg(long = "force", short = 'f')]
+    pub force_execution: bool,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -174,6 +217,12 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         }
         Command::Docs(cmd) => {
             docs::handle_docs_command(&cmd, ctx).await?;
+        }
+        Command::Snapshots(SnapshotCommand::Begin(cmd)) => {
+            snapshots::handle_begin_command(&cmd, ctx).await?;
+        }
+        Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
+            snapshots::handle_commit_command(&cmd, ctx).await?;
         }
     }
     Ok(())

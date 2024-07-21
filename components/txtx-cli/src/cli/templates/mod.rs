@@ -6,9 +6,9 @@ pub fn build_manifest_data(manifest: &ProtocolManifest) -> mustache::Data {
         .expect("failed to encode open braces")
         .insert("double_close", &"}}")
         .expect("failed to encode close braces")
-        .insert("project_name", &manifest.name)
+        .insert("workspace_name", &manifest.name)
         .expect("Failed to encode name")
-        .insert("project_id", &manifest.id)
+        .insert("workspace_id", &manifest.id)
         .expect("Failed to encode id")
         .insert_vec("runbooks", |functions_builder| {
             let mut runbooks = functions_builder;

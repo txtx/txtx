@@ -1,11 +1,9 @@
+use indexmap::IndexMap;
 use jaq_interpret::Val;
 use serde::de::Error;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Debug,
-};
+use std::{collections::BTreeMap, fmt::Debug};
 
 use super::diagnostics::Diagnostic;
 
@@ -13,7 +11,7 @@ use super::diagnostics::Diagnostic;
 #[serde(tag = "type", content = "value")]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(HashMap<String, Result<Value, Diagnostic>>),
+    Object(IndexMap<String, Result<Value, Diagnostic>>),
     Array(Box<Vec<Value>>),
     Addon(Box<AddonData>),
 }
@@ -43,8 +41,12 @@ impl Value {
     pub fn array(array: Vec<Value>) -> Value {
         Value::Array(Box::new(array))
     }
-    pub fn object(object: HashMap<String, Result<Value, Diagnostic>>) -> Value {
+    pub fn object(object: IndexMap<String, Result<Value, Diagnostic>>) -> Value {
         Value::Object(object)
+    }
+
+    pub fn addon(value: Value, typing: TypeSpecification) -> Value {
+        Value::Addon(Box::new(AddonData { value, typing }))
     }
 
     pub fn expect_string(&self) -> &str {
@@ -114,7 +116,7 @@ impl Value {
         }
     }
 
-    pub fn expect_object(&self) -> &HashMap<String, Result<Value, Diagnostic>> {
+    pub fn expect_object(&self) -> &IndexMap<String, Result<Value, Diagnostic>> {
         match &self {
             Value::Object(value) => value,
             _ => unreachable!(),
@@ -170,7 +172,7 @@ impl Value {
         }
     }
 
-    pub fn as_object(&self) -> Option<&HashMap<String, Result<Value, Diagnostic>>> {
+    pub fn as_object(&self) -> Option<&IndexMap<String, Result<Value, Diagnostic>>> {
         match &self {
             Value::Object(value) => Some(value),
             _ => None,
@@ -259,6 +261,13 @@ impl Value {
             _ => unimplemented!(),
         }
     }
+
+    pub fn parse_and_default_to_string(value_str: &str) -> Value {
+        match value_str.parse::<u64>() {
+            Ok(uint) => Value::uint(uint),
+            Err(_) => Value::string(value_str.into()),
+        }
+    }
 }
 
 impl Value {
@@ -292,7 +301,16 @@ impl Value {
                 format!("0x{}", hex::encode(&val.bytes))
             }
             Value::Object(obj) => json!(obj).to_string(),
-            Value::Array(_) => todo!(),
+            Value::Array(array) => {
+                format!(
+                    "[{}]",
+                    array
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
             Value::Addon(_) => todo!(),
         }
     }
@@ -313,7 +331,7 @@ impl Value {
                 Value::array(arr)
             }
             Val::Obj(val) => {
-                let mut obj = HashMap::new();
+                let mut obj = IndexMap::new();
                 val.iter().for_each(|(k, v)| {
                     obj.insert(k.to_string(), Ok(Value::from_jaq_value(v.clone())));
                 });
@@ -611,4 +629,21 @@ pub struct Refinements {
 type TypeChecker = fn(&TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
 pub trait TypeImplementation {
     fn check(_ctx: &TypeSpecification, lhs: &Type, rhs: &Type) -> Result<bool, Diagnostic>;
+}
+
+#[derive(Clone, Debug)]
+pub struct RunbookSupervisionContext {
+    pub review_input_default_values: bool,
+    pub review_input_values: bool,
+    pub is_supervised: bool,
+}
+
+impl RunbookSupervisionContext {
+    pub fn new() -> Self {
+        Self {
+            review_input_default_values: false,
+            review_input_values: false,
+            is_supervised: false,
+        }
+    }
 }
