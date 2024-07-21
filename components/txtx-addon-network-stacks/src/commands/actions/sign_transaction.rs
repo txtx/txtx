@@ -4,7 +4,7 @@ use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::codec::{
     MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionContractCall, TransactionPostConditionMode, TransactionPublicKeyEncoding,
+    TransactionContractCall, TransactionPostCondition, TransactionPublicKeyEncoding,
 };
 use clarity_repl::{
     clarity::{address::AddressHashMode, codec::StacksMessageCodec},
@@ -160,11 +160,16 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
+            let post_conditions = args
+                .get_value("post_conditions")
+                .map(|v| v.expect_array().clone());
+
             let transaction = match build_unsigned_transaction(
                 &wallet_state,
                 &spec,
                 fee,
                 nonce,
+                post_conditions,
                 &args,
                 &defaults,
             )
@@ -299,10 +304,13 @@ async fn build_unsigned_transaction(
     _spec: &CommandSpecification,
     fee: Option<u64>,
     nonce: Option<u64>,
+    post_conditions: Option<Box<Vec<Value>>>,
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
     // Extract and decode transaction_payload_bytes
+
+    use clarity_repl::codec::TransactionPostConditionMode;
     let transaction_payload_bytes =
         args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
     let transaction_payload = match TransactionPayload::consensus_deserialize(
@@ -418,7 +426,23 @@ async fn build_unsigned_transaction(
     if let TransactionVersion::Testnet = transaction_version {
         unsigned_tx.chain_id = 0x80000000;
     }
-    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
+    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Deny;
+    if let Some(post_conditions) = post_conditions {
+        for post_condition_bytes in post_conditions.iter() {
+            let post_condition = match TransactionPostCondition::consensus_deserialize(
+                &mut &post_condition_bytes.expect_buffer_data().bytes[..],
+            ) {
+                Ok(res) => res,
+                Err(e) => {
+                    return Err(diagnosed_error!(
+                        "transaction payload invalid, return diagnostic ({})",
+                        e.to_string()
+                    ))
+                }
+            };
+            unsigned_tx.post_conditions.push(post_condition);
+        }
+    }
 
     Ok(unsigned_tx)
 }

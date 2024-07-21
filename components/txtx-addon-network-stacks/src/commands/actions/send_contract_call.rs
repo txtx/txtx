@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
@@ -17,6 +18,7 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
+use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
 use crate::typing::STACKS_POST_CONDITION;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
@@ -170,6 +172,10 @@ impl CommandImplementation for SendContractCall {
         .unwrap();
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        args.insert(
+            TRANSACTION_POST_CONDITIONS_BYTES,
+            Value::array(post_conditions_values.clone()),
+        );
 
         SignStacksTransaction::check_signed_executability(
             uuid,
@@ -216,6 +222,10 @@ impl CommandImplementation for SendContractCall {
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        args.insert(
+            TRANSACTION_POST_CONDITIONS_BYTES,
+            Value::array(post_conditions_values.clone()),
+        );
 
         let future = async move {
             let run_signing_future = SignStacksTransaction::run_signed_execution(
