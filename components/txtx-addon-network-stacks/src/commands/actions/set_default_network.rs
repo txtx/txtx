@@ -31,7 +31,7 @@ lazy_static! {
                 implements_background_task_capability: false,
                 inputs: [
                     network_id: {
-                        documentation: indoc!{r#"A default Stacks network id to use. Valid values are `"mainnet"` and `"testnet"`."#},
+                        documentation: indoc!{r#"A default Stacks network id to use. Valid values are `"mainnet"`, `"testnet"` and `"devnet"`."#},
                         typing: Type::string(),
                         optional: false,
                         interpolable: true

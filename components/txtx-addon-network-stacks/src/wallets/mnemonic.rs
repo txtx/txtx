@@ -44,16 +44,16 @@ lazy_static! {
         StacksMnemonic => {
           name: "Mnemonic Wallet",
           matcher: "mnemonic",
-          documentation: "Coming soon",
+          documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` wallet can be used to synchronously sign a transaction."#},
           inputs: [
             mnemonic: {
-                documentation: "Coming soon",
+                documentation: "The mnemonic phrase used to generate the secret key.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
             },
             derivation_path: {
-                documentation: "Coming soon",
+                documentation: "The derivation path used to generate the secret key.",
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
@@ -73,12 +73,15 @@ lazy_static! {
           ],
           outputs: [
               public_key: {
-                documentation: "Coming soon",
+                documentation: "The public key of the account generated from the secret key.",
                 typing: Type::array(Type::buffer())
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-        // Coming soon
+        wallet "bob" "stacks::mnemonic" {
+            mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+            derivation_path = "m/44'/5757'/0'/0/0"
+        }
     "#},
       }
     };

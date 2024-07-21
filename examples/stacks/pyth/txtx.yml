@@ -1,5 +1,6 @@
 ---
 name: Pyth
+id: pyth
 default_workspace: development
 environments:
   development:
@@ -19,5 +20,6 @@ environments:
     pyth_hermes_api_url: https://hermes.pyth.network
 runbooks:
 - name: Update Price Feed
+  id: update-price-feed
   description: This runbook reads the price for a given Price feed ID.
   location: "./run/price-feeds/update.tx"

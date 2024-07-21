@@ -52,3 +52,6 @@ release = ["hiro-system-kit/release"]
 
 [build-dependencies]
 npm_rs="1.0.0"
+
+[dev-dependencies]
+test-case = "*"

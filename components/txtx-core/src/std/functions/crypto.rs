@@ -11,17 +11,25 @@ lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         Secp256k1Recover => {
             name: "secp256k1_recover",
-            documentation: "Coming soon",
+            documentation: "`secp256k1_recover` recovers a public key from a secp256k1 signature.",
             example: indoc!{r#"
+            output "recovered_public_key" {
+                value = secp256k1_recover("0x6a2ce4b8aab1ef79aa1aa617cf6b72d7146857b83055e203b67c5177faef212c", "0x0165a85a1e64d7157d678d177bc8a9e6bfb8d750458d52a31c34abe1e56475b5eb62f183a5e6ddbced38fca93a8ff1c73b4ce66231e39392572af916b5303fbe12")
+            }
+            // > recovered_public_key: 0x03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e
           "#},
             inputs: [
-                value: {
-                    documentation: "Coming soon",
+                message: {
+                    documentation: "The hash of the original message that was signed.",
+                    typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                },
+                signature: {
+                    documentation: "The signature that was produced using the secp256k1 elliptic curve algorithm.",
                     typing: vec![Type::buffer(), Type::array(Type::buffer())]
                 }
             ],
             output: {
-                documentation: "",
+                documentation: "The recovered public key.",
                 typing: Type::string()
             },
         }

@@ -39,6 +39,7 @@ use super::{
 pub struct CommandExecutionContext {
     pub review_input_default_values: bool,
     pub review_input_values: bool,
+    pub is_supervised: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -352,6 +353,7 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
         &Uuid,
+        &CommandExecutionContext,
     ) -> CommandExecutionFutureResult,
 >;
 
@@ -923,6 +925,7 @@ impl CommandInstance {
         addon_defaults: AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
+        execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
         let mut values = ValueStore::new(&self.name, &construct_uuid.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
@@ -940,6 +943,7 @@ impl CommandInstance {
             &addon_defaults,
             progress_tx,
             background_tasks_uuid,
+            execution_context,
         );
         res
     }
@@ -1032,6 +1036,7 @@ pub trait CommandImplementation {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
+        _execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

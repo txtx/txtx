@@ -25,6 +25,7 @@ use crate::{
     typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
 };
 
+use super::get_wallet_uuid;
 use super::{
     broadcast_transaction::BroadcastStacksTransaction, encode_contract_call,
     sign_transaction::SignStacksTransaction,
@@ -64,19 +65,25 @@ lazy_static! {
                   interpolable: true
               },
               signer: {
-                  documentation: "Coming soon",
+                  documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                   typing: Type::string(),
                   optional: false,
                   interpolable: true
               },
               confirmations: {
-                documentation: "Coming soon - once the transaction is included on a block, the number of blocks to await before the transaction is considered successful.",
+                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
               },
+              nonce: {
+                  documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                  typing: Type::uint(),
+                  optional: true,
+                  interpolable: true
+              },
               fee: {
-                documentation: "Coming soon",
+                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
@@ -88,7 +95,7 @@ lazy_static! {
                 interpolable: true
               },
               depends_on: {
-                documentation: "Coming soon",
+                documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
@@ -153,23 +160,43 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         execution_context: &CommandExecutionContext,
         wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
-        wallets: WalletsState,
+        mut wallets: WalletsState,
     ) -> WalletActionsFutureResult {
+        let wallet_uuid = get_wallet_uuid(args).unwrap();
+        let wallet_state = wallets.pop_wallet_state(&wallet_uuid).unwrap();
         // Extract network_id
-        let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
-        let contract_id_value = args.get_expected_value("contract_id").unwrap();
-        let function_name = args.get_expected_string("function_name").unwrap();
-        let function_args_values = args.get_expected_array("function_args").unwrap();
-        let post_conditions_values = args.get_expected_array("post_conditions").unwrap();
-
-        let bytes = encode_contract_call(
+        let network_id: String = match args.get_defaulting_string("network_id", defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let contract_id_value = match args.get_expected_value("contract_id") {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let function_name = match args.get_expected_string("function_name") {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let function_args_values = match args.get_expected_array("function_args") {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let post_conditions_values = match args.get_expected_array("post_conditions") {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        let bytes = match encode_contract_call(
             spec,
             function_name,
             function_args_values,
             &network_id,
             contract_id_value,
-        )
-        .unwrap();
+        ) {
+            Ok(value) => value,
+            Err(diag) => return Err((wallets, wallet_state, diag)),
+        };
+        wallets.push_wallet_state(wallet_state);
+
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
         args.insert(
@@ -280,6 +307,7 @@ impl CommandImplementation for SendContractCall {
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
+        execution_context: &CommandExecutionContext,
     ) -> CommandExecutionFutureResult {
         BroadcastStacksTransaction::build_background_task(
             &uuid,
@@ -288,6 +316,7 @@ impl CommandImplementation for SendContractCall {
             &defaults,
             &progress_tx,
             &background_tasks_uuid,
+            &execution_context,
         )
     }
 }
