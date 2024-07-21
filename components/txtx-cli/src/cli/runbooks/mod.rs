@@ -16,9 +16,9 @@ use txtx_core::{
     kit::{
         channel,
         helpers::fs::FileLocation,
-        types::frontend::{
+        types::{commands::CommandInputsEvaluationResult, frontend::{
             ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
-        },
+        }, types::Value},
         Addon,
     },
     runbook::{
@@ -359,6 +359,28 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             (runbook_name, runbook, None)
         }
     };
+
+    for input in cmd.inputs.iter() {
+        let (input_name, input_value) = input.split_once("=").unwrap();
+        for running_context in runbook.running_contexts.iter_mut() {
+            for (construct_uuid, command_instance) in running_context.execution_context.commands_instances.iter_mut() {
+                if command_instance.specification.matcher.eq("input")
+                    && input_name.eq(&command_instance.name)
+                {
+                    let mut result = CommandInputsEvaluationResult::new(input_name);
+                    if input_value.starts_with("[") {
+                        unimplemented!()
+                    } else {
+                        result
+                            .inputs
+                            .insert("value", Value::parse_and_default_to_string(input_value));
+                        running_context.execution_context.commands_inputs_evaluations_results
+                            .insert(construct_uuid.clone(), result);
+                    }
+                }
+            }
+        }
+    }
 
     let previous_state_opt =
         if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
