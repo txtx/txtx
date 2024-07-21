@@ -4,3 +4,6 @@
 components/txtx-web-ui/node_modules
 components/txtx-web-ui/.parcel-cache
 .env
+components/txtx-addon-network-evm/src/tests/fixtures/foundry/out/build-info
+components/txtx-addon-network-evm/src/tests/fixtures/foundry/cache
+state.json

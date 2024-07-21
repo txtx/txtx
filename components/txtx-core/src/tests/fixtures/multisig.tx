@@ -1,4 +1,4 @@
-action "defaults" "stacks::set_default_network" {
+runtime "stacks::defaults" {
   network_id = "testnet"
   rpc_api_url = "https://api.testnet.hiro.so"
 }

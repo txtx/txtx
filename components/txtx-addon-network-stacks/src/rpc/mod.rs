@@ -1,12 +1,8 @@
 use async_recursion::async_recursion;
-use clarity::types::chainstate::StacksAddress;
-use clarity::types::Address;
-use clarity::vm::types::BuffData;
-use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::clarity::codec::StacksMessageCodec;
 use clarity_repl::clarity::util::hash::{bytes_to_hex, hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
-use clarity_repl::codec::{TransactionContractCall, TransactionPayload};
+use clarity_repl::codec::TransactionPayload;
 use serde_json::Value as JsonValue;
 use std::io::Cursor;
 use txtx_addon_kit::helpers::format_currency;
@@ -144,6 +140,7 @@ pub struct GetTransactionResponse {
     pub tx_id: String,
     pub tx_status: TransactionStatus,
     pub tx_result: GetTransactionResult,
+    pub block_height: u64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -202,13 +199,17 @@ impl StacksRpc {
             let err = match res.text().await {
                 Ok(message) => {
                     if message.contains("NoEstimateAvailable") {
-                        return self
-                            .estimate_transaction_fee(
-                                &default_to_transaction_payload,
-                                priority,
-                                &default_to_transaction_payload,
-                            )
-                            .await;
+                        if tx.eq(&default_to_transaction_payload.serialize_to_vec()) {
+                            return Ok(2100);
+                        } else {
+                            return self
+                                .estimate_transaction_fee(
+                                    &default_to_transaction_payload,
+                                    priority,
+                                    &default_to_transaction_payload,
+                                )
+                                .await;
+                        }
                     } else {
                         RpcError::Message(message)
                     }

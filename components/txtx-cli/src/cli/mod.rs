@@ -1,9 +1,11 @@
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
+use runbooks::DEFAULT_PORT_TXTX;
 use std::process;
 
 mod docs;
 mod runbooks;
+mod snapshots;
 mod templates;
 
 #[derive(Clone)]
@@ -46,7 +48,7 @@ struct Opts {
 enum Command {
     /// Inspect deployment protocol
     #[clap(name = "check", bin_name = "check")]
-    Check(CheckRunbooks),
+    Check(CheckRunbook),
     /// New Runbook
     #[clap(name = "new", bin_name = "new")]
     New(CreateRunbook),
@@ -56,16 +58,54 @@ enum Command {
     /// Execute Runbook
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
+    /// Execute Runbook
+    #[clap(subcommand)]
+    Snapshots(SnapshotCommand),
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
 }
 
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+enum SnapshotCommand {
+    /// Begin new snapshot
+    #[clap(name = "begin", bin_name = "begin")]
+    Begin(BeginSnapshot),
+    /// New Runbook
+    #[clap(name = "end", bin_name = "end")]
+    Commit(CommitSnapshot),
+}
+
 #[derive(Parser, PartialEq, Clone, Debug)]
-pub struct CheckRunbooks {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(long = "manifest-path")]
-    pub manifest_path: Option<String>,
+pub struct BeginSnapshot {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Path to the snapshot
+    #[arg(long = "snapshot-file-path", short = 's')]
+    pub snapshot_path: String,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct CommitSnapshot {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Path to the snapshot
+    #[arg(long = "snapshot-file-path", short = 's')]
+    pub snapshot_path: String,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct CheckRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
+    pub runbook: String,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -73,9 +113,9 @@ pub struct GetDocumentation;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(long = "manifest-path")]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
     /// Disable Terminal UI
     #[clap(long = "no-term-ui")]
     pub no_tui: bool,
@@ -88,53 +128,51 @@ pub struct InspectRunbook {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
+#[command(group = clap::ArgGroup::new("execution_mode").multiple(false).args(["unsupervised", "web_console", "term_console"]).required(false))]
 pub struct ExecuteRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
-    pub manifest_path: Option<String>,
-    /// Name of runbook as indexed in txtx.yml, or path of the .tx file to run
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
     pub runbook: String,
-    /// Start Web Console
-    #[clap(long = "web-console", short = 'w', action=ArgAction::SetTrue)]
+
+    /// Execute the runbook without supervision
+    #[arg(long = "unsupervised", short = 'u', action=ArgAction::SetTrue, group = "execution_mode")]
+    pub unsupervised: bool,
+    /// Execute the runbook with supervision via the browser UI (this is the default execution mode)
+    #[arg(long = "browser", short = 'b', action=ArgAction::SetTrue, group = "execution_mode")]
     pub web_console: bool,
-    /// Start Terminal Console
-    #[clap(long = "term-console")]
+    /// Execute the runbook with supervision via the terminal console (coming soon)
+    #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
-    /// Start Terminal Console
-    #[clap(long = "port", short = 'p')]
-    pub port: Option<u16>,
-    /// Choose environment variable set
-    #[clap(long = "env")]
+
+    /// Set the port for hosting the web UI
+    #[arg(long = "port", short = 'p', default_value = DEFAULT_PORT_TXTX )]
+    pub port: u16,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
     pub environment: Option<String>,
-    /// Choose environment variable set
-    #[clap(long = "input")]
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
     pub inputs: Vec<String>,
+
+    /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
+    #[arg(long = "force", short = 'f')]
+    pub force_execution: bool,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct CreateRunbook {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct ListRunbooks {
-    /// Path to manifest (default to ./txtx.yml)
-    #[clap(
-        long = "manifest-file-path",
-        short = 'm',
-        conflicts_with = "runbook_path"
-    )]
-    pub manifest_path: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
 }
 
 pub fn main() {
@@ -180,6 +218,94 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         Command::Docs(cmd) => {
             docs::handle_docs_command(&cmd, ctx).await?;
         }
+        Command::Snapshots(SnapshotCommand::Begin(cmd)) => {
+            snapshots::handle_begin_command(&cmd, ctx).await?;
+        }
+        Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
+            snapshots::handle_commit_command(&cmd, ctx).await?;
+        }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    fn parse_args(args: Vec<&str>) -> ExecuteRunbook {
+        ExecuteRunbook::parse_from(args)
+    }
+
+    #[test]
+    fn test_execute_runbook_default_values() {
+        let args = vec!["txtx", "runbook"];
+        let result = parse_args(args);
+        assert_eq!(result.manifest_path, "./txtx.yml");
+        assert_eq!(result.runbook, "runbook");
+        assert_eq!(result.unsupervised, false);
+        assert_eq!(result.web_console, false);
+        assert_eq!(result.term_console, false);
+        assert_eq!(result.port, 8488);
+        assert_eq!(result.environment, None);
+        assert!(result.inputs.is_empty());
+    }
+
+    #[test]
+    fn test_unsupervised_mode() {
+        let args = vec!["txtx", "runbook", "--unsupervised"];
+        let result = parse_args(args);
+        assert_eq!(result.unsupervised, true);
+        assert_eq!(result.web_console, false);
+        assert_eq!(result.term_console, false);
+    }
+
+    #[test]
+    fn test_web_console_mode() {
+        let args = vec!["txtx", "runbook", "--browser"];
+        let result = parse_args(args);
+        assert_eq!(result.unsupervised, false);
+        assert_eq!(result.web_console, true);
+        assert_eq!(result.term_console, false);
+    }
+
+    #[test]
+    fn test_terminal_console_mode() {
+        let args = vec!["txtx", "runbook", "--terminal"];
+        let result = parse_args(args);
+        assert_eq!(result.unsupervised, false);
+        assert_eq!(result.web_console, false);
+        assert_eq!(result.term_console, true);
+    }
+
+    #[test]
+    fn test_port_setting() {
+        let args = vec!["txtx", "runbook", "--port", "9090"];
+        let result = parse_args(args);
+        assert_eq!(result.port, 9090);
+    }
+
+    #[test]
+    fn test_environment_setting() {
+        let args = vec!["txtx", "runbook", "--env", "production"];
+        let result = parse_args(args);
+        assert_eq!(result.environment, Some(String::from("production")));
+    }
+
+    #[test]
+    fn test_inputs_setting() {
+        let args = vec!["txtx", "runbook", "--input", "input1", "--input", "input2"];
+        let result = parse_args(args);
+        assert_eq!(result.inputs, vec!["input1", "input2"]);
+    }
+
+    #[test_case("--unsupervised", "--browser")]
+    #[test_case("--unsupervised", "--terminal")]
+    #[test_case("--browser", "--terminal")]
+    fn test_conflicting_arguments(arg1: &str, arg2: &str) {
+        let args = vec!["txtx", "runbook", arg1, arg2];
+        let thing = ExecuteRunbook::try_parse_from(args);
+        let err = thing.unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
 }

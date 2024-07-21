@@ -3,22 +3,23 @@ use std::collections::HashMap;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
-use txtx_addon_kit::types::commands::{CommandExecutionContext, CommandExecutionResult};
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
     BlockEvent, ProvideSignedTransactionRequest,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::{
-    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, WalletActionErr,
-    WalletActionsFutureResult, WalletActivateFutureResult, WalletImplementation, WalletInstance,
-    WalletSignFutureResult, WalletSpecification, WalletsState,
+    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk,
+    SigningCommandsState, WalletActionErr, WalletActionsFutureResult, WalletActivateFutureResult,
+    WalletImplementation, WalletInstance, WalletSignFutureResult, WalletSpecification,
 };
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
@@ -44,7 +45,8 @@ lazy_static! {
                         documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this wallet.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true
+                        interpolable: true,
+                        sensitive: true
                     }
                 ],
                 outputs: [
@@ -83,27 +85,28 @@ impl WalletImplementation for StacksConnect {
     // If the all of the informations above are present in the wallet state, nothing is returned.
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        mut signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
-        let checked_public_key = wallet_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let _requested_startup_data = wallet_state
+        let checked_public_key = signing_command_state.get_expected_string(CHECKED_PUBLIC_KEY);
+        let _requested_startup_data = signing_command_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)
             .ok()
             .unwrap_or(false);
-        let _checked_address = wallet_state.get_expected_string(CHECKED_ADDRESS);
-        let _checked_cost_provision = wallet_state.get_expected_uint(CHECKED_COST_PROVISION);
-        let _fetched_nonce = wallet_state.get_expected_uint(FETCHED_NONCE);
-        let _fetched_balance = wallet_state.get_expected_uint(FETCHED_BALANCE);
+        let _checked_address = signing_command_state.get_expected_string(CHECKED_ADDRESS);
+        let _checked_cost_provision =
+            signing_command_state.get_expected_uint(CHECKED_COST_PROVISION);
+        let _fetched_nonce = signing_command_state.get_expected_uint(FETCHED_NONCE);
+        let _fetched_balance = signing_command_state.get_expected_uint(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
         let do_request_address_check = expected_address.is_some();
@@ -114,14 +117,14 @@ impl WalletImplementation for StacksConnect {
         let do_request_balance = is_balance_check_required;
 
         let instance_name = instance_name.to_string();
-        let wallet_uuid = uuid.clone();
+        let signing_construct_did = construct_did.clone();
         let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, wallet_state, diag)),
+            Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, wallet_state, diag)),
+            Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
 
         if let Ok(public_key_buffer) = args.get_expected_buffer("public_key", &CLARITY_BUFFER) {
@@ -156,7 +159,7 @@ impl WalletImplementation for StacksConnect {
                     success = false;
                 } else {
                     let update = ActionItemRequestUpdate::from_context(
-                        &wallet_uuid,
+                        &signing_construct_did,
                         ACTION_ITEM_CHECK_ADDRESS,
                     )
                     .set_status(status_update.clone());
@@ -164,26 +167,32 @@ impl WalletImplementation for StacksConnect {
                 }
             }
             if success {
-                wallet_state.insert(
+                signing_command_state.insert(
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
                 );
             }
-            let update =
-                ActionItemRequestUpdate::from_context(&wallet_uuid, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
-                    .set_status(status_update);
+            let update = ActionItemRequestUpdate::from_context(
+                &signing_construct_did,
+                ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+            )
+            .set_status(status_update);
             actions.push_action_item_update(update);
 
-            return return_synchronous_actions(Ok((wallets, wallet_state, actions)));
+            return return_synchronous_actions(Ok((wallets, signing_command_state, actions)));
         } else if checked_public_key.is_ok() {
-            return return_synchronous_actions(Ok((wallets, wallet_state, Actions::none())));
+            return return_synchronous_actions(Ok((
+                wallets,
+                signing_command_state,
+                Actions::none(),
+            )));
         }
 
         let future = async move {
             let mut actions = Actions::none();
             let res = get_addition_actions_for_address(
                 &expected_address,
-                &wallet_uuid,
+                &signing_construct_did,
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
@@ -192,11 +201,11 @@ impl WalletImplementation for StacksConnect {
                 do_request_address_check,
             )
             .await;
-            wallet_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
+            signing_command_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
 
             let action_items = match res {
                 Ok(action_items) => action_items,
-                Err(diag) => return Err((wallets, wallet_state, diag)),
+                Err(diag) => return Err((wallets, signing_command_state, diag)),
             };
             if !action_items.is_empty() {
                 actions.push_group(
@@ -204,67 +213,67 @@ impl WalletImplementation for StacksConnect {
                     action_items,
                 );
             }
-            Ok((wallets, wallet_state, actions))
+            Ok((wallets, signing_command_state, actions))
         };
         Ok(Box::pin(future))
     }
 
     fn activate(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        mut signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> WalletActivateFutureResult {
         let result = CommandExecutionResult::new();
-        let public_key = match wallet_state.get_expected_value(CHECKED_PUBLIC_KEY) {
+        let public_key = match signing_command_state.get_expected_value(CHECKED_PUBLIC_KEY) {
             Ok(value) => value,
             Err(diag) => {
-                return Err((wallets, wallet_state, diag));
+                return Err((wallets, signing_command_state, diag));
             }
         };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, wallet_state, diag)),
+            Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
-        wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        signing_command_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
 
         let version = match network_id.as_str() {
             "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
             _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
         };
 
-        wallet_state.insert("hash_flag", Value::uint(version.into()));
-        wallet_state.insert("multi_sig", Value::bool(false));
+        signing_command_state.insert("hash_flag", Value::uint(version.into()));
+        signing_command_state.insert("multi_sig", Value::bool(false));
 
-        return_synchronous_result(Ok((wallets, wallet_state, result)))
+        return_synchronous_result(Ok((wallets, signing_command_state, result)))
     }
 
     fn check_signability(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        if let Some(_) =
-            wallet_state.get_scoped_value(&uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
+        if let Some(_) = signing_command_state
+            .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
         {
-            return Ok((wallets, wallet_state, Actions::none()));
+            return Ok((wallets, signing_command_state, Actions::none()));
         }
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, wallet_state, diag)),
+            Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
         let (status, payload) = if let Some(()) = payload.as_null() {
             (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
@@ -273,13 +282,13 @@ impl WalletImplementation for StacksConnect {
         };
 
         let request = ActionItemRequest::new(
-            &Some(uuid.value()),
+            &Some(construct_did.clone()),
             title,
             description.clone(),
             status,
             ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(uuid.value()),
-                signer_uuid: wallet_state.uuid,
+                check_expectation_action_uuid: Some(construct_did.clone()),
+                signer_uuid: ConstructDid(signing_command_state.uuid.clone()),
                 payload: payload.clone(),
                 namespace: "stacks".to_string(),
                 network_id,
@@ -288,7 +297,7 @@ impl WalletImplementation for StacksConnect {
         );
         Ok((
             wallets,
-            wallet_state,
+            signing_command_state,
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
@@ -298,19 +307,19 @@ impl WalletImplementation for StacksConnect {
     }
 
     fn sign(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _title: &str,
         _payload: &Value,
         _spec: &WalletSpecification,
         _args: &ValueStore,
-        wallet_state: ValueStore,
-        wallets: WalletsState,
-        _wallets_instances: &HashMap<ConstructUuid, WalletInstance>,
+        signing_command_state: ValueStore,
+        wallets: SigningCommandsState,
+        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         _defaults: &AddonDefaults,
     ) -> WalletSignFutureResult {
         let mut result = CommandExecutionResult::new();
-        let key = uuid.value().to_string();
-        let signed_transaction = wallet_state
+        let key = construct_did.to_string();
+        let signed_transaction = signing_command_state
             .get_expected_value(&key)
             // .map_err(|e| (wallets, e))?;
             .unwrap();
@@ -318,6 +327,6 @@ impl WalletImplementation for StacksConnect {
             .outputs
             .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
 
-        return_synchronous_result(Ok((wallets, wallet_state, result)))
+        return_synchronous_result(Ok((wallets, signing_command_state, result)))
     }
 }

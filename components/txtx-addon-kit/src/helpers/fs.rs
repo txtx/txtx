@@ -52,7 +52,7 @@ impl Display for FileLocation {
 impl FileLocation {
     pub fn try_parse(
         location_string: &str,
-        project_root_location_hint: Option<&FileLocation>,
+        workspace_root_location_hint: Option<&FileLocation>,
     ) -> Option<FileLocation> {
         if let Ok(location) = FileLocation::from_url_string(location_string) {
             return Some(location);
@@ -60,7 +60,7 @@ impl FileLocation {
         if let Ok(FileLocation::FileSystem { path }) =
             FileLocation::from_path_string(location_string)
         {
-            match (project_root_location_hint, path.is_relative()) {
+            match (workspace_root_location_hint, path.is_relative()) {
                 (None, true) => return None,
                 (Some(hint), true) => {
                     let mut location = hint.clone();
@@ -168,9 +168,9 @@ impl FileLocation {
         Ok(())
     }
 
-    pub fn get_project_root_location(&self) -> Result<FileLocation, String> {
-        let mut project_root_location = self.clone();
-        match project_root_location.borrow_mut() {
+    pub fn get_workspace_root_location(&self) -> Result<FileLocation, String> {
+        let mut workspace_root_location = self.clone();
+        match workspace_root_location.borrow_mut() {
             FileLocation::FileSystem { path } => {
                 let mut manifest_found = false;
                 while path.pop() {
@@ -184,7 +184,7 @@ impl FileLocation {
                 }
 
                 match manifest_found {
-                    true => Ok(project_root_location),
+                    true => Ok(workspace_root_location),
                     false => Err(format!("unable to find root location from {}", self)),
                 }
             }
@@ -224,7 +224,7 @@ impl FileLocation {
     }
 
     pub fn get_relative_location(&self) -> Result<String, String> {
-        let base = self.get_project_root_location().map(|l| l.to_string())?;
+        let base = self.get_workspace_root_location().map(|l| l.to_string())?;
         let file = self.to_string();
         Ok(file[(base.len() + 1)..].to_string())
     }

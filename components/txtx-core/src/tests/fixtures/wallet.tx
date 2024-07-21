@@ -1,4 +1,4 @@
-action "defaults" "stacks::set_default_network" {
+runtime "stacks::defaults" {
   network_id = "testnet"
   rpc_api_url = "https://api.nakamoto.testnet.hiro.so"
 }
@@ -18,4 +18,3 @@ action "register_bns_name" "stacks::sign_transaction" {
 output "register-bns-name" {
   value = action.register_bns_name.signed_transaction_bytes
 }
-

@@ -1,10 +1,19 @@
 ---
 name: Stacks Multisig
+id: stacks-multisig
 runbooks:
-- name: multisig
+- name: Multisig
+  id: multisig
   description: Test stacks multisig
   location: "./run"
+- name: Register BNS Namespace
+  id: namespace-register
+  description: Register a BNS namespace
+  location: "./namespace-register"
 environments:
-  development:
+  devnet:
+    stacks_network_id: testnet
+    stacks_api_url: http://localhost:3999
+  testnet:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so

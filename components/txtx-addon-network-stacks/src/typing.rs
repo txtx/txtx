@@ -89,6 +89,13 @@ lazy_static! {
             documentation: "Stacks contract call payload",
         }
     };
+    pub static ref STACKS_POST_CONDITION: TypeSpecification = define_addon_type! {
+        StacksContractCall => {
+            name: "stacks_post_condition",
+            documentation: "Stacks post condition payload",
+        }
+    };
+
 }
 
 pub struct ClarityIntegerUnsigned;

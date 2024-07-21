@@ -1,18 +1,16 @@
 use clarity::util::sleep_ms;
-use std::collections::VecDeque;
 use std::fmt::Write;
-use txtx_addon_kit::types::commands::{
-    CommandExecutionContext, CommandExecutionFutureResult, PreCommandSpecification,
-};
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructUuid, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
@@ -102,19 +100,19 @@ impl CommandImplementation for BroadcastStacksTransaction {
     }
 
     fn check_executability(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
-        _execution_context: &CommandExecutionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
-        _uuid: &ConstructUuid,
+        _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         _args: &ValueStore,
         _defaults: &AddonDefaults,
@@ -130,12 +128,14 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        uuid: &ConstructUuid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
+        supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
@@ -143,13 +143,15 @@ impl CommandImplementation for BroadcastStacksTransaction {
             constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
         };
 
-        let args = args.clone();
-        let uuid = uuid.clone();
+        let args = inputs.clone();
+        let outputs = outputs.clone();
+
+        let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
         let confirmations_required = args
             .get_expected_uint("confirmations")
-            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
+            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as u64;
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
@@ -161,8 +163,26 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
+        let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+        let is_supervised = supervision_context.is_supervised;
         let future = async move {
+            let mut progress = 0;
+            let mut status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &construct_did,
+                &ProgressBarStatus {
+                    status_color: ProgressBarStatusColor::Yellow,
+                    status: format!("Pending {}", progress_symbol[progress]),
+                    message: "Broadcasting Transaction".into(),
+                    diagnostic: None,
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
             let mut result = CommandExecutionResult::new();
+            for (k, v) in outputs.iter() {
+                result.outputs.insert(k.clone(), v.clone());
+            }
 
             let mut s = String::from("0x");
             s.write_str(
@@ -182,17 +202,34 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
             let tx_result = loop {
+                progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes.bytes).await {
                     Ok(res) => break res,
                     Err(e) => {
                         retry_count -= 1;
                         if retry_count > 0 {
                             sleep_ms(backoff_ms);
+                            status_update.update_status(&ProgressBarStatus::new_msg(
+                                ProgressBarStatusColor::Yellow,
+                                &format!("Pending {}", progress_symbol[progress]),
+                                "Broadcasting Transaction",
+                            ));
+                            let _ = progress_tx
+                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                             continue;
                         }
 
+                        status_update.update_status(&ProgressBarStatus::new_err(
+                            "Failure",
+                            "Failed to broadcast Stacks transaction",
+                            &diagnosed_error!("{}", e),
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
                         return Err(Diagnostic::error_from_string(format!(
-                            "Failed to broadcast stacks transaction: {e}"
+                            "Failed to broadcast Stacks transaction: {}",
+                            e,
                         )));
                     }
                 }
@@ -206,43 +243,47 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let moved_txid = txid.clone();
             let moved_network_id = network_id.clone();
             let wrap_msg = move |msg: &str| {
-                txtx_addon_kit::formatdoc! {
-                    r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}">{}</a>"#,
-                    moved_txid, moved_network_id, msg
+                if is_supervised {
+                    txtx_addon_kit::formatdoc! {
+                    r#"<a target="_blank" href="https://explorer.hiro.so/txid/{}?chain={}&api={}">{}</a>"#,
+                    moved_txid, moved_network_id, rpc_api_url, msg
                 }
                 .to_string()
+                } else {
+                    msg.to_string()
+                }
             };
 
             let progress_tx = progress_tx.clone();
             let mut retry_count = 4;
-            let mut status_update = ProgressBarStatusUpdate::new(
-                &background_tasks_uuid,
-                &uuid.value(),
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Yellow,
-                    status: "Pending".to_string(),
-                    message: wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
-                    diagnostic: None,
-                },
-            );
+            status_update.update_status(&ProgressBarStatus::new_msg(
+                ProgressBarStatusColor::Yellow,
+                &format!("Pending {}", progress_symbol[progress]),
+                &wrap_msg(&format!("Transaction 0x{}", txid_display_str(&txid))),
+            ));
+
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             let mut block_height = 0;
-            let mut confirmed_blocks_ids = VecDeque::new();
+            let mut included_in_block = u64::MAX - confirmations_required;
             let backoff_ms = 500;
-
-            // let progress_symbol = ["⠁", "⠃", "⠇", "⠧", "⠷", "⠿"];
-            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-            let mut progress = 0;
 
             loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                if confirmed_blocks_ids.len() >= confirmations_required {
+                if block_height >= (included_in_block + confirmations_required) {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
                         "Complete",
-                        &wrap_msg(&format!("Confirmed {} blocks", &confirmations_required)),
+                        &wrap_msg(&format!(
+                            "Confirmed {} {}",
+                            &confirmations_required,
+                            if confirmations_required.eq(&1) {
+                                "block"
+                            } else {
+                                "blocks"
+                            }
+                        )),
                     ));
 
                     let _ = progress_tx
@@ -298,12 +339,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 let _ =
                     progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                if !confirmed_blocks_ids.is_empty() {
-                    confirmed_blocks_ids.push_back(block_height);
-                    sleep_ms(backoff_ms);
-                    continue;
-                }
-
                 let tx_details_result = client.get_tx(&txid).await.map_err(|e| {
                     Diagnostic::error_from_string(format!(
                         "Failed to broadcast stacks transaction: {e}"
@@ -320,17 +355,20 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 match tx_details.tx_status {
                     TransactionStatus::Success => {
-                        status_update.update_status(&ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Yellow,
-                            &format!("Pending {}", progress_symbol[progress]),
-                            &wrap_msg("Transaction included in block"),
-                        ));
-                        let _ = progress_tx
-                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                        result.outputs.insert(
-                            "result".into(),
-                            Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
-                        );
+                        if included_in_block != tx_details.block_height {
+                            status_update.update_status(&ProgressBarStatus::new_msg(
+                                ProgressBarStatusColor::Yellow,
+                                &format!("Pending {}", progress_symbol[progress]),
+                                &wrap_msg("Transaction included in block"),
+                            ));
+                            let _ = progress_tx
+                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                            result.outputs.insert(
+                                "result".into(),
+                                Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
+                            );
+                            included_in_block = tx_details.block_height;
+                        }
                     }
                     TransactionStatus::AbortByResponse => {
                         let diag = Diagnostic::error_from_string(format!(
@@ -361,7 +399,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         return Err(diag);
                     }
                 };
-                confirmed_blocks_ids.push_back(node_info.stacks_tip_height);
             }
 
             Ok(result)

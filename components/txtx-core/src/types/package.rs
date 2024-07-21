@@ -1,45 +1,41 @@
+use kit::types::PackageId;
 use std::collections::{HashMap, HashSet};
-use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::types::{ConstructUuid, PackageUuid};
+use txtx_addon_kit::types::ConstructDid;
 
 #[derive(Clone, Debug)]
 pub struct Package {
-    pub uuid: PackageUuid,
-    pub name: String,
-    pub location: FileLocation,
-    pub variables_uuids: HashSet<ConstructUuid>,
-    pub inputs_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub outputs_uuids: HashSet<ConstructUuid>,
-    pub outputs_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub modules_uuids: HashSet<ConstructUuid>,
-    pub modules_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub imports_uuids: HashSet<ConstructUuid>,
-    pub imports_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub addons_uuids: HashSet<ConstructUuid>,
-    pub addons_uuids_lookup: HashMap<String, ConstructUuid>,
-    pub wallets_uuids: HashSet<ConstructUuid>,
-    pub wallets_uuids_lookup: HashMap<String, ConstructUuid>,
+    /// Id of the Package
+    pub package_id: PackageId,
+    pub variables_dids: HashSet<ConstructDid>,
+    pub inputs_did_lookup: HashMap<String, ConstructDid>,
+    pub outputs_dids: HashSet<ConstructDid>,
+    pub outputs_did_lookup: HashMap<String, ConstructDid>,
+    pub modules_dids: HashSet<ConstructDid>,
+    pub modules_did_lookup: HashMap<String, ConstructDid>,
+    pub imports_dids: HashSet<ConstructDid>,
+    pub imports_did_lookup: HashMap<String, ConstructDid>,
+    pub addons_dids: HashSet<ConstructDid>,
+    pub addons_did_lookup: HashMap<String, ConstructDid>,
+    pub signing_commands_dids: HashSet<ConstructDid>,
+    pub signing_commands_did_lookup: HashMap<String, ConstructDid>,
 }
 
 impl Package {
-    pub fn new(package_name: &str, package_location: &FileLocation) -> Self {
-        let uuid = PackageUuid::new();
+    pub fn new(package_id: &PackageId) -> Self {
         Self {
-            uuid,
-            name: package_name.to_string(),
-            location: package_location.clone(),
-            variables_uuids: HashSet::new(),
-            inputs_uuids_lookup: HashMap::new(),
-            outputs_uuids: HashSet::new(),
-            outputs_uuids_lookup: HashMap::new(),
-            modules_uuids: HashSet::new(),
-            modules_uuids_lookup: HashMap::new(),
-            imports_uuids: HashSet::new(),
-            imports_uuids_lookup: HashMap::new(),
-            addons_uuids: HashSet::new(),
-            addons_uuids_lookup: HashMap::new(),
-            wallets_uuids: HashSet::new(),
-            wallets_uuids_lookup: HashMap::new(),
+            package_id: package_id.clone(),
+            variables_dids: HashSet::new(),
+            inputs_did_lookup: HashMap::new(),
+            outputs_dids: HashSet::new(),
+            outputs_did_lookup: HashMap::new(),
+            modules_dids: HashSet::new(),
+            modules_did_lookup: HashMap::new(),
+            imports_dids: HashSet::new(),
+            imports_did_lookup: HashMap::new(),
+            addons_dids: HashSet::new(),
+            addons_did_lookup: HashMap::new(),
+            signing_commands_dids: HashSet::new(),
+            signing_commands_did_lookup: HashMap::new(),
         }
     }
 }

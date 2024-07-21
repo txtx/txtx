@@ -1,21 +1,23 @@
 ---
-name: {{ project_name }}
+name: {{ workspace_name }}
+id: {{ workspace_id }}
 runbooks:
 {{# runbooks }}
   - name: {{ name }}
+    id: {{ id }}
     description: {{ description }}
     location: {{ location }}
 {{/ runbooks }}
 environments:
   devnet:
     stacks_network_id: devnet
-    stacks_api_url: https://localhost:3999
-    stacks_operator_address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+    stacks_api_url: http://localhost:3999
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
   testnet:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so
-    stacks_operator_address: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
   mainnet:
     stacks_network_id: mainnet
     stacks_api_url: https://api.hiro.so
-    stacks_operator_address: SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE
+    stacks_operator_address: SP2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1J5QKA2F

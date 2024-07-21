@@ -4,7 +4,6 @@ mod decode_contract_call;
 mod deploy_contract;
 pub mod encode_contract_call;
 mod send_contract_call;
-pub mod set_default_network;
 pub mod sign_transaction;
 
 use crate::{stacks_helpers::parse_clarity_value, typing::STACKS_CONTRACT_CALL};
@@ -20,13 +19,13 @@ use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
 use send_contract_call::SEND_CONTRACT_CALL;
-use set_default_network::SET_DEFAULT_NETWORK;
 use sign_transaction::SIGN_STACKS_TRANSACTION;
 use txtx_addon_kit::types::{
     commands::{CommandSpecification, PreCommandSpecification},
     diagnostics::Diagnostic,
     types::{PrimitiveValue, Value},
 };
+use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -36,7 +35,6 @@ lazy_static! {
         DEPLOY_STACKS_CONTRACT.clone(),
         BROADCAST_STACKS_TRANSACTION.clone(),
         CALL_READONLY_FN.clone(),
-        SET_DEFAULT_NETWORK.clone(),
         SEND_CONTRACT_CALL.clone(),
     ];
 }
@@ -84,7 +82,8 @@ pub fn encode_contract_call(
     // validate contract_id against network_id
     let id_str = contract_id.to_string();
     let mainnet_match = id_str.starts_with("SP") && network_id.eq("mainnet");
-    let testnet_match = id_str.starts_with("ST") && network_id.eq("testnet");
+    let testnet_match = id_str.starts_with("ST") && !network_id.eq("mainnet");
+
     if !mainnet_match && !testnet_match {
         return Err(diagnosed_error!(
             "command {}: contract id {} is not valid for network {}",
@@ -119,4 +118,10 @@ pub fn encode_contract_call(
     let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
 
     Ok(value)
+}
+
+fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
+    let signer = args.get_expected_string("signer")?;
+    let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
+    Ok(signing_construct_did)
 }
