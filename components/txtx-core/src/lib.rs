@@ -315,6 +315,7 @@ pub async fn start_supervised_runbook_runloop(
                                         &diags,
                                     )),
                                 }));
+                                return Err(diags);
                             }
                         }
                     }
