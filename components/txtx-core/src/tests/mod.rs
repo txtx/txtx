@@ -429,7 +429,7 @@ fn test_wallet_runbook_no_env() {
                 action_item_id: provide_signature_action.id.clone(),
                 payload: ActionItemResponseType::ProvideSignedTransaction(
                     ProvideSignedTransactionResponse {
-                        signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                        signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                         signer_uuid: provide_signature_action
                             .action_type
                             .as_provide_signed_tx()
@@ -658,7 +658,7 @@ fn test_multisig_runbook_no_env() {
             action_item_id: sign_tx_alice.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
-                    signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                    signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                     signer_uuid: sign_tx_alice
                         .action_type
                         .as_provide_signed_tx()
@@ -681,7 +681,7 @@ fn test_multisig_runbook_no_env() {
             action_item_id: sign_tx_bob.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
-                    signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                    signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                     signer_uuid: sign_tx_bob
                         .action_type
                         .as_provide_signed_tx()
