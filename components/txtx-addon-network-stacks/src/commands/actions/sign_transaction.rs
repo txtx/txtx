@@ -459,7 +459,7 @@ async fn build_unsigned_transaction(
             Ok(res) => res,
             Err(e) => {
                 return Err(diagnosed_error!(
-                    "transaction payload invalid, return diagnostic ({})",
+                    "invalid post-condition: ({})",
                     e.to_string()
                 ))
             }

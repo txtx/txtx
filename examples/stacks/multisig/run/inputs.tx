@@ -8,6 +8,7 @@ wallet "bob" "stacks::connect" {
 
 wallet "alice_and_bob" "stacks::multisig" {
   signers = [wallet.alice, wallet.bob]
+  required_signatures = 1
 }
 
 input "namespace" {

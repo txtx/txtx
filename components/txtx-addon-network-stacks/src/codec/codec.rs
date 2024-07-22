@@ -481,6 +481,7 @@ impl MultisigSpendingCondition {
                     if !pubkey.compressed() {
                         have_uncompressed = true;
                     }
+                    println!("pubkey given: {:?}", pubkey);
                     #[allow(clippy::clone_on_copy)]
                     pubkey.clone()
                 }
@@ -501,6 +502,7 @@ impl MultisigSpendingCondition {
                     num_sigs = num_sigs
                         .checked_add(1)
                         .ok_or(CodecError::SigningError("Too many signatures".to_string()))?;
+                    println!("pubkey generated from sig: {:?}", pubkey);
                     pubkey
                 }
             };
@@ -532,7 +534,8 @@ impl MultisigSpendingCondition {
                 ));
             }
         };
-
+        println!("address bytes: {:?}", addr_bytes);
+        println!("signer: {:?}", self.signer);
         if addr_bytes != self.signer {
             return Err(CodecError::SigningError(format!(
                 "Signer hash does not equal hash of public key(s): {} != {}",

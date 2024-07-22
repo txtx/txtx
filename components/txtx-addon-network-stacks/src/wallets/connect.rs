@@ -5,8 +5,8 @@ use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
-    BlockEvent, ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
+    ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::{
@@ -171,6 +171,7 @@ impl WalletImplementation for StacksConnect {
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
                 );
+                signing_command_state.insert(CHECKED_ADDRESS, Value::string(stx_address));
             }
             let update = ActionItemRequestUpdate::from_context(
                 &signing_construct_did,
@@ -265,8 +266,9 @@ impl WalletImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        if let Some(_) = signing_command_state
-            .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+        let construct_did_str = &construct_did.to_string();
+        if let Some(_) =
+            signing_command_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
             return Ok((wallets, signing_command_state, Actions::none()));
         }
@@ -275,24 +277,38 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
-        let (status, payload) = if let Some(()) = payload.as_null() {
-            (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
-        } else {
-            (ActionItemStatus::Todo, payload.clone())
+
+        let signable = signing_command_state
+            .get_scoped_value(&construct_did_str, "SIGNATURE_SIGNABLE")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let status = match signable {
+            true => ActionItemStatus::Todo,
+            false => ActionItemStatus::Blocked,
         };
+
+        let skippable = signing_command_state
+            .get_scoped_value(&construct_did_str, "SIGNATURE_SKIPPABLE")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let expected_signer_address = signing_command_state.get_string(CHECKED_ADDRESS);
 
         let request = ActionItemRequest::new(
             &Some(construct_did.clone()),
             title,
             description.clone(),
             status,
-            ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(construct_did.clone()),
-                signer_uuid: ConstructDid(signing_command_state.uuid.clone()),
-                payload: payload.clone(),
-                namespace: "stacks".to_string(),
-                network_id,
-            }),
+            ProvideSignedTransactionRequest::new(
+                &signing_command_state.uuid,
+                &payload,
+                "stacks",
+                &network_id,
+            )
+            .skippable(skippable)
+            .expected_signer_address(expected_signer_address)
+            .check_expectation_action_uuid(construct_did)
+            .to_action_type(),
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
         Ok((

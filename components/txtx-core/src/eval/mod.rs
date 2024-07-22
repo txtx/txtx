@@ -1003,11 +1003,29 @@ pub fn update_wallet_instances_from_action_response(
                     if let Some(mut signing_command_state) =
                         wallets.pop_signing_command_state(&response.signer_uuid)
                     {
-                        signing_command_state.insert_scoped_value(
-                            &construct_did.value().to_string(),
-                            "signed_transaction_bytes",
-                            Value::string(response.signed_transaction_bytes.clone()),
-                        );
+                        let did = &construct_did.to_string();
+                        match &response.signed_transaction_bytes {
+                            Some(bytes) => {
+                                signing_command_state.insert_scoped_value(
+                                    &construct_did.value().to_string(),
+                                    "signed_transaction_bytes",
+                                    Value::string(bytes.clone()),
+                                );
+                            }
+                            None => {
+                                let skippable = signing_command_state
+                                    .get_scoped_value(&did, "SIGNATURE_SKIPPABLE")
+                                    .and_then(|v| v.as_bool())
+                                    .unwrap_or(false);
+                                if skippable {
+                                    signing_command_state.insert_scoped_value(
+                                        &construct_did.value().to_string(),
+                                        "signed_transaction_bytes",
+                                        Value::null(),
+                                    );
+                                }
+                            }
+                        }
                         wallets.push_signing_command_state(signing_command_state.clone());
                     }
                 }
@@ -1069,11 +1087,14 @@ pub fn perform_inputs_evaluation(
                         .inputs
                         .insert(&update.input_name, update.updated_value.clone());
                 }
-                ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                    results.insert(
-                        "signed_transaction_bytes",
-                        Value::string(bytes.signed_transaction_bytes.clone()),
-                    );
+                // todo (maybe remove):
+                ActionItemResponseType::ProvideSignedTransaction(response) => {
+                    match &response.signed_transaction_bytes {
+                        Some(bytes) => {
+                            results.insert("signed_transaction_bytes", Value::string(bytes.clone()))
+                        }
+                        None => results.insert("signed_transaction_bytes", Value::null()),
+                    }
                 }
                 ActionItemResponseType::ProvideSignedMessage(response) => {
                     results.insert(
@@ -1221,9 +1242,7 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
                     Value::Addon(_) => unreachable!(),
                     Value::Object(_) => unreachable!(),
-                    Value::Primitive(_) => {
-                        result
-                    },
+                    Value::Primitive(_) => result,
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?

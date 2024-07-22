@@ -338,6 +338,10 @@ impl ValueStore {
         self.storage.get(key).and_then(|v| v.as_string())
     }
 
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.storage.get(key).and_then(|v| v.as_bool())
+    }
+
     pub fn get_object(&self, key: &str) -> Result<Option<HashMap<String, Value>>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Ok(None);

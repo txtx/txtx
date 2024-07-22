@@ -737,12 +737,12 @@ impl CommandInstance {
                             }
                         }
                     }
-                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                        // TODO
-                        values.insert(
-                            "signed_transaction_bytes",
-                            Value::string(bytes.signed_transaction_bytes.clone()),
-                        );
+                    ActionItemResponseType::ProvideSignedTransaction(response) => {
+                        match &response.signed_transaction_bytes {
+                            Some(bytes) => values
+                                .insert("signed_transaction_bytes", Value::string(bytes.clone())),
+                            None => values.insert("signed_transaction_bytes", Value::null()),
+                        }
                     }
                     ActionItemResponseType::ProvideSignedMessage(response) => {
                         values.insert(

@@ -1,5 +1,5 @@
 wallet "alice" "stacks::connect" {
-  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+  expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
 }
 
 input "namespace" {
