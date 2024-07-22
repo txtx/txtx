@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use clarity::address::AddressHashMode;
+use clarity::codec::StacksMessageCodec;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
+use clarity_repl::codec::StacksTransaction;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
@@ -24,7 +26,7 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CACHED_NONCE, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
     CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
     REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
@@ -259,7 +261,7 @@ impl WalletImplementation for StacksConnect {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        signing_command_state: ValueStore,
+        mut signing_command_state: ValueStore,
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
@@ -278,6 +280,15 @@ impl WalletImplementation for StacksConnect {
         let (status, payload) = if let Some(()) = payload.as_null() {
             (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
         } else {
+            match StacksTransaction::consensus_deserialize(&mut &payload.expect_buffer_bytes()[..])
+            {
+                Ok(tx) => {
+                    let nonce = tx.get_origin_nonce();
+                    signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
+                }
+                Err(_) => {}
+            }
+
             (ActionItemStatus::Todo, payload.clone())
         };
 

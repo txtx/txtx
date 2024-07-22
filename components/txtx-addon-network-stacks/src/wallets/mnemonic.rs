@@ -31,7 +31,9 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, CACHED_NONCE, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES,
+};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
@@ -204,7 +206,7 @@ impl WalletImplementation for StacksMnemonic {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        signing_command_state: ValueStore,
+        mut signing_command_state: ValueStore,
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,
@@ -226,6 +228,10 @@ impl WalletImplementation for StacksMnemonic {
             let secret_key = Secp256k1PrivateKey::from_slice(&secret_key_value.to_bytes()).unwrap();
             tx_signer.sign_origin(&secret_key).unwrap();
             let signed_transaction = tx_signer.get_tx_incomplete();
+
+            let nonce = signed_transaction.get_origin_nonce();
+            signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
+
             let mut signed_transaction_bytes = vec![];
             signed_transaction
                 .consensus_serialize(&mut signed_transaction_bytes)
