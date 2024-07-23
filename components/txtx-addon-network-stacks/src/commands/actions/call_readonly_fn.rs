@@ -61,6 +61,12 @@ lazy_static! {
                     typing: Type::uint(),
                     optional: true,
                     interpolable: true
+                },
+                depends_on: {
+                  documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
+                  typing: Type::string(),
+                  optional: true,
+                  interpolable: true
                 }
             ],
             outputs: [
