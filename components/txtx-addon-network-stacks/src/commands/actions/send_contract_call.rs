@@ -117,6 +117,10 @@ lazy_static! {
               documentation: "The transaction id.",
               typing: Type::string()
             },
+            value: {
+              documentation: "The transaction id.",
+              typing: Type::string()
+            },
             result: {
               documentation: "The transaction result.",
               typing: Type::buffer()
