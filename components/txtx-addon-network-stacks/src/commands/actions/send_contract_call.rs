@@ -195,7 +195,9 @@ impl CommandImplementation for SendContractCall {
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
         let empty_vec = vec![];
-        let post_conditions_values = args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+        let post_conditions_values = args
+            .get_expected_array("post_conditions")
+            .unwrap_or(&empty_vec);
         let bytes = match encode_contract_call(
             spec,
             function_name,
@@ -241,7 +243,9 @@ impl CommandImplementation for SendContractCall {
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
-        let post_conditions_values = args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+        let post_conditions_values = args
+            .get_expected_array("post_conditions")
+            .unwrap_or(&empty_vec);
 
         let bytes = encode_contract_call(
             spec,

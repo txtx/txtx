@@ -135,8 +135,6 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use txtx_addon_kit::types::types::PrimitiveValue;
-
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::STACKS_TRANSACTION,
@@ -168,12 +166,11 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
-            let post_conditions = match args
-                .get_value("post_conditions") {
-                    Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
-                    Some(Value::Array(data)) => *data.clone(),
-                    _ => vec![]
-                };
+            let post_conditions = match args.get_value("post_conditions") {
+                Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
+                Some(Value::Array(data)) => *data.clone(),
+                _ => vec![],
+            };
 
             let transaction = match build_unsigned_transaction(
                 &signing_command_state,
