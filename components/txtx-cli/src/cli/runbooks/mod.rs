@@ -1,3 +1,4 @@
+use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
@@ -16,9 +17,15 @@ use txtx_core::{
     kit::{
         channel,
         helpers::fs::FileLocation,
-        types::{commands::CommandInputsEvaluationResult, frontend::{
-            ActionItemRequest, ActionItemResponse, BlockEvent, ProgressBarStatusColor,
-        }, types::Value},
+        indexmap::IndexMap,
+        types::{
+            commands::CommandInputsEvaluationResult,
+            frontend::{
+                ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
+                ProgressBarStatusColor,
+            },
+            types::Value,
+        },
         Addon,
     },
     runbook::{
@@ -363,7 +370,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
     for input in cmd.inputs.iter() {
         let (input_name, input_value) = input.split_once("=").unwrap();
         for running_context in runbook.running_contexts.iter_mut() {
-            for (construct_uuid, command_instance) in running_context.execution_context.commands_instances.iter_mut() {
+            for (construct_uuid, command_instance) in running_context
+                .execution_context
+                .commands_instances
+                .iter_mut()
+            {
                 if command_instance.specification.matcher.eq("input")
                     && input_name.eq(&command_instance.name)
                 {
@@ -374,7 +385,9 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                         result
                             .inputs
                             .insert("value", Value::parse_and_default_to_string(input_value));
-                        running_context.execution_context.commands_inputs_evaluations_results
+                        running_context
+                            .execution_context
+                            .commands_inputs_evaluations_results
                             .insert(construct_uuid.clone(), result);
                     }
                 }
@@ -558,6 +571,40 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         );
 
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
+
+        let ascii_table = AsciiTable::default();
+        let mut collected_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
+        for running_context in runbook.running_contexts.iter() {
+            let grouped_actions_items = running_context
+                .execution_context
+                .collect_outputs_constructs_results();
+
+            for (_, items) in grouped_actions_items.iter() {
+                for item in items.iter() {
+                    if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                        match collected_outputs.get_mut(&output.name) {
+                            Some(entries) => {
+                                entries.push(output.value.to_string());
+                            }
+                            None => {
+                                collected_outputs.insert(
+                                    output.name.to_string(),
+                                    vec![output.value.to_string()],
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut data = vec![];
+        for (key, mut values) in collected_outputs.drain(..) {
+            let mut row = vec![key];
+            row.append(&mut values);
+            data.push(row)
+        }
+        ascii_table.print(data);
+
         if let Err(diags) = res {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);

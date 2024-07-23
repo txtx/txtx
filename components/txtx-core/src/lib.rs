@@ -144,17 +144,6 @@ pub async fn start_unsupervised_runbook_runloop(
             if !pass_results.actions.has_pending_actions()
                 && background_tasks_contructs_dids.is_empty()
             {
-                let grouped_actions_items = running_context
-                    .execution_context
-                    .collect_outputs_constructs_results();
-                for (group, items) in grouped_actions_items.iter() {
-                    println!("{}", group);
-                    for item in items.iter() {
-                        if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                            println!("- {}: {}", output.name, output.value.to_string());
-                        }
-                    }
-                }
                 runbook_completed = true;
             }
 
