@@ -447,7 +447,7 @@ async fn build_unsigned_transaction(
     if let TransactionVersion::Testnet = transaction_version {
         unsigned_tx.chain_id = 0x80000000;
     }
-    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Deny;
+    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
     for post_condition_bytes in post_conditions.iter() {
         let post_condition = match TransactionPostCondition::consensus_deserialize(
             &mut &post_condition_bytes.expect_buffer_data().bytes[..],
