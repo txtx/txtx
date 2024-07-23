@@ -284,7 +284,7 @@ lazy_static! {
         define_function! {
             RevertIfAccountSendingMoreThan => {
                 name: "revert_if_account_sends_more_than",
-                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition camcelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
+                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition cancelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     account_address: {
@@ -309,7 +309,7 @@ lazy_static! {
         define_function! {
             RevertIfAccountNotSending => {
                 name: "revert_if_account_not_sending_exactly",
-                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition camcelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
+                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition cancelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     account_address: {
@@ -334,7 +334,7 @@ lazy_static! {
         define_function! {
             RevertIfAccountNotSendingAtLeast => {
                 name: "revert_if_account_not_sending_at_least",
-                documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition camcelling a transaction successfully executed, failing to meet the minimum specified amount of tokens sent by a given account. Default token is µSTX.",
+                documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition cancelling a transaction successfully executed, failing to meet the minimum specified amount of tokens sent by a given account. Default token is µSTX.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     account_address: {
@@ -836,14 +836,13 @@ fn encode_nft_post_condition(
         PostConditionPrincipal::Origin
     } else {
         match PrincipalData::parse(address)
-            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
-                PrincipalData::Contract(contract) => {
-                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
-                }
-                PrincipalData::Standard(contract) => {
-                    PostConditionPrincipal::Standard(contract.into())
-                }
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))?
+        {
+            PrincipalData::Contract(contract) => {
+                PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
             }
+            PrincipalData::Standard(contract) => PostConditionPrincipal::Standard(contract.into()),
+        }
     };
 
     let Some((contract_id_specified, asset_name)) = contract_asset_id.split_once("::") else {
@@ -876,14 +875,13 @@ fn encode_stx_post_condition(
         PostConditionPrincipal::Origin
     } else {
         match PrincipalData::parse(address)
-            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))? {
-                PrincipalData::Contract(contract) => {
-                    PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
-                }
-                PrincipalData::Standard(contract) => {
-                    PostConditionPrincipal::Standard(contract.into())
-                }
+            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))?
+        {
+            PrincipalData::Contract(contract) => {
+                PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
             }
+            PrincipalData::Standard(contract) => PostConditionPrincipal::Standard(contract.into()),
+        }
     };
 
     let post_condition =
