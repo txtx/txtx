@@ -23,7 +23,7 @@ impl StdAddon {
 
 impl Addon for StdAddon {
     fn get_name(&self) -> &str {
-        "Standard"
+        "Standard Library"
     }
 
     fn get_description(&self) -> &str {
