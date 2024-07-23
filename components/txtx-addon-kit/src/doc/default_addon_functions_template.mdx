@@ -1,0 +1,62 @@
+export const metadata = {
+    title: "{{ addon_name }} Functions",
+    description: "Functions for {{ addon_name }}",
+};
+
+# {{ addon_name }} Functions {{double_open}} id: "{{ addon_namespace }}-functions" {{double_close}}
+
+{{# functions }}
+
+## {{ name }} {{double_open}} tag: 'function' {{double_close}}
+
+<Row>
+  <Col>
+
+{{{ documentation }}}
+
+### Inputs
+
+<Properties>
+
+{{# inputs }}
+
+  <Property name="{{ name }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ inputs }}
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    {{{ output_documentation }}}
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using {{ name }}">
+
+
+```hcl {{double_open}} title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+{{/ functions }}

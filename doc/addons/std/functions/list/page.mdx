@@ -1,0 +1,67 @@
+export const metadata = {
+    title: "Standard Library List Functions",
+    description: "Functions for Standard Library List",
+};
+
+# Standard Library List Functions {{ id: "std-functions" }}
+
+
+## index {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`index` gets the entry from a list at the specified index.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="list">
+    The list to retrieve an entry from.
+  </Property>
+
+
+  <Property name="index">
+    The index of the entry to retrieve.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The entry from list at the specified index
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using index">
+
+
+```hcl {{ title: 'main.tx' }}
+output "entry" { 
+    value = index(['a', 'b', 'c'], 1)
+}
+> entry: b
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

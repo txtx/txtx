@@ -1,0 +1,780 @@
+export const metadata = {
+    title: "Ethereum and EVM Compatible Blockchains Actions",
+    description: "Actions for Ethereum and EVM Compatible Blockchains",
+};
+
+# Ethereum and EVM Compatible Blockchains Actions {{ id: "evm-actions" }}
+
+
+
+## sign_transfer {{ tag: 'action' }}
+
+The `evm::sign_transaction` action signs an unsigned transaction with the supplied wallet data.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the transaction
+  </Property>
+
+
+  <Property name="from" type="required">
+    A reference to a wallet construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="to" type="required">
+    The address of the recipient of the transfer.
+  </Property>
+
+
+  <Property name="amount" type="required">
+    The amount, in WEI, to transfer.
+  </Property>
+
+
+  <Property name="type" type="optional">
+    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
+  </Property>
+
+
+  <Property name="max_fee_per_gas" type="optional">
+    Sets the max fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="max_priority_fee_per_gas" type="optional">
+    Sets the max priority fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    The chain id.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_limit" type="optional">
+    Sets the maximum amount of gas that should be used to execute this transaction.
+  </Property>
+
+
+  <Property name="gas_price" type="optional">
+    Sets the gas price for Legacy transactions.
+  </Property>
+
+
+  <Property name="rpc_api_url" type="optional">
+    The URL of the EVM API used to fetch and fill transaction data.
+  </Property>
+
+
+  <Property name="depends_on" type="optional">
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `sign_transfer` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signed_transaction_bytes">
+    The signed transaction bytes.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using sign_transfer">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## sign_contract_call {{ tag: 'action' }}
+
+The `evm::sign_contract_call` action signs an unsigned transaction with the supplied wallet data.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the transaction
+  </Property>
+
+
+  <Property name="rpc_api_url" type="required">
+    The URL of the EVM API used to get the transaction receipt.
+  </Property>
+
+
+  <Property name="from" type="required">
+    A reference to a wallet construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="contract_address" type="required">
+    The address of the contract being called.
+  </Property>
+
+
+  <Property name="contract_abi" type="optional">
+    The contract ABI, optionally used to check input arguments before sending the transaction to the chain.
+  </Property>
+
+
+  <Property name="function_name" type="required">
+    The contract function to invoke.
+  </Property>
+
+
+  <Property name="function_args" type="optional">
+    The contract function arguments
+  </Property>
+
+
+  <Property name="amount" type="optional">
+    The amount, in WEI, to transfer.
+  </Property>
+
+
+  <Property name="type" type="optional">
+    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
+  </Property>
+
+
+  <Property name="max_fee_per_gas" type="optional">
+    Sets the max fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="max_priority_fee_per_gas" type="optional">
+    Sets the max priority fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    The chain id.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_limit" type="optional">
+    Sets the maximum amount of gas that should be used to execute this transaction.
+  </Property>
+
+
+  <Property name="gas_price" type="optional">
+    Sets the gas price for Legacy transactions.
+  </Property>
+
+
+  <Property name="depends_on" type="optional">
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `sign_contract_call` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="tx_hash">
+    The hash of the transaction.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using sign_contract_call">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## eth_call {{ tag: 'action' }}
+
+The `evm::eth_call` command simulates an Ethereum transaction using the `eth_call` RPC endpoint.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the call.
+  </Property>
+
+
+  <Property name="rpc_api_url" type="required">
+    The URL of the EVM API used to send the RPC request.
+  </Property>
+
+
+  <Property name="contract_address" type="required">
+    The address of the contract being called.
+  </Property>
+
+
+  <Property name="contract_abi" type="optional">
+    The contract ABI, optionally used to check input arguments before sending the transaction to the chain.
+  </Property>
+
+
+  <Property name="from" type="required">
+    The address that will be used as the sender of this contract call.
+  </Property>
+
+
+  <Property name="function_name" type="required">
+    The contract function to call.
+  </Property>
+
+
+  <Property name="function_args" type="optional">
+    The contract function argument.
+  </Property>
+
+
+  <Property name="amount" type="optional">
+    The amount, in Wei, to send in the transaction.
+  </Property>
+
+
+  <Property name="type" type="optional">
+    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
+  </Property>
+
+
+  <Property name="max_fee_per_gas" type="optional">
+    Sets the max fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="max_priority_fee_per_gas" type="optional">
+    Sets the max priority fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    The chain id.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the sender. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_limit" type="optional">
+    Sets the maximum amount of gas that should be used to execute this transaction.
+  </Property>
+
+
+  <Property name="gas_price" type="optional">
+    Sets the gas price for Legacy transactions.
+  </Property>
+
+
+  <Property name="depends_on" type="optional">
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `eth_call` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="result">
+    The contract call result.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using eth_call">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## sign_contract_deploy {{ tag: 'action' }}
+
+The `evm::sign_contract_deploy` action signs an unsigned transaction with the supplied wallet data.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the transaction
+  </Property>
+
+
+  <Property name="rpc_api_url" type="required">
+    The URL of the EVM API used to get the transaction receipt.
+  </Property>
+
+
+  <Property name="from" type="required">
+    A reference to a wallet construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="init_code" type="required">
+    The contract init_code to deploy
+  </Property>
+
+
+  <Property name="amount" type="optional">
+    The amount, in WEI, to send with the deployment.
+  </Property>
+
+
+  <Property name="type" type="optional">
+    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
+  </Property>
+
+
+  <Property name="max_fee_per_gas" type="optional">
+    Sets the max fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="max_priority_fee_per_gas" type="optional">
+    Sets the max priority fee per gas of an EIP1559 transaction.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    The chain id.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_limit" type="optional">
+    Sets the maximum amount of gas that should be used to execute this transaction.
+  </Property>
+
+
+  <Property name="gas_price" type="optional">
+    Sets the gas price for Legacy transactions.
+  </Property>
+
+
+  <Property name="depends_on" type="optional">
+    References another command's outputs, preventing this command from executing until the referenced command is successful.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `sign_contract_deploy` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="tx_hash">
+    The hash of the transaction.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using sign_contract_deploy">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## get_forge_deployment_artifacts {{ tag: 'action' }}
+
+The `evm::get_forge_deployment_artifacts` command gets all artifacts from a forge project that are required for deploying and verifying a contract.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the call.
+  </Property>
+
+
+  <Property name="foundry_toml_path" type="required">
+    The path to the Foundry project's `foundry.toml` file.
+  </Property>
+
+
+  <Property name="foundry_profile" type="optional">
+    The profile to use from the `foundry.toml` file. The default is `default`.
+  </Property>
+
+
+  <Property name="contract_filename" type="required">
+    The name of the contract file contains the contract being deployed. For example, `SimpleStorage.sol`
+  </Property>
+
+
+  <Property name="contract_name" type="optional">
+    The name of the contract being deployed. If omitted, the `contract_filename` argument (without extension) will be used.
+  </Property>
+
+
+  <Property name="constructor_args" type="optional">
+    The constructor args to initialize a contract requiring constructor arguments..
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `get_forge_deployment_artifacts` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="abi">
+    The contract abi.
+  </Property>
+
+
+  <Property name="bytecode">
+    The compiled contract bytecode.
+  </Property>
+
+
+  <Property name="constructor_args">
+    The abi encoded constructor arguments, if provided.
+  </Property>
+
+
+  <Property name="init_code">
+    The compiled contract bytecode concatenated with the abi encoded constructor arguments, if provided.
+  </Property>
+
+
+  <Property name="source">
+    The contract source code.
+  </Property>
+
+
+  <Property name="compiler_version">
+    The solc version used to compile the contract.
+  </Property>
+
+
+  <Property name="contract_name">
+    The name of the contract being deployed.
+  </Property>
+
+
+  <Property name="optimizer_enabled">
+    Whether the optimizer is enabled during contract compilation.
+  </Property>
+
+
+  <Property name="optimizer_runs">
+    The number of runs the optimizer performed.
+  </Property>
+
+
+  <Property name="evm_version">
+    The EVM version used to compile the contract.
+  </Property>
+
+
+  <Property name="value">
+    The other outputs as one object.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using get_forge_deployment_artifacts">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## verify_contract {{ tag: 'action' }}
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="block_explorer_api_key" type="required">
+    The URL of the block explorer used to verify the contract.
+  </Property>
+
+
+  <Property name="contract_address" type="required">
+    The contract address to verify.
+  </Property>
+
+
+  <Property name="artifacts" type="required">
+    An object containing the deployment artifacts. Schema:
+```json
+    {
+        "abi": String,
+        "bytecode": String,
+        "init_code": String,
+        "constructor_args": String,
+        "source": String,
+        "compiler_version": String,
+        "contract_name": String,
+        "optimizer_enabled": Bool,
+        "optimizer_runs": UInt,
+        "evn_version": String
+    }
+```
+
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `verify_contract` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="result">
+    The contract verification result.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using verify_contract">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## check_confirmations {{ tag: 'action' }}
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="tx_hash" type="required">
+    
+  </Property>
+
+
+  <Property name="rpc_api_url" type="required">
+    The URL of the EVM API used to get the transaction receipt.
+  </Property>
+
+
+  <Property name="confirmations" type="optional">
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `check_confirmations` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="contract_address">
+    The contract address from the transaction receipt.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using check_confirmations">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
