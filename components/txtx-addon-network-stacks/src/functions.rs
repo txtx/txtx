@@ -1,9 +1,6 @@
-use clarity::{
-    types::chainstate::StacksAddress,
-    vm::types::{
-        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
-        SequenceData, SequencedValue, UTF8Data,
-    },
+use clarity::vm::types::{
+    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+    SequenceData, SequencedValue, UTF8Data,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::types::{
@@ -284,11 +281,18 @@ lazy_static! {
         define_function! {
             RevertIfAccountSendingMoreThan => {
                 name: "revert_if_account_sends_more_than",
-                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition cancelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account sending more than the specified number of tokens. The default token is µSTX.",
+                example: indoc! {r#"
+                action "my_tx" "stacks::send_contract_call" {
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+                    function_name = "some-function"
+                    function_args = []
+                    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+                }
+                "#},
                 inputs: [
                     account_address: {
-                        documentation: "Address of the account to monitor.",
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -296,24 +300,31 @@ lazy_static! {
                         typing: vec![Type::uint()]
                     },
                     token_id: {
-                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The buffer that encodes the post-condition.",
-                    typing: Type::bool()
+                    documentation: "The post-condition, encoded as a buffer.",
+                    typing: Type::buffer()
                 },
             }
         },
         define_function! {
             RevertIfAccountNotSending => {
                 name: "revert_if_account_not_sending_exactly",
-                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition cancelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending exactly the specified number of tokens. The default token is µSTX.",
+                example: indoc! {r#"
+                action "my_tx" "stacks::send_contract_call" {
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+                    function_name = "some-function"
+                    function_args = []
+                    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+                }
+                "#},
                 inputs: [
                     account_address: {
-                        documentation: "Address of the account to monitor.",
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -321,24 +332,31 @@ lazy_static! {
                         typing: vec![Type::uint()]
                     },
                     token_id: {
-                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The buffer that encodes the post-condition.",
-                    typing: Type::bool()
+                    documentation: "The post-condition, encoded as a buffer.",
+                    typing: Type::buffer()
                 },
             }
         },
         define_function! {
             RevertIfAccountNotSendingAtLeast => {
                 name: "revert_if_account_not_sending_at_least",
-                documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition cancelling a transaction successfully executed, failing to meet the minimum specified amount of tokens sent by a given account. Default token is µSTX.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending the minimum specified number of tokens. The default token is µSTX.",
+                example: indoc! {r#"
+                action "my_tx" "stacks::send_contract_call" {
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+                    function_name = "some-function"
+                    function_args = []
+                    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+                }
+                "#},
                 inputs: [
                     account_address: {
-                        documentation: "Address of the account to monitor.",
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -346,24 +364,37 @@ lazy_static! {
                         typing: vec![Type::uint()]
                     },
                     token_id: {
-                        documentation: "The asset identifier of the token to be checked (defaut to µSTX if not provided)",
+                        documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The buffer that encodes the post-condition.",
-                    typing: Type::bool()
+                    documentation: "The post-condition, encoded as a buffer.",
+                    typing: Type::buffer()
                 },
             }
         },
         define_function! {
             RevertIfNFTNotOwnedByAccount => {
                 name: "revert_if_nft_not_owned_by_account",
-                documentation: "`stacks::revert_if_account_still_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT not being owned by a given account address.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::revert_if_nft_not_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account owning a specific NFT.",
+                example: indoc! {r#"
+                action "my_tx" "stacks::send_contract_call" {
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+                    function_name = "some-function"
+                    function_args = []
+                    post_condition = [
+                        stacks::revert_if_nft_not_owned_by_account(
+                            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+                            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+                            "nft_asset_id"
+                        )
+                    ]
+                }
+                "#},
                 inputs: [
                     account_address: {
-                        documentation: "Address of the account to monitor.",
+                        documentation: "The address of the account that the post condition will check.",
                         typing: vec![Type::string()]
                     },
                     contract_asset_id: {
@@ -371,12 +402,12 @@ lazy_static! {
                         typing: vec![Type::string()]
                     },
                     asset_id: {
-                        documentation: "The NFT Id to check.",
+                        documentation: "The NFT Asset Id to check.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The buffer that encodes the post-condition.",
+                    documentation: "The post-condition, encoded as a buffer.",
                     typing: Type::bool()
                 },
             }
@@ -384,11 +415,23 @@ lazy_static! {
         define_function! {
             RevertIfNFTOwnedByAccount => {
                 name: "revert_if_nft_owned_by_account",
-                documentation: "`stacks::revert_if_account_not_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT being owned by a given account address.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::revert_if_nft_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account owning a specific NFT.",
+                example: indoc! {r#"
+                action "my_tx" "stacks::send_contract_call" {
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+                    function_name = "some-function"
+                    function_args = []
+                    post_condition = [
+                        stacks::revert_if_nft_owned_by_account(
+                            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+                            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+                            "nft_asset_id"
+                        )
+                    ]
+                }"#},
                 inputs: [
                     account_address: {
-                        documentation: "Address of the account to monitor.",
+                        documentation: "The address of the account that the post condition will check.",
                         typing: vec![Type::string()]
                     },
                     contract_asset_id: {
@@ -396,12 +439,12 @@ lazy_static! {
                         typing: vec![Type::string()]
                     },
                     asset_id: {
-                        documentation: "The NFT Id to check.",
+                        documentation: "The NFT Asset Id to check.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "The buffer that encodes the post-condition.",
+                    documentation: "The post-condition, encoded as a buffer.",
                     typing: Type::bool()
                 },
             }
