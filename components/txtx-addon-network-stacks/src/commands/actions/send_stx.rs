@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
@@ -19,44 +18,36 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
-use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
-use crate::typing::STACKS_POST_CONDITION;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
-    typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
+    typing::CLARITY_PRINCIPAL,
 };
 
+use super::encode_stx_transfer;
 use super::get_signing_construct_did;
 use super::{
-    broadcast_transaction::BroadcastStacksTransaction, encode_contract_call,
-    sign_transaction::SignStacksTransaction,
+    broadcast_transaction::BroadcastStacksTransaction, sign_transaction::SignStacksTransaction,
 };
 
 lazy_static! {
-    pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
-        SendContractCall => {
-          name: "Send Contract Call Transaction",
-          matcher: "send_contract_call",
-          documentation: "The `send_contract_call` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
+    pub static ref SEND_STX_TRANSFER: PreCommandSpecification = define_command! {
+        SendStxTransfer => {
+          name: "Send STX Transfer Transaction",
+          matcher: "send_stx",
+          documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: true,
           inputs: [
-              contract_id: {
-                  documentation: "The address and identifier of the contract to invoke.",
+              amount: {
+                  documentation: "The amount of STX to send.",
                   typing: Type::addon(CLARITY_PRINCIPAL.clone()),
                   optional: false,
                   interpolable: true
               },
-              function_name: {
-                  documentation: "The contract method to invoke.",
+              recipient: {
+                  documentation: "The recipient of the transfer.",
                   typing: Type::string(),
                   optional: false,
-                  interpolable: true
-              },
-              function_args: {
-                  documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
-                  optional: true,
                   interpolable: true
               },
               network_id: {
@@ -88,18 +79,6 @@ lazy_static! {
                 typing: Type::uint(),
                 optional: true,
                 interpolable: true
-              },
-              post_conditions: {
-                documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
-                optional: true,
-                interpolable: true
-              },
-              depends_on: {
-                documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
               }
           ],
           outputs: [
@@ -117,35 +96,24 @@ lazy_static! {
             }
           ],
         example: txtx_addon_kit::indoc! {r#"
-            action "my_ref" "stacks::send_contract_call" {
-                description = "Encodes the contract call, sign, and broadcasts the set-token function."
-                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                function_name = "verify-and-update-price-feeds"
-                function_args = [
-                    stacks::cv_buff(output.bitcoin_price_feed),
-                    stacks::cv_tuple({
-                        "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-                        "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                        "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
-                    })
-                ]
+            action "stx_transfer" "stacks::send_stx" {
+                description = "Send µSTX to Bob."
+                recipient = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+                amount = 1000000
+                memo = "0x10394390"
                 signer = wallet.alice
             }            
-            output "tx_id" {
-            value = action.my_ref.tx_id
+            output "transfer_tx_id" {
+                value = action.stx_transfer.tx_id
             }
-            output "result" {
-            value = action.my_ref.result
-            }
-            // > tx_id: 0x...
-            // > result: success
+            // > transfer_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
   "#},
       }
     };
 }
 
-pub struct SendContractCall;
-impl CommandImplementation for SendContractCall {
+pub struct SendStxTransfer;
+impl CommandImplementation for SendStxTransfer {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -172,29 +140,17 @@ impl CommandImplementation for SendContractCall {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
-        let contract_id_value = match args.get_expected_value("contract_id") {
+        let recipient = match args.get_expected_value("recipient") {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
-        let function_name = match args.get_expected_string("function_name") {
+        let amount = match args.get_expected_uint("amount") {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
-        let function_args_values = match args.get_expected_array("function_args") {
-            Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
-        };
-        let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
-        let bytes = match encode_contract_call(
-            spec,
-            function_name,
-            function_args_values,
-            &network_id,
-            contract_id_value,
-        ) {
+        let memo = args.get_value("memo");
+
+        let bytes = match encode_stx_transfer(spec, recipient, amount, &memo, &network_id) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
@@ -202,10 +158,6 @@ impl CommandImplementation for SendContractCall {
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
-            TRANSACTION_POST_CONDITIONS_BYTES,
-            Value::array(post_conditions_values.clone()),
-        );
 
         SignStacksTransaction::check_signed_executability(
             construct_did,
@@ -228,23 +180,13 @@ impl CommandImplementation for SendContractCall {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         wallets: SigningCommandsState,
     ) -> WalletSignFutureResult {
-        let empty_vec = vec![];
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
-        let contract_id_value = args.get_expected_value("contract_id").unwrap();
-        let function_name = args.get_expected_string("function_name").unwrap();
-        let function_args_values = args.get_expected_array("function_args").unwrap();
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
 
-        let bytes = encode_contract_call(
-            spec,
-            function_name,
-            function_args_values,
-            &network_id,
-            contract_id_value,
-        )
-        .unwrap();
+        let recipient = args.get_expected_value("recipient").unwrap();
+        let memo = args.get_value("memo");
+        let amount = args.get_expected_uint("amount").unwrap();
+
+        let bytes = encode_stx_transfer(spec, recipient, amount, &memo, &network_id).unwrap();
         let progress_tx = progress_tx.clone();
         let args = args.clone();
         let wallets_instances = wallets_instances.clone();
@@ -255,10 +197,6 @@ impl CommandImplementation for SendContractCall {
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
-            TRANSACTION_POST_CONDITIONS_BYTES,
-            Value::array(post_conditions_values.clone()),
-        );
 
         let future = async move {
             let run_signing_future = SignStacksTransaction::run_signed_execution(

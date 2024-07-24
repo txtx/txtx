@@ -8,7 +8,6 @@ use kit::types::types::RunbookSupervisionContext;
 use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;

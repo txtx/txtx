@@ -135,8 +135,6 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use txtx_addon_kit::types::types::PrimitiveValue;
-
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::STACKS_TRANSACTION,
