@@ -315,6 +315,12 @@ pub async fn start_supervised_runbook_runloop(
                                         &diags,
                                     )),
                                 }));
+                                let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+                                    ProgressBarVisibilityUpdate::new(
+                                        &background_tasks_handle_uuid,
+                                        false,
+                                    ),
+                                ));
                                 return Err(diags);
                             }
                         }
