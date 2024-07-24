@@ -1,4 +1,5 @@
 use kit::channel::unbounded;
+use kit::indexmap::IndexMap;
 use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
@@ -83,8 +84,8 @@ impl RunbookExecutionContext {
         false
     }
 
-    pub fn collect_outputs_constructs_results(&self) -> BTreeMap<String, Vec<ActionItemRequest>> {
-        let mut action_items = BTreeMap::new();
+    pub fn collect_outputs_constructs_results(&self) -> IndexMap<String, Vec<ActionItemRequest>> {
+        let mut action_items = IndexMap::new();
 
         for construct_did in self.order_for_commands_execution.iter() {
             let Some(command_instance) = self.commands_instances.get(&construct_did) else {
