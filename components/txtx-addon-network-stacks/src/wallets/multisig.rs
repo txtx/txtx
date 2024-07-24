@@ -32,7 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CACHED_NONCE,
     CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
 use crate::rpc::StacksRpc;
@@ -462,6 +462,9 @@ impl WalletImplementation for StacksConnect {
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();
             transaction.verify().unwrap();
+
+            let nonce = transaction.get_origin_nonce();
+            signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
 
             signing_command_state.insert_scoped_value(
                 &origin_uuid.value().to_string(),

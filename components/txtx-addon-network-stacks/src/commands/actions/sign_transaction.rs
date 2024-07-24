@@ -168,12 +168,11 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
-            let post_conditions = match args
-                .get_value("post_conditions") {
-                    Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
-                    Some(Value::Array(data)) => *data.clone(),
-                    _ => vec![]
-                };
+            let post_conditions = match args.get_value("post_conditions") {
+                Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
+                Some(Value::Array(data)) => *data.clone(),
+                _ => vec![],
+            };
 
             let transaction = match build_unsigned_transaction(
                 &signing_command_state,
@@ -320,6 +319,8 @@ async fn build_unsigned_transaction(
     // Extract and decode transaction_payload_bytes
 
     use clarity_repl::codec::TransactionPostConditionMode;
+
+    use crate::constants::CACHED_NONCE;
     let transaction_payload_bytes =
         args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
     let transaction_payload = match TransactionPayload::consensus_deserialize(
@@ -411,12 +412,19 @@ async fn build_unsigned_transaction(
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
-            let rpc = StacksRpc::new(&rpc_api_url);
-            let nonce = rpc
-                .get_nonce(&address.to_string())
-                .await
-                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
-            nonce
+            if let Some(wallet_nonce) = signing_command_state
+                .get_value(CACHED_NONCE)
+                .map(|v| v.expect_uint())
+            {
+                wallet_nonce + 1
+            } else {
+                let rpc = StacksRpc::new(&rpc_api_url);
+                let nonce = rpc
+                    .get_nonce(&address.to_string())
+                    .await
+                    .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+                nonce
+            }
         }
     };
 
