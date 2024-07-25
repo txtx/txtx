@@ -41,6 +41,12 @@ lazy_static! {
           implements_signing_capability: true,
           implements_background_task_capability: true,
           inputs: [
+              description: {
+                  documentation: "Description of the transaction",
+                  typing: Type::string(),
+                  optional: true,
+                  interpolable: true
+              },
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
                   typing: Type::addon(CLARITY_PRINCIPAL.clone()),
@@ -108,6 +114,10 @@ lazy_static! {
                 typing: Type::string()
             },
             tx_id: {
+              documentation: "The transaction id.",
+              typing: Type::string()
+            },
+            value: {
               documentation: "The transaction id.",
               typing: Type::string()
             },

@@ -54,10 +54,14 @@ lazy_static! {
                 // }
             ],
             outputs: [
-              tx_id: {
+                tx_id: {
                     documentation: "The transaction id.",
                     typing: Type::string()
-            },
+                },
+                value: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
                 result: {
                     documentation: "The transaction result.",
                     typing: Type::buffer()
@@ -239,6 +243,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
             result
                 .outputs
                 .insert(format!("tx_id"), Value::string(txid.clone()));
+            result
+                .outputs
+                .insert(format!("value"), Value::string(txid.clone()));
 
             let moved_txid = txid.clone();
             let moved_network_id = network_id.clone();
