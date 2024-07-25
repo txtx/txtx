@@ -15,6 +15,7 @@ pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
 pub const TRANSACTION_POST_CONDITIONS_BYTES: &str = "transaction_post_conditions_bytes";
 pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";
+pub const CACHED_NONCE: &str = "cached_nonce";
 
 // Defaults keys
 pub const NETWORK_ID: &str = "network_id";

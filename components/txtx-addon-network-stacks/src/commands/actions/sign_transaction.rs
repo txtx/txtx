@@ -135,8 +135,6 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use txtx_addon_kit::types::types::PrimitiveValue;
-
         use crate::{
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
             typing::STACKS_TRANSACTION,
@@ -168,12 +166,11 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint());
             let fee = args.get_value("fee").map(|v| v.expect_uint());
-            let post_conditions = match args
-                .get_value("post_conditions") {
-                    Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
-                    Some(Value::Array(data)) => *data.clone(),
-                    _ => vec![]
-                };
+            let post_conditions = match args.get_value("post_conditions") {
+                Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
+                Some(Value::Array(data)) => *data.clone(),
+                _ => vec![],
+            };
 
             let transaction = match build_unsigned_transaction(
                 &signing_command_state,
@@ -320,6 +317,8 @@ async fn build_unsigned_transaction(
     // Extract and decode transaction_payload_bytes
 
     use clarity_repl::codec::TransactionPostConditionMode;
+
+    use crate::constants::CACHED_NONCE;
     let transaction_payload_bytes =
         args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
     let transaction_payload = match TransactionPayload::consensus_deserialize(
@@ -411,12 +410,19 @@ async fn build_unsigned_transaction(
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
-            let rpc = StacksRpc::new(&rpc_api_url);
-            let nonce = rpc
-                .get_nonce(&address.to_string())
-                .await
-                .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
-            nonce
+            if let Some(wallet_nonce) = signing_command_state
+                .get_value(CACHED_NONCE)
+                .map(|v| v.expect_uint())
+            {
+                wallet_nonce + 1
+            } else {
+                let rpc = StacksRpc::new(&rpc_api_url);
+                let nonce = rpc
+                    .get_nonce(&address.to_string())
+                    .await
+                    .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+                nonce
+            }
         }
     };
 
@@ -447,7 +453,7 @@ async fn build_unsigned_transaction(
     if let TransactionVersion::Testnet = transaction_version {
         unsigned_tx.chain_id = 0x80000000;
     }
-    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Deny;
+    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
     for post_condition_bytes in post_conditions.iter() {
         let post_condition = match TransactionPostCondition::consensus_deserialize(
             &mut &post_condition_bytes.expect_buffer_data().bytes[..],
