@@ -228,7 +228,7 @@ lazy_static! {
                 documentation: "`stacks::cv_buff` returns the given hex string as a Clarity buffer.",
                 example: indoc! {r#"
                 output "my_buffer" { 
-                  value = stacks::cv_buff("0x010203")
+                  value = stacks::cv_buff("0x010203") 
                 }
                 // > my_buffer: 0x0200000003010203
                 "#},
