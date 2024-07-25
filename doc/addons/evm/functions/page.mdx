@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Ethereum and EVM Compatible Blockchains Functions",
-    description: "Functions for Ethereum and EVM Compatible Blockchains",
+    title: "Ethereum and EVM Compatible Blockchains (alpha) Functions",
+    description: "Functions for Ethereum and EVM Compatible Blockchains (alpha)",
 };
 
-# Ethereum and EVM Compatible Blockchains Functions {{ id: "evm-functions" }}
+# Ethereum and EVM Compatible Blockchains (alpha) Functions {{ id: "evm-functions" }}
 
 
 ## address {{ tag: 'function' }}
@@ -41,7 +41,6 @@ export const metadata = {
 output "address" { 
 value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 }
-// > todo
 
 ```
 
@@ -66,7 +65,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 <Row>
   <Col>
 
-`evm::bytes32` coming soon.
+`evm::bytes32` encodes a hex string as a 32-byte buffer.
 
 ### Inputs
 
@@ -74,7 +73,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 
   <Property name="input">
-    
+    A 32-byte hexadecimal string.
   </Property>
 
 
@@ -84,7 +83,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 <Properties>
   <Property name="value">
-    
+    A 32-byte buffer.
   </Property>
 </Properties>
 
@@ -93,7 +92,9 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+output "32_bytes" {
+    value = evm::bytes32("0123456789012345678901234567890123456789012345678901234567890123")
+}
 
 ```
 
@@ -118,7 +119,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 <Row>
   <Col>
 
-`evm::bytes` coming soon.
+`evm::bytes` encodes a hex string as a variable length buffer.
 
 ### Inputs
 
@@ -126,7 +127,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 
   <Property name="input">
-    
+    The hex string to encode.
   </Property>
 
 
@@ -136,7 +137,7 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 <Properties>
   <Property name="value">
-    
+    The input string encoded as a buffer.
   </Property>
 </Properties>
 
@@ -145,7 +146,9 @@ value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+output "bytes" {
+    value = evm::bytes(encode_hex("Hello, world!"))
+}
 
 ```
 

@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Stacks Blockchain Functions",
-    description: "Functions for Stacks Blockchain",
+    title: "Stacks Blockchain (beta) Functions",
+    description: "Functions for Stacks Blockchain (beta)",
 };
 
-# Stacks Blockchain Functions {{ id: "stacks-functions" }}
+# Stacks Blockchain (beta) Functions {{ id: "stacks-functions" }}
 
 
 ## cv_some {{ tag: 'function' }}
@@ -663,7 +663,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 <Row>
   <Col>
 
-`stacks::revert_if_account_sends_more_than` returns a post condition camcelling a transaction successfully executed, exceeding the specified amount of tokens sent by a given account. Default token is µSTX.
+`stacks::revert_if_account_sends_more_than` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account sending more than the specified number of tokens. The default token is µSTX.
 
 ### Inputs
 
@@ -671,7 +671,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    Address of the account to monitor.
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -681,7 +681,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="token_id">
-    The asset identifier of the token to be checked (defaut to µSTX if not provided)
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
   </Property>
 
 
@@ -691,7 +691,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 <Properties>
   <Property name="value">
-    The buffer that encodes the post-condition.
+    The post-condition, encoded as a buffer.
   </Property>
 </Properties>
 
@@ -700,7 +700,13 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+}
+
 ```
 
 
@@ -724,7 +730,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 <Row>
   <Col>
 
-`stacks::revert_if_account_not_sending_exactly` returns a post condition camcelling a transaction successfully executed, failing to meet the specified amount of tokens sent by a given account. Default token is µSTX.
+`stacks::revert_if_account_not_sending_exactly` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending exactly the specified number of tokens. The default token is µSTX.
 
 ### Inputs
 
@@ -732,7 +738,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    Address of the account to monitor.
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -742,7 +748,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="token_id">
-    The asset identifier of the token to be checked (defaut to µSTX if not provided)
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
   </Property>
 
 
@@ -752,7 +758,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 <Properties>
   <Property name="value">
-    The buffer that encodes the post-condition.
+    The post-condition, encoded as a buffer.
   </Property>
 </Properties>
 
@@ -761,7 +767,13 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+}
+
 ```
 
 
@@ -785,7 +797,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 <Row>
   <Col>
 
-`stacks::revert_if_account_not_sending_at_least` returns a post condition camcelling a transaction successfully executed, failing to meet the minimum specified amount of tokens sent by a given account. Default token is µSTX.
+`stacks::revert_if_account_not_sending_at_least` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending the minimum specified number of tokens. The default token is µSTX.
 
 ### Inputs
 
@@ -793,7 +805,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    Address of the account to monitor.
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -803,7 +815,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="token_id">
-    The asset identifier of the token to be checked (defaut to µSTX if not provided)
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
   </Property>
 
 
@@ -813,7 +825,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 <Properties>
   <Property name="value">
-    The buffer that encodes the post-condition.
+    The post-condition, encoded as a buffer.
   </Property>
 </Properties>
 
@@ -822,7 +834,13 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+}
+
 ```
 
 
@@ -846,7 +864,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 <Row>
   <Col>
 
-`stacks::revert_if_account_still_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT not being owned by a given account address.
+`stacks::revert_if_nft_not_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account owning a specific NFT.
 
 ### Inputs
 
@@ -854,17 +872,17 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    Address of the account to monitor.
+    The address of the account that the post condition will check.
   </Property>
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).
+    The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).
   </Property>
 
 
   <Property name="asset_id">
-    The NFT Id to check.
+    The NFT Asset Id to check.
   </Property>
 
 
@@ -874,7 +892,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 <Properties>
   <Property name="value">
-    The buffer that encodes the post-condition.
+    The post-condition, encoded as a buffer.
   </Property>
 </Properties>
 
@@ -883,7 +901,19 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [
+        stacks::revert_if_nft_not_owned_by_account(
+            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+            "nft_asset_id"
+        )
+    ]
+}
+
 ```
 
 
@@ -907,7 +937,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 <Row>
   <Col>
 
-`stacks::revert_if_account_not_owning` returns a post condition cancelling a transaction successfully executed leading to a specific NFT being owned by a given account address.
+`stacks::revert_if_nft_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account owning a specific NFT.
 
 ### Inputs
 
@@ -915,17 +945,17 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    Address of the account to monitor.
+    The address of the account that the post condition will check.
   </Property>
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).
+    The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).
   </Property>
 
 
   <Property name="asset_id">
-    The NFT Id to check.
+    The NFT Asset Id to check.
   </Property>
 
 
@@ -935,7 +965,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 <Properties>
   <Property name="value">
-    The buffer that encodes the post-condition.
+    The post-condition, encoded as a buffer.
   </Property>
 </Properties>
 
@@ -944,7 +974,18 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [
+        stacks::revert_if_nft_owned_by_account(
+            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+            "nft_asset_id"
+        )
+    ]
+}
 ```
 
 

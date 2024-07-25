@@ -1,15 +1,15 @@
 export const metadata = {
-    title: "Ethereum and EVM Compatible Blockchains Actions",
-    description: "Actions for Ethereum and EVM Compatible Blockchains",
+    title: "Ethereum and EVM Compatible Blockchains (alpha) Actions",
+    description: "Actions for Ethereum and EVM Compatible Blockchains (alpha)",
 };
 
-# Ethereum and EVM Compatible Blockchains Actions {{ id: "evm-actions" }}
+# Ethereum and EVM Compatible Blockchains (alpha) Actions {{ id: "evm-actions" }}
 
 
 
 ## sign_transfer {{ tag: 'action' }}
 
-The `evm::sign_transaction` action signs an unsigned transaction with the supplied wallet data.
+The `evm::sign_transfer` action encodes an ETH transfer transaction, signs it with the provided wallet data, and broadcasts it to the network.
 
 ### Inputs
 
@@ -72,7 +72,7 @@ The `evm::sign_transaction` action signs an unsigned transaction with the suppli
 
 
   <Property name="rpc_api_url" type="optional">
-    The URL of the EVM API used to fetch and fill transaction data.
+    The URL of the EVM API used to fetch and fill transaction data and to broadcast it to the network.
   </Property>
 
 
@@ -125,7 +125,7 @@ When the `sign_transfer` action is successfully executed, the following outputs 
 
 ## sign_contract_call {{ tag: 'action' }}
 
-The `evm::sign_contract_call` action signs an unsigned transaction with the supplied wallet data.
+The `evm::sign_contract_call` action encodes a contract call transaction, signs it with the provided wallet data, and broadcasts it to the network.
 
 ### Inputs
 
@@ -133,12 +133,12 @@ The `evm::sign_contract_call` action signs an unsigned transaction with the supp
 
 
   <Property name="description" type="optional">
-    A description of the transaction
+    A description of the transaction.
   </Property>
 
 
   <Property name="rpc_api_url" type="required">
-    The URL of the EVM API used to get the transaction receipt.
+    The URL of the EVM API used to broadcast the transaction.
   </Property>
 
 
@@ -236,7 +236,12 @@ When the `sign_contract_call` action is successfully executed, the following out
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+action "call_some_contract" "evm::sign_contract_call" {
+    contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+    function_name = "myFunction"
+    function_args = [evm::bytes("0x1234")]
+    from = evm::address(env.MY_ADDRESS)
+}
 
 ```
 
@@ -294,7 +299,7 @@ The `evm::eth_call` command simulates an Ethereum transaction using the `eth_cal
 
 
   <Property name="function_args" type="optional">
-    The contract function argument.
+    The contract function arguments.
   </Property>
 
 
@@ -367,7 +372,12 @@ When the `eth_call` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+action "call_some_contract" "evm::eth_call" {
+    contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+    function_name = "myFunction"
+    function_args = [evm::bytes("0x1234")]
+    from = evm::address(env.MY_ADDRESS)
+}
 
 ```
 
@@ -387,7 +397,7 @@ When the `eth_call` action is successfully executed, the following outputs are a
 
 ## sign_contract_deploy {{ tag: 'action' }}
 
-The `evm::sign_contract_deploy` action signs an unsigned transaction with the supplied wallet data.
+The `evm::sign_contract_deploy` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.
 
 ### Inputs
 
@@ -400,7 +410,7 @@ The `evm::sign_contract_deploy` action signs an unsigned transaction with the su
 
 
   <Property name="rpc_api_url" type="required">
-    The URL of the EVM API used to get the transaction receipt.
+    The URL of the EVM API used to broadcast the transaction.
   </Property>
 
 
@@ -483,7 +493,10 @@ When the `sign_contract_deploy` action is successfully executed, the following o
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+actions "deploy" "evm::sign_contract_deploy" {
+    init_code = action.artifacts.init_code
+    from = wallet.alice
+}
 
 ```
 
@@ -511,7 +524,7 @@ The `evm::get_forge_deployment_artifacts` command gets all artifacts from a forg
 
 
   <Property name="description" type="optional">
-    A description of the call.
+    A description of the deployment artifacts.
   </Property>
 
 
@@ -526,17 +539,17 @@ The `evm::get_forge_deployment_artifacts` command gets all artifacts from a forg
 
 
   <Property name="contract_filename" type="required">
-    The name of the contract file contains the contract being deployed. For example, `SimpleStorage.sol`
+    The name of the contract file that contains the contract being deployed, without the file extension. For example, the contract file `SimpleStorage.sol` should be `SimpleStorage`.
   </Property>
 
 
   <Property name="contract_name" type="optional">
-    The name of the contract being deployed. If omitted, the `contract_filename` argument (without extension) will be used.
+    The name of the contract being deployed. If omitted, the `contract_filename` argument will be used.
   </Property>
 
 
   <Property name="constructor_args" type="optional">
-    The constructor args to initialize a contract requiring constructor arguments..
+    The constructor args to initialize a contract requiring constructor arguments.
   </Property>
 
 
@@ -614,7 +627,10 @@ When the `get_forge_deployment_artifacts` action is successfully executed, the f
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+action "artifacts" "evm::get_forge_deployment_artifacts" {
+    foundry_toml_path = "/path/to/foundry.toml"
+    contract_filename = "SimpleStorage"
+}
 
 ```
 
@@ -634,7 +650,7 @@ When the `get_forge_deployment_artifacts` action is successfully executed, the f
 
 ## verify_contract {{ tag: 'action' }}
 
-Coming soon
+The `evm::verify_contract` action sends the required contract deployment artifacts to a block explorer to verify the contract with the explorer.
 
 ### Inputs
 
@@ -695,7 +711,10 @@ When the `verify_contract` action is successfully executed, the following output
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+action "verify_contract" "evm::verify_contract" {
+    contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+    artifacts = action.artifacts
+}
 
 ```
 
@@ -715,7 +734,7 @@ When the `verify_contract` action is successfully executed, the following output
 
 ## check_confirmations {{ tag: 'action' }}
 
-Coming soon
+The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.
 
 ### Inputs
 
@@ -723,12 +742,12 @@ Coming soon
 
 
   <Property name="tx_hash" type="required">
-    
+    The transaction hash to check.
   </Property>
 
 
   <Property name="rpc_api_url" type="required">
-    The URL of the EVM API used to get the transaction receipt.
+    The URL of the EVM API used to poll for the transaction's inclusion in a block.
   </Property>
 
 
@@ -761,7 +780,10 @@ When the `check_confirmations` action is successfully executed, the following ou
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon
+action "confirm_deployment" "evm::check_confirmations" {
+    tx_hash = action.some_deploying_action.tx_hash
+    confirmations = 1
+}
 
 ```
 
