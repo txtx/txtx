@@ -39,7 +39,7 @@ lazy_static! {
       SignEVMContractDeploy => {
           name: "Sign EVM Contract Deployment Transaction",
           matcher: "sign_contract_deploy",
-          documentation: "The `evm::sign_contract_deploy` action signs an unsigned transaction with the supplied wallet data.",
+          documentation: "The `evm::sign_contract_deploy` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -50,7 +50,7 @@ lazy_static! {
                 interpolable: true
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to get the transaction receipt.",
+              documentation: "The URL of the EVM API used to broadcast the transaction.",
               typing: Type::string(),
               optional: false,
               interpolable: true
@@ -135,7 +135,10 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
+          actions "deploy" "evm::sign_contract_deploy" {
+              init_code = action.artifacts.init_code
+              from = wallet.alice
+          }
       "#},
       }
     };

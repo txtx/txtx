@@ -63,7 +63,7 @@ lazy_static! {
                 interpolable: true
             },
             function_args: {
-                documentation: "The contract function argument.",
+                documentation: "The contract function arguments.",
                 typing: Type::array(Type::buffer()),
                 optional: true,
                 interpolable: true
@@ -136,7 +136,12 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
+            action "call_some_contract" "evm::eth_call" {
+                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                function_name = "myFunction"
+                function_args = [evm::bytes("0x1234")]
+                from = evm::address(env.MY_ADDRESS)
+            }
       "#},
       }
     };

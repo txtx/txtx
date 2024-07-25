@@ -32,7 +32,7 @@ lazy_static! {
                 implements_background_task_capability: false,
                 inputs: [
                     description: {
-                        documentation: "A description of the call.",
+                        documentation: "A description of the deployment artifacts.",
                         typing: Type::string(),
                         optional: true,
                         interpolable: true
@@ -50,19 +50,19 @@ lazy_static! {
                         interpolable: true
                     },
                     contract_filename: {
-                        documentation: "The name of the contract file contains the contract being deployed. For example, `SimpleStorage.sol`",
+                        documentation: "The name of the contract file that contains the contract being deployed, without the file extension. For example, the contract file `SimpleStorage.sol` should be `SimpleStorage`.",
                         typing: Type::string(),
                         optional: false,
                         interpolable: true
                     },
                     contract_name: {
-                        documentation: "The name of the contract being deployed. If omitted, the `contract_filename` argument (without extension) will be used.",
+                        documentation: "The name of the contract being deployed. If omitted, the `contract_filename` argument will be used.",
                         typing: Type::string(),
                         optional: true,
                         interpolable: true
                     },
                     constructor_args: {
-                        documentation: "The constructor args to initialize a contract requiring constructor arguments..",
+                        documentation: "The constructor args to initialize a contract requiring constructor arguments.",
                         typing: Type::array(Type::buffer()),
                         optional: true,
                         interpolable: true
@@ -115,7 +115,10 @@ lazy_static! {
                         }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                // Coming soon
+                action "artifacts" "evm::get_forge_deployment_artifacts" {
+                    foundry_toml_path = "/path/to/foundry.toml"
+                    contract_filename = "SimpleStorage"
+                }
             "#},
             }
         };
