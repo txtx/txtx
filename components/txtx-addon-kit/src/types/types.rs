@@ -92,7 +92,11 @@ impl Value {
         }
     }
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
-        match &self {
+        self.try_get_buffer_bytes()
+            .expect("unable to retrieve bytes")
+    }
+    pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
+        let bytes = match &self {
             Value::Primitive(PrimitiveValue::Buffer(value)) => value.bytes.clone(),
             Value::Primitive(PrimitiveValue::String(bytes)) => {
                 let bytes = if bytes.starts_with("0x") {
@@ -106,8 +110,9 @@ impl Value {
                 .iter()
                 .flat_map(|v| v.expect_buffer_bytes())
                 .collect(),
-            _ => unreachable!(),
-        }
+            _ => return None,
+        };
+        Some(bytes)
     }
     pub fn expect_array(&self) -> &Box<Vec<Value>> {
         match &self {
