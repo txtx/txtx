@@ -20,7 +20,6 @@ lazy_static! {
                         output "address" { 
                         value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
                         }
-                        // > todo
                         "#},
                 inputs: [
                     address_string: {
@@ -37,18 +36,20 @@ lazy_static! {
         define_function! {
             EncodeEVMBytes32 => {
                 name: "bytes32",
-                documentation: "`evm::bytes32` coming soon.",
+                documentation: "`evm::bytes32` encodes a hex string as a 32-byte buffer.",
                 example: indoc! {r#"
-                        // Coming soon
+                        output "32_bytes" {
+                            value = evm::bytes32("0123456789012345678901234567890123456789012345678901234567890123")
+                        }
                         "#},
                 inputs: [
                     input: {
-                        documentation: "",
+                        documentation: "A 32-byte hexadecimal string.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "A 32-byte buffer.",
                     typing: Type::addon(BYTES32.clone())
                 },
             }
@@ -56,18 +57,20 @@ lazy_static! {
         define_function! {
             EncodeEVMBytes => {
                 name: "bytes",
-                documentation: "`evm::bytes` coming soon.",
+                documentation: "`evm::bytes` encodes a hex string as a variable length buffer.",
                 example: indoc! {r#"
-                        // Coming soon
+                        output "bytes" {
+                            value = evm::bytes(encode_hex("Hello, world!"))
+                        }
                         "#},
                 inputs: [
                     input: {
-                        documentation: "",
+                        documentation: "The hex string to encode.",
                         typing: vec![Type::string()]
                     }
                 ],
                 output: {
-                    documentation: "",
+                    documentation: "The input string encoded as a buffer.",
                     typing: Type::addon(BYTES.clone())
                 },
             }

@@ -1,0 +1,62 @@
+export const metadata = {
+    title: "Standard Library Base64 Functions",
+    description: "Functions for Standard Library Base64",
+};
+
+# Standard Library Base64 Functions {{ id: "std-functions" }}
+
+
+## base64_decode {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`base64_decode` decodes a base64 encoded string and returns the result as a hex string.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="base64_string">
+    The base64 string to decode.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The decoded base64 string, as a hex string.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using base64_decode">
+
+
+```hcl {{ title: 'main.tx' }}
+output "decoded" { 
+    value = base64_decode("SGVsbG8gd29ybGQh")
+}
+> decoded: 0x48656c6c6f20776f726c6421
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

@@ -1,52 +1,162 @@
+use std::fs::File;
 use std::path::PathBuf;
 
 use super::{Context, GetDocumentation};
+use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_core::kit::types::commands::{CommandInput, CommandOutput, PreCommandSpecification};
-use txtx_core::kit::{Addon, DEFAULT_ADDON_DOCUMENTATION_TEMPLATE};
+use txtx_core::kit::types::functions::FunctionSpecification;
+use txtx_core::kit::{
+    Addon, DEFAULT_ADDON_ACTIONS_TEMPLATE, DEFAULT_ADDON_FUNCTIONS_TEMPLATE,
+    DEFAULT_ADDON_OVERVIEW_TEMPLATE, DEFAULT_ADDON_WALLETS_TEMPLATE,
+};
+use txtx_core::std::commands::actions::http;
+use txtx_core::std::functions::{base64, crypto, hash, hex, json, list, operators};
 use txtx_core::std::StdAddon;
 
 pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Result<(), String> {
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
     let stacks: Box<dyn Addon> = Box::new(StacksNetworkAddon::new());
-    let addons = vec![&std, &stacks];
+    let evm: Box<dyn Addon> = Box::new(EVMNetworkAddon::new());
+    let addons = vec![&std, &stacks, &evm];
     display_documentation(&addons);
     generate_mdx(&addons);
     Ok(())
 }
 
 pub fn generate_mdx(addons: &Vec<&Box<dyn Addon>>) {
-    use std::fs::File;
-
     let mut path = PathBuf::new();
     path.push("doc");
     path.push("addons");
     for addon in addons.iter() {
         let mut addon_path = path.clone();
-        addon_path.push(format!("{}.mdx", addon.get_namespace()));
-        let mut doc_file = File::create(addon_path).expect("creation failed");
+        let addon_ns = addon.get_namespace();
+        addon_path.push(addon_ns);
 
-        let doc_data = build_addon_doc_data(&addon);
+        if addon_ns == "std" {
+            generate_std_mdx(addon, addon_path);
+        } else {
+            generate_addon_mdx(addon, addon_path);
+        }
+    }
+}
 
-        let template = mustache::compile_str(&DEFAULT_ADDON_DOCUMENTATION_TEMPLATE)
+pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
+    // functions
+    {
+        let map = vec![
+            ("json", "JSON", json::JSON_FUNCTIONS.clone()),
+            ("hex", "Hex", hex::FUNCTIONS.clone()),
+            (
+                "operators",
+                "Operator",
+                operators::OPERATORS_FUNCTIONS.clone(),
+            ),
+            ("crypto", "Crypto", crypto::FUNCTIONS.clone()),
+            ("list", "List", list::LIST_FUNCTIONS.clone()),
+            ("base64", "Base64", base64::FUNCTIONS.clone()),
+            ("hash", "Hash", hash::FUNCTIONS.clone()),
+        ];
+        for (path, title, fns) in map.into_iter() {
+            let mut page_path = addon_path.clone();
+            page_path.push(format!("functions/{}/page.mdx", path));
+            let mut doc_file = File::create(page_path).expect("creation failed");
+            let doc_data = build_addon_function_group_doc_data(&addon, title, fns);
+            let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut doc_file, &doc_data)
+                .expect("Failed to render template");
+        }
+    }
+    // actions
+    {
+        let map = vec![("http", "HTTP", vec![http::SEND_HTTP_REQUEST.clone()])];
+        for (path, title, actions) in map.into_iter() {
+            let mut page_path = addon_path.clone();
+            page_path.push(format!("actions/{}/page.mdx", path));
+            let mut doc_file = File::create(page_path).expect("creation failed");
+            let doc_data = build_addon_action_group_doc_data(&addon, title, actions);
+            let template = mustache::compile_str(&DEFAULT_ADDON_ACTIONS_TEMPLATE)
+                .expect("Failed to compile template");
+            template
+                .render_data(&mut doc_file, &doc_data)
+                .expect("Failed to render template");
+        }
+    }
+    // an overview page for each category (functions/actions)
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("functions/overview/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_addon_overview_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
             .expect("Failed to compile template");
-
         template
             .render_data(&mut doc_file, &doc_data)
             .expect("Failed to render template");
+    }
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("actions/overview/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_addon_overview_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
+            .expect("Failed to compile template");
+        template
+            .render_data(&mut doc_file, &doc_data)
+            .expect("Failed to render template");
+    }
+}
 
-        // let mut inputs: HashMap<String, &str> = HashMap::new();
-        // inputs.insert("addon_name".into(), addon.get_name());
-        // inputs.insert("addon_description".into(), addon.get_description());
-
-        // mustache::Template::
-
-        // let content = strfmt(include_str!("templates/addon_header.mdx"), &inputs)
-        //     .expect("unable to interpolate template");
-        // // Write metadata
-
-        // println!("{:?}", content);
-        // data_file.write(content.as_bytes()).expect("write failed");
+pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
+    // functions
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("functions/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_addon_function_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
+            .expect("Failed to compile template");
+        template
+            .render_data(&mut doc_file, &doc_data)
+            .expect("Failed to render template");
+    }
+    // actions
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("actions/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_addon_action_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_ACTIONS_TEMPLATE)
+            .expect("Failed to compile template");
+        template
+            .render_data(&mut doc_file, &doc_data)
+            .expect("Failed to render template");
+    }
+    // wallets
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("wallets/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_wallets_action_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_WALLETS_TEMPLATE)
+            .expect("Failed to compile template");
+        template
+            .render_data(&mut doc_file, &doc_data)
+            .expect("Failed to render template");
+    }
+    // overview page
+    {
+        let mut page_path = addon_path.clone();
+        page_path.push("overview/page.mdx");
+        let mut doc_file = File::create(page_path).expect("creation failed");
+        let doc_data = build_addon_overview_doc_data(&addon);
+        let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
+            .expect("Failed to compile template");
+        template
+            .render_data(&mut doc_file, &doc_data)
+            .expect("Failed to render template");
     }
 }
 
@@ -234,7 +344,76 @@ fn insert_data_from_spec(
     }
 }
 
-fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
+fn build_addon_function_group_doc_data(
+    addon: &Box<dyn Addon>,
+    title: &str,
+    function_specs: Vec<FunctionSpecification>,
+) -> mustache::Data {
+    let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
+        .insert("addon_name", &format!("{} {}", addon.get_name(), title))
+        .expect("Failed to encode name")
+        .insert("addon_namespace", &addon.get_namespace())
+        .expect("Failed to encode description")
+        .insert_vec("functions", |functions_builder| {
+            let mut functions = functions_builder;
+            for function_spec in function_specs.iter() {
+                functions = functions.push_map(|function| {
+                    function
+                        .insert_str("name", &function_spec.name)
+                        .insert_str("documentation", &function_spec.documentation)
+                        .insert_str("example", &function_spec.example)
+                        .insert_str("snippet", &function_spec.snippet)
+                        .insert_vec("inputs", |inputs_builder| {
+                            let mut inputs = inputs_builder;
+                            for input_spec in function_spec.inputs.iter() {
+                                inputs = inputs.push_map(|input| {
+                                    input
+                                        .insert_str("name", &input_spec.name)
+                                        .insert_str("documentation", &input_spec.documentation)
+                                        .insert_str("type", format!("{:?}", input_spec.typing))
+                                });
+                            }
+                            inputs
+                        })
+                        .insert_str("output_documentation", &function_spec.output.documentation)
+                        .insert_str("output_type", format!("{:?}", function_spec.output.typing))
+                });
+            }
+            functions
+        });
+    let data = doc_builder.build();
+    data
+}
+
+fn build_addon_action_group_doc_data(
+    addon: &Box<dyn Addon>,
+    title: &str,
+    actions_specs: Vec<PreCommandSpecification>,
+) -> mustache::Data {
+    let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
+        .insert("addon_name", &format!("{} {}", addon.get_name(), title))
+        .expect("Failed to encode name")
+        .insert("addon_namespace", &addon.get_namespace())
+        .expect("Failed to encode description")
+        .insert_vec("actions", |mut actions| {
+            for action_spec in actions_specs.clone().into_iter() {
+                actions = actions.push_map(|action| insert_data_from_spec(&action_spec, action));
+            }
+            actions
+        });
+    let data = doc_builder.build();
+    data
+}
+
+fn build_addon_overview_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()
         .insert("double_open", &"{{")
         .expect("failed to encode open braces")
@@ -244,6 +423,20 @@ fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
         .expect("Failed to encode name")
         .insert("addon_description", &addon.get_description())
         .expect("Failed to encode description")
+        .insert("addon_namespace", &addon.get_namespace())
+        .expect("Failed to encode description");
+    let data = doc_builder.build();
+    data
+}
+
+fn build_addon_function_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
+    let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
+        .insert("addon_name", &addon.get_name())
+        .expect("Failed to encode name")
         .insert("addon_namespace", &addon.get_namespace())
         .expect("Failed to encode description")
         .insert_vec("functions", |functions_builder| {
@@ -272,13 +465,41 @@ fn build_addon_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                 });
             }
             functions
-        })
+        });
+    let data = doc_builder.build();
+    data
+}
+
+fn build_addon_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
+    let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
+        .insert("addon_name", &addon.get_name())
+        .expect("Failed to encode name")
+        .insert("addon_namespace", &addon.get_namespace())
+        .expect("Failed to encode description")
         .insert_vec("actions", |mut actions| {
             for action_spec in addon.get_actions() {
                 actions = actions.push_map(|action| insert_data_from_spec(&action_spec, action));
             }
             actions
-        })
+        });
+    let data = doc_builder.build();
+    data
+}
+
+fn build_wallets_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
+    let doc_builder = mustache::MapBuilder::new()
+        .insert("double_open", &"{{")
+        .expect("failed to encode open braces")
+        .insert("double_close", &"}}")
+        .expect("failed to encode close braces")
+        .insert("addon_name", &addon.get_name())
+        .expect("Failed to encode name")
+        .insert("addon_namespace", &addon.get_namespace())
+        .expect("Failed to encode description")
         .insert_vec("wallets", |wallets_builder| {
             let mut wallets = wallets_builder;
             for wallet_spec in addon.get_wallets().iter() {

@@ -1,0 +1,69 @@
+export const metadata = {
+    title: "Standard Library JSON Functions",
+    description: "Functions for Standard Library JSON",
+};
+
+# Standard Library JSON Functions {{ id: "std-functions" }}
+
+
+## jq {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+The `jq` function allows slicing, filtering, and mapping JSON data. 
+See the [jq](https://jqlang.github.io/jq/manual/) documentation for more details.
+
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="decoded_json">
+    A JSON object.
+  </Property>
+
+
+  <Property name="query">
+    A JSON query. See the [jq](https://jqlang.github.io/jq/manual/) documentation.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of the `jq` query.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using jq">
+
+
+```hcl {{ title: 'main.tx' }}
+output "message" { 
+    value = jq("{ \"message\": \"Hello world!\" }", ".message")
+}
+> message: Hello world!
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

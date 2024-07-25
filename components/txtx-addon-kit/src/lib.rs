@@ -37,6 +37,14 @@ pub mod types;
 lazy_static! {
     pub static ref DEFAULT_ADDON_DOCUMENTATION_TEMPLATE: String =
         include_str!("doc/default_addon_template.mdx").to_string();
+    pub static ref DEFAULT_ADDON_FUNCTIONS_TEMPLATE: String =
+        include_str!("doc/default_addon_functions_template.mdx").to_string();
+    pub static ref DEFAULT_ADDON_ACTIONS_TEMPLATE: String =
+        include_str!("doc/default_addon_actions_template.mdx").to_string();
+    pub static ref DEFAULT_ADDON_WALLETS_TEMPLATE: String =
+        include_str!("doc/default_addon_wallets_template.mdx").to_string();
+    pub static ref DEFAULT_ADDON_OVERVIEW_TEMPLATE: String =
+        include_str!("doc/default_addon_overview_template.mdx").to_string();
 }
 
 ///

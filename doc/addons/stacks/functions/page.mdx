@@ -1,0 +1,1056 @@
+export const metadata = {
+    title: "Stacks Blockchain (beta) Functions",
+    description: "Functions for Stacks Blockchain (beta)",
+};
+
+# Stacks Blockchain (beta) Functions {{ id: "stacks-functions" }}
+
+
+## cv_some {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_some` wraps the given Clarity value in a Clarity `Optional`.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    A Clarity Value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input Clarity value wrapped in a Clarity `Optional`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_some">
+
+
+```hcl {{ title: 'main.tx' }}
+output "some" { 
+  value = stacks::cv_some(stacks::cv_bool(true))
+}
+// > some: 0x0a03
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_none {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_none` returns the Clarity value `None`.
+
+### Inputs
+
+<Properties>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The Clarity value `None`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_none">
+
+
+```hcl {{ title: 'main.tx' }}
+output "none" { 
+  value = stacks::cv_none()
+}
+// > none: 0x09
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_bool {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_bool` returns the given boolean as a Clarity `bool`.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    The boolean values `true` or `false`.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input boolean as a Clarity `bool`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_bool">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_bool" { 
+  value = stacks::cv_bool(true)
+}
+// > my_bool: 0x03
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_uint {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_uint` returns the given number as a Clarity `uint`.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    A positive integer between 0 and 2<sup>128</sup>-1.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input integer as a Clarity `uint`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_uint">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_uint" { 
+  value = stacks::cv_uint(1)
+}
+// > my_uint: 0x0100000000000000000000000000000001
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_int {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_int` returns the given number as a Clarity `int`.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    An integer between -2<sup>127</sup> and 2<sup>127</sup>-1.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input integer as a Clarity `int`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_int">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_int" { 
+  value = stacks::cv_int(-1)
+}
+// > my_int: 0x00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_principal {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_principal` returns the given string as a Clarity principal. 
+A Clarity principal represents a Stacks address on the blockchain.
+
+Clarity admits two different kinds of principals: _standard principals_ and _contract principals_. 
+Standard principals (e.g. `SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE`) are backed by a corresponding private key while contract principals (e.g. `ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1`) point to a smart contract.
+
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid Clarity principal string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string as a Clarity principal.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_principal">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_principal" { 
+  value = stacks::cv_principal("SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE")
+}
+// > my_principal: 0x0516DEBC095099629BADB11B9D5335E874D12F1F1D45
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_string_ascii {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_string_ascii` returns the given string as a Clarity ASCII string.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid ASCII string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string as a Clarity ASCII string.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_string_ascii">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_ascii" { 
+  value = stacks::cv_string_ascii("my ascii string")
+}
+// > my_ascii: 0x0D0000000F6D7920617363696920737472696E67
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_string_utf8 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_string_utf8` returns the given string as a Clarity UTF-8 string.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid UTF-8 string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string as a Clarity UTF-8 string.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_string_utf8">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_utf8" { 
+  value = stacks::cv_string_utf8("🍊")
+}
+// > my_utf8: 0x0E00000004F09F8D8A
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_tuple {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_tuple` returns the given object as a Clarity tuple.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    An object where each key is a string and each value is a valid Clarity value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input object as a Clarity tuple.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_tuple">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_tuple" { 
+  value = stacks::cv_tuple({ "key": stacks::cv_uint(1) })
+}
+// > my_tuple: 0x0C00000001036B65790100000000000000000000000000000001
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_buff {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::cv_buff` returns the given hex string as a Clarity buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    A hex string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string as a Clarity buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_buff">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_buffer" { 
+  value = stacks::cv_buff("0x010203")
+}
+// > my_buffer: 0x0200000003010203
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_ok {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid Clarity value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input wrapped in an `Ok` Clarity type.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_ok">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon 
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## cv_err {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid Clarity value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input wrapped in an `Err` Clarity type.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using cv_err">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon 
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## revert_if_account_sends_more_than {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::revert_if_account_sends_more_than` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account sending more than the specified number of tokens. The default token is µSTX.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="account_address">
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+  </Property>
+
+
+  <Property name="tokens_amount">
+    Threshold of tokens that triggers the revert action to prevent overspending.
+  </Property>
+
+
+  <Property name="token_id">
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The post-condition, encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using revert_if_account_sends_more_than">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## revert_if_account_not_sending_exactly {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::revert_if_account_not_sending_exactly` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending exactly the specified number of tokens. The default token is µSTX.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="account_address">
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+  </Property>
+
+
+  <Property name="tokens_amount">
+    The number of tokens required to be sent.
+  </Property>
+
+
+  <Property name="token_id">
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The post-condition, encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using revert_if_account_not_sending_exactly">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## revert_if_account_not_sending_at_least {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::revert_if_account_not_sending_at_least` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending the minimum specified number of tokens. The default token is µSTX.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="account_address">
+    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+  </Property>
+
+
+  <Property name="tokens_amount">
+    The minimum number of tokens required to be sent.
+  </Property>
+
+
+  <Property name="token_id">
+    The asset identifier of the token to be checked. The default is µSTX if not provided.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The post-condition, encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using revert_if_account_not_sending_at_least">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## revert_if_nft_not_owned_by_account {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::revert_if_nft_not_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account owning a specific NFT.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="account_address">
+    The address of the account that the post condition will check.
+  </Property>
+
+
+  <Property name="contract_asset_id">
+    The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).
+  </Property>
+
+
+  <Property name="asset_id">
+    The NFT Asset Id to check.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The post-condition, encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using revert_if_nft_not_owned_by_account">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [
+        stacks::revert_if_nft_not_owned_by_account(
+            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+            "nft_asset_id"
+        )
+    ]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## revert_if_nft_owned_by_account {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::revert_if_nft_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account owning a specific NFT.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="account_address">
+    The address of the account that the post condition will check.
+  </Property>
+
+
+  <Property name="contract_asset_id">
+    The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).
+  </Property>
+
+
+  <Property name="asset_id">
+    The NFT Asset Id to check.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The post-condition, encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using revert_if_nft_owned_by_account">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_tx" "stacks::send_contract_call" {
+    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
+    function_name = "some-function"
+    function_args = []
+    post_condition = [
+        stacks::revert_if_nft_owned_by_account(
+            "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC", 
+            "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract", 
+            "nft_asset_id"
+        )
+    ]
+}
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## decode_ok {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::decode_ok` returns the inner value as a Clarity buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarity_value">
+    Any valid Clarity value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The inner value that was wrapped in an `(ok <inner>)` Clarity type.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using decode_ok">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon 
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

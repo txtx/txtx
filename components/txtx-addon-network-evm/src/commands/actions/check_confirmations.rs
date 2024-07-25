@@ -20,18 +20,18 @@ lazy_static! {
         CheckConfirmations => {
             name: "Check Transaction Confirmations",
             matcher: "check_confirmations",
-            documentation: "Coming soon",
+            documentation: "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
                 tx_hash: {
-                  documentation: "",
+                  documentation: "The transaction hash to check.",
                   typing: Type::buffer(),
                   optional: false,
                   interpolable: true
                 },
                 rpc_api_url: {
-                  documentation: "The URL of the EVM API used to get the transaction receipt.",
+                  documentation: "The URL of the EVM API used to poll for the transaction's inclusion in a block.",
                   typing: Type::string(),
                   optional: false,
                   interpolable: true
@@ -50,7 +50,10 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-            // Coming soon
+            action "confirm_deployment" "evm::check_confirmations" {
+                tx_hash = action.some_deploying_action.tx_hash
+                confirmations = 1
+            }
         "#},
         }
     };

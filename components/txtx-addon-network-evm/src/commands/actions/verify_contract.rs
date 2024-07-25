@@ -23,7 +23,7 @@ lazy_static! {
         VerifyContract => {
             name: "Broadcast Stacks Transaction",
             matcher: "verify_contract",
-            documentation: "Coming soon",
+            documentation: "The `evm::verify_contract` action sends the required contract deployment artifacts to a block explorer to verify the contract with the explorer.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
@@ -68,7 +68,10 @@ lazy_static! {
               }
             ],
             example: txtx_addon_kit::indoc! {r#"
-            // Coming soon
+            action "verify_contract" "evm::verify_contract" {
+                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                artifacts = action.artifacts
+            }
         "#},
         }
     };

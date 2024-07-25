@@ -34,18 +34,18 @@ lazy_static! {
       SignEVMContractCall => {
           name: "Sign EVM Contract Call Transaction",
           matcher: "sign_contract_call",
-          documentation: "The `evm::sign_contract_call` action signs an unsigned transaction with the supplied wallet data.",
+          documentation: "The `evm::sign_contract_call` action encodes a contract call transaction, signs it with the provided wallet data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
             description: {
-                documentation: "A description of the transaction",
+                documentation: "A description of the transaction.",
                 typing: Type::string(),
                 optional: true,
                 interpolable: true
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to get the transaction receipt.",
+              documentation: "The URL of the EVM API used to broadcast the transaction.",
               typing: Type::string(),
               optional: false,
               interpolable: true
@@ -148,7 +148,12 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
+            action "call_some_contract" "evm::sign_contract_call" {
+                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                function_name = "myFunction"
+                function_args = [evm::bytes("0x1234")]
+                from = evm::address(env.MY_ADDRESS)
+            }
       "#},
       }
     };
