@@ -194,6 +194,45 @@ impl FileLocation {
         }
     }
 
+    pub async fn get_workspace_manifest_location(
+        &self,
+        file_accessor: Option<&dyn FileAccessor>,
+    ) -> Result<FileLocation, String> {
+        match file_accessor {
+            None => {
+                let mut project_root_location = self.get_workspace_root_location()?;
+                project_root_location.append_path("txtx.yml")?;
+                Ok(project_root_location)
+            }
+            Some(file_accessor) => {
+                let mut manifest_location = None;
+                let mut parent_location = self.get_parent_location();
+                while let Ok(ref parent) = parent_location {
+                    let mut candidate = parent.clone();
+                    candidate.append_path("txtx.yml")?;
+
+                    if let Ok(exists) = file_accessor.file_exists(candidate.to_string()).await {
+                        if exists {
+                            manifest_location = Some(candidate);
+                            break;
+                        }
+                    }
+                    if &parent.get_parent_location().unwrap() == parent {
+                        break;
+                    }
+                    parent_location = parent.get_parent_location();
+                }
+                match manifest_location {
+                    Some(manifest_location) => Ok(manifest_location),
+                    None => Err(format!(
+                        "No Clarinet.toml is associated to the contract {}",
+                        self.get_file_name().unwrap_or_default()
+                    )),
+                }
+            }
+        }
+    }
+
     pub fn get_parent_location(&self) -> Result<FileLocation, String> {
         let mut parent_location = self.clone();
         match &mut parent_location {

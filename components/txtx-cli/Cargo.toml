@@ -45,6 +45,8 @@ dialoguer = "0.11.0"
 console = "0.15.8"
 convert_case = "0.6.0"
 rusqlite = "0.27.0"
+txtx-lsp = { path = "../txtx-lsp" }
+tower-lsp = { version = "0.20.0" }
 
 [features]
 default = ["cli"]

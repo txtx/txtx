@@ -4,6 +4,7 @@ use runbooks::DEFAULT_PORT_TXTX;
 use std::process;
 
 mod docs;
+mod lsp;
 mod runbooks;
 mod snapshots;
 mod templates;
@@ -64,6 +65,9 @@ enum Command {
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
+    /// Start LSP
+    #[clap(name = "lsp", bin_name = "lsp")]
+    Lsp,
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -224,6 +228,9 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
             snapshots::handle_commit_command(&cmd, ctx).await?;
         }
+        Command::Lsp => {
+            lsp::run_lsp().await?;
+        },
     }
     Ok(())
 }
