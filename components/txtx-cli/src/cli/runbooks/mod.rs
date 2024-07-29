@@ -28,19 +28,19 @@ use txtx_core::{
         },
         Addon,
     },
+    manifest::{
+        file::{read_runbook_from_location, read_runbooks_from_manifest},
+        RunbookMetadata, RunbookState, WorkspaceManifest,
+    },
     runbook::{
         ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot, RunbookInputsMap,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
-    types::{
-        ProtocolManifest, Runbook, RunbookMetadata, RunbookSnapshotContext, RunbookSources,
-        RunbookState,
-    },
+    types::{Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
-    manifest::{read_manifest_at_path, read_runbook_from_location, read_runbooks_from_manifest},
     web_ui::{
         self,
         cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
@@ -151,7 +151,8 @@ pub async fn handle_check_command(cmd: &CheckRunbook, _ctx: &Context) -> Result<
 }
 
 pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(), String> {
-    let manifest_res = read_manifest_at_path(&cmd.manifest_path);
+    let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
+    let manifest_res = WorkspaceManifest::from_location(&manifest_location);
 
     let theme = ColorfulTheme {
         values_style: Style::new().green(),
@@ -166,8 +167,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
                 .with_prompt("Enter the name of this workspace")
                 .interact_text()
                 .unwrap();
-
-            ProtocolManifest::new(name)
+            WorkspaceManifest::new(name)
         }
     };
 
@@ -332,7 +332,8 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
 }
 
 pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(), String> {
-    let manifest = read_manifest_at_path(&cmd.manifest_path)?;
+    let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
+    let manifest = WorkspaceManifest::from_location(&manifest_location)?;
     if manifest.runbooks.is_empty() {
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
@@ -816,12 +817,13 @@ pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
 ) -> Result<
     (
-        ProtocolManifest,
-        HashMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>,
+        WorkspaceManifest,
+        IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>,
     ),
     String,
 > {
-    let manifest = read_manifest_at_path(&manifest_path)?;
+    let manifest_location = FileLocation::from_path_string(manifest_path)?;
+    let manifest = WorkspaceManifest::from_location(&manifest_location)?;
     let runbooks = read_runbooks_from_manifest(&manifest, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
     Ok((manifest, runbooks))
@@ -831,7 +833,7 @@ pub async fn load_runbook_from_manifest(
     manifest_path: &str,
     desired_runbook_name: &str,
     environment_selector: &Option<String>,
-) -> Result<(ProtocolManifest, String, Runbook, Option<RunbookState>), String> {
+) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
     // Select first runbook by default
     for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in

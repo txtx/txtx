@@ -2,13 +2,13 @@ use crate::Context;
 use juniper_codegen::graphql_object;
 
 #[derive(Clone)]
-pub struct ProtocolManifest {
+pub struct WorkspaceManifest {
     pub name: String,
     pub runbooks: Vec<RunbookDescription>,
 }
 
 #[graphql_object(context = Context)]
-impl ProtocolManifest {
+impl WorkspaceManifest {
     pub fn name(&self) -> String {
         self.name.clone()
     }
