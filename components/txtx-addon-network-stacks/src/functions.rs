@@ -1407,7 +1407,9 @@ impl FunctionImplementation for RetrieveClarinetContract {
         let contract_key = args.get(0).unwrap();
         let clarinet_toml_path = args.get(1).unwrap();
 
-        let mut clarinet_manifest = auth_ctx.workspace_location.get_parent_location()
+        let mut clarinet_manifest = auth_ctx
+            .workspace_location
+            .get_parent_location()
             .map_err(|e| diagnosed_error!("unable to read Clarinet.toml ({})", e.to_string()))?;
         let _ = clarinet_manifest.append_path(&clarinet_toml_path.to_string());
 

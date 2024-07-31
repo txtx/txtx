@@ -103,7 +103,10 @@ impl LspNativeBridge {
 impl LanguageServer for LspNativeBridge {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         self.client
-            .log_message(MessageType::INFO, format!("Txtx Language Server to be initialized - {:?}", params))
+            .log_message(
+                MessageType::INFO,
+                format!("Txtx Language Server to be initialized - {:?}", params),
+            )
             .await;
 
         let _ = match self.request_tx.lock() {
@@ -121,7 +124,10 @@ impl LanguageServer for LspNativeBridge {
 
     async fn initialized(&self, _params: InitializedParams) {
         self.client
-            .log_message(MessageType::INFO, format!("Txtx Language Server initialized - {:?}", _params))
+            .log_message(
+                MessageType::INFO,
+                format!("Txtx Language Server initialized - {:?}", _params),
+            )
             .await;
     }
 
@@ -138,7 +144,10 @@ impl LanguageServer for LspNativeBridge {
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         self.client
-            .log_message(MessageType::INFO, "Txtx Language Server - Received completion request")
+            .log_message(
+                MessageType::INFO,
+                "Txtx Language Server - Received completion request",
+            )
             .await;
 
         let _ = match self.request_tx.lock() {
@@ -223,9 +232,15 @@ impl LanguageServer for LspNativeBridge {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, format!("Txtx Language Server: File open {}", params.text_document.uri))
+            .log_message(
+                MessageType::INFO,
+                format!(
+                    "Txtx Language Server: File open {}",
+                    params.text_document.uri
+                ),
+            )
             .await;
-        
+
         if let Some(contract_location) = utils::get_runbook_location(&params.text_document.uri) {
             let _ = match self.notification_tx.lock() {
                 Ok(tx) => tx.send(LspNotification::RunbookOpened(contract_location)),
@@ -278,8 +293,11 @@ impl LanguageServer for LspNativeBridge {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         self.client
-        .log_message(MessageType::INFO, "Txtx Language Server - Received save notification")
-        .await;
+            .log_message(
+                MessageType::INFO,
+                "Txtx Language Server - Received save notification",
+            )
+            .await;
 
         if let Some(contract_location) = utils::get_runbook_location(&params.text_document.uri) {
             let _ = match self.notification_tx.lock() {
@@ -325,7 +343,10 @@ impl LanguageServer for LspNativeBridge {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         self.client
-            .log_message(MessageType::INFO, "Txtx Language Server - Received change notification")
+            .log_message(
+                MessageType::INFO,
+                "Txtx Language Server - Received change notification",
+            )
             .await;
 
         if let Some(contract_location) = utils::get_runbook_location(&params.text_document.uri) {

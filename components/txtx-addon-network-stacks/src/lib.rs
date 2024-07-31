@@ -88,7 +88,10 @@ impl Addon for StacksNetworkAddon {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
-                let contract_id = simulated_inputs.inputs.get_expected_string("contract_id").unwrap();
+                let contract_id = simulated_inputs
+                    .inputs
+                    .get_expected_string("contract_id")
+                    .unwrap();
                 contracts_lookup.insert(contract_id, construct_did.clone());
             }
         }

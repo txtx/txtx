@@ -1377,7 +1377,7 @@ pub fn perform_inputs_evaluation(
     }
 
     if fatal_error {
-        return Ok(CommandInputEvaluationStatus::Aborted(results, diags))
+        return Ok(CommandInputEvaluationStatus::Aborted(results, diags));
     }
 
     let results = command_instance
@@ -1385,9 +1385,7 @@ pub fn perform_inputs_evaluation(
         .map_err(|d| vec![d])?;
 
     let status = match (fatal_error, require_user_interaction) {
-        (false, false) => {
-            CommandInputEvaluationStatus::Complete(results)
-        }
+        (false, false) => CommandInputEvaluationStatus::Complete(results),
         (_, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
     };
     Ok(status)

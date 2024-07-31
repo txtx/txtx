@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use txtx_core::kit::helpers::fs::{FileAccessor, FileLocation};
 use txtx_core::kit::types::diagnostics::Diagnostic;
-use txtx_core::manifest::WorkspaceManifest;
 
 use super::requests::capabilities::{get_capabilities, InitializationOptions};
 
@@ -78,9 +77,6 @@ pub async fn process_notification(
     editor_state: &mut EditorStateInput,
     file_accessor: Option<&dyn FileAccessor>,
 ) -> Result<LspNotificationResponse, String> {
-    let tmp = FileLocation::from_path_string("/tmp/here").unwrap();
-    tmp.write_content("breakpoint".as_bytes());
-
     match command {
         LspNotification::ManifestOpened(manifest_location) => {
             // Only build the initial protocal state if it does not exist
@@ -221,9 +217,6 @@ pub async fn process_notification(
             }
         }
         LspNotification::RunbookChanged(runbook_location, contract_source) => {
-            let tmp = FileLocation::from_path_string("/tmp/buffer").unwrap();
-            tmp.write_content(contract_source.as_bytes());
-            
             match editor_state.try_write(|es| {
                 es.update_active_contract(&runbook_location, &contract_source, false)
             })? {
