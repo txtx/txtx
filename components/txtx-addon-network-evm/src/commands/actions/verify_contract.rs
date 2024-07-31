@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use foundry_block_explorers::Client as BlockExplorerClient;
+use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
@@ -404,7 +403,7 @@ pub fn sleep_ms(millis: u64) -> () {
 }
 
 pub fn get_expected_string_from_map(
-    map: &HashMap<String, Value>,
+    map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<String, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::String(val))) = map.get(key) else {
@@ -415,7 +414,7 @@ pub fn get_expected_string_from_map(
     Ok(val.into())
 }
 pub fn get_expected_uint_from_map(
-    map: &HashMap<String, Value>,
+    map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<u64, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) = map.get(key) else {
@@ -426,7 +425,7 @@ pub fn get_expected_uint_from_map(
     Ok(*val)
 }
 pub fn get_expected_bool_from_map(
-    map: &HashMap<String, Value>,
+    map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<bool, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) else {

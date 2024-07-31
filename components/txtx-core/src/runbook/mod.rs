@@ -1,7 +1,7 @@
 use kit::types::commands::CommandExecutionResult;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{Did, RunbookId, ValueStore};
+use kit::types::{AuthorizationContext, Did, RunbookId, ValueStore};
 use kit::Addon;
 use std::collections::HashMap;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -42,7 +42,7 @@ impl Runbook {
             runbook_id,
             description,
             running_contexts: vec![],
-            runtime_context: RuntimeContext::new(vec![]),
+            runtime_context: RuntimeContext::new(vec![], AuthorizationContext::empty()),
             sources: RunbookSources::new(),
             supervision_context: RunbookSupervisionContext::new(),
             inputs_map: RunbookInputsMap::new(),
@@ -63,11 +63,12 @@ impl Runbook {
         &mut self,
         sources: RunbookSources,
         inputs_map: RunbookInputsMap,
+        authorization_context: AuthorizationContext,
         available_addons: Vec<Box<dyn Addon>>,
     ) -> Result<bool, Vec<Diagnostic>> {
         // Re-initialize some shiny new contexts
         self.running_contexts.clear();
-        let mut runtime_context = RuntimeContext::new(available_addons);
+        let mut runtime_context = RuntimeContext::new(available_addons, authorization_context);
         let inputs_sets = runtime_context.collect_environment_variables(
             &self.runbook_id,
             &inputs_map,
@@ -87,7 +88,6 @@ impl Runbook {
                 &sources,
                 &running_context.execution_context,
             )?;
-
             // Step 2: identify and index all the constructs (nodes)
             running_context.workspace_context.build_from_sources(
                 &sources,
@@ -95,10 +95,19 @@ impl Runbook {
                 &mut running_context.graph_context,
                 &mut running_context.execution_context,
             )?;
-            // Step 3: identify and index all the relationships between the constructs (edges)
+            // Step 3: simulate inputs evaluation - some more edges could be hidden in there
+            running_context
+                .execution_context
+                .simulate_inputs_execution(&runtime_context, &running_context.workspace_context);
+            // Step 4: let addons build domain aware dependencies
+            let domain_specific_dependencies = runtime_context
+                .collect_domain_specific_dependencies(&running_context.execution_context)
+                .map_err(|e| vec![e])?;
+            // Step 5: identify and index all the relationships between the constructs (edges)
             running_context.graph_context.build(
                 &mut running_context.execution_context,
                 &running_context.workspace_context,
+                domain_specific_dependencies,
             )?;
 
             self.running_contexts.push(running_context)
@@ -139,12 +148,17 @@ impl Runbook {
                 )]);
             }
         }
-
         // Rebuild contexts
         let mut inputs_map = self.inputs_map.clone();
         inputs_map.current = selector;
         let available_addons = self.runtime_context.collect_available_addons();
-        self.build_contexts_from_sources(self.sources.clone(), inputs_map, available_addons)
+        let authorization_context = self.runtime_context.authorization_context.clone();
+        self.build_contexts_from_sources(
+            self.sources.clone(),
+            inputs_map,
+            authorization_context,
+            available_addons,
+        )
     }
 
     pub fn get_inputs_selectors(&self) -> Vec<String> {

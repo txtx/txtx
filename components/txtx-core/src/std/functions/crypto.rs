@@ -1,3 +1,4 @@
+use kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -39,17 +40,22 @@ lazy_static! {
 pub struct Secp256k1Recover;
 impl FunctionImplementation for Secp256k1Recover {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         use libsecp256k1::{recover, Message, RecoveryId, Signature};
 
         let (Some(message), Some(signature)) = (args.get(0), args.get(1)) else {
-            return Err(diagnosed_error!("{}: expected 2 arguments", ctx.name));
+            return Err(diagnosed_error!("{}: expected 2 arguments", fn_spec.name));
         };
 
         let signature_bytes = signature.to_bytes();

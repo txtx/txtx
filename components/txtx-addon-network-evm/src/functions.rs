@@ -6,6 +6,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{FunctionImplementation, FunctionSpecification},
     types::{PrimitiveValue, Type, Value},
+    AuthorizationContext,
 };
 
 use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
@@ -18,7 +19,7 @@ lazy_static! {
                 documentation: "`evm::address` creates a valid Ethereum address from the input string.",
                 example: indoc! {r#"
                         output "address" { 
-                        value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
+                            value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
                         }
                         "#},
                 inputs: [
@@ -82,13 +83,18 @@ lazy_static! {
 pub struct EncodeEVMAddress;
 impl FunctionImplementation for EncodeEVMAddress {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let mut entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
             other => {
@@ -115,13 +121,18 @@ impl FunctionImplementation for EncodeEVMAddress {
 pub struct EncodeEVMBytes32;
 impl FunctionImplementation for EncodeEVMBytes32 {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
             other => {
@@ -143,13 +154,18 @@ impl FunctionImplementation for EncodeEVMBytes32 {
 pub struct EncodeEVMBytes;
 impl FunctionImplementation for EncodeEVMBytes {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
             other => {

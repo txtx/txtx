@@ -84,7 +84,7 @@ pub async fn start_unsupervised_runbook_runloop(
         let mut action_item_requests = BTreeMap::new();
         let action_item_responses = BTreeMap::new();
 
-        let pass_result = run_wallets_evaluation(
+        let pass_results = run_wallets_evaluation(
             &running_context.workspace_context,
             &mut running_context.execution_context,
             &runbook.runtime_context,
@@ -95,17 +95,14 @@ pub async fn start_unsupervised_runbook_runloop(
         )
         .await;
 
-        if pass_result.actions.has_pending_actions() {
+        if pass_results.actions.has_pending_actions() {
             return Err(vec![diagnosed_error!(
-                "error: unsupervised executions should not be generating actions"
+                "unsupervised executions should not be generating actions"
             )]);
         }
 
-        if !pass_result.diagnostics.is_empty() {
-            println!("Diagnostics");
-            for diag in pass_result.diagnostics.iter() {
-                println!("- {}", diag);
-            }
+        if !pass_results.diagnostics.is_empty() {
+            return Err(pass_results.diagnostics.clone());
         }
 
         let mut uuid = Uuid::new_v4();
@@ -127,10 +124,7 @@ pub async fn start_unsupervised_runbook_runloop(
             .await;
 
             if !pass_results.diagnostics.is_empty() {
-                println!("Diagnostics");
-                for diag in pass_results.diagnostics.iter() {
-                    println!("- {}", diag);
-                }
+                return Err(pass_results.diagnostics.clone());
             }
 
             if !pass_results
@@ -163,8 +157,7 @@ pub async fn start_unsupervised_runbook_runloop(
                                 .insert(construct_did, result);
                         }
                         Err(diag) => {
-                            let diags = vec![diag];
-                            return Err(diags);
+                            return Err(vec![diag]);
                         }
                     }
                 }

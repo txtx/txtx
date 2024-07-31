@@ -12,6 +12,10 @@ pub use hex;
 pub use indoc::formatdoc;
 pub use indoc::indoc;
 pub use rust_fsm as fsm;
+use types::commands::CommandInputsEvaluationResult;
+use types::commands::CommandInstance;
+use types::diagnostics::Diagnostic;
+use types::ConstructDid;
 use types::Did;
 use types::ValueStore;
 pub use uuid;
@@ -91,6 +95,17 @@ pub trait Addon: Debug + Sync + Send {
         }
 
         wallet_specs
+    }
+    ///
+    fn get_domain_specific_commands_inputs_dependencies<'a>(
+        self: &Self,
+        _commands_instances: &'a Vec<(
+            ConstructDid,
+            &'a CommandInstance,
+            Option<&'a CommandInputsEvaluationResult>,
+        )>,
+    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
+        Ok(HashMap::new())
     }
 }
 

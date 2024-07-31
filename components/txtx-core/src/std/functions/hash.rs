@@ -1,5 +1,6 @@
 use kit::sha2::Sha256 as LibSha256;
 use kit::types::types::{TypeImplementation, TypeSpecification};
+use kit::types::AuthorizationContext;
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
 
 use txtx_addon_kit::{
@@ -69,15 +70,23 @@ lazy_static! {
 pub struct Ripemd160;
 impl FunctionImplementation for Ripemd160 {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
-            return Err(diagnosed_error!("{}: expected 1 argument, got 0", ctx.name));
+            return Err(diagnosed_error!(
+                "{}: expected 1 argument, got 0",
+                fn_spec.name
+            ));
         };
 
         let mut hasher = LibRipemd160::new();
@@ -91,15 +100,23 @@ impl FunctionImplementation for Ripemd160 {
 pub struct Sha256;
 impl FunctionImplementation for Sha256 {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
-            return Err(diagnosed_error!("{}: expected 1 argument, got 0", ctx.name));
+            return Err(diagnosed_error!(
+                "{}: expected 1 argument, got 0",
+                fn_spec.name
+            ));
         };
 
         let mut hasher = LibSha256::new();

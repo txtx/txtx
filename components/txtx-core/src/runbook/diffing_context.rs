@@ -229,7 +229,7 @@ impl RunbookSnapshotContext {
 
                 if let Some(inputs_evaluations) = running_context
                     .execution_context
-                    .commands_inputs_evaluations_results
+                    .commands_inputs_evaluation_results
                     .get(signing_construct_did)
                 {
                     for input in command_instance.specification.inputs.iter() {
@@ -368,7 +368,7 @@ impl RunbookSnapshotContext {
 
                 if let Some(inputs_evaluations) = running_context
                     .execution_context
-                    .commands_inputs_evaluations_results
+                    .commands_inputs_evaluation_results
                     .get(construct_did)
                 {
                     let mut sorted_inputs = command_instance.specification.inputs.clone();

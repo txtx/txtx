@@ -1,4 +1,5 @@
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
+use kit::types::AuthorizationContext;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::{
     define_function, indoc,
@@ -44,13 +45,18 @@ lazy_static! {
 pub struct JsonQuery;
 impl FunctionImplementation for JsonQuery {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let Value::Primitive(PrimitiveValue::String(input_str)) = args.get(0).unwrap() else {
             panic!("json query input must be a string");
         };

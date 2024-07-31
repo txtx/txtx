@@ -3,7 +3,6 @@ use daggy::{Dag, NodeIndex};
 use kit::indexmap::IndexSet;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::ConstructDid;
-use kit::types::ConstructId;
 use kit::types::Did;
 use kit::types::PackageDid;
 use kit::types::PackageId;
@@ -12,12 +11,6 @@ use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
 
 use super::{RunbookExecutionContext, RunbookWorkspaceContext};
-
-#[derive(Debug, Clone)]
-pub struct Construct {
-    /// Id of the Construct
-    pub construct_id: ConstructId,
-}
 
 #[derive(Debug, Clone)]
 pub struct RunbookGraphContext {
@@ -57,6 +50,7 @@ impl RunbookGraphContext {
         &mut self,
         execution_context: &mut RunbookExecutionContext,
         workspace_context: &RunbookWorkspaceContext,
+        domain_specific_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     ) -> Result<(), Vec<Diagnostic>> {
         // let environment_variables = &runtime_context.get_active_environment_variables();
         // runbook.index_environment_variables(environment_variables);
@@ -134,11 +128,19 @@ impl RunbookGraphContext {
             }
             let mut wallets = VecDeque::new();
             let mut instantiated_wallets = HashSet::new();
-            for construct_did in package.addons_dids.iter() {
+            for construct_did in package.commands_dids.iter() {
                 let command_instance = execution_context
                     .commands_instances
                     .get(construct_did)
                     .unwrap();
+
+                if let Some(dependencies) = domain_specific_dependencies.get(construct_did) {
+                    for dependent_construct_did in dependencies {
+                        constructs_edges
+                            .push((construct_did.clone(), dependent_construct_did.clone()));
+                    }
+                }
+
                 for (_input, dep) in command_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);

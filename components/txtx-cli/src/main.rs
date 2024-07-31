@@ -1,9 +1,6 @@
 mod macros;
 
 #[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
 extern crate hiro_system_kit;
 
 pub mod cli;

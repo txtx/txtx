@@ -8,7 +8,7 @@ use kit::{
             ActionPanelData, ModalPanelData, NormalizedActionItemRequestUpdate,
             ProvideSignedTransactionResponse,
         },
-        RunbookId,
+        AuthorizationContext, RunbookId,
     },
     Addon,
 };
@@ -222,8 +222,14 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
 
     let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
     let mut runbook = Runbook::new(runbook_id, None);
+    let authorization_context = AuthorizationContext::empty();
     runbook
-        .build_contexts_from_sources(runbook_sources, runbook_inputs, available_addons)
+        .build_contexts_from_sources(
+            runbook_sources,
+            runbook_inputs,
+            authorization_context,
+            available_addons,
+        )
         .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
@@ -784,8 +790,14 @@ fn test_bns_runbook_no_env() {
 
     let mut runbook = Runbook::new(runbook_id, None);
     let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
+    let authorization_context = AuthorizationContext::empty();
     runbook
-        .build_contexts_from_sources(runbook_sources, runbook_inputs, available_addons)
+        .build_contexts_from_sources(
+            runbook_sources,
+            runbook_inputs,
+            authorization_context,
+            available_addons,
+        )
         .unwrap();
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();

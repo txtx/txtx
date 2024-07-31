@@ -96,6 +96,10 @@ impl FileLocation {
         Ok(FileLocation::Url { url })
     }
 
+    pub fn working_dir() -> FileLocation {
+        FileLocation::from_path_string(".").unwrap()
+    }
+
     pub fn from_path_string(path_string: &str) -> Result<FileLocation, String> {
         let path = PathBuf::from_str(path_string)
             .map_err(|e| format!("unable to parse {} as a path\n{:?}", path_string, e))?;

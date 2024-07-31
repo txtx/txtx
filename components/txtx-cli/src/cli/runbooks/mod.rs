@@ -24,7 +24,7 @@ use txtx_core::{
                 ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
                 ProgressBarStatusColor,
             },
-            types::Value,
+            types::Value, AuthorizationContext,
         },
         Addon,
     },
@@ -33,7 +33,8 @@ use txtx_core::{
         RunbookMetadata, RunbookState, WorkspaceManifest,
     },
     runbook::{
-        ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot, RunbookInputsMap,
+        ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot,
+        RunbookInputsMap,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{Runbook, RunbookSnapshotContext, RunbookSources},
@@ -175,9 +176,10 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let choices = vec![
         "Maintenance: update settings, authorize new contracts, etc.",
         "Emergencies: pause contracts, authorization rotations, etc.",
+        "Deployments: deploy contracts, upgrade contracts, etc.",
         "Other",
     ];
-    let folders = vec!["maintenance", "emergencies", "other"];
+    let folders = vec!["maintenance", "emergencies", "deployments", "other"];
     let choice = Select::with_theme(&theme)
         .with_prompt("Choose a Runbook type:")
         .default(0)
@@ -388,7 +390,11 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
                             .insert("value", Value::parse_and_default_to_string(input_value));
                         running_context
                             .execution_context
-                            .commands_inputs_evaluations_results
+                            .commands_inputs_evaluation_results
+                            .insert(construct_uuid.clone(), result.clone());
+                        running_context
+                            .execution_context
+                            .commands_inputs_simulation_results
                             .insert(construct_uuid.clone(), result);
                     }
                 }
@@ -572,6 +578,13 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
         );
 
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
+        if let Err(diags) = res {
+            println!("{} Execution aborted", red!("x"));
+            for diag in diags.iter() {
+                println!("{}", red!(format!("- {}", diag)));
+            }
+            return Ok(());
+        }
 
         let ascii_table = AsciiTable::default();
         let mut collected_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
@@ -605,35 +618,27 @@ pub async fn handle_run_command(cmd: &ExecuteRunbook, ctx: &Context) -> Result<(
             data.push(row)
         }
         ascii_table.print(data);
+        if let Some(RunbookState::File(state_file_location)) = runbook_state {
+            let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
+                Ok(snapshot) => Some(snapshot),
+                Err(_e) => None,
+            };
 
-        if let Err(diags) = res {
-            for diag in diags.iter() {
-                println!("{} {}", red!("x"), diag);
-            }
-        } else {
-            if let Some(RunbookState::File(state_file_location)) = runbook_state {
-                let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location)
-                {
-                    Ok(snapshot) => Some(snapshot),
-                    Err(_e) => None,
-                };
-
-                println!(
-                    "{} Saving execution state to {}",
-                    green!("✓"),
-                    state_file_location
-                );
-                let diff = RunbookSnapshotContext::new();
-                let snapshot = diff.snapshot_runbook_execution(
-                    &runbook.runbook_id,
-                    &runbook.running_contexts,
-                    previous_snapshot,
-                );
+            println!(
+                "{} Saving execution state to {}",
+                green!("✓"),
                 state_file_location
-                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-                    .expect("unable to save state");
-                ();
-            }
+            );
+            let diff = RunbookSnapshotContext::new();
+            let snapshot = diff.snapshot_runbook_execution(
+                &runbook.runbook_id,
+                &runbook.running_contexts,
+                previous_snapshot,
+            );
+            state_file_location
+                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                .expect("unable to save state");
+            ();
         }
         return Ok(());
     }
@@ -845,8 +850,15 @@ pub async fn load_runbook_from_manifest(
                 Box::new(StacksNetworkAddon::new()),
                 Box::new(EVMNetworkAddon::new()),
             ];
-            let res =
-                runbook.build_contexts_from_sources(runbook_sources, inputs_map, available_addons);
+
+            let authorization_context =
+                AuthorizationContext::new(manifest.location.clone().unwrap());
+            let res = runbook.build_contexts_from_sources(
+                runbook_sources,
+                inputs_map,
+                authorization_context,
+                available_addons,
+            );
             if let Err(diags) = res {
                 for diag in diags.iter() {
                     println!("{} {}", red!("x"), diag);
@@ -873,7 +885,13 @@ pub async fn load_runbook_from_file_path(file_path: &str) -> Result<(String, Run
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
     ];
-    let res = runbook.build_contexts_from_sources(runbook_sources, inputs_map, available_addons);
+    let authorization_context = AuthorizationContext::new(location);
+    let res = runbook.build_contexts_from_sources(
+        runbook_sources,
+        inputs_map,
+        authorization_context,
+        available_addons,
+    );
     if let Err(diags) = res {
         for diag in diags.iter() {
             println!("{} {}", red!("x"), diag);

@@ -1,12 +1,18 @@
+use std::collections::BTreeMap;
+
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
     SequenceData, SequencedValue, UTF8Data,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    functions::{FunctionImplementation, FunctionSpecification},
-    types::{PrimitiveValue, Type, Value},
+use txtx_addon_kit::{
+    indexmap::indexmap,
+    types::{
+        diagnostics::Diagnostic,
+        functions::{FunctionImplementation, FunctionSpecification},
+        types::{PrimitiveValue, Type, Value},
+        AuthorizationContext,
+    },
 };
 
 use crate::{
@@ -287,12 +293,12 @@ lazy_static! {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
-                    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+                    post_condition = [stacks::revert_if_account_sends_more_than("signer", 100)]
                 }
                 "#},
                 inputs: [
                     account_address: {
-                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -319,12 +325,12 @@ lazy_static! {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
-                    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+                    post_condition = [stacks::revert_if_account_not_sending_exactly("signer", 100)]
                 }
                 "#},
                 inputs: [
                     account_address: {
-                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -351,12 +357,12 @@ lazy_static! {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
-                    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+                    post_condition = [stacks::revert_if_account_not_sending_at_least("signer", 100)]
                 }
                 "#},
                 inputs: [
                     account_address: {
-                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender."#},
+                        documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
                         typing: vec![Type::string()]
                     },
                     tokens_amount: {
@@ -466,19 +472,66 @@ lazy_static! {
                 },
             }
         },
+        define_function! {
+            RetrieveDeployedContract => {
+                name: "retrieve_deployed_contract",
+                documentation: "`stacks::retrieve_deployed_contract` retrieves the source of a contract deployed on mainnet.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    contract_id: {
+                        documentation: "Contract Id of the contract source to fetch.",
+                        typing: vec![Type::string()]
+                    },
+                    rpc_api_url: {
+                        documentation: "The URL of the Stacks API to broadcast to.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The source code of the contract",
+                    typing: Type::buffer()
+                },
+            }
+        },
+        define_function! {
+            RetrieveClarinetContract => {
+                name: "get_contract_from_clarinet_project",
+                documentation: "`stacks::get_contract_from_clarinet_project` retrieves the source of a contract present in a Clarinet manifest.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    contract_name: {
+                        documentation: "Contract name of the contract source to fetch.",
+                        typing: vec![Type::string()]
+                    },
+                    clarinet_manifest_path: {
+                        documentation: "The path of the Clarinet toml file.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The source code of the contract",
+                    typing: Type::buffer()
+                },
+            }
+        },
     ];
 }
 
 pub struct EncodeClarityValueOk;
 impl FunctionImplementation for EncodeClarityValueOk {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         Ok(Value::bool(true))
     }
 }
@@ -486,13 +539,18 @@ impl FunctionImplementation for EncodeClarityValueOk {
 pub struct EncodeClarityValueErr;
 impl FunctionImplementation for EncodeClarityValueErr {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -501,13 +559,18 @@ impl FunctionImplementation for EncodeClarityValueErr {
 pub struct EncodeClarityValueSome;
 impl FunctionImplementation for EncodeClarityValueSome {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::Buffer(val))) => val.clone(),
             Some(any) => {
@@ -537,13 +600,18 @@ impl FunctionImplementation for EncodeClarityValueSome {
 pub struct EncodeClarityValueNone;
 impl FunctionImplementation for EncodeClarityValueNone {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         if !args.is_empty() {
             return Err(diagnosed_error!(
                 "`cv_none` function: expected no arguments"
@@ -558,13 +626,18 @@ impl FunctionImplementation for EncodeClarityValueNone {
 pub struct EncodeClarityValueBool;
 impl FunctionImplementation for EncodeClarityValueBool {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::Bool(val))) => val.clone(),
             Some(any) => {
@@ -588,13 +661,18 @@ impl FunctionImplementation for EncodeClarityValueBool {
 pub struct EncodeClarityValueUint;
 impl FunctionImplementation for EncodeClarityValueUint {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val.clone(),
             Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => {
@@ -625,13 +703,18 @@ impl FunctionImplementation for EncodeClarityValueUint {
 pub struct EncodeClarityValueInt;
 impl FunctionImplementation for EncodeClarityValueInt {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => val,
             _ => unreachable!(),
@@ -645,13 +728,18 @@ impl FunctionImplementation for EncodeClarityValueInt {
 pub struct EncodeClarityValuePrincipal;
 impl FunctionImplementation for EncodeClarityValuePrincipal {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -665,13 +753,18 @@ impl FunctionImplementation for EncodeClarityValuePrincipal {
 pub struct EncodeClarityValueAscii;
 impl FunctionImplementation for EncodeClarityValueAscii {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -688,13 +781,18 @@ impl FunctionImplementation for EncodeClarityValueAscii {
 pub struct EncodeClarityValueUTF8;
 impl FunctionImplementation for EncodeClarityValueUTF8 {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -708,13 +806,18 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
 pub struct EncodeClarityValueBuffer;
 impl FunctionImplementation for EncodeClarityValueBuffer {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let data = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => {
                 if val.starts_with("0x") {
@@ -736,13 +839,18 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
 pub struct EncodeClarityValueTuple;
 impl FunctionImplementation for EncodeClarityValueTuple {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let clarity_value = match args.get(0) {
             Some(value) => ClarityValue::Tuple(value_to_tuple(value)),
             _ => unreachable!(),
@@ -755,13 +863,18 @@ impl FunctionImplementation for EncodeClarityValueTuple {
 pub struct StacksEncodeInt;
 impl FunctionImplementation for StacksEncodeInt {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -769,13 +882,18 @@ impl FunctionImplementation for StacksEncodeInt {
 pub struct StacksEncodeBuffer;
 impl FunctionImplementation for StacksEncodeBuffer {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -783,13 +901,18 @@ impl FunctionImplementation for StacksEncodeBuffer {
 pub struct StacksEncodeList;
 impl FunctionImplementation for StacksEncodeList {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -797,13 +920,18 @@ impl FunctionImplementation for StacksEncodeList {
 pub struct StacksEncodeAsciiString;
 impl FunctionImplementation for StacksEncodeAsciiString {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -811,13 +939,18 @@ impl FunctionImplementation for StacksEncodeAsciiString {
 pub struct StacksEncodePrincipal;
 impl FunctionImplementation for StacksEncodePrincipal {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -825,13 +958,18 @@ impl FunctionImplementation for StacksEncodePrincipal {
 pub struct StacksEncodeTuple;
 impl FunctionImplementation for StacksEncodeTuple {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
 }
@@ -842,7 +980,7 @@ fn encode_ft_post_condition(
     token_id: &str,
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
-    let principal_monitored = if address.eq("origin") {
+    let principal_monitored = if address.eq("signer") {
         PostConditionPrincipal::Origin
     } else {
         unimplemented!()
@@ -936,13 +1074,18 @@ fn encode_stx_post_condition(
 pub struct RevertIfAccountSendingMoreThan;
 impl FunctionImplementation for RevertIfAccountSendingMoreThan {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -981,13 +1124,18 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
 pub struct RevertIfAccountNotSending;
 impl FunctionImplementation for RevertIfAccountNotSending {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -1026,13 +1174,18 @@ impl FunctionImplementation for RevertIfAccountNotSending {
 pub struct RevertIfAccountNotSendingAtLeast;
 impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -1071,13 +1224,18 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
 pub struct RevertIfNFTNotOwnedByAccount;
 impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -1111,13 +1269,18 @@ impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
 pub struct RevertIfNFTOwnedByAccount;
 impl FunctionImplementation for RevertIfNFTOwnedByAccount {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(_ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val,
             _ => unreachable!(),
@@ -1151,13 +1314,18 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
 pub struct DecodeClarityValueOk;
 impl FunctionImplementation for DecodeClarityValueOk {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
 
-    fn run(ctx: &FunctionSpecification, args: &Vec<Value>) -> Result<Value, Diagnostic> {
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
         let value = match args.get(0) {
             // todo maybe we can assume some types?
             Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => {
@@ -1179,13 +1347,13 @@ impl FunctionImplementation for DecodeClarityValueOk {
             Some(_v) => {
                 return Err(diagnosed_error!(
                     "function '{}': argument type error",
-                    &ctx.name
+                    &fn_spec.name
                 ))
             }
             None => {
                 return Err(diagnosed_error!(
                     "function '{}': argument missing",
-                    &ctx.name
+                    &fn_spec.name
                 ))
             }
         };
@@ -1194,4 +1362,116 @@ impl FunctionImplementation for DecodeClarityValueOk {
 
         Ok(Value::buffer(inner_bytes, CLARITY_VALUE.clone()))
     }
+}
+
+pub struct RetrieveDeployedContract;
+impl FunctionImplementation for RetrieveDeployedContract {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let contract_id = args.get(0).unwrap();
+        let rpc_api_url = args.get(1).unwrap();
+        Ok(Value::object(indexmap! {
+            "contract_source".to_string() => Ok(Value::string("<source>".to_string())),
+            "contract_name".to_string() => Ok(Value::string("contract-name".to_string())),
+            "clarity_version".to_string() => Ok(Value::uint(2))
+        }))
+    }
+}
+
+pub struct RetrieveClarinetContract;
+impl FunctionImplementation for RetrieveClarinetContract {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let contract_key = args.get(0).unwrap();
+        let clarinet_toml_path = args.get(1).unwrap();
+
+        let mut clarinet_manifest = auth_ctx.workspace_location.get_parent_location()
+            .map_err(|e| diagnosed_error!("unable to read Clarinet.toml ({})", e.to_string()))?;
+        let _ = clarinet_manifest.append_path(&clarinet_toml_path.to_string());
+
+        let manifest_bytes = clarinet_manifest
+            .read_content()
+            .map_err(|e| diagnosed_error!("unable to read Clarinet.toml ({})", e.to_string()))?;
+        let manifest: ClarinetManifest = toml::from_slice(&manifest_bytes)
+            .map_err(|e| diagnosed_error!("unable to deserialize Clarinet.toml ({})", e))?;
+
+        let mut contract_entry = None;
+        for (contract_name, contract) in manifest.contracts.into_iter() {
+            if contract_name.eq(&contract_key.to_string()) {
+                contract_entry = Some(contract.clone());
+                break;
+            }
+        }
+
+        let Some(contract) = contract_entry else {
+            return Err(diagnosed_error!(
+                "unable to locate contract with name {} in Clarinet.toml",
+                contract_key.to_string()
+            ));
+        };
+
+        let mut contract_location = clarinet_manifest.get_parent_location().unwrap();
+        let _ = contract_location.append_path(&contract.path);
+        let contract_source = contract_location.read_content_as_utf8().map_err(|e| {
+            diagnosed_error!(
+                "unable to read contract at path {} ({})",
+                contract_location.to_string(),
+                e
+            )
+        })?;
+
+        let res = Value::object(indexmap! {
+            "contract_source".to_string() => Ok(Value::string(contract_source)),
+            "contract_name".to_string() => Ok(contract_key.clone()),
+            "clarity_version".to_string() => Ok(Value::uint(contract.clarity_version))
+        });
+
+        Ok(res)
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct Contract {
+    pub path: String,
+    pub clarity_version: u64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ProjectConfig {
+    pub name: String,
+    pub description: String,
+    pub requirements: Option<Vec<RequirementConfig>>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct RequirementConfig {
+    pub contract_id: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct ClarinetManifest {
+    pub project: ProjectConfig,
+    pub contracts: BTreeMap<String, Contract>,
 }

@@ -6438,6 +6438,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tiny-hderive",
+ "toml 0.5.11",
  "txtx-addon-kit",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use kit::{
     helpers::fs::{get_txtx_files_paths, FileLocation},
     indexmap::IndexMap,
@@ -9,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::runbook::{Runbook, RunbookSources};
 
-use super::{RunbookMetadata, RunbookState, WorkspaceManifest};
+use super::{RunbookState, WorkspaceManifest};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceManifestFile {

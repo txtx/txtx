@@ -102,7 +102,7 @@ pub async fn run_wallets_evaluation(
                 }
 
                 let input_evaluation_results = runbook_execution_context
-                    .commands_inputs_evaluations_results
+                    .commands_inputs_evaluation_results
                     .get(&construct_did.clone());
 
                 let addon_context_key = (package_id.did(), wallet_instance.namespace.clone());
@@ -191,7 +191,7 @@ pub async fn run_wallets_evaluation(
         };
 
         runbook_execution_context
-            .commands_inputs_evaluations_results
+            .commands_inputs_evaluation_results
             .insert(construct_did.clone(), evaluated_inputs.clone());
 
         let res = wallet
@@ -365,7 +365,7 @@ pub async fn run_constructs_evaluation(
             None
         } else {
             runbook_execution_context
-                .commands_inputs_evaluations_results
+                .commands_inputs_evaluation_results
                 .get(&construct_did.clone())
         };
 
@@ -412,6 +412,7 @@ pub async fn run_constructs_evaluation(
             runbook_workspace_context,
             runbook_execution_context,
             runtime_context,
+            false,
         );
         let Some(command_instance) = runbook_execution_context
             .commands_instances
@@ -485,7 +486,7 @@ pub async fn run_constructs_evaluation(
             };
 
             runbook_execution_context
-                .commands_inputs_evaluations_results
+                .commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
 
             let mut empty_vec = vec![];
@@ -558,7 +559,7 @@ pub async fn run_constructs_evaluation(
             }
 
             runbook_execution_context
-                .commands_inputs_evaluations_results
+                .commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
 
             let mut empty_vec = vec![];
@@ -844,7 +845,13 @@ pub fn eval_expression(
                 args.push(value);
             }
             runtime_context
-                .execute_function(package_id.did(), func_namespace, &func_name, &args)
+                .execute_function(
+                    package_id.did(),
+                    func_namespace,
+                    &func_name,
+                    &args,
+                    &runtime_context.authorization_context,
+                )
                 .map_err(|e| e)?
         }
         // Represents an attribute or element traversal.
@@ -852,10 +859,6 @@ pub fn eval_expression(
             let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
             else {
-                println!(
-                    "\n\nLooking for {} in {:?}\n\n",
-                    expr, runbook_workspace_context
-                );
                 return Err(diagnosed_error!(
                     "unable to resolve expression '{}'",
                     expr.to_string().trim()
@@ -973,7 +976,13 @@ pub fn eval_expression(
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
-            runtime_context.execute_function(package_id.did(), None, func, &vec![lhs, rhs])?
+            runtime_context.execute_function(
+                package_id.did(),
+                None,
+                func,
+                &vec![lhs, rhs],
+                &runtime_context.authorization_context,
+            )?
         }
         // Represents a construct for constructing a collection by projecting the items from another collection.
         Expression::ForExpr(_for_expr) => {
@@ -1050,6 +1059,7 @@ pub fn perform_inputs_evaluation(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_context: &RuntimeContext,
+    simulation: bool,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
     let mut require_user_interaction = false;
@@ -1088,6 +1098,9 @@ pub fn perform_inputs_evaluation(
     }
 
     for input in inputs.into_iter() {
+        if simulation && input.name.eq("signer") {
+            continue;
+        }
         let previously_evaluated_input = match input_evaluation_results {
             Some(input_evaluation_results) => {
                 input_evaluation_results.inputs.get_value(&input.name)
@@ -1101,9 +1114,9 @@ pub fn perform_inputs_evaluation(
             let Some(expr) = command_instance.get_expression_from_object(&input)? else {
                 continue;
             };
-            if let Expression::Traversal(traversal) = expr {
+            if let Expression::Traversal(traversal) = &expr {
                 let value = match eval_expression(
-                    &Expression::Traversal(traversal),
+                    &Expression::Traversal(traversal.clone()),
                     dependencies_execution_results,
                     package_id,
                     runbook_workspace_context,
@@ -1131,68 +1144,103 @@ pub fn perform_inputs_evaluation(
                     }
                 };
                 results.insert(&input.name, value);
-            } else {
-                let mut object_values = IndexMap::new();
-                for prop in object_props.iter() {
-                    if let Some(value) = previously_evaluated_input {
-                        match value.clone() {
-                            Value::Object(obj) => {
-                                for (k, v) in obj.into_iter() {
-                                    object_values.insert(k, v);
-                                }
-                            }
-                            v => {
-                                object_values.insert(prop.name.to_string(), Ok(v));
-                            }
-                        };
-                    }
+                continue;
+            }
 
-                    let Some(expr) =
-                        command_instance.get_expression_from_object_property(&input, &prop)?
-                    else {
-                        continue;
-                    };
-                    let value = match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_id,
-                        runbook_workspace_context,
-                        runbook_execution_context,
-                        runtime_context,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                        Err(e) => Err(e),
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            require_user_interaction = true;
-                            continue;
-                        }
-                    };
-                    if let Err(ref diag) = value {
-                        diags.push(diag.clone());
-                        if diag.is_error() {
+            if let Expression::FuncCall(ref function_call) = expr {
+                let value = match eval_expression(
+                    &Expression::FuncCall(function_call.clone()),
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    runtime_context,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
                             fatal_error = true;
                         }
+                        diags.push(e);
+                        continue;
                     }
-
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        require_user_interaction = true;
+                        continue;
+                    }
+                };
+                results.insert(&input.name, value);
+                continue;
+            }
+            let mut object_values = IndexMap::new();
+            for prop in object_props.iter() {
+                if let Some(value) = previously_evaluated_input {
                     match value.clone() {
-                        Ok(Value::Object(obj)) => {
+                        Value::Object(obj) => {
                             for (k, v) in obj.into_iter() {
                                 object_values.insert(k, v);
                             }
                         }
-                        Ok(v) => {
+                        v => {
                             object_values.insert(prop.name.to_string(), Ok(v));
-                        }
-                        Err(diag) => {
-                            object_values.insert(prop.name.to_string(), Err(diag));
                         }
                     };
                 }
 
-                if !object_values.is_empty() {
-                    results.insert(&input.name, Value::object(object_values));
+                let Some(expr) =
+                    command_instance.get_expression_from_object_property(&input, &prop)?
+                else {
+                    continue;
+                };
+
+                let value = match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    runtime_context,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
+                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        require_user_interaction = true;
+                        continue;
+                    }
+                };
+
+                if let Err(ref diag) = value {
+                    diags.push(diag.clone());
+                    if diag.is_error() {
+                        fatal_error = true;
+                    }
                 }
+
+                match value.clone() {
+                    Ok(Value::Object(obj)) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    Ok(v) => {
+                        object_values.insert(prop.name.to_string(), Ok(v));
+                    }
+                    Err(diag) => {
+                        object_values.insert(prop.name.to_string(), Err(diag));
+                    }
+                };
+            }
+
+            if !object_values.is_empty() {
+                results.insert(&input.name, Value::object(object_values));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
@@ -1328,10 +1376,19 @@ pub fn perform_inputs_evaluation(
         }
     }
 
+    if fatal_error {
+        return Ok(CommandInputEvaluationStatus::Aborted(results, diags))
+    }
+
+    let results = command_instance
+        .post_process_inputs_evaluations(results)
+        .map_err(|d| vec![d])?;
+
     let status = match (fatal_error, require_user_interaction) {
-        (false, false) => CommandInputEvaluationStatus::Complete(results),
-        (true, _) => CommandInputEvaluationStatus::Aborted(results, diags),
-        (false, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
+        (false, false) => {
+            CommandInputEvaluationStatus::Complete(results)
+        }
+        (_, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
     };
     Ok(status)
 }

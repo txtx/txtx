@@ -402,7 +402,7 @@ impl ValueStore {
         Ok(value)
     }
 
-    pub fn get_expected_object(&self, key: &str) -> Result<HashMap<String, Value>, Diagnostic> {
+    pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "store '{}': unable to retrieve key '{}'",
@@ -415,7 +415,7 @@ impl ValueStore {
                 self.name, key
             )));
         };
-        let mut result = HashMap::new();
+        let mut result = IndexMap::new();
         value.into_iter().for_each(|(k, v)| match v {
             Ok(v) => {
                 result.insert(k.clone(), v.clone());
@@ -486,5 +486,22 @@ impl ValueStore {
 
     pub fn len(&self) -> usize {
         self.storage.len()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthorizationContext {
+    pub workspace_location: FileLocation,
+}
+
+impl AuthorizationContext {
+    pub fn new(workspace_location: FileLocation) -> Self {
+        Self { workspace_location }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            workspace_location: FileLocation::working_dir(),
+        }
     }
 }

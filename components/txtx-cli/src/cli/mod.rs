@@ -230,7 +230,7 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         }
         Command::Lsp => {
             lsp::run_lsp().await?;
-        },
+        }
     }
     Ok(())
 }
