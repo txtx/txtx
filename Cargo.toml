@@ -5,6 +5,7 @@ members = [
     "components/txtx-addon-kit",
     "components/txtx-addon-network-bitcoin",
     "components/txtx-addon-network-stacks",
+    "components/txtx-addon-telegram",
     "components/txtx-lsp"
 ]
 default-members = ["components/txtx-cli"]
