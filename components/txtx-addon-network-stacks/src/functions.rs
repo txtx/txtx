@@ -285,6 +285,23 @@ lazy_static! {
             }
         },
         define_function! {
+            EncodeClarityValueList => {
+                name: "cv_list",
+                documentation: "Coming soon - `stacks::cv_tuple` returns the given sequence as a Clarity list.",
+                example: indoc! {r#"// Coming soon "#},
+                inputs: [
+                    clarity_value: {
+                        documentation: "An array of values.",
+                        typing: vec![Type::array(Type::buffer())]
+                    }
+                ],
+                output: {
+                    documentation: "The input wrapped in an `Err` Clarity type.",
+                    typing: Type::bool()
+                },
+            }
+        },
+        define_function! {
             RevertIfAccountSendingMoreThan => {
                 name: "revert_if_account_sends_more_than",
                 documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account sending more than the specified number of tokens. The default token is µSTX.",
@@ -957,6 +974,25 @@ impl FunctionImplementation for StacksEncodePrincipal {
 
 pub struct StacksEncodeTuple;
 impl FunctionImplementation for StacksEncodeTuple {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        unimplemented!()
+    }
+}
+
+pub struct EncodeClarityValueList;
+impl FunctionImplementation for EncodeClarityValueList {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
