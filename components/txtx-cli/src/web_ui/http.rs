@@ -21,7 +21,7 @@ use super::Asset;
 pub async fn start_server(
     gql_context: GraphContext,
     relayer_context: RelayerContext,
-    port: u16,
+    network_binding: &str,
     _ctx: &Context,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
     let gql_context = Data::new(gql_context);
@@ -61,7 +61,7 @@ pub async fn start_server(
             .service(dist)
     })
     .workers(5)
-    .bind(&format!("127.0.0.1:{port}"))?
+    .bind(network_binding)?
     .run();
     let handle = server.handle();
     tokio::spawn(server);
@@ -104,7 +104,6 @@ async fn dist(path: web::Path<String>) -> impl Responder {
 }
 
 async fn discovery() -> impl Responder {
-    println!("GET /api/v1/discovery");
     HttpResponse::Ok().json(DiscoveryResponse {
         needs_credentials: false,
         client_type: ClientType::Operator,
