@@ -268,10 +268,23 @@ impl Value {
     }
 
     pub fn parse_and_default_to_string(value_str: &str) -> Value {
-        match value_str.parse::<u64>() {
+        let trim = value_str.trim();
+        let value = match trim.parse::<u64>() {
             Ok(uint) => Value::uint(uint),
-            Err(_) => Value::string(value_str.into()),
-        }
+            Err(_) => {
+                if trim.starts_with("[") || trim.starts_with("(") {
+                    let values_to_parse = trim[1..trim.len() - 1].split(",").collect::<Vec<_>>();
+                    let mut values = vec![];
+                    for v in values_to_parse.iter() {
+                        values.push(Value::parse_and_default_to_string(v));
+                    }
+                    Value::array(values)
+                } else {
+                    Value::string(trim.into())
+                }
+            }
+        };
+        value
     }
 }
 
