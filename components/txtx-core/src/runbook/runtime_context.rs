@@ -163,7 +163,9 @@ impl RuntimeContext {
         }
 
         if inputs_sets.is_empty() {
-            inputs_sets.push(ValueStore::new("main", &Did::zero()))
+            let default_name = "default".to_string();
+            let name = inputs_map.current.as_ref().unwrap_or(&default_name);
+            inputs_sets.push(ValueStore::new(name, &Did::zero()))
         }
 
         for inputs_set in inputs_sets.iter_mut() {

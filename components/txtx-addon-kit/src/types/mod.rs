@@ -157,8 +157,12 @@ impl PackageId {
     pub fn did(&self) -> PackageDid {
         let did = Did::from_components(vec![
             self.runbook_id.did().as_bytes(),
-            self.package_location.to_string().as_bytes(),
             self.package_name.to_string().as_bytes(),
+            // todo(lgalabru): This should be done upstream.
+            // Serializing is allowing us to get a canonical location.
+            serde_json::json!(self.package_location)
+                .to_string()
+                .as_bytes(),
         ]);
         PackageDid(did)
     }
@@ -197,9 +201,13 @@ impl ConstructId {
     pub fn did(&self) -> ConstructDid {
         let did = Did::from_components(vec![
             self.package_id.did().as_bytes(),
-            self.construct_location.to_string().as_bytes(),
             self.construct_type.to_string().as_bytes(),
             self.construct_name.to_string().as_bytes(),
+            // todo(lgalabru): This should be done upstream.
+            // Serializing is allowing us to get a canonical location.
+            serde_json::json!(self.construct_location)
+                .to_string()
+                .as_bytes(),
         ]);
         ConstructDid(did)
     }

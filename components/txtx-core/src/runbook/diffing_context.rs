@@ -1,9 +1,11 @@
 use super::{RunbookExecutionMode, RunningContext};
 use kit::{
+    helpers::fs::FileLocation,
     indexmap::IndexMap,
     types::{types::Value, ConstructDid, PackageDid, RunbookId},
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use similar::{capture_diff_slices, Algorithm, ChangeTag, DiffOp, TextDiff};
 use std::{
     collections::HashSet,
@@ -61,7 +63,7 @@ pub struct SigningCommandSnapshot {
     construct_type: String,
     construct_name: String,
     construct_addon: Option<String>,
-    construct_path: String,
+    construct_location: FileLocation,
     downstream_constructs_dids: Vec<ConstructDid>,
     inputs: IndexMap<String, CommandInputSnapshot>,
     outputs: IndexMap<String, CommandOutputSnapshot>,
@@ -72,7 +74,7 @@ pub struct CommandSnapshot {
     package_did: PackageDid,
     construct_type: String,
     construct_name: String,
-    construct_path: String,
+    construct_location: FileLocation,
     construct_addon: Option<String>,
     upstream_constructs_dids: Vec<ConstructDid>,
     inputs: IndexMap<String, CommandInputSnapshot>,
@@ -212,7 +214,7 @@ impl RunbookSnapshotContext {
                             package_did: command_instance.package_id.did(),
                             construct_type: signing_construct_id.construct_type.clone(),
                             construct_name: signing_construct_id.construct_name.clone(),
-                            construct_path: signing_construct_id.construct_location.to_string(),
+                            construct_location: signing_construct_id.construct_location.clone(),
                             construct_addon: None,
                             downstream_constructs_dids,
                             inputs: IndexMap::new(),
@@ -355,7 +357,7 @@ impl RunbookSnapshotContext {
                             package_did: command_instance.package_id.did(),
                             construct_type: construct_id.construct_type.clone(),
                             construct_name: construct_id.construct_name.clone(),
-                            construct_path: construct_id.construct_location.to_string(),
+                            construct_location: construct_id.construct_location.clone(),
                             construct_addon: None,
                             upstream_constructs_dids,
                             inputs: IndexMap::new(),
@@ -452,7 +454,8 @@ impl RunbookSnapshotContext {
             snapshot.runs.insert(run_id, run);
         }
 
-        snapshot
+        let rountrip: RunbookExecutionSnapshot = serde_json::from_value(json!(snapshot)).unwrap();
+        rountrip
     }
 
     pub fn diff(
@@ -657,8 +660,8 @@ impl RunbookSnapshotContext {
                 plan_changes.contructs_to_update.push(evaluated_diff(
                     Some(old_signing_command_id.clone()),
                     TextDiff::from_lines(
-                        old_signing_command.construct_path.as_str(),
-                        new_signing_command.construct_path.as_str(),
+                        &old_signing_command.construct_location.to_string(),
+                        &new_signing_command.construct_location.to_string(),
                     ),
                     format!("Signing command's path updated"),
                     false,
@@ -817,8 +820,8 @@ pub fn diff_command_snapshots(
             .push(evaluated_diff(
                 Some(old_construct_did.clone()),
                 TextDiff::from_lines(
-                    old_command.construct_path.as_str(),
-                    new_command.construct_path.as_str(),
+                    &old_command.construct_location.to_string(),
+                    &new_command.construct_location.to_string(),
                 ),
                 format!("Non-signing command's path updated"),
                 false,
@@ -859,8 +862,6 @@ pub fn diff_command_snapshots(
             .collect::<Vec<_>>();
 
         let inputs_sequence_changes = capture_diff_slices(Algorithm::Lcs, &old_inputs, &new_inputs);
-
-        // println!("Comparing \n{:?}\n{:?}", old_inputs, new_inputs);
 
         let mut comparable_inputs_list = vec![];
         for change in inputs_sequence_changes.iter() {
@@ -940,6 +941,41 @@ pub fn diff_command_snapshots(
                     format!("Non-signing command's input value_pre_evaluation updated"),
                     true,
                 ));
+            // Input value_post_evaluation
+            if let Some(props) = new_input.value_post_evaluation.as_object() {
+                for (prop, value_res) in props.iter() {
+                    let Ok(new_value) = value_res else {
+                        continue;
+                    };
+                    let Some(Ok(old_value)) = old_input
+                        .value_post_evaluation
+                        .as_object()
+                        .and_then(|o| o.get(prop))
+                    else {
+                        continue;
+                    };
+                    consolidated_changes
+                        .contructs_to_update
+                        .push(evaluated_diff(
+                            Some(old_construct_did.clone()),
+                            TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
+                            format!("Non-signing command's input value_post_evaluation updated"),
+                            true,
+                        ));
+                }
+            } else {
+                consolidated_changes
+                    .contructs_to_update
+                    .push(evaluated_diff(
+                        Some(old_construct_did.clone()),
+                        TextDiff::from_lines(
+                            &old_input.value_post_evaluation.to_string(),
+                            &new_input.value_post_evaluation.to_string(),
+                        ),
+                        format!("Non-signing command's input value_post_evaluation updated"),
+                        true,
+                    ));
+            }
         }
 
         // Checking the outputs
@@ -1060,12 +1096,14 @@ pub fn diff_command_snapshots(
     consolidated_changes
 }
 
+#[derive(Debug)]
 pub struct ConsolidatedChanges {
     pub old_plans_to_rem: Vec<String>,
     pub new_plans_to_add: Vec<String>,
     pub plans_to_update: IndexMap<String, ConsolidatedPlanChanges>,
 }
 
+#[derive(Debug)]
 pub struct ConsolidatedPlanChanges {
     pub old_constructs_to_rem: Vec<ConstructDid>,
     pub new_constructs_to_add: Vec<ConstructDid>,

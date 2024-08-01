@@ -269,7 +269,8 @@ impl FileLocation {
     pub fn get_relative_location(&self) -> Result<String, String> {
         let base = self.get_workspace_root_location().map(|l| l.to_string())?;
         let file = self.to_string();
-        Ok(file[(base.len() + 1)..].to_string())
+        let offset = if base.is_empty() { 0 } else { 1 };
+        Ok(file[(base.len() + offset)..].to_string())
     }
 
     pub fn get_file_name(&self) -> Option<String> {
