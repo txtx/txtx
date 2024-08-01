@@ -42,123 +42,129 @@ use super::{
 };
 
 lazy_static! {
-    pub static ref DEPLOY_STACKS_CONTRACT: PreCommandSpecification = define_command! {
-      StacksDeployContract => {
-        name: "Stacks Contract Deployment",
-        matcher: "deploy_contract",
-        documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
-        implements_signing_capability: true,
-        implements_background_task_capability: true,
-        inputs: [
-            contract: {
-                documentation: "Contract informations.",
-                typing: Type::object(vec![
-                    ObjectProperty {
-                        name: "source_code".into(),
-                        documentation: "The code of the contract method to deploy.".into(),
-                        typing: Type::string(),
-                        optional: true,
-                        interpolable: true,
-                    },
-                    ObjectProperty {
-                        name: "contract_name".into(),
-                        documentation: "The name of the contract to deploy.".into(),
-                        typing: Type::string(),
-                        optional: true,
-                        interpolable: true,
-                    },
-                    ObjectProperty {
-                        name: "clarity_version".into(),
-                        documentation: "The version of clarity to use (default: latest).".into(),
-                        typing: Type::uint(),
-                        optional: true,
-                        interpolable: true,
-                    }, ]),
-                optional: true,
-                interpolable: true
-            },
-            network_id: {
-                documentation: "The network id used to validate the transaction version.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
-            contract_name_suffix: {
-                documentation: "A suffix to append to the contract name.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
-            signer: {
-                documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
-                typing: Type::string(),
-                optional: false,
-                interpolable: true
-            },
-            confirmations: {
-              documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-              typing: Type::uint(),
-              optional: true,
-              interpolable: true
-            },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
-                optional: true,
-                interpolable: true
-            },
-            fee: {
-              documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-              typing: Type::uint(),
-              optional: true,
-              interpolable: true
-            },
-            post_conditions: {
-              documentation: "The post conditions to include to the transaction.",
-              typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
-              optional: true,
-              interpolable: true
-            },
-            contracts_ids_dependencies: {
-                documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::string()),
-                optional: true,
-                interpolable: true
-            },
-            contracts_ids_lazy_dependencies: {
-                documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::string()),
-                optional: true,
-                interpolable: true
+    pub static ref DEPLOY_STACKS_CONTRACT: PreCommandSpecification = {
+        let mut command = define_command! {
+        StacksDeployContract => {
+            name: "Stacks Contract Deployment",
+            matcher: "deploy_contract",
+            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
+            implements_signing_capability: true,
+            implements_background_task_capability: true,
+            inputs: [
+                description: {
+                    documentation: "Description of the deployment",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                contract: {
+                    documentation: "Contract informations.",
+                    typing: Type::object(vec![
+                        ObjectProperty {
+                            name: "source_code".into(),
+                            documentation: "The code of the contract method to deploy.".into(),
+                            typing: Type::string(),
+                            optional: true,
+                            interpolable: true,
+                        },
+                        ObjectProperty {
+                            name: "contract_name".into(),
+                            documentation: "The name of the contract to deploy.".into(),
+                            typing: Type::string(),
+                            optional: true,
+                            interpolable: true,
+                        },
+                        ObjectProperty {
+                            name: "clarity_version".into(),
+                            documentation: "The version of clarity to use (default: latest).".into(),
+                            typing: Type::uint(),
+                            optional: true,
+                            interpolable: true,
+                        }, ]),
+                    optional: true,
+                    interpolable: true
+                },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                signer: {
+                    documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    typing: Type::uint(),
+                    optional: true,
+                    interpolable: true
+                },
+                nonce: {
+                    documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                    typing: Type::uint(),
+                    optional: true,
+                    interpolable: true
+                },
+                fee: {
+                    documentation: "The transaction fee. This value will automatically be estimated if omitted.",
+                    typing: Type::uint(),
+                    optional: true,
+                    interpolable: true
+                },
+                post_conditions: {
+                    documentation: "The post conditions to include to the transaction.",
+                    typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
+                    optional: true,
+                    interpolable: true
+                },
+                contracts_ids_dependencies: {
+                    documentation: "Contracts that are depending on this contract at their deployment.",
+                    typing: Type::array(Type::string()),
+                    optional: true,
+                    interpolable: true
+                },
+                contracts_ids_lazy_dependencies: {
+                    documentation: "Contracts that are depending on this contract after their deployment.",
+                    typing: Type::array(Type::string()),
+                    optional: true,
+                    interpolable: true
+                }
+            ],
+            outputs: [
+                signed_transaction_bytes: {
+                    documentation: "The signed transaction bytes.",
+                    typing: Type::string()
+                },
+                tx_id: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                result: {
+                    documentation: "The transaction result.",
+                    typing: Type::buffer()
+                }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                        action "counter_deployment" "stacks::deploy_contract" {
+                            description = "Deploy counter contract."
+                            source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                            contract_name = "verify-and-update-price-feeds"
+                            signer = wallet.alice
+                        }
+                        output "contract_tx_id" {
+                        value = action.counter_deployment.tx_id
+                        }
+                        // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
+                    "#},
             }
-        ],
-        outputs: [
-          signed_transaction_bytes: {
-              documentation: "The signed transaction bytes.",
-              typing: Type::string()
-          },
-          tx_id: {
-            documentation: "The transaction id.",
-            typing: Type::string()
-          },
-          result: {
-            documentation: "The transaction result.",
-            typing: Type::buffer()
-          }
-        ],
-          example: txtx_addon_kit::indoc! {r#"
-            action "counter_deployment" "stacks::deploy_contract" {
-                description = "Deploy counter contract."
-                source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                contract_name = "verify-and-update-price-feeds"
-                signer = wallet.alice
-            }
-            output "contract_tx_id" {
-              value = action.counter_deployment.tx_id
-            }
-            // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
-        "#},
-      }
+        };
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("source".to_string());
+        }
+        command
     };
 }
 
