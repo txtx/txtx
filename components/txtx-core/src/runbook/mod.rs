@@ -245,6 +245,39 @@ impl RunbookInputsMap {
         }
         current_map
     }
+
+    pub fn override_values_with_cli_inputs(
+        &mut self,
+        inputs: &Vec<String>,
+        buffer_stdin: Option<String>,
+    ) -> Result<(), String> {
+        for input in inputs.iter() {
+            let Some((input_name, input_value)) = input.split_once("=") else {
+                return Err(format!(
+                    "expected --input argument to be formatted as '{}', got '{}'",
+                    "key=value", input
+                ));
+            };
+            let input_value = match (input_value.eq("←"), &buffer_stdin) {
+                (true, Some(v)) => v.to_string(),
+                _ => input_value.to_string(),
+            };
+            let new_value = Value::parse_and_default_to_string(&input_value);
+            for (_, values) in self.values.iter_mut() {
+                let mut found = false;
+                for (k, old_value) in values.iter_mut() {
+                    if k.eq(&input_name) {
+                        *old_value = new_value.clone();
+                        found = true;
+                    }
+                }
+                if !found {
+                    values.push((input_name.to_string(), new_value.clone()));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]

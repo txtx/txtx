@@ -112,6 +112,8 @@ impl WorkspaceManifest {
     pub fn get_runbook_inputs(
         &self,
         selector: &Option<String>,
+        cli_inputs: &Vec<String>,
+        buffer_stdin: Option<String>,
     ) -> Result<RunbookInputsMap, String> {
         if let Some(selector) = selector {
             if self.environments.get(selector).is_none() {
@@ -130,6 +132,7 @@ impl WorkspaceManifest {
         }
         inputs_map.values.insert(None, vec![]);
         inputs_map.current = inputs_map.environments.get(0).map(|v| v.to_string());
+        inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
         Ok(inputs_map)
     }
 }
