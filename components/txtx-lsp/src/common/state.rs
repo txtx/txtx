@@ -8,18 +8,18 @@ use std::collections::{HashMap, HashSet};
 use std::vec;
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::helpers::fs::{FileAccessor, FileLocation};
 use txtx_core::kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
 use txtx_core::kit::types::RunbookId;
 use txtx_core::kit::Addon;
-use txtx_core::manifest::WorkspaceManifest;
 use txtx_core::std::StdAddon;
 
 use super::requests::capabilities::InitializationOptions;
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for func in addon.get_functions() {
@@ -112,7 +112,7 @@ lazy_static! {
     };
 
     pub static ref ACTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for action in addon.get_actions() {
@@ -158,7 +158,99 @@ lazy_static! {
                     // `console` is provided it will only insert `sole`. Therefore it is
                     // recommended to use `textEdit` instead since it avoids additional client
                     // side interpretation.
-                    insert_text: Some(format!("action \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {}: ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
+                    insert_text: Some(format!("action \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
+                    // The format of the insert text. The format applies to both the `insertText` property
+                    // and the `newText` property of a provided `textEdit`. If omitted defaults to `InsertTextFormat.PlainText`.
+                    insert_text_format: Some(InsertTextFormat::SNIPPET), // Option<InsertTextFormat>,
+                    // How whitespace and indentation is handled during completion
+                    // item insertion. If not provided the client's default value depends on
+                    // the `textDocument.completion.insertTextMode` client capability.
+                    insert_text_mode: Some(InsertTextMode::ADJUST_INDENTATION),
+                    // An edit which is applied to a document when selecting
+                    // this completion. When an edit is provided the value of
+                    // insertText is ignored.
+                    //
+                    // Most editors support two different operation when accepting a completion item. One is to insert a
+                    // completion text and the other is to replace an existing text with a completion text. Since this can
+                    // usually not predetermined by a server it can report both ranges. Clients need to signal support for
+                    // `InsertReplaceEdits` via the `textDocument.completion.insertReplaceSupport` client capability
+                    // property.
+                    //
+                    // *Note 1:* The text edit's range as well as both ranges from a insert replace edit must be a
+                    // [single line] and they must contain the position at which completion has been requested.
+                    // *Note 2:* If an `InsertReplaceEdit` is returned the edit's insert range must be a prefix of
+                    // the edit's replace range, that means it must be contained and starting at the same position.
+                    text_edit: None,
+                    // An optional array of additional text edits that are applied when
+                    // selecting this completion. Edits must not overlap with the main edit
+                    // nor with themselves.
+                    additional_text_edits: None,
+                    // An optional command that is executed *after* inserting this completion. *Note* that
+                    // additional modifications to the current document should be described with the
+                    // additionalTextEdits-property.
+                    command: None,
+                    // An optional set of characters that when pressed while this completion is
+                    // active will accept it first and then type that character. *Note* that all
+                    // commit characters should have `length=1` and that superfluous characters
+                    // will be ignored.
+                    commit_characters: None, //Option<Vec<String>>,
+                    data: None, // Option<Value>,
+                    ..Default::default()
+                });
+            }
+        }
+        completion_items
+    };
+
+
+    pub static ref WALLETS: Vec<CompletionItem> = {
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let mut completion_items = vec![];
+        for addon in addons.iter() {
+            for wallet in addon.get_wallets() {
+                let spec = wallet;
+                completion_items.push(lsp_types::CompletionItem {
+                    // The label of this completion item. By default
+                    // also the text that is inserted when selecting
+                    // this completion.
+                    label: format!("{}::{}", addon.get_namespace(), spec.matcher),
+                    // Additional details for the label
+                    label_details: None, //Option<CompletionItemLabelDetails>,
+                    // The kind of this completion item. Based of the kind
+                    // an icon is chosen by the editor.
+                    kind: Some(CompletionItemKind::CLASS), //Option<CompletionItemKind>,
+                    // A human-readable string with additional information
+                    // about this item, like type or symbol information.
+                    detail: Some(format!("action <name> \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().map(|i| i.name.clone()).collect::<Vec<_>>().join("\n"))), //Option<String>,
+                    // A human-readable string that represents a doc-comment.
+                    documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: format!("{}\n\n## Arguments\n{}\n\n## Example\n```hcl\n{}\n```", spec.documentation, spec.inputs.iter().map(|i| format!("`{}`: {}", i.name, i.documentation)).collect::<Vec<_>>().join("\n\n"), spec.example)
+                    })),
+                    // Indicates if this item is deprecated.
+                    deprecated: None, //Option<bool>,
+                    // Select this item when showing.
+                    preselect: None, //Option<bool>,
+                    // A string that should be used when comparing this item
+                    // with other items. When `falsy` the label is used
+                    // as the sort text for this item.
+                    sort_text: None, // Option<String>,
+                    // A string that should be used when filtering a set of
+                    // completion items. When `falsy` the label is used as the
+                    // filter text for this item.
+                    filter_text: None, // Option<String>,
+                    // A string that should be inserted into a document when selecting
+                    // this completion. When `falsy` the label is used as the insert text
+                    // for this item.
+                    //
+                    // The `insertText` is subject to interpretation by the client side.
+                    // Some tools might not take the string literally. For example
+                    // VS Code when code complete is requested in this example
+                    // `con<cursor position>` and a completion item with an `insertText` of
+                    // `console` is provided it will only insert `sole`. Therefore it is
+                    // recommended to use `textEdit` instead since it avoids additional client
+                    // side interpretation.
+                    insert_text: Some(format!("action \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
                     // The format of the insert text. The format applies to both the `insertText` property
                     // and the `newText` property of a provided `textEdit`. If omitted defaults to `InsertTextFormat.PlainText`.
                     insert_text_format: Some(InsertTextFormat::SNIPPET), // Option<InsertTextFormat>,
@@ -377,8 +469,10 @@ impl EditorState {
         // )
         let functions = FUNCTIONS.clone();
         let mut actions = ACTIONS.clone();
+        let mut wallets = WALLETS.clone();
         let mut completion_items = functions;
         completion_items.append(&mut actions);
+        completion_items.append(&mut wallets);
         completion_items
     }
 
