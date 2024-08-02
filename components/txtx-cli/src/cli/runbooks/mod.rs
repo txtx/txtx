@@ -728,7 +728,7 @@ pub async fn handle_run_command(
             cmd.network_binding_ip_address, cmd.network_binding_port
         );
         println!(
-            "\n{} Launching Supervisor Web Console\n{}",
+            "\n{} Starting the supervisor web console\n{}",
             purple!("→"),
             green!(format!("http://{}", network_binding))
         );
