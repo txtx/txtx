@@ -1,3 +1,4 @@
+use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
@@ -185,6 +186,15 @@ pub struct ListRunbooks {
     pub manifest_path: String,
 }
 
+fn load_stdin() -> Option<String> {
+    if atty::is(Stream::Stdin) {
+        return None;
+    }
+    let mut buffer = String::new();
+    std::io::stdin().read_line(&mut buffer).ok()?;
+    return Some(buffer);
+}
+
 pub fn main() {
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
@@ -193,14 +203,7 @@ pub fn main() {
         tracer: false,
     };
 
-    let buffer_stdin = {
-        let mut buffer = String::new();
-        if std::io::stdin().read_line(&mut buffer).is_ok() {
-            Some(buffer)
-        } else {
-            None
-        }
-    };
+    let buffer_stdin = load_stdin();
 
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
