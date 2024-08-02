@@ -1418,9 +1418,9 @@ impl FunctionImplementation for RetrieveDeployedContract {
         let contract_id = args.get(0).unwrap();
         let rpc_api_url = args.get(1).unwrap();
         Ok(Value::object(indexmap! {
-            "contract_source".to_string() => Ok(Value::string("<source>".to_string())),
-            "contract_name".to_string() => Ok(Value::string("contract-name".to_string())),
-            "clarity_version".to_string() => Ok(Value::uint(2))
+            "contract_source".to_string() => Value::string("<source>".to_string()),
+            "contract_name".to_string() => Value::string("contract-name".to_string()),
+            "clarity_version".to_string() => Value::uint(2)
         }))
     }
 }
@@ -1481,9 +1481,9 @@ impl FunctionImplementation for RetrieveClarinetContract {
         })?;
 
         let res = Value::object(indexmap! {
-            "contract_source".to_string() => Ok(Value::string(contract_source)),
-            "contract_name".to_string() => Ok(contract_key.clone()),
-            "clarity_version".to_string() => Ok(Value::uint(contract.clarity_version))
+            "contract_source".to_string() => Value::string(contract_source),
+            "contract_name".to_string() => contract_key.clone(),
+            "clarity_version".to_string() => Value::uint(contract.clarity_version)
         });
 
         Ok(res)

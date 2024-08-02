@@ -134,9 +134,7 @@ impl CommandImplementation for SendHttpRequest {
 
             if let Some(request_headers) = request_headers {
                 for (k, v) in request_headers.iter() {
-                    if let Ok(v) = v {
-                        req_builder = req_builder.header(k, v.expect_string());
-                    }
+                    req_builder = req_builder.header(k, v.expect_string());
                 }
             }
 

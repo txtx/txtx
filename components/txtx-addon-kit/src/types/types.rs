@@ -11,7 +11,7 @@ use super::diagnostics::Diagnostic;
 #[serde(tag = "type", content = "value")]
 pub enum Value {
     Primitive(PrimitiveValue),
-    Object(IndexMap<String, Result<Value, Diagnostic>>),
+    Object(IndexMap<String, Value>),
     Array(Box<Vec<Value>>),
     Addon(Box<AddonData>),
 }
@@ -41,7 +41,7 @@ impl Value {
     pub fn array(array: Vec<Value>) -> Value {
         Value::Array(Box::new(array))
     }
-    pub fn object(object: IndexMap<String, Result<Value, Diagnostic>>) -> Value {
+    pub fn object(object: IndexMap<String, Value>) -> Value {
         Value::Object(object)
     }
 
@@ -121,7 +121,7 @@ impl Value {
         }
     }
 
-    pub fn expect_object(&self) -> &IndexMap<String, Result<Value, Diagnostic>> {
+    pub fn expect_object(&self) -> &IndexMap<String, Value> {
         match &self {
             Value::Object(value) => value,
             _ => unreachable!(),
@@ -177,7 +177,7 @@ impl Value {
         }
     }
 
-    pub fn as_object(&self) -> Option<&IndexMap<String, Result<Value, Diagnostic>>> {
+    pub fn as_object(&self) -> Option<&IndexMap<String, Value>> {
         match &self {
             Value::Object(value) => Some(value),
             _ => None,
@@ -351,7 +351,7 @@ impl Value {
             Val::Obj(val) => {
                 let mut obj = IndexMap::new();
                 val.iter().for_each(|(k, v)| {
-                    obj.insert(k.to_string(), Ok(Value::from_jaq_value(v.clone())));
+                    obj.insert(k.to_string(), Value::from_jaq_value(v.clone()));
                 });
                 Value::Object(obj)
             }

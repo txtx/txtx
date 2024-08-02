@@ -265,21 +265,21 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                 .insert("evm_version".into(), evm_version.clone());
 
             let mut obj_props = indexmap::indexmap! {
-                "abi".to_string() => Ok(abi),
-                "bytecode".to_string() => Ok(bytecode),
-                "init_code".to_string() => Ok(init_code),
-                "source".to_string() => Ok(source),
-                "compiler_version".to_string() => Ok(compiler_version),
-                "contract_name".to_string() => Ok(contract_name),
-                "optimizer_enabled".to_string() => Ok(optimizer_enabled),
-                "optimizer_runs".to_string() => Ok(optimizer_runs),
-                "evm_version".to_string() => Ok(evm_version),
+                "abi".to_string() => abi,
+                "bytecode".to_string() => bytecode,
+                "init_code".to_string() => init_code,
+                "source".to_string() => source,
+                "compiler_version".to_string() => compiler_version,
+                "contract_name".to_string() => contract_name,
+                "optimizer_enabled".to_string() => optimizer_enabled,
+                "optimizer_runs".to_string() => optimizer_runs,
+                "evm_version".to_string() => evm_version,
             };
             if let Some(constructor_args) = constructor_args.clone() {
                 result
                     .outputs
                     .insert("constructor_args".into(), constructor_args.clone());
-                obj_props.insert("constructor_args".into(), Ok(constructor_args));
+                obj_props.insert("constructor_args".into(), constructor_args);
             }
 
             result

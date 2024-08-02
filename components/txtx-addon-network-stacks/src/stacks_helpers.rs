@@ -91,7 +91,7 @@ pub fn value_to_tuple(value: &Value) -> TupleData {
             for (k, v) in props.into_iter() {
                 let clarity_name = ClarityName::try_from(k.clone()).unwrap();
                 let (clarity_type, clarity_value) = match v {
-                    Ok(Value::Addon(addon)) => {
+                    Value::Addon(addon) => {
                         let clarity_type = extract_clarity_type(&addon.typing, &addon.value);
                         let clarity_value = clarity_type_and_primitive_to_clarity_value(
                             &clarity_type,
@@ -99,7 +99,7 @@ pub fn value_to_tuple(value: &Value) -> TupleData {
                         );
                         (clarity_type, clarity_value)
                     }
-                    Ok(Value::Primitive(PrimitiveValue::Buffer(buffer))) => {
+                    Value::Primitive(PrimitiveValue::Buffer(buffer)) => {
                         let clarity_value =
                             parse_clarity_value(&buffer.bytes, &buffer.typing).unwrap();
                         let clarity_type = extract_clarity_type(
@@ -108,13 +108,12 @@ pub fn value_to_tuple(value: &Value) -> TupleData {
                         );
                         (clarity_type, clarity_value)
                     }
-                    Ok(Value::Primitive(PrimitiveValue::Bool(bool))) => {
+                    Value::Primitive(PrimitiveValue::Bool(bool)) => {
                         let clarity_type = ClarityType::BoolType;
                         let clarity_value = ClarityValue::Bool(*bool);
                         (clarity_type, clarity_value)
                     }
-                    Ok(v) => unimplemented!("{:?}", v),
-                    Err(e) => unimplemented!("{}", e),
+                    v => unimplemented!("{:?}", v),
                 };
                 type_map.insert(clarity_name.clone(), clarity_type);
                 data_map.insert(clarity_name.clone(), clarity_value);
@@ -195,9 +194,10 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
         }
         ClarityValue::Tuple(TupleData { data_map, .. }) => {
             let mut map = IndexMap::new();
-            data_map.into_iter().for_each(|(k, v)| {
-                map.insert(k.to_string(), clarity_value_to_value(v));
-            });
+            for (k, v) in data_map.into_iter() {
+                let cv = clarity_value_to_value(v)?;
+                map.insert(k.to_string(), cv);
+            }
             Ok(Value::Object(map))
         }
         ClarityValue::Optional(value) => match value.data {

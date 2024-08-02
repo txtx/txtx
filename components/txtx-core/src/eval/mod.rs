@@ -760,8 +760,10 @@ pub fn eval_expression(
                     runbook_execution_context,
                     runtime_context,
                 )? {
-                    ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
-                    ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
                         return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                     }
@@ -886,14 +888,7 @@ pub fn eval_expression(
                 Some(output) => {
                     if let Some(ref object) = output.as_object() {
                         if let Some(key) = subpath.pop_front() {
-                            object
-                                .get(&key.to_string())
-                                .as_ref()
-                                .clone()
-                                .unwrap()
-                                .as_ref()
-                                .unwrap()
-                                .clone()
+                            object.get(&key.to_string()).clone().unwrap().clone()
                         } else {
                             output.clone()
                         }
@@ -1189,7 +1184,7 @@ pub fn perform_inputs_evaluation(
                             }
                         }
                         v => {
-                            object_values.insert(prop.name.to_string(), Ok(v));
+                            object_values.insert(prop.name.to_string(), v);
                         }
                     };
                 }
@@ -1208,33 +1203,35 @@ pub fn perform_inputs_evaluation(
                     runbook_execution_context,
                     runtime_context,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
                         continue;
                     }
                 };
 
-                if let Err(ref diag) = value {
-                    diags.push(diag.clone());
-                    if diag.is_error() {
-                        fatal_error = true;
-                    }
-                }
-
                 match value.clone() {
-                    Ok(Value::Object(obj)) => {
+                    Value::Object(obj) => {
                         for (k, v) in obj.into_iter() {
                             object_values.insert(k, v);
                         }
                     }
-                    Ok(v) => {
-                        object_values.insert(prop.name.to_string(), Ok(v));
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
+                    v => {
+                        object_values.insert(prop.name.to_string(), v);
                     }
                 };
             }
@@ -1429,7 +1426,7 @@ pub fn perform_wallet_inputs_evaluation(
                             }
                         }
                         v => {
-                            object_values.insert(prop.name.to_string(), Ok(v));
+                            object_values.insert(prop.name.to_string(), v);
                         }
                     };
                 }
@@ -1447,33 +1444,35 @@ pub fn perform_wallet_inputs_evaluation(
                     runbook_execution_context,
                     runtime_context,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
                         continue;
                     }
                 };
 
-                if let Err(ref diag) = value {
-                    diags.push(diag.clone());
-                    if diag.is_error() {
-                        fatal_error = true;
-                    }
-                }
-
                 match value.clone() {
-                    Ok(Value::Object(obj)) => {
+                    Value::Object(obj) => {
                         for (k, v) in obj.into_iter() {
                             object_values.insert(k, v);
                         }
                     }
-                    Ok(v) => {
-                        object_values.insert(prop.name.to_string(), Ok(v));
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
+                    v => {
+                        object_values.insert(prop.name.to_string(), v);
                     }
                 };
             }

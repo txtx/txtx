@@ -166,7 +166,7 @@ pub fn encode_primitive_value_to_clarity_value(src: &Value) -> Result<ClarityVal
             // should be encoded as a tuple
             let mut data = vec![];
             for (key, value) in object.iter() {
-                let tuple_value = encode_primitive_value_to_clarity_value(&value.clone()?)?;
+                let tuple_value = encode_primitive_value_to_clarity_value(&value.clone())?;
                 let tuple_key = ClarityName::try_from(key.as_str())
                     .map_err(|e| diagnosed_error!("unable to encode key {} to clarity ({})", key, e.to_string()))?;
                 data.push((tuple_key, tuple_value));

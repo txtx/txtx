@@ -133,16 +133,14 @@ impl RuntimeContext {
                                             ),
                                             ])?;
                                             let batch_name = match inputs.get("evm_chain_id") {
-                                                Some(Ok(value)) => value.to_string(),
+                                                Some(value) => value.to_string(),
                                                 _ => format!("{}", index),
                                             };
                                             let mut values =
                                                 ValueStore::new(&batch_name, &&Did::zero());
 
-                                            for (key, value_res) in inputs.into_iter() {
-                                                let value =
-                                                    value_res.clone().map_err(|e| vec![e])?;
-                                                values.insert(key, value);
+                                            for (key, value) in inputs.into_iter() {
+                                                values.insert(key, value.clone());
                                             }
                                             inputs_sets.push(values);
                                         }

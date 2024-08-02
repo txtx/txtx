@@ -427,7 +427,7 @@ impl RunbookSnapshotContext {
                             };
                             // This is a major shortcut, we should revisit this approach
                             let value = match value.as_object().map(|o| o.get(critical_output)) {
-                                Some(Some(Ok(value))) => value.clone(),
+                                Some(Some(value)) => value.clone(),
                                 _ => Value::null(),
                             };
                             let output_name = &output.name;
@@ -943,11 +943,8 @@ pub fn diff_command_snapshots(
                 ));
             // Input value_post_evaluation
             if let Some(props) = new_input.value_post_evaluation.as_object() {
-                for (prop, value_res) in props.iter() {
-                    let Ok(new_value) = value_res else {
-                        continue;
-                    };
-                    let Some(Ok(old_value)) = old_input
+                for (prop, new_value) in props.iter() {
+                    let Some(old_value) = old_input
                         .value_post_evaluation
                         .as_object()
                         .and_then(|o| o.get(prop))

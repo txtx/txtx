@@ -3,7 +3,6 @@ use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
 
 use crate::{helpers::fs::FileLocation, AddonDefaults};
@@ -358,26 +357,6 @@ impl ValueStore {
         self.storage.get(key).and_then(|v| v.as_string())
     }
 
-    pub fn get_object(&self, key: &str) -> Result<Option<HashMap<String, Value>>, Diagnostic> {
-        let Some(value) = self.storage.get(key) else {
-            return Ok(None);
-        };
-        let Some(value) = value.as_object() else {
-            return Err(Diagnostic::error_from_string(format!(
-                "store '{}': value associated to '{}' mismatch (expected object)",
-                self.name, key
-            )));
-        };
-        let mut result = HashMap::new();
-        value.into_iter().for_each(|(k, v)| match v {
-            Ok(v) => {
-                result.insert(k.clone(), v.clone());
-            }
-            Err(_) => {}
-        });
-        Ok(Some(result))
-    }
-
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
@@ -433,20 +412,13 @@ impl ValueStore {
                 self.name, key
             )));
         };
-        let Some(value) = value.as_object() else {
+        let Some(result) = value.as_object() else {
             return Err(Diagnostic::error_from_string(format!(
                 "store '{}': value associated to '{}' mismatch (expected object)",
                 self.name, key
             )));
         };
-        let mut result = IndexMap::new();
-        value.into_iter().for_each(|(k, v)| match v {
-            Ok(v) => {
-                result.insert(k.clone(), v.clone());
-            }
-            Err(_) => {}
-        });
-        Ok(result)
+        Ok(result.clone())
     }
 
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {

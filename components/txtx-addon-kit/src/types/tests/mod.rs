@@ -21,9 +21,8 @@ lazy_static! {
 #[test_case(Value::int(-1); "negative")]
 #[test_case({
     let mut o = indexmap::IndexMap::new();
-     o.insert("key1".to_string(), Ok(Value::string("test".to_string())));
-     o.insert("key2".to_string(), Ok(Value::uint(1)));
-     o.insert("error".to_string(), Err(Diagnostic::error_from_string("test".to_string())));
+     o.insert("key1".to_string(), Value::string("test".to_string()));
+     o.insert("key2".to_string(), Value::uint(1));
      Value::Object(o)
 })]
 #[test_case(Value::buffer(BYTES.clone(), TYPING.clone()))]
