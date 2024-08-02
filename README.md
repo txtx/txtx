@@ -1,4 +1,4 @@
-# Txtx for Visual Studio Code
+# txtx
 
 ```diff
 $ txtx --tldr
