@@ -65,7 +65,6 @@ impl RunbookWorkspaceContext {
         execution_context: &mut RunbookExecutionContext,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = vec![];
-        let mut has_errored = false;
         let mut sources = VecDeque::new();
         // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
         let mut files_visited = HashSet::new();
@@ -107,7 +106,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
 
@@ -184,7 +182,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
                         let _ = self.index_construct(
@@ -207,7 +204,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
                         let _ = self.index_construct(
@@ -230,7 +226,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
                         let _ = self.index_construct(
@@ -255,7 +250,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
 
@@ -301,7 +295,6 @@ impl RunbookWorkspaceContext {
                                 example: None,
                                 parent_diagnostic: None,
                             });
-                            has_errored = true;
                             continue;
                         };
                         match runtime_context
@@ -325,7 +318,6 @@ impl RunbookWorkspaceContext {
                             }
                             Err(diagnostic) => {
                                 diagnostics.push(diagnostic);
-                                has_errored = true;
                                 continue;
                             }
                         }
@@ -341,16 +333,15 @@ impl RunbookWorkspaceContext {
                             example: None,
                             parent_diagnostic: None,
                         });
-                        has_errored = true;
                     }
                 }
             }
         }
 
-        if has_errored {
-            Err(diagnostics)
-        } else {
+        if diagnostics.is_empty() {
             Ok(())
+        } else {
+            Err(diagnostics)
         }
     }
 
@@ -432,7 +423,7 @@ impl RunbookWorkspaceContext {
                 })
             }
             PreConstructData::Addon(block) => {
-                package.addons_dids.insert(construct_did.clone());
+                package.commands_dids.insert(construct_did.clone());
                 package
                     .addons_did_lookup
                     .insert(construct_name.clone(), construct_did.clone());
@@ -467,7 +458,7 @@ impl RunbookWorkspaceContext {
                 ConstructInstanceType::Import
             }
             PreConstructData::Action(command_instance) => {
-                package.addons_dids.insert(construct_did.clone());
+                package.commands_dids.insert(construct_did.clone());
                 package.addons_did_lookup.insert(
                     CommandId::Action(construct_name).to_string(),
                     construct_did.clone(),

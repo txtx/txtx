@@ -183,11 +183,9 @@ impl CommandImplementation for GetForgeDeploymentArtifacts {
                     None
                 };
 
-            let foundry_config = FoundryConfig::get_from_path(&foundry_toml_path)
-                .await
-                .map_err(|e| {
-                    diagnosed_error!("'evm::get_forge_deployment_artifacts' function: {e}")
-                })?;
+            let foundry_config = FoundryConfig::get_from_path(&foundry_toml_path).map_err(|e| {
+                diagnosed_error!("'evm::get_forge_deployment_artifacts' function: {e}")
+            })?;
 
             let compiled_output = foundry_config
                 .get_compiled_output(contract_filename, contract_name, foundry_profile)

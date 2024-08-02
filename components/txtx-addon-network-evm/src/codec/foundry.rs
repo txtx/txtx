@@ -151,7 +151,7 @@ impl FoundryConfig {
         Ok(config)
     }
 
-    pub async fn get_from_path(foundry_toml_path: &str) -> Result<Self, String> {
+    pub fn get_from_path(foundry_toml_path: &str) -> Result<Self, String> {
         let bytes = std::fs::read(foundry_toml_path)
             .map_err(|e| format!("invalid foundry.toml location {}: {}", foundry_toml_path, e))?;
 

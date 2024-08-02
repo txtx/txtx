@@ -96,6 +96,10 @@ impl FileLocation {
         Ok(FileLocation::Url { url })
     }
 
+    pub fn working_dir() -> FileLocation {
+        FileLocation::from_path_string(".").unwrap()
+    }
+
     pub fn from_path_string(path_string: &str) -> Result<FileLocation, String> {
         let path = PathBuf::from_str(path_string)
             .map_err(|e| format!("unable to parse {} as a path\n{:?}", path_string, e))?;
@@ -194,6 +198,45 @@ impl FileLocation {
         }
     }
 
+    pub async fn get_workspace_manifest_location(
+        &self,
+        file_accessor: Option<&dyn FileAccessor>,
+    ) -> Result<FileLocation, String> {
+        match file_accessor {
+            None => {
+                let mut project_root_location = self.get_workspace_root_location()?;
+                project_root_location.append_path("txtx.yml")?;
+                Ok(project_root_location)
+            }
+            Some(file_accessor) => {
+                let mut manifest_location = None;
+                let mut parent_location = self.get_parent_location();
+                while let Ok(ref parent) = parent_location {
+                    let mut candidate = parent.clone();
+                    candidate.append_path("txtx.yml")?;
+
+                    if let Ok(exists) = file_accessor.file_exists(candidate.to_string()).await {
+                        if exists {
+                            manifest_location = Some(candidate);
+                            break;
+                        }
+                    }
+                    if &parent.get_parent_location().unwrap() == parent {
+                        break;
+                    }
+                    parent_location = parent.get_parent_location();
+                }
+                match manifest_location {
+                    Some(manifest_location) => Ok(manifest_location),
+                    None => Err(format!(
+                        "No Clarinet.toml is associated to the contract {}",
+                        self.get_file_name().unwrap_or_default()
+                    )),
+                }
+            }
+        }
+    }
+
     pub fn get_parent_location(&self) -> Result<FileLocation, String> {
         let mut parent_location = self.clone();
         match &mut parent_location {
@@ -226,7 +269,8 @@ impl FileLocation {
     pub fn get_relative_location(&self) -> Result<String, String> {
         let base = self.get_workspace_root_location().map(|l| l.to_string())?;
         let file = self.to_string();
-        Ok(file[(base.len() + 1)..].to_string())
+        let offset = if base.is_empty() { 0 } else { 1 };
+        Ok(file[(base.len() + offset)..].to_string())
     }
 
     pub fn get_file_name(&self) -> Option<String> {

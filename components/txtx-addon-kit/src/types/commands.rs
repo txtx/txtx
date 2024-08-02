@@ -180,6 +180,12 @@ impl CommandId {
             &CommandId::Action(id) => format!("action::{id}"),
         }
     }
+
+    pub fn action_name(&self) -> String {
+        match &self {
+            &CommandId::Action(id) => format!("{id}"),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -212,6 +218,7 @@ pub struct CommandSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
+    pub post_process_evaluated_inputs: PostInputEvaluationProcessor,
     pub check_instantiability: InstantiabilityChecker,
     pub check_executability: CommandCheckExecutabilityClosure,
     pub run_execution: CommandExecutionClosure,
@@ -339,6 +346,10 @@ impl Serialize for CompositeCommandSpecification {
 }
 
 pub type InstantiabilityChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type PostInputEvaluationProcessor = fn(
+    &CommandSpecification,
+    CommandInputsEvaluationResult,
+) -> Result<CommandInputsEvaluationResult, Diagnostic>;
 pub type CommandExecutionFutureResult = Result<CommandExecutionFuture, Diagnostic>;
 pub type CommandExecutionFuture =
     Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
@@ -527,6 +538,14 @@ impl CommandInstance {
         } else {
             Ok(diagnostics)
         }
+    }
+
+    pub fn post_process_inputs_evaluations(
+        &self,
+        inputs_evaluation: CommandInputsEvaluationResult,
+    ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
+        let spec = &self.specification;
+        (self.specification.post_process_evaluated_inputs)(spec, inputs_evaluation)
     }
 
     pub fn get_expressions_referencing_commands_from_inputs(
@@ -1059,6 +1078,13 @@ impl CommandInstance {
 }
 
 pub trait CommandImplementation {
+    fn post_process_evaluated_inputs(
+        _ctx: &CommandSpecification,
+        inputs: CommandInputsEvaluationResult,
+    ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
+        return Ok(inputs);
+    }
+
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,

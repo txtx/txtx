@@ -31,8 +31,10 @@ pub struct RunbookExecutionContext {
     pub signing_commands_state: Option<SigningCommandsState>,
     /// Results of commands executions
     pub commands_execution_results: HashMap<ConstructDid, CommandExecutionResult>,
-    /// Results of commands inputs evaluations
-    pub commands_inputs_evaluations_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
+    /// Results of commands inputs evaluation
+    pub commands_inputs_evaluation_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
+    /// Results of commands inputs evaluation simulation
+    pub commands_inputs_simulation_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
     /// Constructs depending on a given Construct.
     pub commands_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     /// Constructs depending on a given Construct performing signing.
@@ -63,7 +65,8 @@ impl RunbookExecutionContext {
             signing_commands_instances: HashMap::new(),
             signing_commands_state: Some(SigningCommandsState::new()),
             commands_execution_results: HashMap::new(),
-            commands_inputs_evaluations_results: HashMap::new(),
+            commands_inputs_evaluation_results: HashMap::new(),
+            commands_inputs_simulation_results: HashMap::new(),
             commands_dependencies: HashMap::new(),
             signing_commands_downstream_dependencies: vec![],
             signed_commands_upstream_dependencies: HashMap::new(),
@@ -127,6 +130,9 @@ impl RunbookExecutionContext {
         action_items
     }
 
+    // During the simulation, our goal is to evaluate as many input evaluations as possible.
+    //
+    //
     pub async fn simulate_execution(
         &mut self,
         runtime_context: &RuntimeContext,
@@ -160,7 +166,7 @@ impl RunbookExecutionContext {
             let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
 
             let input_evaluation_results =
-                self.commands_inputs_evaluations_results.get(&construct_did);
+                self.commands_inputs_evaluation_results.get(&construct_did);
 
             let mut cached_dependency_execution_results = HashMap::new();
 
@@ -200,6 +206,7 @@ impl RunbookExecutionContext {
                 }
             }
 
+            // After this evaluation, commands should be able to tweak / override
             let evaluated_inputs_res = perform_inputs_evaluation(
                 command_instance,
                 &cached_dependency_execution_results,
@@ -209,6 +216,7 @@ impl RunbookExecutionContext {
                 workspace_context,
                 self,
                 runtime_context,
+                false,
             );
 
             let mut evaluated_inputs = match evaluated_inputs_res {
@@ -224,7 +232,7 @@ impl RunbookExecutionContext {
             };
 
             // Inject the evaluated inputs
-            self.commands_inputs_evaluations_results
+            self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
 
             // Did we reach the frontier?
@@ -270,7 +278,7 @@ impl RunbookExecutionContext {
                 }
             }
 
-            self.commands_inputs_evaluations_results
+            self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
 
             let execution_result = {
@@ -312,5 +320,52 @@ impl RunbookExecutionContext {
                 .append(&mut execution_result);
         }
         pass_result
+    }
+
+    pub fn simulate_inputs_execution(
+        &mut self,
+        runtime_context: &RuntimeContext,
+        workspace_context: &RunbookWorkspaceContext,
+    ) {
+        for (construct_did, command_instance) in self.commands_instances.iter() {
+            // Unused ???
+            // let addon_context_key = (
+            //     command_instance.package_id.did(),
+            //     command_instance.namespace.clone(),
+            // );
+            // let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
+            let inputs_simulation_results =
+                self.commands_inputs_simulation_results.get(&construct_did);
+
+            let cached_dependency_execution_results = HashMap::new();
+
+            let evaluated_inputs_res = perform_inputs_evaluation(
+                command_instance,
+                &cached_dependency_execution_results,
+                &inputs_simulation_results,
+                &None,
+                &command_instance.package_id,
+                workspace_context,
+                self,
+                runtime_context,
+                true,
+            );
+
+            let evaluated_inputs = match evaluated_inputs_res {
+                Ok(result) => match result {
+                    CommandInputEvaluationStatus::Complete(result) => result,
+                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                    CommandInputEvaluationStatus::Aborted(results, _) => results,
+                },
+                Err(d) => {
+                    println!("{:?}", d);
+                    continue;
+                }
+            };
+            // Update the evaluated inputs
+            self.commands_inputs_simulation_results
+                .insert(construct_did.clone(), evaluated_inputs);
+        }
     }
 }

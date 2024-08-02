@@ -1,9 +1,10 @@
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
-use runbooks::DEFAULT_PORT_TXTX;
+use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
 use std::process;
 
 mod docs;
+mod lsp;
 mod runbooks;
 mod snapshots;
 mod templates;
@@ -64,6 +65,9 @@ enum Command {
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
+    /// Start LSP
+    #[clap(name = "lsp", bin_name = "lsp")]
+    Lsp,
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -106,6 +110,9 @@ pub struct CheckRunbook {
     /// Choose the environment variable to set from those configured in the txtx.yml
     #[arg(long = "env")]
     pub environment: Option<String>,
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
+    pub inputs: Vec<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -147,8 +154,11 @@ pub struct ExecuteRunbook {
     pub term_console: bool,
 
     /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = DEFAULT_PORT_TXTX )]
-    pub port: u16,
+    #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
+    pub network_binding_port: u16,
+    /// Set the port for hosting the web UI
+    #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
+    pub network_binding_ip_address: String,
     /// Choose the environment variable to set from those configured in the txtx.yml
     #[arg(long = "env")]
     pub environment: Option<String>,
@@ -183,6 +193,15 @@ pub fn main() {
         tracer: false,
     };
 
+    let buffer_stdin = {
+        let mut buffer = String::new();
+        if std::io::stdin().read_line(&mut buffer).is_ok() {
+            Some(buffer)
+        } else {
+            None
+        }
+    };
+
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
@@ -191,7 +210,7 @@ pub fn main() {
         }
     };
 
-    match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx)) {
+    match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx, buffer_stdin)) {
         Err(e) => {
             error!(ctx.expect_logger(), "{e}");
             std::thread::sleep(std::time::Duration::from_millis(500));
@@ -201,13 +220,17 @@ pub fn main() {
     }
 }
 
-async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
+async fn handle_command(
+    opts: Opts,
+    ctx: &Context,
+    buffer_stdin: Option<String>,
+) -> Result<(), String> {
     match opts.command {
         Command::Check(cmd) => {
-            runbooks::handle_check_command(&cmd, ctx).await?;
+            runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::Run(cmd) => {
-            runbooks::handle_run_command(&cmd, ctx).await?;
+            runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::List(cmd) => {
             runbooks::handle_list_command(&cmd, ctx).await?;
@@ -223,6 +246,9 @@ async fn handle_command(opts: Opts, ctx: &Context) -> Result<(), String> {
         }
         Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
             snapshots::handle_commit_command(&cmd, ctx).await?;
+        }
+        Command::Lsp => {
+            lsp::run_lsp().await?;
         }
     }
     Ok(())
@@ -246,7 +272,8 @@ mod tests {
         assert_eq!(result.unsupervised, false);
         assert_eq!(result.web_console, false);
         assert_eq!(result.term_console, false);
-        assert_eq!(result.port, 8488);
+        assert_eq!(result.network_binding_port, 8488);
+        assert_eq!(result.network_binding_ip_address, "0.0.0.0");
         assert_eq!(result.environment, None);
         assert!(result.inputs.is_empty());
     }
@@ -282,7 +309,14 @@ mod tests {
     fn test_port_setting() {
         let args = vec!["txtx", "runbook", "--port", "9090"];
         let result = parse_args(args);
-        assert_eq!(result.port, 9090);
+        assert_eq!(result.network_binding_port, 9090);
+    }
+
+    #[test]
+    fn test_ip_setting() {
+        let args = vec!["txtx", "runbook", "--ip", "192.168.1.10"];
+        let result = parse_args(args);
+        assert_eq!(result.network_binding_ip_address, "192.168.1.10");
     }
 
     #[test]

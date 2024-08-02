@@ -278,7 +278,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                if block_height >= (included_in_block + confirmations_required) {
+                if block_height >= (included_in_block + confirmations_required - 1) {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
                         "Complete",

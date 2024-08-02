@@ -6,6 +6,8 @@ pub mod encode_contract_call;
 mod send_contract_call;
 mod send_stx;
 pub mod sign_transaction;
+use clarity::vm::types::TupleData;
+use clarity_repl::clarity::Value as ClarityValue;
 
 use std::str::FromStr;
 
@@ -103,16 +105,9 @@ pub fn encode_contract_call(
     }
 
     let mut function_args = vec![];
-    for arg_value in function_args_values.iter() {
-        let Some(buffer) = arg_value.as_buffer_data() else {
-            return Err(diagnosed_error!(
-                "function '{}': expected array, got {:?}",
-                spec.matcher,
-                arg_value
-            ));
-        };
-        let arg = parse_clarity_value(&buffer.bytes, &buffer.typing).unwrap();
-        function_args.push(arg);
+    for raw_value in function_args_values.iter() {
+        let value = encode_primitive_value_to_clarity_value(raw_value)?;
+        function_args.push(value);
     }
 
     let payload = TransactionPayload::ContractCall(TransactionContractCall {
@@ -127,6 +122,61 @@ pub fn encode_contract_call(
     let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
 
     Ok(value)
+}
+
+pub fn encode_primitive_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Diagnostic> {
+    let dst = match src {
+        Value::Addon(addon_data) => {
+            parse_clarity_value(&addon_data.value.expect_buffer_bytes(), &addon_data.typing)?
+        }
+        Value::Array(array) => {
+            // should be encoded to list
+            let mut values = vec![];
+            for element in array.iter() {
+                let value = encode_primitive_value_to_clarity_value(element)?;
+                values.push(value);
+            }
+            ClarityValue::list_from(values)
+                .map_err(|e| diagnosed_error!("unable to encode Clarity list ({})", e.to_string()))?
+        }
+        Value::Primitive(PrimitiveValue::String(_)) => {
+            return Err(diagnosed_error!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."))
+        }
+        Value::Primitive(PrimitiveValue::Bool(value)) => {
+            ClarityValue::Bool(*value)
+        }
+        Value::Primitive(PrimitiveValue::Null) => {
+            ClarityValue::none()
+        }
+        Value::Primitive(PrimitiveValue::SignedInteger(int)) => {
+            ClarityValue::Int((*int).into())
+        }
+        Value::Primitive(PrimitiveValue::UnsignedInteger(uint)) => {
+            ClarityValue::UInt((*uint).into())
+        }
+        Value::Primitive(PrimitiveValue::Buffer(data)) => {
+            ClarityValue::buff_from(data.bytes.clone())
+                .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
+        }
+        Value::Primitive(PrimitiveValue::Float(_)) => {
+            // should return an error
+            return Err(diagnosed_error!("unable to encode float to a Clarity type"))
+        }
+        Value::Object(object) => {
+            // should be encoded as a tuple
+            let mut data = vec![];
+            for (key, value) in object.iter() {
+                let tuple_value = encode_primitive_value_to_clarity_value(&value.clone()?)?;
+                let tuple_key = ClarityName::try_from(key.as_str())
+                    .map_err(|e| diagnosed_error!("unable to encode key {} to clarity ({})", key, e.to_string()))?;
+                data.push((tuple_key, tuple_value));
+            }
+            let tuple_data = TupleData::from_data(data)
+                .map_err(|e| diagnosed_error!("unable to encode tuple data ({})", e.to_string()))?;
+            ClarityValue::Tuple(tuple_data)
+        }
+    };
+    Ok(dst)
 }
 
 pub fn encode_contract_deployment(

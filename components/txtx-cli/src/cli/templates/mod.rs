@@ -1,6 +1,6 @@
-use txtx_core::types::ProtocolManifest;
+use txtx_core::manifest::WorkspaceManifest;
 
-pub fn build_manifest_data(manifest: &ProtocolManifest) -> mustache::Data {
+pub fn build_manifest_data(manifest: &WorkspaceManifest) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()
         .insert("double_open", &"{{")
         .expect("failed to encode open braces")

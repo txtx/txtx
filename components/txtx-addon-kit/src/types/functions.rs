@@ -1,6 +1,7 @@
 use super::{
     diagnostics::Diagnostic,
     types::{Type, Value},
+    AuthorizationContext,
 };
 
 #[derive(Clone, Debug)]
@@ -28,13 +29,20 @@ pub struct FunctionSpecification {
     pub checker: FunctionChecker,
 }
 
-type FunctionRunner = fn(&FunctionSpecification, &Vec<Value>) -> Result<Value, Diagnostic>;
-type FunctionChecker = fn(&FunctionSpecification, &Vec<Type>) -> Result<Type, Diagnostic>;
+type FunctionRunner =
+    fn(&FunctionSpecification, &AuthorizationContext, &Vec<Value>) -> Result<Value, Diagnostic>;
+type FunctionChecker =
+    fn(&FunctionSpecification, &AuthorizationContext, &Vec<Type>) -> Result<Type, Diagnostic>;
 
 pub trait FunctionImplementation {
     fn check_instantiability(
-        _ctx: &FunctionSpecification,
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
         _args: &Vec<Type>,
     ) -> Result<Type, Diagnostic>;
-    fn run(_ctx: &FunctionSpecification, _args: &Vec<Value>) -> Result<Value, Diagnostic>;
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic>;
 }

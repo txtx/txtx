@@ -3,12 +3,15 @@ use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
     types::{
-        commands::{CommandId, CommandInstance, CommandInstanceType, PreCommandSpecification},
+        commands::{
+            CommandId, CommandInputsEvaluationResult, CommandInstance, CommandInstanceType,
+            PreCommandSpecification,
+        },
         diagnostics::{Diagnostic, DiagnosticLevel},
         functions::FunctionSpecification,
         types::Value,
         wallets::{WalletInstance, WalletSpecification},
-        Did, PackageDid, PackageId, RunbookId, ValueStore,
+        AuthorizationContext, ConstructDid, Did, PackageDid, PackageId, RunbookId, ValueStore,
     },
     Addon, AddonDefaults,
 };
@@ -35,16 +38,22 @@ pub struct RuntimeContext {
     pub concurrency: u64,
     /// Sets of inputs indicating batches inputs
     pub inputs_sets: Vec<ValueStore>,
+    /// Authorizations settings to propagate to function execution
+    pub authorization_context: AuthorizationContext,
 }
 
 impl RuntimeContext {
-    pub fn new(available_addons: Vec<Box<dyn Addon>>) -> RuntimeContext {
+    pub fn new(
+        available_addons: Vec<Box<dyn Addon>>,
+        authorization_context: AuthorizationContext,
+    ) -> RuntimeContext {
         RuntimeContext {
             functions: HashMap::new(),
             addons_context: AddonsContext::new(),
             available_addons,
             concurrency: 1,
             inputs_sets: vec![],
+            authorization_context,
         }
     }
 
@@ -154,7 +163,9 @@ impl RuntimeContext {
         }
 
         if inputs_sets.is_empty() {
-            inputs_sets.push(ValueStore::new("main", &Did::zero()))
+            let default_name = "default".to_string();
+            let name = inputs_map.current.as_ref().unwrap_or(&default_name);
+            inputs_sets.push(ValueStore::new(name, &Did::zero()))
         }
 
         for inputs_set in inputs_sets.iter_mut() {
@@ -166,6 +177,47 @@ impl RuntimeContext {
         }
 
         Ok(inputs_sets)
+    }
+
+    pub fn collect_domain_specific_dependencies(
+        &self,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
+        let mut consolidated_dependencies = HashMap::new();
+        let mut grouped_commands: HashMap<
+            String,
+            Vec<(
+                ConstructDid,
+                &CommandInstance,
+                Option<&CommandInputsEvaluationResult>,
+            )>,
+        > = HashMap::new();
+        for (did, command_instance) in runbook_execution_context.commands_instances.iter() {
+            let inputs_simulation_results = runbook_execution_context
+                .commands_inputs_simulation_results
+                .get(did);
+            grouped_commands
+                .entry(command_instance.namespace.clone())
+                .and_modify(|e: &mut _| {
+                    e.push((did.clone(), command_instance, inputs_simulation_results))
+                })
+                .or_insert(vec![(
+                    did.clone(),
+                    command_instance,
+                    inputs_simulation_results,
+                )]);
+        }
+        for (addon_key, commands_instances) in grouped_commands.iter() {
+            let Some((addon, _)) = self.addons_context.registered_addons.get(addon_key) else {
+                continue;
+            };
+            let deps =
+                addon.get_domain_specific_commands_inputs_dependencies(commands_instances)?;
+            for (k, v) in deps.into_iter() {
+                consolidated_dependencies.insert(k, v);
+            }
+        }
+        Ok(consolidated_dependencies)
     }
 
     pub fn build_from_sources(
@@ -354,6 +406,7 @@ impl RuntimeContext {
         namespace_opt: Option<String>,
         name: &str,
         args: &Vec<Value>,
+        authorization_context: &AuthorizationContext,
     ) -> Result<Value, Diagnostic> {
         let function = match namespace_opt {
             Some(namespace) => match self
@@ -379,7 +432,7 @@ impl RuntimeContext {
                 }
             },
         };
-        (function.runner)(function, args)
+        (function.runner)(function, authorization_context, args)
     }
 }
 
@@ -480,7 +533,12 @@ impl AddonConstructFactory {
         package_id: &PackageId,
     ) -> Result<CommandInstance, Diagnostic> {
         let Some(pre_command_spec) = self.commands.get(command_id) else {
-            todo!("return diagnostic: unknown command: {:?}", command_id)
+            return Err(diagnosed_error!(
+                "action '{}::{}' unknown ({})",
+                namespace,
+                command_id.action_name(),
+                command_name
+            ));
         };
         let typing = match command_id {
             CommandId::Action(_) => CommandInstanceType::Action,
