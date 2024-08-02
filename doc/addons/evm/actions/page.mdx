@@ -395,9 +395,9 @@ action "call_some_contract" "evm::eth_call" {
 ---
 
 
-## sign_contract_deploy {{ tag: 'action' }}
+## deploy_contract {{ tag: 'action' }}
 
-The `evm::sign_contract_deploy` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.
+The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.
 
 ### Inputs
 
@@ -475,7 +475,7 @@ The `evm::sign_contract_deploy` action encodes a contract deployment transaction
 
 <Note>
 
-When the `sign_contract_deploy` action is successfully executed, the following outputs are attached to the action
+When the `deploy_contract` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -489,11 +489,11 @@ When the `sign_contract_deploy` action is successfully executed, the following o
 
 </Properties>
 
-<CodeGroup title="Example using sign_contract_deploy">
+<CodeGroup title="Example using deploy_contract">
 
 
 ```hcl {{ title: 'main.tx' }}
-actions "deploy" "evm::sign_contract_deploy" {
+actions "deploy" "evm::deploy_contract" {
     init_code = action.artifacts.init_code
     from = wallet.alice
 }

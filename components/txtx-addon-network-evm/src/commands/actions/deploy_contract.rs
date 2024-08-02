@@ -35,11 +35,11 @@ use crate::rpc::EVMRpc;
 use super::get_signing_construct_did;
 
 lazy_static! {
-    pub static ref SIGN_EVM_CONTRACT_DEPLOY: PreCommandSpecification = define_command! {
-      SignEVMContractDeploy => {
+    pub static ref EVM_DEPLOY_CONTRACT: PreCommandSpecification = define_command! {
+      EVMDeployContract => {
           name: "Sign EVM Contract Deployment Transaction",
-          matcher: "sign_contract_deploy",
-          documentation: "The `evm::sign_contract_deploy` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.",
+          matcher: "deploy_contract",
+          documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -135,7 +135,7 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          actions "deploy" "evm::sign_contract_deploy" {
+          actions "deploy" "evm::deploy_contract" {
               init_code = action.artifacts.init_code
               from = wallet.alice
           }
@@ -144,8 +144,8 @@ lazy_static! {
     };
 }
 
-pub struct SignEVMContractDeploy;
-impl CommandImplementation for SignEVMContractDeploy {
+pub struct EVMDeployContract;
+impl CommandImplementation for EVMDeployContract {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -339,7 +339,7 @@ async fn build_unsigned_contract_deploy(
     let init_code = args.get_expected_string("init_code")?;
 
     let init_code = alloy::hex::decode(init_code)
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_deploy': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
 
     let amount = args
         .get_value(TRANSACTION_AMOUNT)
@@ -355,7 +355,7 @@ async fn build_unsigned_contract_deploy(
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_deploy': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
 
     let common = CommonTransactionFields {
         to: None,
@@ -370,6 +370,6 @@ async fn build_unsigned_contract_deploy(
     };
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::sign_contract_deploy': {e}"))?;
+        .map_err(|e| diagnosed_error!("command: 'evm::deploy_contract': {e}"))?;
     Ok(tx)
 }
