@@ -16,27 +16,32 @@ use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{
     kit::{
-        channel,
+        channel::{self, unbounded},
+        hcl::{structure::Block, Ident},
         helpers::fs::FileLocation,
         indexmap::IndexMap,
         types::{
+            commands::{CommandId, CommandInputsEvaluationResult},
+            diagnostics::Diagnostic,
             frontend::{
                 ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
                 ProgressBarStatusColor,
             },
-            AuthorizationContext,
+            types::Value,
+            AuthorizationContext, Did, PackageId, ValueStore,
         },
-        Addon,
+        Addon, AddonDefaults,
     },
     manifest::{
         file::{read_runbook_from_location, read_runbooks_from_manifest},
         RunbookMetadata, RunbookState, WorkspaceManifest,
     },
     runbook::{
-        ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot, RunbookInputsMap,
+        self, AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode,
+        RunbookExecutionSnapshot, RunbookInputsMap,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
-    types::{Runbook, RunbookSnapshotContext, RunbookSources},
+    types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
 use crate::{
@@ -116,11 +121,18 @@ pub async fn handle_check_command(
     buffer_stdin: Option<String>,
     _ctx: &Context,
 ) -> Result<(), String> {
+    let available_addons: Vec<Box<dyn Addon>> = vec![
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EVMNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
+    ];
+
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
+        available_addons,
         buffer_stdin,
     )
     .await?;
@@ -358,6 +370,54 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
     Ok(())
 }
 
+pub async fn run_action(
+    addon: &Box<dyn Addon>,
+    command_name: &str,
+    namespace: &str,
+    raw_inputs: &Vec<String>,
+) -> Result<(), Diagnostic> {
+    let factory = AddonConstructFactory {
+        functions: addon.build_function_lookup(),
+        commands: addon.build_command_lookup(),
+        signing_commands: addon.build_wallet_lookup(),
+    };
+    let block = Block::new(Ident::new("action"));
+    let construct_did = Did::zero();
+    let command_id = CommandId::Action(command_name.into());
+    let package_id = PackageId::zero();
+    let addon_defaults = AddonDefaults::new(command_name);
+    let (tx, _rx) = unbounded();
+    let command = factory
+        .create_command_instance(&command_id, namespace, command_name, &block, &package_id)
+        .unwrap();
+
+    let mut inputs = ValueStore::new("inputs", &construct_did);
+
+    for input in raw_inputs.iter() {
+        let Some((input_name, input_value)) = input.split_once("=") else {
+            return Err(Diagnostic::error_from_string(format!(
+                "expected --input argument to be formatted as '{}', got '{}'",
+                "key=value", input
+            )));
+        };
+        let new_value = Value::parse_and_default_to_string(&input_value);
+        inputs.insert(input_name, new_value);
+    }
+    let evaluated_inputs = CommandInputsEvaluationResult { inputs };
+
+    let _res = command
+        .perform_execution(
+            &ConstructDid(construct_did),
+            &evaluated_inputs,
+            addon_defaults,
+            &mut vec![],
+            &None,
+            &tx,
+        )
+        .await?;
+    Ok(())
+}
+
 pub async fn handle_run_command(
     cmd: &ExecuteRunbook,
     buffer_stdin: Option<String>,
@@ -367,12 +427,31 @@ pub async fn handle_run_command(
     let do_use_term_console = cmd.term_console;
     let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
 
+    let available_addons: Vec<Box<dyn Addon>> = vec![
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EVMNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
+    ];
+
+    if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
+        for addon in available_addons.iter() {
+            if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+                // Execute command
+                run_action(addon, command_name, namespace, &cmd.inputs)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                return Ok(());
+            }
+        }
+    }
+
     let (progress_tx, progress_rx) = txtx_core::kit::channel::unbounded();
     let res = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
+        available_addons,
         buffer_stdin.clone(),
     )
     .await;
@@ -877,6 +956,7 @@ pub async fn load_runbook_from_manifest(
     desired_runbook_name: &str,
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
+    available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
     let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
@@ -887,12 +967,6 @@ pub async fn load_runbook_from_manifest(
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             let inputs_map =
                 manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
-            let available_addons: Vec<Box<dyn Addon>> = vec![
-                Box::new(StacksNetworkAddon::new()),
-                Box::new(EVMNetworkAddon::new()),
-                Box::new(TelegramAddon::new()),
-            ];
-
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
             let res = runbook.build_contexts_from_sources(
@@ -931,6 +1005,7 @@ pub async fn load_runbook_from_file_path(
     let available_addons: Vec<Box<dyn Addon>> = vec![
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
     ];
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook.build_contexts_from_sources(

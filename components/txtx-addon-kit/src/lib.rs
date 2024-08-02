@@ -60,11 +60,17 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_namespace(self: &Self) -> &str;
     ///
-    fn get_functions(self: &Self) -> Vec<FunctionSpecification>;
+    fn get_functions(self: &Self) -> Vec<FunctionSpecification> {
+        vec![]
+    }
     ///
-    fn get_actions(&self) -> Vec<PreCommandSpecification>;
+    fn get_actions(&self) -> Vec<PreCommandSpecification> {
+        vec![]
+    }
     ///
-    fn get_wallets(&self) -> Vec<WalletSpecification>;
+    fn get_wallets(&self) -> Vec<WalletSpecification> {
+        vec![]
+    }
     ///
     fn build_function_lookup(self: &Self) -> HashMap<String, FunctionSpecification> {
         let mut functions = HashMap::new();

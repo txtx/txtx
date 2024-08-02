@@ -16,7 +16,7 @@ pub use diffing_context::ConsolidatedChanges;
 pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext};
 pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
-pub use runtime_context::RuntimeContext;
+pub use runtime_context::{AddonConstructFactory, RuntimeContext};
 pub use workspace_context::RunbookWorkspaceContext;
 
 #[derive(Debug)]

@@ -221,7 +221,7 @@ lazy_static! {
                     kind: Some(CompletionItemKind::CLASS), //Option<CompletionItemKind>,
                     // A human-readable string with additional information
                     // about this item, like type or symbol information.
-                    detail: Some(format!("action <name> \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().map(|i| i.name.clone()).collect::<Vec<_>>().join("\n"))), //Option<String>,
+                    detail: Some(format!("wallet <name> \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().map(|i| i.name.clone()).collect::<Vec<_>>().join("\n"))), //Option<String>,
                     // A human-readable string that represents a doc-comment.
                     documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                         kind: MarkupKind::Markdown,

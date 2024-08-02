@@ -4,15 +4,10 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-use txtx_addon_kit::{
-    types::{
-        commands::PreCommandSpecification, functions::FunctionSpecification,
-        wallets::WalletSpecification,
-    },
-    Addon,
-};
+use txtx_addon_kit::{types::commands::PreCommandSpecification, Addon};
 
 mod send_message;
+mod setup_chat;
 
 #[derive(Debug)]
 pub struct TelegramAddon;
@@ -38,15 +33,10 @@ impl Addon for TelegramAddon {
         "telegram"
     }
 
-    fn get_functions(&self) -> Vec<FunctionSpecification> {
-        vec![]
-    }
-
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        vec![send_message::TELEGRAM_SEND_MESSAGE.clone()]
-    }
-
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
-        vec![]
+        vec![
+            send_message::TELEGRAM_SEND_MESSAGE.clone(),
+            setup_chat::TELEGRAM_SETUP_CHAT.clone(),
+        ]
     }
 }

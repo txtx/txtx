@@ -128,6 +128,14 @@ impl RunbookId {
         let did = Did::from_components(comps);
         RunbookDid(did)
     }
+
+    pub fn zero() -> RunbookId {
+        RunbookId {
+            org: None,
+            workspace: None,
+            name: "".into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -165,6 +173,14 @@ impl PackageId {
                 .as_bytes(),
         ]);
         PackageDid(did)
+    }
+
+    pub fn zero() -> PackageId {
+        PackageId {
+            runbook_id: RunbookId::zero(),
+            package_location: FileLocation::working_dir(),
+            package_name: "".into(),
+        }
     }
 }
 
