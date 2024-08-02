@@ -203,14 +203,18 @@ pub fn main() {
         tracer: false,
     };
 
-    let buffer_stdin = load_stdin();
-
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
         Err(e) => {
             println!("{}", e);
             process::exit(1);
         }
+    };
+
+    let buffer_stdin = if let Command::Lsp = opts.command {
+        None
+    } else {
+        load_stdin()
     };
 
     match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx, buffer_stdin)) {
