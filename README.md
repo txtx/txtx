@@ -11,6 +11,8 @@ $ txtx --tldr
 - Copy/pasted private keys for operations and deployments.
 + Easily leverage hardware wallets, web wallets, multisig schemes and cloud secure enclaves.
 
+! What about this?
+
 # Scale with complexity
 - 
 + Create reproducible and composable deployments
