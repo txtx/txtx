@@ -23,6 +23,7 @@ pub extern crate crossbeam_channel as channel;
 pub use futures;
 pub use indexmap;
 
+pub use dotenvy_macro::dotenv;
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};
 use types::{

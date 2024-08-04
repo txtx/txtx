@@ -96,6 +96,20 @@ lazy_static! {
             interpolable: false
         }
     };
+    pub static ref CHAIN_DEFAULTS: Type = define_object_type! {
+        chain_id: {
+            documentation: "The chain id.",
+            typing: Type::uint(),
+            optional: false,
+            interpolable: false
+        },
+        rpc_api_url: {
+            documentation: "The RPC API URL for the chain.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
+        }
+    };
 }
 
 pub struct EthereumAddress;

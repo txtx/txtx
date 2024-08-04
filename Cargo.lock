@@ -6550,6 +6550,7 @@ name = "txtx-addon-kit"
 version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
+ "dotenvy_macro",
  "futures",
  "getrandom 0.2.13",
  "hcl-edit",

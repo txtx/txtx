@@ -2,14 +2,18 @@ use alloy::{
     hex::FromHex,
     primitives::{Address, Bytes, B256},
 };
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    functions::{FunctionImplementation, FunctionSpecification},
-    types::{PrimitiveValue, Type, Value},
-    AuthorizationContext,
+use txtx_addon_kit::indexmap;
+use txtx_addon_kit::{
+    indexmap::IndexMap,
+    types::{
+        diagnostics::Diagnostic,
+        functions::{FunctionImplementation, FunctionSpecification},
+        types::{PrimitiveValue, Type, Value},
+        AuthorizationContext,
+    },
 };
 
-use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
+const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -75,6 +79,29 @@ lazy_static! {
                     typing: Type::addon(BYTES.clone())
                 },
             }
+        },
+        define_function! {
+            EncodeEVMChain => {
+                name: "chain",
+                documentation: "`evm::chain` generates a default chain id and RPC API URL for a valid EVM compatible chain name.",
+                example: indoc! {r#"
+                        output "chain_id" {
+                            value = evm::chain("optimism")
+                        }
+                        // > chain_id: 10
+                        "#},
+                inputs: [
+                    input: {
+                        documentation: "A EVM-compatible chain name. See https://chainlist.org for a list of supported chains.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The default chain data.",
+                    typing: CHAIN_DEFAULTS.clone()
+                },
+            }
+        },
         }
     ];
 }
@@ -180,5 +207,60 @@ impl FunctionImplementation for EncodeEVMBytes {
         })?;
         let val = Value::buffer(bytes.to_vec(), BYTES32.clone());
         Ok(Value::addon(val, BYTES.clone()))
+    }
+}
+#[derive(Clone)]
+pub struct EncodeEVMChain;
+impl FunctionImplementation for EncodeEVMChain {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let chain_name = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val.to_ascii_lowercase().clone(),
+            other => {
+                return Err(diagnosed_error!(
+                    "'evm::chain' function: expected string, got {:?}",
+                    other
+                ))
+            }
+        };
+        let chain = alloy_chains::Chain::from_str(&chain_name).map_err(|e| {
+            diagnosed_error!(
+                "'evm::chain' function: invalid chain name {}: {}",
+                chain_name,
+                e
+            )
+        })?;
+
+        let rpc_api_url = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val.to_ascii_lowercase().clone(),
+            None => format!("https://{}.infura.io/v3/{}", &chain_name, INFURA_API_KEY),
+            other => {
+                return Err(diagnosed_error!(
+                    "'evm::chain' function: expected string, got {:?}",
+                    other
+                ))
+            }
+        };
+
+        let obj_props = IndexMap::from([
+            ("chain_id".into(), Value::uint(chain.id())),
+            ("rpc_api_url".into(), Value::string(rpc_api_url)),
+        ]);
+        println!(
+            "//// function result: {:?}",
+            Value::object(obj_props.clone())
+        );
+        Ok(Value::object(obj_props))
     }
 }
