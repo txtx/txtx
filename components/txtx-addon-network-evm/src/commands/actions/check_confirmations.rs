@@ -17,7 +17,7 @@ use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 
 lazy_static! {
     pub static ref CHECK_CONFIRMATIONS: PreCommandSpecification = define_command! {
-        CheckConfirmations => {
+        CheckEVMConfirmations => {
             name: "Check Transaction Confirmations",
             matcher: "check_confirmations",
             documentation: "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
@@ -58,8 +58,8 @@ lazy_static! {
         }
     };
 }
-pub struct CheckConfirmations;
-impl CommandImplementation for CheckConfirmations {
+pub struct CheckEVMConfirmations;
+impl CommandImplementation for CheckEVMConfirmations {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -117,19 +117,20 @@ impl CommandImplementation for CheckConfirmations {
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
 
-        use crate::{constants::CONTRACT_ADDRESS, rpc::EVMRpc, typing::ETH_TX_HASH};
+        use crate::{
+            constants::{CONTRACT_ADDRESS, TX_HASH},
+            rpc::EVMRpc,
+            typing::ETH_TX_HASH,
+        };
 
         let inputs = inputs.clone();
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
-
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
 
-        // let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
-
-        let tx_hash = inputs.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
+        let tx_hash = inputs.get_expected_buffer(TX_HASH, &ETH_TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let progress_tx = progress_tx.clone();

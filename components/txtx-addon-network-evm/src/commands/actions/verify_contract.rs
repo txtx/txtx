@@ -19,7 +19,7 @@ use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
 lazy_static! {
     pub static ref VERIFY_CONTRACT: PreCommandSpecification = define_command! {
-        VerifyContract => {
+        VerifyEVMContract => {
             name: "Broadcast Stacks Transaction",
             matcher: "verify_contract",
             documentation: "The `evm::verify_contract` action sends the required contract deployment artifacts to a block explorer to verify the contract with the explorer.",
@@ -75,8 +75,8 @@ lazy_static! {
         }
     };
 }
-pub struct VerifyContract;
-impl CommandImplementation for VerifyContract {
+pub struct VerifyEVMContract;
+impl CommandImplementation for VerifyEVMContract {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
