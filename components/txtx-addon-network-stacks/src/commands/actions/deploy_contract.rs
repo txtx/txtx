@@ -388,7 +388,6 @@ impl CommandImplementation for StacksDeployContract {
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
                 .unwrap();
 
-        let progress_tx = progress_tx.clone();
         let args = args.clone();
         let wallets_instances = wallets_instances.clone();
         let defaults = defaults.clone();
