@@ -35,6 +35,7 @@ pub const CONTRACT_FUNCTION_NAME: &str = "function_name";
 pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
 pub const CONTRACT_CONSTRUCTOR_ARGS: &str = "constructor_args";
 pub const ARTIFACTS: &str = "artifacts";
+pub const TX_HASH: &str = "tx_hash";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
