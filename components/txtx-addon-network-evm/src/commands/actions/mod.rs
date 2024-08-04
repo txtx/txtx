@@ -14,6 +14,7 @@ pub mod deploy_contract;
 pub mod eth_call;
 pub mod get_forge_deployment_artifacts;
 pub mod sign_contract_call;
+pub mod sign_transaction;
 pub mod sign_transfer;
 pub mod verify_contract;
 
@@ -21,6 +22,7 @@ use deploy_contract::EVM_DEPLOY_CONTRACT;
 use eth_call::ETH_CALL;
 use get_forge_deployment_artifacts::GET_FORGE_DEPLOYMENT_ARTIFACTS;
 use sign_contract_call::SIGN_EVM_CONTRACT_CALL;
+use sign_transaction::SIGN_TRANSACTION;
 use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_contract::VERIFY_CONTRACT;
 
@@ -34,7 +36,8 @@ lazy_static! {
         EVM_DEPLOY_CONTRACT.clone(),
         GET_FORGE_DEPLOYMENT_ARTIFACTS.clone(),
         VERIFY_CONTRACT.clone(),
-        CHECK_CONFIRMATIONS.clone()
+        CHECK_CONFIRMATIONS.clone(),
+        SIGN_TRANSACTION.clone()
     ];
 }
 
