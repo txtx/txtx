@@ -29,7 +29,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL};
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
 use crate::typing::ETH_TX_HASH;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
@@ -251,7 +251,7 @@ impl WalletImplementation for EVMMnemonic {
             })?;
             let tx_hash = pending_tx.tx_hash().0;
             result.outputs.insert(
-                "tx_hash".to_string(),
+                TX_HASH.to_string(),
                 Value::buffer(tx_hash.to_vec(), ETH_TX_HASH.clone()),
             );
             signing_command_state.insert(NONCE, Value::uint(tx_nonce));
