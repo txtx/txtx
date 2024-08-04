@@ -6,7 +6,7 @@ use crate::rpc::EVMRpc;
 use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::network::TransactionBuilder;
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::types::{PrimitiveValue, Value};
@@ -139,7 +139,7 @@ async fn build_unsigned_legacy_transaction(
         tx = tx.with_input(input.clone());
     }
     if let Some(code) = &fields.deploy_code {
-        tx = tx.with_deploy_code(code.clone());
+        tx = tx.with_deploy_code(code.clone()).with_kind(TxKind::Create);
     }
     Ok(tx)
 }
@@ -191,7 +191,7 @@ async fn build_unsigned_eip1559_transaction(
         tx = tx.with_input(input.clone());
     }
     if let Some(code) = &fields.deploy_code {
-        tx = tx.with_deploy_code(code.clone());
+        tx = tx.with_deploy_code(code.clone()).with_kind(TxKind::Create);
     }
 
     Ok(tx)
