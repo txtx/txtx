@@ -357,6 +357,10 @@ impl ValueStore {
         self.storage.get(key).and_then(|v| v.as_string())
     }
 
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.storage.get(key).and_then(|v| v.as_bool())
+    }
+
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
