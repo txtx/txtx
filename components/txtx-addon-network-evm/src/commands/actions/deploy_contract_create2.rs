@@ -444,10 +444,10 @@ async fn build_unsigned_create2_deployment(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<(TransactionRequest, String), Diagnostic> {
-    use alloy::dyn_abi::DynSolValue;
+    use alloy::dyn_abi::{DynSolValue, Word};
 
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        codec::{build_unsigned_transaction, string_to_address, TransactionType},
         commands::actions::{
             deploy_contract::get_contract_init_code,
             sign_contract_call::{
@@ -455,9 +455,9 @@ async fn build_unsigned_create2_deployment(
             },
         },
         constants::{
-            CHAIN_ID, CONTRACT_FUNCTION_ARGS, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS,
-            CREATE2_FUNCTION_NAME, DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS,
-            GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE,
+            CHAIN_ID, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS, CREATE2_FUNCTION_NAME,
+            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, GAS_LIMIT, NONCE,
+            TRANSACTION_AMOUNT, TRANSACTION_TYPE,
         },
     };
 
@@ -540,12 +540,22 @@ async fn build_unsigned_create2_deployment(
             e
         )
     })?;
+    let actual = string_to_address(actual_contract_address.to_string()).map_err(|e| {
+        diagnosed_error!(
+            "command 'evm::deploy_contract_create2': create2 call created invalid contract address ({}): {}",actual_contract_address, e
+        )
+    })?;
     if let Some(expected_contract_address) = expected_contract_address {
-        if !actual_contract_address.eq(expected_contract_address) {
-            return Err(diagnosed_error!("command 'evm::deploy_contract_create2': contract deployment does not yield expected address: actual ({}), expected ({})", actual_contract_address, expected_contract_address));
+        let expected = string_to_address(expected_contract_address.to_string()).map_err(|e| {
+            diagnosed_error!(
+                "command 'evm::deploy_contract_create2': invalid expected contract address: {e}"
+            )
+        })?;
+        if !actual.eq(&expected) {
+            return Err(diagnosed_error!("command 'evm::deploy_contract_create2': contract deployment does not yield expected address: actual ({}), expected ({})", actual, expected));
         }
     }
-    Ok((tx, actual_contract_address))
+    Ok((tx, actual.to_string()))
 }
 
 fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
