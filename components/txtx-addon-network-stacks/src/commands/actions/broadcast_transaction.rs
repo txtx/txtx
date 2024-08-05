@@ -225,14 +225,14 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
-                            "Failed to broadcast Stacks transaction",
+                            "unable to broadcast Stacks transaction",
                             &diagnosed_error!("{}", e),
                         ));
                         let _ = progress_tx
                             .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
                         return Err(Diagnostic::error_from_string(format!(
-                            "Failed to broadcast Stacks transaction: {}",
+                            "unable to broadcast Stacks transaction ({})",
                             e,
                         )));
                     }
@@ -307,7 +307,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                             continue;
                         }
                         let diag = Diagnostic::error_from_string(format!(
-                            "Failed to broadcast stacks transaction: {e}"
+                            "unable to broadcast Stacks transaction - {e}"
                         ));
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
@@ -348,7 +348,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 let tx_details_result = client.get_tx(&txid).await.map_err(|e| {
                     Diagnostic::error_from_string(format!(
-                        "Failed to broadcast stacks transaction: {e}"
+                        "unable to broadcast Stacks transaction - {e}"
                     ))
                 });
 

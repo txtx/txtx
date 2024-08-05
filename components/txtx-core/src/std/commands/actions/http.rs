@@ -144,7 +144,7 @@ impl CommandImplementation for SendHttpRequest {
 
             let res = req_builder.send().await.map_err(|e| {
                 Diagnostic::error_from_string(format!(
-                    "Failed to broadcast stacks transaction: {e}"
+                    "unable to broadcast Stacks transaction - {e}"
                 ))
             })?;
 

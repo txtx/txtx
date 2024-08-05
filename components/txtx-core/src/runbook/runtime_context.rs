@@ -390,24 +390,28 @@ impl RuntimeContext {
                                 self.concurrency = concurrency;
                             }
 
-                            if name.to_string().ends_with("::defaults") {
+                            if name.to_string().starts_with("addon::") {
                                 let mut defaults = IndexMap::new();
-                                for attribute in block.body.attributes() {
-                                    let eval_result = eval::eval_expression(
-                                        &attribute.value,
-                                        &dependencies_execution_results,
-                                        &package_id,
-                                        runbook_workspace_context,
-                                        runbook_execution_context,
-                                        self,
-                                    );
-                                    let key = attribute.key.to_string();
-                                    let value = match eval_result {
-                                        Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
-                                        Err(diag) => return Err(vec![diag]),
-                                        w => unimplemented!("{:?}", w),
-                                    };
-                                    defaults.insert(key, value);
+                                for defaults_block in block.body.get_blocks("defaults") {
+                                    for attribute in defaults_block.body.attributes() {
+                                        let eval_result = eval::eval_expression(
+                                            &attribute.value,
+                                            &dependencies_execution_results,
+                                            &package_id,
+                                            runbook_workspace_context,
+                                            runbook_execution_context,
+                                            self,
+                                        );
+                                        let key = attribute.key.to_string();
+                                        let value = match eval_result {
+                                            Ok(ExpressionEvaluationStatus::CompleteOk(value)) => {
+                                                value
+                                            }
+                                            Err(diag) => return Err(vec![diag]),
+                                            w => unimplemented!("{:?}", w),
+                                        };
+                                        defaults.insert(key, value);
+                                    }
                                 }
                                 addons_configs.push((package_id.did(), name.to_string(), defaults));
                             }
@@ -431,8 +435,7 @@ impl RuntimeContext {
                 // println!("addon id: {}", addon_id);
 
                 match addon_name.split_once("::") {
-                    Some((addon_id, _)) => {
-                        println!("addon id: {}", addon_id);
+                    Some((_, addon_id)) => {
                         let mut defaults = AddonDefaults::new(&addon_id);
                         for (k, v) in defaults_src.into_iter() {
                             defaults.store.insert(&k, v);

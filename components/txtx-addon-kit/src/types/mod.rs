@@ -334,8 +334,8 @@ impl ValueStore {
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         Ok(value)
@@ -364,8 +364,8 @@ impl ValueStore {
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_bool() else {
@@ -379,9 +379,9 @@ impl ValueStore {
 
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+            return Err(Diagnostic::error_from_string(panic!(
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_string() else {
@@ -396,8 +396,8 @@ impl ValueStore {
     pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_array() else {
@@ -412,8 +412,8 @@ impl ValueStore {
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(result) = value.as_object() else {
@@ -428,8 +428,8 @@ impl ValueStore {
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_uint() else {
@@ -448,8 +448,8 @@ impl ValueStore {
     ) -> Result<BufferData, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
 

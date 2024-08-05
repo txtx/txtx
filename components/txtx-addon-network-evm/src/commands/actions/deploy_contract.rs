@@ -55,7 +55,7 @@ lazy_static! {
             rpc_api_url: {
               documentation: "The URL of the EVM API used to broadcast the transaction.",
               typing: Type::string(),
-              optional: false,
+              optional: true,
               interpolable: true
             },
             from: {

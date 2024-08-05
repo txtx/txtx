@@ -661,12 +661,10 @@ impl CommandInstance {
         match (object, input.optional) {
             (Some(expr), _) => Ok(Some(expr)),
             (None, true) => Ok(None),
-            (None, false) => todo!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for object '{}'",
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
