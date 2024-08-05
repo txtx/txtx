@@ -45,7 +45,6 @@ lazy_static! {
                             "abi": String,
                             "bytecode": String,
                             "init_code": String,
-                            "constructor_args": String,
                             "source": String,
                             "compiler_version": String,
                             "contract_name": String,
@@ -132,13 +131,18 @@ impl CommandImplementation for VerifyEVMContract {
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
+        use alloy::{dyn_abi::DynSolValue, hex};
         use alloy_chains::Chain;
         use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
         use crate::{
+            codec::value_to_sol_value,
             commands::actions::get_expected_address,
-            constants::{ARTIFACTS, BLOCK_EXPLORER_API_KEY, CHAIN_ID, CONTRACT_ADDRESS},
+            constants::{
+                ARTIFACTS, BLOCK_EXPLORER_API_KEY, CHAIN_ID, CONTRACT_ADDRESS,
+                CONTRACT_CONSTRUCTOR_ARGS,
+            },
         };
 
         let inputs = inputs.clone();
@@ -152,8 +156,28 @@ impl CommandImplementation for VerifyEVMContract {
         let explorer_api_key = inputs.get_defaulting_string(BLOCK_EXPLORER_API_KEY, defaults)?;
         let artifacts = inputs.get_expected_object(ARTIFACTS)?;
 
+        let constructor_args =
+            if let Some(function_args) = inputs.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
+                let sol_args = function_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| {
+                        value_to_sol_value(&v)
+                            .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
+                    })
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?
+                    .iter()
+                    .flat_map(|s| s.abi_encode())
+                    .collect::<Vec<u8>>();
+                Some(hex::encode(&sol_args))
+            } else {
+                None
+            };
+
         let contract_address = get_expected_address(&contract_address).map_err(|e| {
-            diagnosed_error!("command: 'verify_contract' failed to parse contract address: {e}")
+            diagnosed_error!(
+                "command: 'evm::verify_contract' failed to parse contract address: {e}"
+            )
         })?;
 
         let progress_tx = progress_tx.clone();
@@ -196,10 +220,6 @@ impl CommandImplementation for VerifyEVMContract {
                         "command 'evm::verify_contract': invalid number of optimizer runs: {e}"
                     )
                 })?;
-
-            let constructor_args = artifacts
-                .get("constructor_args")
-                .and_then(|v| v.as_string());
 
             let chain = Chain::from(chain_id);
             let explorer_client = BlockExplorerClient::new(chain, explorer_api_key)

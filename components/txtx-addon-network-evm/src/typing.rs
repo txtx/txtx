@@ -47,12 +47,6 @@ lazy_static! {
             optional: false,
             interpolable: false
         },
-        constructor_args: {
-            documentation: "The abi encoded constructor arguments, if provided.",
-            typing: Type::string(),
-            optional: true,
-            interpolable: false
-        },
         init_code: {
             documentation: "The compiled contract bytecode concatenated with the abi encoded constructor arguments, if provided.",
             typing: Type::string(),
