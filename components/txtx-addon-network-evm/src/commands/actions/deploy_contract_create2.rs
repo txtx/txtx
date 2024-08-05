@@ -66,7 +66,19 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
-            create2_function_name: {
+            create2_factory_abi: {
+                documentation: "Coming soon",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
+            create2_factory_function_name: {
+                documentation: "Coming soon",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+            },
+            create2_factory_function_args: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: true,
@@ -248,7 +260,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     diagnosed_error!("command 'evm::deploy_contract_create2': {e}"),
                 )
             })?;
-            println!("paylod for signer: {:?}", bytes);
+
             let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
             let mut args = args.clone();
             args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
@@ -475,32 +487,27 @@ async fn build_unsigned_create2_deployment(
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
+    let salt = args.get_expected_string("salt")?;
     // if the user provided a contract address, they aren't using the default create2 factory
     let input = if contract_address.is_some() {
         let contract_abi = args.get_string(CREATE2_FACTORY_ABI);
         let function_name = args.get_expected_string(CREATE2_FUNCTION_NAME)?;
-        let function_args: Vec<DynSolValue> = args
-            .get_expected_array(CONTRACT_FUNCTION_ARGS)
-            .map(|v| {
-                v.iter()
-                    .map(|v| {
-                        value_to_sol_value(&v).map_err(|e| {
-                            diagnosed_error!("command 'evm::sign_contract_call': {}", e)
-                        })
-                    })
-                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-            })
-            .unwrap_or(Ok(vec![]))?;
+        let salt = salt_str_to_hex(salt)
+            .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?;
+        let function_args: Vec<DynSolValue> = vec![
+            DynSolValue::FixedBytes(Word::from_slice(&salt), 32),
+            DynSolValue::Bytes(init_code.clone()),
+        ];
 
         if let Some(abi_str) = contract_abi {
             encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'deploy_contract_create2': {e}"))?
+                .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?
         } else {
+            let function_args = vec![DynSolValue::Tuple(function_args)];
             encode_contract_call_inputs_from_selector(function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'deploy_contract_create2': {e}"))?
+                .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?
         }
     } else {
-        let salt = args.get_expected_string("salt")?;
         encode_default_create2_proxy_args(salt, &init_code)
             .map_err(|e| diagnosed_error!("command 'deploy_contract_create2': {e}"))?
     };
@@ -541,11 +548,16 @@ async fn build_unsigned_create2_deployment(
     Ok((tx, actual_contract_address))
 }
 
-fn encode_default_create2_proxy_args(salt: &str, init_code: &Vec<u8>) -> Result<Vec<u8>, String> {
+fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
     let salt = hex::decode(salt).map_err(|e| format!("failed to decode salt: {e}"))?;
     if salt.len() != 32 {
         return Err("salt must be a 32-byte string".into());
     }
+    Ok(salt)
+}
+
+fn encode_default_create2_proxy_args(salt: &str, init_code: &Vec<u8>) -> Result<Vec<u8>, String> {
+    let salt = salt_str_to_hex(salt)?;
     let mut data = Vec::with_capacity(salt.len() + init_code.len());
     data.extend_from_slice(&salt[..]);
     data.extend_from_slice(&init_code[..]);
