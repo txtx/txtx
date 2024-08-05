@@ -1,3 +1,5 @@
+use alloy::dyn_abi::DynSolValue;
+use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
@@ -23,8 +25,10 @@ use txtx_addon_kit::AddonDefaults;
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
-use crate::codec::CommonTransactionFields;
-use crate::constants::{CONTRACT_ADDRESS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH};
+use crate::codec::{value_to_sol_value, CommonTransactionFields};
+use crate::constants::{
+    CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH,
+};
 use crate::rpc::EVMRpc;
 
 use super::check_confirmations::CheckEVMConfirmations;
@@ -116,7 +120,7 @@ lazy_static! {
             constructor_args: {
                 documentation: "Coming soon",
                 typing: Type::array(Type::string()),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             confirmations: {
@@ -134,7 +138,7 @@ lazy_static! {
             block_explorer_api_key: {
               documentation: "The URL of the block explorer used to verify the contract.",
               typing: Type::string(),
-              optional: false,
+              optional: true,
               interpolable: true
             },
             depends_on: {
@@ -387,80 +391,17 @@ async fn build_unsigned_contract_deploy(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<TransactionRequest, Diagnostic> {
-    use alloy::{dyn_abi::DynSolValue, json_abi::JsonAbi};
-
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
-        constants::{
-            CHAIN_ID, CONTRACT_CONSTRUCTOR_ARGS, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT,
-            TRANSACTION_TYPE,
-        },
+        codec::{build_unsigned_transaction, TransactionType},
+        constants::{CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE},
     };
 
     let from = wallet_state.get_expected_value("signer_address")?.clone();
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
-    let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
-        let sol_args = function_args
-            .expect_array()
-            .iter()
-            .map(|v| {
-                value_to_sol_value(&v)
-                    .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))
-            })
-            .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
-        Some(sol_args)
-    } else {
-        None
-    };
-
-    let contract = args.get_expected_object("contract")?;
-
-    let Some(init_code) = contract
-        .get("bytecode")
-        .and_then(|code| Some(code.expect_string().to_string()))
-    else {
-        return Err(diagnosed_error!(
-            "command 'evm::deploy_contract': contract missing required init code"
-        ));
-    };
-    let mut init_code = alloy::hex::decode(init_code)
+    let init_code = get_contract_init_code(args)
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
-
-    // if we have an abi available in the contract, parse it out
-    let json_abi: Option<JsonAbi> = match contract.get("abi") {
-        Some(abi_string) => {
-            let abi = serde_json::from_str(&abi_string.expect_string()).map_err(|e| {
-                diagnosed_error!(
-                    "command 'evm::deploy_contract': failed to decode contract abi: {e}"
-                )
-            })?;
-            Some(abi)
-        }
-        None => None,
-    };
-
-    if let Some(constructor_args) = constructor_args {
-        // if we have an abi, use it to validate the constructor arguments
-        if let Some(json_abi) = json_abi {
-            if json_abi.constructor.is_none() {
-                return Err(diagnosed_error!("command 'evm::deploy_contract': invalid arguments: constructor arguments provided, but abi has no constructor"));
-            }
-        }
-        let mut abi_encoded_args = constructor_args
-            .iter()
-            .flat_map(|s| s.abi_encode())
-            .collect::<Vec<u8>>();
-        init_code.append(&mut abi_encoded_args);
-    } else {
-        // if we have an abi, use it to validate whether constructor arguments are needed
-        if let Some(json_abi) = json_abi {
-            if json_abi.constructor.is_some() {
-                return Err(diagnosed_error!("command 'evm::deploy_contract': invalid arguments: no constructor arguments provided, but abi has constructor"));
-            }
-        }
-    };
 
     let amount = args
         .get_value(TRANSACTION_AMOUNT)
@@ -493,4 +434,65 @@ async fn build_unsigned_contract_deploy(
         .await
         .map_err(|e| diagnosed_error!("command: 'evm::deploy_contract': {e}"))?;
     Ok(tx)
+}
+
+pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
+    let contract = args
+        .get_expected_object("contract")
+        .map_err(|e| e.to_string())?;
+    let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
+        let sol_args = function_args
+            .expect_array()
+            .iter()
+            .map(|v| value_to_sol_value(&v))
+            .collect::<Result<Vec<DynSolValue>, String>>()?;
+        Some(sol_args)
+    } else {
+        None
+    };
+
+    let Some(bytecode) = contract
+        .get("bytecode")
+        .and_then(|code| Some(code.expect_string().to_string()))
+    else {
+        return Err(format!("contract missing required bytecode"));
+    };
+    println!("initial bytecode: {}", bytecode);
+    let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
+
+    // if we have an abi available in the contract, parse it out
+    let json_abi: Option<JsonAbi> = match contract.get("abi") {
+        Some(abi_string) => {
+            let abi = serde_json::from_str(&abi_string.expect_string())
+                .map_err(|e| format!("failed to decode contract abi: {e}"))?;
+            Some(abi)
+        }
+        None => None,
+    };
+
+    if let Some(constructor_args) = constructor_args {
+        // if we have an abi, use it to validate the constructor arguments
+        if let Some(json_abi) = json_abi {
+            if json_abi.constructor.is_none() {
+                return Err(format!(
+                    "invalid arguments: constructor arguments provided, but abi has no constructor"
+                ));
+            }
+        }
+        let mut abi_encoded_args = constructor_args
+            .iter()
+            .flat_map(|s| s.abi_encode())
+            .collect::<Vec<u8>>();
+        init_code.append(&mut abi_encoded_args);
+    } else {
+        // if we have an abi, use it to validate whether constructor arguments are needed
+        if let Some(json_abi) = json_abi {
+            if json_abi.constructor.is_some() {
+                return Err(format!(
+                    "invalid arguments: no constructor arguments provided, but abi has constructor"
+                ));
+            }
+        }
+    };
+    Ok(init_code)
 }
