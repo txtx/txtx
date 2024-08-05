@@ -81,11 +81,10 @@ impl EVMRpc {
     }
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
-        let result = self
-            .provider
-            .call(tx)
-            .await
-            .map_err(|e| format!("failed to create call contract function : {}", e))?;
+        let result =
+            self.provider.call(tx).await.map_err(|e| {
+                format!("received error result from RPC API during eth_call: {}", e)
+            })?;
 
         Ok(hex::encode(result))
     }
