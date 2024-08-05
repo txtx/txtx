@@ -132,6 +132,8 @@ impl RuntimeContext {
                                                 "attribute batch.inputs.* should be of type object"
                                             ),
                                             ])?;
+                                            // todo: hack -> we want to be able to display the batch "name" in the cli. we don't have a way
+                                            // to properly set this yet, so we're defaulting to getting this evm key
                                             let batch_name = match inputs.get("evm_chain_id") {
                                                 Some(value) => value.to_string(),
                                                 _ => format!("{}", index),
@@ -216,6 +218,76 @@ impl RuntimeContext {
             }
         }
         Ok(consolidated_dependencies)
+    }
+
+    // todo: remove, this is a hack because we haven't figured out what the `runtime` construct should look like
+    pub fn load_all_addons(
+        &mut self,
+        runbook_id: &RunbookId,
+        runbook_sources: &RunbookSources,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut sources = VecDeque::new();
+        // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
+        let mut files_visited = HashSet::new();
+        for (location, (module_name, raw_content)) in runbook_sources.tree.iter() {
+            files_visited.insert(location);
+            sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
+        }
+        while let Some((location, package_name, raw_content)) = sources.pop_front() {
+            let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
+                vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
+            })?;
+            let package_location = location
+                .get_parent_location()
+                .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
+            let package_id = PackageId {
+                runbook_id: runbook_id.clone(),
+                package_location: package_location.clone(),
+                package_name: package_name.clone(),
+            };
+            self.addons_context
+                .register(&package_id.did(), Box::new(StdAddon::new()), false);
+
+            // register stacks
+            {
+                let mut index = None;
+                let addon_id = "stacks";
+                for (i, addon) in self.available_addons.iter().enumerate() {
+                    if addon.get_namespace().eq(addon_id) {
+                        index = Some(i);
+                        break;
+                    }
+                }
+                let Some(index) = index else {
+                    return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                };
+
+                let addon = self.available_addons.remove(index);
+                // self.available_addons.insert(index, Box::new(addon));
+
+                self.addons_context.register(&package_id.did(), addon, true);
+            }
+            // register evm
+            {
+                let mut index = None;
+                let addon_id = "evm";
+                for (i, addon) in self.available_addons.iter().enumerate() {
+                    if addon.get_namespace().eq(addon_id) {
+                        index = Some(i);
+                        break;
+                    }
+                }
+                let Some(index) = index else {
+                    return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                };
+
+                let addon = self.available_addons.remove(index);
+                // self.available_addons.insert(index, Box::new(addon));
+
+                self.addons_context.register(&package_id.did(), addon, true);
+            }
+        }
+        Ok(())
     }
 
     pub fn build_from_sources(
@@ -333,7 +405,7 @@ impl RuntimeContext {
                                     let value = match eval_result {
                                         Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
                                         Err(diag) => return Err(vec![diag]),
-                                        _ => unimplemented!(),
+                                        w => unimplemented!("{:?}", w),
                                     };
                                     defaults.insert(key, value);
                                 }
@@ -348,21 +420,23 @@ impl RuntimeContext {
             // Loop over the sequence of addons identified
             let default_key = "chain_id".to_string();
             for (package_did, addon_name, defaults_src) in addons_configs.into_iter() {
-                let addon_id = match defaults_src.get(&default_key) {
-                    Some(entry) => entry.to_string(),
-                    None => defaults_src
-                        .first()
-                        .map(|(_, v)| v.clone())
-                        .unwrap_or(Value::null())
-                        .to_string(),
-                };
-                let mut defaults = AddonDefaults::new(&addon_id);
-                for (k, v) in defaults_src.into_iter() {
-                    defaults.store.insert(&k, v);
-                }
+                // let addon_id = match defaults_src.get(&default_key) {
+                //     Some(entry) => entry.to_string(),
+                //     None => defaults_src
+                //         .first()
+                //         .map(|(_, v)| v.clone())
+                //         .unwrap_or(Value::null())
+                //         .to_string(),
+                // };
+                // println!("addon id: {}", addon_id);
 
                 match addon_name.split_once("::") {
                     Some((addon_id, _)) => {
+                        println!("addon id: {}", addon_id);
+                        let mut defaults = AddonDefaults::new(&addon_id);
+                        for (k, v) in defaults_src.into_iter() {
+                            defaults.store.insert(&k, v);
+                        }
                         let mut index = None;
                         for (i, addon) in self.available_addons.iter().enumerate() {
                             if addon.get_namespace().eq(addon_id) {
@@ -371,10 +445,15 @@ impl RuntimeContext {
                             }
                         }
                         let Some(index) = index else {
-                            return Err(vec![diagnosed_error!(
-                                "unable to find addon {}",
-                                addon_id
-                            )]);
+                            // todo: remove continue and reinstate error once we figure out how we want to handle runtimes and remove the load_all_addons fn
+                            runbook_workspace_context
+                                .addons_defaults
+                                .insert((package_did.clone(), addon_id.into()), defaults);
+                            continue;
+                            // return Err(vec![diagnosed_error!(
+                            //     "unable to find addon {}",
+                            //     addon_id
+                            // )]);
                         };
 
                         let addon = self.available_addons.remove(index);

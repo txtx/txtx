@@ -69,6 +69,9 @@ impl Runbook {
         // Re-initialize some shiny new contexts
         self.running_contexts.clear();
         let mut runtime_context = RuntimeContext::new(available_addons, authorization_context);
+
+        runtime_context.load_all_addons(&self.runbook_id, &sources)?;
+
         let inputs_sets = runtime_context.collect_environment_variables(
             &self.runbook_id,
             &inputs_map,
