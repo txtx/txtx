@@ -1,4 +1,7 @@
+use alloy::contract::Interface;
 use alloy::dyn_abi::DynSolValue;
+use alloy::hex;
+use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
@@ -345,8 +348,6 @@ async fn build_unsigned_contract_call(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<TransactionRequest, Diagnostic> {
-    use alloy::{contract::Interface, json_abi::JsonAbi};
-
     use crate::{
         codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
         constants::{
@@ -388,23 +389,11 @@ async fn build_unsigned_contract_call(
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
-        let abi: JsonAbi = serde_json::from_str(&abi_str).map_err(|e| {
-            diagnosed_error!("command 'sign_contract_call': invalid contract abi: {}", e)
-        })?;
-
-        let interface = Interface::new(abi);
-        interface
-            .encode_input(function_name, &function_args)
-            .map_err(|e| {
-                diagnosed_error!(
-                    "command 'sign_contract_call': failed to encode contract inputs: {e}"
-                )
-            })?
+        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
     } else {
-        function_args
-            .iter()
-            .flat_map(|v| v.abi_encode_params())
-            .collect()
+        encode_contract_call_inputs_from_selector(function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
     };
 
     let common = CommonTransactionFields {
@@ -423,4 +412,40 @@ async fn build_unsigned_contract_call(
         .await
         .map_err(|e| diagnosed_error!("command: 'evm::sign_contract_call': {e}"))?;
     Ok(tx)
+}
+
+pub fn encode_contract_call_inputs_from_selector(
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let selector =
+        hex::decode(function_name).map_err(|e| format!("failed to decode function_name: {e}"))?;
+    if selector.len() != 4 {
+        return Err(
+            "function_name must be a valid 4-byte function selector if no contract abi is provided"
+                .into(),
+        );
+    }
+    let encoded_args = function_args
+        .iter()
+        .flat_map(|v| v.abi_encode_params())
+        .collect::<Vec<u8>>();
+    let mut data = Vec::with_capacity(encoded_args.len() + 4);
+    data.extend_from_slice(&selector[..]);
+    data.extend_from_slice(&encoded_args[..]);
+    Ok(data)
+}
+
+pub fn encode_contract_call_inputs_from_abi(
+    abi_str: &str,
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let abi: JsonAbi =
+        serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
+
+    let interface = Interface::new(abi);
+    interface
+        .encode_input(function_name, &function_args)
+        .map_err(|e| format!("failed to encode contract inputs: {e}"))
 }
