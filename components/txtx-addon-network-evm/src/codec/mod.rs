@@ -5,6 +5,7 @@ use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
 use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
 use alloy::dyn_abi::{DynSolValue, Word};
+use alloy::hex::FromHex;
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
@@ -264,4 +265,15 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Tuple(_) => todo!(),
     };
     Ok(value)
+}
+
+pub fn string_to_address(address_str: String) -> Result<Address, String> {
+    let mut address_str = address_str.replace("0x", "");
+    // hack: we're assuming that if the address is 32 bytes, it's a sol value that's padded with 0s, so we trim them
+    if address_str.len() == 64 {
+        let split_pos = address_str.char_indices().nth_back(39).unwrap().0;
+        address_str = address_str[split_pos..].to_owned();
+    }
+    let address = Address::from_hex(&address_str).map_err(|e| format!("invalid address: {}", e))?;
+    Ok(address)
 }

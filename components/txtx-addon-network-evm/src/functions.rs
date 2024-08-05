@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy::{
     hex::FromHex,
-    primitives::{Address, Bytes, B256},
+    primitives::{Bytes, B256},
 };
 use txtx_addon_kit::indexmap;
 use txtx_addon_kit::{
@@ -16,7 +16,7 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    codec::foundry::FoundryConfig,
+    codec::{foundry::FoundryConfig, string_to_address},
     typing::{BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS},
 };
 const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
@@ -146,7 +146,7 @@ impl FunctionImplementation for EncodeEVMAddress {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let mut entry = match args.get(0) {
+        let entry = match args.get(0) {
             Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
             other => {
                 return Err(diagnosed_error!(
@@ -155,14 +155,8 @@ impl FunctionImplementation for EncodeEVMAddress {
                 ))
             }
         };
-        entry = entry.replace("0x", "");
-        // hack: we're assuming that if the address is 32 bytes, it's a sol value that's padded with 0s, so we trim them
-        if entry.len() == 64 {
-            let split_pos = entry.char_indices().nth_back(39).unwrap().0;
-            entry = (entry[split_pos..]).to_owned();
-        }
-        let address = Address::from_hex(&entry)
-            .map_err(|e| diagnosed_error!("'evm::address' function: invalid address: {}", e))?;
+        let address = string_to_address(entry)
+            .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
         let bytes = address.0 .0;
         Ok(Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()))
     }
@@ -337,15 +331,12 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
         let abi_string = serde_json::to_string(&compiled_output.abi)
             .map_err(|e| diagnosed_error!("{}: failed to serialize abi: {}", prefix, e))?;
 
-        let init_code = compiled_output.bytecode.object.clone();
-
         let source = compiled_output
             .get_contract_source(&manifest_file_path, &contract_filename)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
 
         let abi = Value::string(abi_string);
         let bytecode = Value::string(compiled_output.bytecode.object.clone());
-        let init_code = Value::string(init_code);
         let source = Value::string(source);
         let compiler_version =
             Value::string(format!("v{}", compiled_output.metadata.compiler.version));
@@ -357,7 +348,6 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
         let obj_props = indexmap::indexmap! {
             "abi".to_string() => abi,
             "bytecode".to_string() => bytecode,
-            "init_code".to_string() => init_code,
             "source".to_string() => source,
             "compiler_version".to_string() => compiler_version,
             "contract_name".to_string() => contract_name,
