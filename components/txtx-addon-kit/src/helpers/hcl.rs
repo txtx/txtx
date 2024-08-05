@@ -1,3 +1,5 @@
+use hcl_edit::expr::Object;
+
 use crate::{
     hcl::{
         expr::{Expression, ObjectKey},
@@ -77,6 +79,17 @@ pub fn visit_optional_untyped_attribute(
         return Ok(None);
     };
     Ok(Some(attribute.value.clone()))
+}
+
+pub fn get_object_expression_key(obj: &Object, key: &str) -> Option<hcl_edit::expr::ObjectValue> {
+    obj.into_iter()
+        .find(|(k, _)| {
+            k.as_ident()
+                .and_then(|i| Some(i.as_str().eq(key)))
+                .unwrap_or(false)
+        })
+        .map(|(_, v)| v)
+        .cloned()
 }
 
 pub fn build_diagnostics_for_unused_fields(
