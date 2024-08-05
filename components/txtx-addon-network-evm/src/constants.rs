@@ -36,6 +36,10 @@ pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
 pub const CONTRACT_CONSTRUCTOR_ARGS: &str = "constructor_args";
 pub const ARTIFACTS: &str = "artifacts";
 pub const TX_HASH: &str = "tx_hash";
+pub const CREATE2_FACTORY_ADDRESS: &str = "create2_factory_address";
+pub const CREATE2_FACTORY_ABI: &str = "create2_factory_abi";
+pub const CREATE2_FUNCTION_NAME: &str = "create2_function_name";
+pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
@@ -50,3 +54,6 @@ pub const ACTION_ITEM_CHECK_FEE: &str = "check_fee";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
 pub const ACTION_OPEN_MODAL: &str = "open_modal";
+
+// Default contracts
+pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78FbF26c0B4956C";
