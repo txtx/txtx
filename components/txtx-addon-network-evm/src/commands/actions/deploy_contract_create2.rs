@@ -21,7 +21,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::typing::{DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS};
+use crate::typing::{CONTRACT_METADATA, ETH_ADDRESS};
 use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
 use crate::codec::CommonTransactionFields;
@@ -122,7 +122,7 @@ lazy_static! {
             },
             contract: {
                 documentation: "Coming soon",
-                typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
+                typing: CONTRACT_METADATA.clone(),
                 optional: false,
                 interpolable: true
             },

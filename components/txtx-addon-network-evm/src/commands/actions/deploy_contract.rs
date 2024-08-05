@@ -22,7 +22,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
+use crate::typing::CONTRACT_METADATA;
 use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
@@ -113,7 +113,7 @@ lazy_static! {
             },
             contract: {
                 documentation: "Coming soon",
-                typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
+                typing: CONTRACT_METADATA.clone(),
                 optional: false,
                 interpolable: true
             },
@@ -457,7 +457,6 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
     else {
         return Err(format!("contract missing required bytecode"));
     };
-    println!("initial bytecode: {}", bytecode);
     let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
 
     // if we have an abi available in the contract, parse it out

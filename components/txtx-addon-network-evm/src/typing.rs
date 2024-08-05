@@ -34,6 +34,56 @@ lazy_static! {
             documentation: "A 32-byte Ethereum transaction hash.",
         }
     };
+    pub static ref CONTRACT_METADATA: Type = define_object_type! {
+        abi: {
+            documentation: "The contract abi.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        },
+        bytecode: {
+            documentation: "The compiled contract bytecode.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
+        },
+        source: {
+            documentation: "The contract source code.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        },
+        compiler_version: {
+            documentation: "The solc version used to compile the contract.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        },
+        contract_name: {
+            documentation: "The name of the contract being deployed.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        },
+        optimizer_enabled: {
+            documentation: "Whether the optimizer is enabled during contract compilation.",
+            typing: Type::bool(),
+            optional: true,
+            interpolable: false
+        },
+        optimizer_runs: {
+            documentation: "The number of runs the optimizer performed.",
+            typing: Type::uint(),
+            optional: true,
+            interpolable: false
+        },
+        evm_version: {
+            documentation: "The EVM version used to compile the contract.",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
+        }
+    };
     pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
         abi: {
             documentation: "The contract abi.",
@@ -43,12 +93,6 @@ lazy_static! {
         },
         bytecode: {
             documentation: "The compiled contract bytecode.",
-            typing: Type::string(),
-            optional: false,
-            interpolable: false
-        },
-        init_code: {
-            documentation: "The compiled contract bytecode concatenated with the abi encoded constructor arguments, if provided.",
             typing: Type::string(),
             optional: false,
             interpolable: false
