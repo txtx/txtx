@@ -883,15 +883,15 @@ pub fn eval_expression(
             };
 
             let attribute = components.pop_front().unwrap_or("value".into());
-
-            match res.outputs.get(&attribute) {
+            // this is a bit hacky. in some cases, our outputs are nested in a "value", but we don't want the user
+            // to have to provide it. if that's the case, the above line consumed an attribute we want to use and
+            // didn't actually use the default "value" key. so if fetching the provided attribute key yields no
+            // results, fetch "value", and add our attribute back to the list of components
+            match res.outputs.get(&attribute).or(res.outputs.get("value")) {
                 Some(output) => {
-                    if let Some(ref object) = output.as_object() {
-                        if let Some(key) = subpath.pop_front() {
-                            object.get(&key.to_string()).clone().unwrap().clone()
-                        } else {
-                            output.clone()
-                        }
+                    if let Some(_) = output.as_object() {
+                        components.push_front(attribute);
+                        output.get_keys_from_object(components)?
                     } else {
                         output.clone()
                     }

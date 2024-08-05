@@ -15,7 +15,8 @@ use hcl_edit::{expr::Expression, structure::Block};
 
 use crate::{
     helpers::hcl::{
-        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
+        collect_constructs_references_from_expression, get_object_expression_key,
+        visit_optional_untyped_attribute,
     },
     AddonDefaults,
 };
@@ -674,12 +675,13 @@ impl CommandInstance {
         input: &CommandInput,
         prop: &ObjectProperty,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let object = self.block.body.get_blocks(&input.name).next();
-        match (object, input.optional) {
-            (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)?;
+        let expr = visit_optional_untyped_attribute(&input.name, &self.block)?;
+        match (expr, input.optional) {
+            (Some(expr), _) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = get_object_expression_key(object_expr, &prop.name);
                 match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression)),
+                    (Some(expression), _) => Ok(Some(expression.expr().clone())),
                     (None, true) => Ok(None),
                     (None, false) => todo!(
                         "command '{}' (type '{}') is missing property '{}' for object '{}'",
