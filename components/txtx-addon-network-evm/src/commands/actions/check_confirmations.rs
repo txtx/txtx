@@ -207,6 +207,18 @@ impl CommandImplementation for CheckEVMConfirmations {
                     latest_block = block_number;
                 }
 
+                if !receipt.status() {
+                    let diag = diagnosed_error!("transaction reverted");
+                    status_update.update_status(&ProgressBarStatus::new_err(
+                        "Failed",
+                        "Transaction Failed",
+                        &diag,
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                    return Err(diag);
+                }
                 if let Some(contract_address) = receipt.contract_address {
                     result.outputs.insert(
                         CONTRACT_ADDRESS.to_string(),
