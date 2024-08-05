@@ -27,7 +27,8 @@ use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
-    CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH,
+    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
+    SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
 
@@ -297,7 +298,7 @@ impl CommandImplementation for EVMDeployContract {
 
             res_signing.append(&mut res);
 
-            let do_verify = args.get_bool("verify").unwrap_or(false);
+            let do_verify = args.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
                 let mut res = match VerifyEVMContract::run_execution(
                     &construct_did,
@@ -357,10 +358,10 @@ impl CommandImplementation for EVMDeployContract {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool("verify").unwrap_or(false);
+            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
                 let contract_artifacts = inputs.get_expected_value("contract")?;
-                inputs.insert("artifacts", contract_artifacts.clone());
+                inputs.insert(ARTIFACTS, contract_artifacts.clone());
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }

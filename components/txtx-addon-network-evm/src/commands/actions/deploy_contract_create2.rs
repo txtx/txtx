@@ -25,7 +25,10 @@ use crate::typing::{CONTRACT_METADATA, ETH_ADDRESS};
 use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
 use crate::codec::CommonTransactionFields;
-use crate::constants::{CONTRACT_ADDRESS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH};
+use crate::constants::{
+    ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT, RPC_API_URL,
+    SIGNED_TRANSACTION_BYTES, TX_HASH,
+};
 use crate::rpc::EVMRpc;
 
 use super::check_confirmations::CheckEVMConfirmations;
@@ -341,7 +344,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
 
             res_signing.append(&mut res);
 
-            let do_verify = args.get_bool("verify").unwrap_or(false);
+            let do_verify = args.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
                 let mut res = match VerifyEVMContract::run_execution(
                     &construct_did,
@@ -409,10 +412,10 @@ impl CommandImplementation for EVMDeployContractCreate2 {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool("verify").unwrap_or(false);
+            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
-                let contract_artifacts = inputs.get_expected_value("contract")?;
-                inputs.insert("artifacts", contract_artifacts.clone());
+                let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
+                inputs.insert(ARTIFACTS, contract_artifacts.clone());
 
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
@@ -456,7 +459,7 @@ async fn build_unsigned_create2_deployment(
         },
         constants::{
             CHAIN_ID, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS, CREATE2_FUNCTION_NAME,
-            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, GAS_LIMIT, NONCE,
+            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, GAS_LIMIT, NONCE, SALT,
             TRANSACTION_AMOUNT, TRANSACTION_TYPE,
         },
     };
@@ -487,7 +490,7 @@ async fn build_unsigned_create2_deployment(
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
-    let salt = args.get_expected_string("salt")?;
+    let salt = args.get_expected_string(SALT)?;
     // if the user provided a contract address, they aren't using the default create2 factory
     let input = if contract_address.is_some() {
         let contract_abi = args.get_string(CREATE2_FACTORY_ABI);
