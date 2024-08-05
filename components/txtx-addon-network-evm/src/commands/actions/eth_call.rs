@@ -196,12 +196,13 @@ async fn build_eth_call(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<Value, Diagnostic> {
-    use alloy::{contract::Interface, json_abi::JsonAbi};
-
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
             TransactionType,
+        },
+        commands::actions::sign_contract_call::{
+            encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
         },
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
@@ -243,20 +244,11 @@ async fn build_eth_call(
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
-        let abi: JsonAbi = serde_json::from_str(&abi_str)
-            .map_err(|e| diagnosed_error!("command 'eth_call': invalid contract abi: {}", e))?;
-
-        let interface = Interface::new(abi);
-        interface
-            .encode_input(function_name, &function_args)
-            .map_err(|e| {
-                diagnosed_error!("command 'eth_call': failed to encode contract inputs: {e}")
-            })?
+        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
     } else {
-        function_args
-            .iter()
-            .flat_map(|v| v.abi_encode_params())
-            .collect()
+        encode_contract_call_inputs_from_selector(function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
     };
 
     let common = CommonTransactionFields {
