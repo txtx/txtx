@@ -3,6 +3,7 @@ use jaq_interpret::Val;
 use serde::de::Error;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::json;
+use std::collections::VecDeque;
 use std::{collections::BTreeMap, fmt::Debug};
 
 use super::diagnostics::Diagnostic;
@@ -183,6 +184,28 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn get_keys_from_object(&self, mut keys: VecDeque<String>) -> Result<Value, Diagnostic> {
+        let Some(key) = keys.pop_front() else {
+            return Ok(self.clone());
+        };
+
+        if let Some(ref object) = self.as_object() {
+            match object.get(&key) {
+                Some(val) => val.get_keys_from_object(keys),
+                None => Err(Diagnostic::error_from_string(format!(
+                    "missing key '{}' from object",
+                    key
+                ))),
+            }
+        } else {
+            Err(Diagnostic::error_from_string(format!(
+                "invalid key '{}' for object",
+                key
+            )))
+        }
+    }
+
     pub fn expect_primitive(&self) -> &PrimitiveValue {
         match &self {
             Value::Primitive(primitive) => primitive,
