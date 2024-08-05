@@ -366,12 +366,10 @@ impl WalletInstance {
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => todo!(
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                 "command '{}' (type '{}') is missing value for field '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
@@ -394,22 +392,17 @@ impl WalletInstance {
                 match (expr_res, prop.optional) {
                     (Some(expression), _) => Ok(Some(expression)),
                     (None, true) => Ok(None),
-                    (None, false) => todo!(
+                    (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                         "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name,
-                        self.specification.matcher,
-                        prop.name,
-                        input.name
-                    ),
+                        self.name, self.specification.matcher, prop.name, input.name
+                    ))]),
                 }
             }
             (None, true) => Ok(None),
-            (None, false) => todo!(
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                 "command '{}' (type '{}') is missing object '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
