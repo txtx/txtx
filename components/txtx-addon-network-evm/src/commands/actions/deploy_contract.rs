@@ -1,4 +1,4 @@
-use alloy::dyn_abi::DynSolValue;
+use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
 use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
@@ -472,17 +472,23 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
 
     if let Some(constructor_args) = constructor_args {
         // if we have an abi, use it to validate the constructor arguments
-        if let Some(json_abi) = json_abi {
-            if json_abi.constructor.is_none() {
+        let mut abi_encoded_args = if let Some(json_abi) = json_abi {
+            if let Some(constructor) = json_abi.constructor {
+                constructor
+                    .abi_encode_input(&constructor_args)
+                    .map_err(|e| format!("failed to encode constructor args: {e}"))?
+            } else {
                 return Err(format!(
                     "invalid arguments: constructor arguments provided, but abi has no constructor"
                 ));
             }
-        }
-        let mut abi_encoded_args = constructor_args
-            .iter()
-            .flat_map(|s| s.abi_encode())
-            .collect::<Vec<u8>>();
+        } else {
+            constructor_args
+                .iter()
+                .flat_map(|s| s.abi_encode())
+                .collect::<Vec<u8>>()
+        };
+
         init_code.append(&mut abi_encoded_args);
     } else {
         // if we have an abi, use it to validate whether constructor arguments are needed
