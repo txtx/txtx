@@ -233,7 +233,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
         Value::Array(_) => todo!(),
         Value::Addon(addon) => {
             if addon.typing.id == ETH_ADDRESS.clone().id {
-                todo!()
+                DynSolValue::Address(Address::from_slice(&addon.value.expect_buffer_bytes()))
             } else if addon.typing.id == BYTES32.clone().id {
                 let value = addon.value.as_buffer_data().unwrap();
                 let word = Word::from_slice(&value.bytes);

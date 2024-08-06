@@ -247,44 +247,55 @@ impl RuntimeContext {
             };
             self.addons_context
                 .register(&package_id.did(), Box::new(StdAddon::new()), false);
-
             // register stacks
             {
-                let mut index = None;
                 let addon_id = "stacks";
-                for (i, addon) in self.available_addons.iter().enumerate() {
-                    if addon.get_namespace().eq(addon_id) {
-                        index = Some(i);
-                        break;
+                if self
+                    .available_addons
+                    .iter()
+                    .any(|addon| addon.get_namespace().eq(addon_id))
+                {
+                    let mut index = None;
+                    for (i, addon) in self.available_addons.iter().enumerate() {
+                        if addon.get_namespace().eq(addon_id) {
+                            index = Some(i);
+                            break;
+                        }
                     }
+                    let Some(index) = index else {
+                        return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                    };
+
+                    let addon = self.available_addons.remove(index);
+                    // self.available_addons.insert(index, Box::new(addon));
+
+                    self.addons_context.register(&package_id.did(), addon, true);
                 }
-                let Some(index) = index else {
-                    return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
-                };
-
-                let addon = self.available_addons.remove(index);
-                // self.available_addons.insert(index, Box::new(addon));
-
-                self.addons_context.register(&package_id.did(), addon, true);
             }
             // register evm
             {
-                let mut index = None;
                 let addon_id = "evm";
-                for (i, addon) in self.available_addons.iter().enumerate() {
-                    if addon.get_namespace().eq(addon_id) {
-                        index = Some(i);
-                        break;
+                if self
+                    .available_addons
+                    .iter()
+                    .any(|addon| addon.get_namespace().eq(addon_id))
+                {
+                    let mut index = None;
+                    for (i, addon) in self.available_addons.iter().enumerate() {
+                        if addon.get_namespace().eq(addon_id) {
+                            index = Some(i);
+                            break;
+                        }
                     }
+                    let Some(index) = index else {
+                        return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
+                    };
+
+                    let addon = self.available_addons.remove(index);
+                    // self.available_addons.insert(index, Box::new(addon));
+
+                    self.addons_context.register(&package_id.did(), addon, true);
                 }
-                let Some(index) = index else {
-                    return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
-                };
-
-                let addon = self.available_addons.remove(index);
-                // self.available_addons.insert(index, Box::new(addon));
-
-                self.addons_context.register(&package_id.did(), addon, true);
             }
         }
         Ok(())

@@ -111,8 +111,12 @@ impl Value {
                 .iter()
                 .flat_map(|v| v.expect_buffer_bytes())
                 .collect(),
+            Value::Addon(addon_value) => {
+                return addon_value.value.try_get_buffer_bytes();
+            }
             _ => return None,
         };
+
         Some(bytes)
     }
     pub fn expect_array(&self) -> &Box<Vec<Value>> {
@@ -352,7 +356,7 @@ impl Value {
                         .join(", ")
                 )
             }
-            Value::Addon(_) => todo!(),
+            Value::Addon(addon_value) => addon_value.value.to_string(),
         }
     }
 

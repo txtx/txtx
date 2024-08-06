@@ -158,7 +158,10 @@ impl FunctionImplementation for EncodeEVMAddress {
         let address = string_to_address(entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
         let bytes = address.0 .0;
-        Ok(Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()))
+        Ok(Value::addon(
+            Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()),
+            ETH_ADDRESS.clone(),
+        ))
     }
 }
 

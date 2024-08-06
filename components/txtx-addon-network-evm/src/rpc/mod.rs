@@ -1,10 +1,11 @@
 use alloy::hex;
 use alloy::primitives::{Address, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
-use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
 use alloy::transports::http::Http;
-
+use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
+use alloy_rpc_types::BlockNumberOrTag::Latest;
 use txtx_addon_kit::reqwest::{Client, Url};
 
 #[derive(Debug)]
@@ -81,12 +82,36 @@ impl EVMRpc {
     }
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
-        let result =
-            self.provider.call(tx).await.map_err(|e| {
-                format!("received error result from RPC API during eth_call: {}", e)
-            })?;
+        let result = match self.provider.call(tx).await {
+            Ok(res) => res,
+            Err(e) => {
+                let err = format!("received error result from RPC API during eth_call: {}", e);
+                if let Ok(trace) = self.trace_call(&tx).await {
+                    return Err(diagnosed_error!("{}\ncall trace: {}", err, trace));
+                } else {
+                    return Err(diagnosed_error!("{}", err));
+                }
+            }
+        };
 
         Ok(hex::encode(result))
+    }
+
+    pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
+        let result = self
+            .provider
+            .debug_trace_call(tx.clone(), Latest, GethDebugTracingCallOptions::default())
+            .await
+            .map_err(|e| {
+                format!(
+                    "received error result from RPC API during trace_call: {}",
+                    e
+                )
+            })?;
+
+        let result = serde_json::to_string(&result)
+            .map_err(|e| format!("failed to serialize trace response: {}", e))?;
+        Ok(result)
     }
 
     pub async fn get_receipt(
