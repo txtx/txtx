@@ -490,12 +490,12 @@ async fn build_unsigned_create2_deployment(
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
-    let salt = args.get_expected_string(SALT)?;
+    let salt = args.get_string(SALT);
     // if the user provided a contract address, they aren't using the default create2 factory
     let input = if contract_address.is_some() {
         let contract_abi = args.get_string(CREATE2_FACTORY_ABI);
         let function_name = args.get_expected_string(CREATE2_FUNCTION_NAME)?;
-        let salt = salt_str_to_hex(salt)
+        let salt = salt_str_to_hex(salt.unwrap())
             .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?;
         let function_args: Vec<DynSolValue> = vec![
             DynSolValue::FixedBytes(Word::from_slice(&salt), 32),
@@ -569,10 +569,17 @@ fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
     Ok(salt)
 }
 
-fn encode_default_create2_proxy_args(salt: &str, init_code: &Vec<u8>) -> Result<Vec<u8>, String> {
-    let salt = salt_str_to_hex(salt)?;
-    let mut data = Vec::with_capacity(salt.len() + init_code.len());
-    data.extend_from_slice(&salt[..]);
-    data.extend_from_slice(&init_code[..]);
-    Ok(data)
+fn encode_default_create2_proxy_args(
+    salt: Option<&str>,
+    init_code: &Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    if let Some(salt) = salt {
+        let salt = salt_str_to_hex(salt)?;
+        let mut data = Vec::with_capacity(salt.len() + init_code.len());
+        data.extend_from_slice(&salt[..]);
+        data.extend_from_slice(&init_code[..]);
+        Ok(data)
+    } else {
+        Ok(init_code.clone())
+    }
 }
