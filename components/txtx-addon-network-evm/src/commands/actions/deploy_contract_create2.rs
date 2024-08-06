@@ -188,6 +188,10 @@ lazy_static! {
               tx_hash: {
                   documentation: "The hash of the transaction.",
                   typing: Type::string()
+              },
+              contract_address: {
+                documentation: "The address of the deployed transaction.",
+                typing: Type::string()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
