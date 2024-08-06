@@ -264,7 +264,7 @@ async fn build_eth_call(
     };
     let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::eth_call': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
 
     let call_result = rpc
         .call(&tx)

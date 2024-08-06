@@ -410,7 +410,7 @@ async fn build_unsigned_contract_call(
 
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::sign_contract_call': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {e}"))?;
     Ok(tx)
 }
 

@@ -770,7 +770,13 @@ pub fn diff_command_snapshots(
             } => {
                 for i in 0..*new_len {
                     let entry = new_construct_dids.get(new_index + i).unwrap().clone();
-                    consolidated_changes.new_constructs_to_add.push(entry)
+                    let command = match new_run.commands.get(&entry) {
+                        Some(e) => Some(e.clone()),
+                        None => None,
+                    };
+                    consolidated_changes
+                        .new_constructs_to_add
+                        .push((entry, command))
                 }
             }
             DiffOp::Replace {
@@ -1103,7 +1109,7 @@ pub struct ConsolidatedChanges {
 #[derive(Debug)]
 pub struct ConsolidatedPlanChanges {
     pub old_constructs_to_rem: Vec<ConstructDid>,
-    pub new_constructs_to_add: Vec<ConstructDid>,
+    pub new_constructs_to_add: Vec<(ConstructDid, Option<CommandSnapshot>)>,
     pub contructs_to_update: Vec<Change>,
 }
 
@@ -1117,6 +1123,12 @@ impl ConsolidatedPlanChanges {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
+pub enum SynthesizedChange {
+    Edition(Vec<String>, bool),
+    Addition(ConstructDid),
+}
+
 impl ConsolidatedChanges {
     pub fn new() -> Self {
         Self {
@@ -1128,8 +1140,8 @@ impl ConsolidatedChanges {
 
     pub fn get_synthesized_changes(
         &self,
-    ) -> IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> {
-        let mut reverse_lookup: IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> =
+    ) -> IndexMap<SynthesizedChange, Vec<(String, Option<ConstructDid>)>> {
+        let mut reverse_lookup: IndexMap<SynthesizedChange, Vec<(String, Option<ConstructDid>)>> =
             IndexMap::new();
 
         for (plan_id, plan_changes) in self.plans_to_update.iter() {
@@ -1137,7 +1149,7 @@ impl ConsolidatedChanges {
                 if change.description.is_empty() {
                     continue;
                 }
-                let key = (change.description.clone(), change.critical);
+                let key = SynthesizedChange::Edition(change.description.clone(), change.critical);
                 let value = (plan_id.to_string(), change.construct_did.clone());
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)
@@ -1145,8 +1157,8 @@ impl ConsolidatedChanges {
                     reverse_lookup.insert(key, vec![value]);
                 }
             }
-            for new_construct in plan_changes.new_constructs_to_add.iter() {
-                let key = (vec![format!("Execute {}", new_construct.to_string())], true);
+            for (new_construct, _) in plan_changes.new_constructs_to_add.iter() {
+                let key = SynthesizedChange::Addition(new_construct.clone());
                 let value = (plan_id.to_string(), Some(new_construct.clone()));
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)

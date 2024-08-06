@@ -174,9 +174,7 @@ impl CommandImplementation for VerifyEVMContract {
             };
 
         let contract_address = get_expected_address(&contract_address).map_err(|e| {
-            diagnosed_error!(
-                "command: 'evm::verify_contract' failed to parse contract address: {e}"
-            )
+            diagnosed_error!("command 'evm::verify_contract' failed to parse contract address: {e}")
         })?;
 
         let progress_tx = progress_tx.clone();
@@ -427,7 +425,7 @@ pub fn get_expected_string_from_map(
 ) -> Result<String, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::String(val))) = map.get(key) else {
         return Err(diagnosed_error!(
-            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+            "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
     };
     Ok(val.into())
@@ -438,7 +436,7 @@ pub fn get_expected_uint_from_map(
 ) -> Result<u64, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) = map.get(key) else {
         return Err(diagnosed_error!(
-            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+            "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
     };
     Ok(*val)
@@ -449,7 +447,7 @@ pub fn get_expected_bool_from_map(
 ) -> Result<bool, Diagnostic> {
     let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) else {
         return Err(diagnosed_error!(
-            "command: 'evm::verify_contract': contract deployment artifacts missing {key}"
+            "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
     };
     Ok(*val)

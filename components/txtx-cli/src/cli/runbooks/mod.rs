@@ -38,7 +38,7 @@ use txtx_core::{
     },
     runbook::{
         self, AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode,
-        RunbookExecutionSnapshot, RunbookInputsMap,
+        RunbookExecutionSnapshot, RunbookInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
@@ -84,7 +84,7 @@ pub fn display_snapshot_diffing(
             "{} Latest snapshot in sync with latest runbook updates",
             green!("✓")
         );
-        return None;
+        return Some(consolidated_changes);
     }
 
     if !consolidated_changes.new_plans_to_add.is_empty() {
@@ -92,25 +92,30 @@ pub fn display_snapshot_diffing(
         println!("{}\n", consolidated_changes.new_plans_to_add.join(", "));
     }
 
-    if !synthesized_changes.is_empty() {
+    let has_critical_changes = synthesized_changes.iter().filter(|(c, _)| match c { SynthesizedChange::Edition(_, _) => true, _ => false }).count();
+    if has_critical_changes > 0 {
         println!("\n{}\n", yellow!("Changes detected:"));
-        for (i, ((change, critical), _impacted)) in consolidated_changes
-            .get_synthesized_changes()
+        for (i, (change, _impacted)) in synthesized_changes
             .into_iter()
             .enumerate()
         {
-            let formatted_change = change
-                .iter()
-                .map(|c| {
-                    if c.starts_with("-") {
-                        red!(c)
-                    } else {
-                        green!(c)
-                    }
-                })
-                .join("");
-            println!("{}. The following edits:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-            println!("\rwill introduce consensus breaking changes.\n\n");
+            match change {
+                SynthesizedChange::Edition(change, _) => {
+                    let formatted_change = change
+                        .iter()
+                        .map(|c| {
+                            if c.starts_with("-") {
+                                red!(c)
+                            } else {
+                                green!(c)
+                            }
+                        })
+                        .join("");
+                    println!("{}. The following edits:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
+                    println!("\rwill introduce consensus breaking changes.\n\n");
+                }
+                SynthesizedChange::Addition(_new_construct_did) => {}
+            }
         }
     }
     Some(consolidated_changes)
@@ -521,15 +526,19 @@ pub async fn handle_run_command(
                 ..ColorfulTheme::default()
             };
 
-            let mut actions_to_re_execture = IndexMap::new();
+            let mut actions_to_re_execute = IndexMap::new();
+            let mut actions_to_execute = IndexMap::new();
 
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
-                let critical_changes = changes
+
+                let critical_edits = changes
                     .contructs_to_update
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
-                // for running_context in
+
+                let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
+
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
 
@@ -547,7 +556,7 @@ pub async fn handle_run_command(
                     continue;
                 }
 
-                if critical_changes.is_empty() {
+                if critical_edits.is_empty() && additions.is_empty() {
                     running_context.execution_context.execution_mode =
                         RunbookExecutionMode::Ignored;
                     continue;
@@ -556,7 +565,7 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(vec![]);
 
-                let descendants_of_critically_changed_commands = critical_changes
+                let descendants_of_critically_changed_commands = critical_edits
                     .iter()
                     .filter_map(|c| {
                         if let Some(construct_did) = &c.construct_did {
@@ -595,7 +604,43 @@ pub async fn handle_run_command(
                             (command.name.to_string(), documentation)
                         })
                         .collect();
-                actions_to_re_execture.insert(running_context_key, actions);
+                actions_to_re_execute.insert(running_context_key, actions);
+
+                let mut descendants_of_added_commands = additions
+                    .iter()
+                    .map(|(construct_did, _)| {
+                        let mut segment = vec![];
+                        segment.push(construct_did.clone());
+                        let mut deps = running_context
+                            .graph_context
+                            .get_downstream_dependencies_for_construct_did(&construct_did, true);
+                        segment.append(&mut deps);
+                        segment
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                let added_actions: Vec<(String, Option<String>)> = descendants_of_added_commands
+                    .iter()
+                    .map(|construct_did| {
+                        let documentation = running_context
+                            .execution_context
+                            .commands_inputs_simulation_results
+                            .get(construct_did)
+                            .and_then(|r| r.inputs.get_string("description"))
+                            .and_then(|d| Some(d.to_string()));
+                        let command = running_context
+                            .execution_context
+                            .commands_instances
+                            .get(construct_did)
+                            .unwrap();
+                        (command.name.to_string(), documentation)
+                    })
+                    .collect();
+                actions_to_execute.insert(running_context_key, added_actions);
+
+                let mut great_filter = descendants_of_critically_changed_commands;
+                great_filter.append(&mut descendants_of_added_commands);
 
                 running_context
                     .execution_context
@@ -604,15 +649,33 @@ pub async fn handle_run_command(
                     .order_for_commands_execution
                     .clone()
                     .into_iter()
-                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .filter(|c| great_filter.contains(&c))
                     .collect();
             }
 
-            if !actions_to_re_execture.is_empty() {
+            let has_actions = actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
+            if has_actions > 0 {
                 println!("The following actions will be re-executed:");
-                for (context, actions) in actions_to_re_execture.iter() {
+                for (context, actions) in actions_to_re_execute.iter() {
                     let documentation_missing = black!("<description field empty>");
-                    println!("\n{}", purple!(format!("{}", context)));
+                    println!("\n{}", yellow!(format!("{}", context)));
+                    for (action_name, documentation) in actions.into_iter() {
+                        println!(
+                            "- {}: {}",
+                            action_name,
+                            documentation.as_ref().unwrap_or(&documentation_missing)
+                        );
+                    }
+                }
+                println!("\n");
+            }
+
+            let has_actions = actions_to_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
+            if has_actions > 0 {
+                println!("The following actions will be executed:");
+                for (context, actions) in actions_to_execute.iter() {
+                    let documentation_missing = black!("<description field empty>");
+                    println!("\n{}", green!(format!("{}", context)));
                     for (action_name, documentation) in actions.into_iter() {
                         println!(
                             "- {}: {}",
@@ -720,17 +783,16 @@ pub async fn handle_run_command(
             }
         }
 
-        if collected_outputs.is_empty() {
-            return Ok(());
+        if !collected_outputs.is_empty() {
+            let mut data = vec![];
+            for (key, mut values) in collected_outputs.drain(..) {
+                let mut row = vec![key];
+                row.append(&mut values);
+                data.push(row)
+            }
+            ascii_table.print(data);
         }
 
-        let mut data = vec![];
-        for (key, mut values) in collected_outputs.drain(..) {
-            let mut row = vec![key];
-            row.append(&mut values);
-            data.push(row)
-        }
-        ascii_table.print(data);
         if let Some(RunbookState::File(state_file_location)) = runbook_state {
             let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
                 Ok(snapshot) => Some(snapshot),

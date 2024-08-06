@@ -379,7 +379,7 @@ impl ValueStore {
 
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            return Err(Diagnostic::error_from_string(panic!(
+            return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve key '{}' from store '{}'",
                 key, self.name,
             )));

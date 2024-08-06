@@ -433,7 +433,7 @@ async fn build_unsigned_contract_deploy(
     };
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::deploy_contract': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {e}"))?;
     Ok(tx)
 }
 

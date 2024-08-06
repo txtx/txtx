@@ -535,7 +535,7 @@ async fn build_unsigned_create2_deployment(
 
     let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::deploy_contract_create2': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?;
 
     let actual_contract_address = rpc.call(&tx).await.map_err(|e| {
         diagnosed_error!(
