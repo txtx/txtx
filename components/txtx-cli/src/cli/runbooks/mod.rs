@@ -713,7 +713,7 @@ pub async fn handle_run_command(
                         match update.new_status.status_color {
                             ProgressBarStatusColor::Yellow => {
                                 print!(
-                                    "\r{} {} {:<100}",
+                                    "\r{} {} {:<150}",
                                     yellow!("→"),
                                     yellow!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
@@ -721,7 +721,7 @@ pub async fn handle_run_command(
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{} {} {:<100}\n",
+                                    "\r{} {} {:<150}\n",
                                     green!("✓"),
                                     green!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
@@ -729,7 +729,7 @@ pub async fn handle_run_command(
                             }
                             ProgressBarStatusColor::Red => {
                                 print!(
-                                    "\r{} {} {:<100}\n",
+                                    "\r{} {} {:<150}\n",
                                     red!("x"),
                                     red!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
