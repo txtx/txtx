@@ -1,14 +1,15 @@
 use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
-use crate::types::RunbookExecutionContext;
+use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
+use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::wallets::SigningCommandsState;
-use kit::types::PackageId;
+use kit::types::{ConstructId, PackageId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
 use txtx_addon_kit::{
@@ -57,6 +58,8 @@ pub async fn run_wallets_evaluation(
             command.package_id.clone()
         };
 
+        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
+
         let instantiated =
             runbook_execution_context.is_signing_command_instantiated(&construct_did);
 
@@ -92,7 +95,7 @@ pub async fn run_wallets_evaluation(
                                         .insert(dependency, Ok(evaluation_result));
                                 }
                                 Some(Err(diag)) => {
-                                    pass_result.diagnostics.push((*diag).clone());
+                                    pass_result.push_diagnostic(diag, construct_id);
                                     continue;
                                 }
                                 Some(Ok(_)) => {}
@@ -128,13 +131,13 @@ pub async fn run_wallets_evaluation(
                 CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
                     continue;
                 }
-                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                CommandInputEvaluationStatus::Aborted(_, diags) => {
+                    pass_result.append_diagnostics(diags, construct_id);
                     continue;
                 }
             },
-            Err(mut diags) => {
-                pass_result.diagnostics.append(&mut diags);
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, construct_id);
                 return pass_result;
             }
         };
@@ -185,7 +188,7 @@ pub async fn run_wallets_evaluation(
                         pass_result.actions.push_action_item_update(update);
                     }
                 }
-                pass_result.diagnostics.push(diag.clone());
+                pass_result.push_diagnostic(&diag, construct_id);
                 return pass_result;
             }
         };
@@ -209,7 +212,7 @@ pub async fn run_wallets_evaluation(
             Ok((signing_commands_state, result)) => (Some(result), Some(signing_commands_state)),
             Err((signing_commands_state, diag)) => {
                 runbook_execution_context.signing_commands_state = Some(signing_commands_state);
-                pass_result.diagnostics.push(diag);
+                pass_result.push_diagnostic(&diag, construct_id);
                 return pass_result;
             }
         };
@@ -227,7 +230,7 @@ pub async fn run_wallets_evaluation(
 
 pub struct EvaluationPassResult {
     pub actions: Actions,
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
     pub pending_background_tasks_futures: Vec<CommandExecutionFuture>,
     pub pending_background_tasks_constructs_uuids: Vec<ConstructDid>,
     pub background_tasks_uuid: Uuid,
@@ -253,6 +256,86 @@ impl EvaluationPassResult {
             visible: true,
             panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&self.diagnostics)),
         })
+    }
+
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        self.diagnostics.clone()
+    }
+    pub fn has_diagnostics(&self) -> bool {
+        !self.diagnostics.is_empty()
+    }
+
+    pub fn push_diagnostic(&mut self, diag: &Diagnostic, construct_id: &ConstructId) {
+        self.diagnostics
+            .push(diag.clone().location(&construct_id.construct_location))
+    }
+
+    pub fn append_diagnostics(&mut self, diags: Vec<Diagnostic>, construct_id: &ConstructId) {
+        diags
+            .iter()
+            .for_each(|diag| self.push_diagnostic(diag, construct_id))
+    }
+
+    pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
+        for diag in self.diagnostics.iter_mut() {
+            let Some(construct_location) = &diag.location else {
+                continue;
+            };
+            let Some(span_range) = &diag.span_range() else {
+                continue;
+            };
+
+            let Some((_, (_, raw_content))) = runbook_sources
+                .tree
+                .iter()
+                .find(|(location, _)| location.eq(&construct_location))
+            else {
+                unimplemented!();
+            };
+            let mut bytes = vec![0u8; 2 * raw_content.len()];
+            txtx_addon_kit::hex::encode_to_slice(raw_content, &mut bytes).unwrap();
+            let mut lines = 1;
+            let mut cols = 1;
+            let mut span = DiagnosticSpan::new();
+
+            let mut chars = raw_content.chars().enumerate().peekable();
+            while let Some((i, ch)) = chars.next() {
+                if i == span_range.start {
+                    span.line_start = lines;
+                    span.column_start = cols;
+                }
+                if i == span_range.end {
+                    span.line_end = lines;
+                    span.column_end = cols;
+                }
+                match ch {
+                    '\n' => {
+                        lines += 1;
+                        cols = 1;
+                    }
+                    '\r' => {
+                        // check for \r\n
+                        if let Some((_, '\n')) = chars.peek() {
+                            // Skip the next character
+                            chars.next();
+                            lines += 1;
+                            cols = 1;
+                        } else {
+                            cols += 1;
+                        }
+                    }
+                    _ => {
+                        cols += 1;
+                    }
+                }
+            }
+            diag.span = Some(span)
+        }
+    }
+
+    pub fn with_spans_filled(mut self, runbook_sources: &RunbookSources) -> Vec<Diagnostic> {
+        self.fill_diagnostic_span(runbook_sources);
+        self.diagnostics()
     }
 }
 
@@ -352,6 +435,7 @@ pub async fn run_constructs_evaluation(
         }
 
         let package_id = command_instance.package_id.clone();
+        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
 
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
         let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
@@ -426,13 +510,13 @@ pub async fn run_constructs_evaluation(
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
                 CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
-                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                CommandInputEvaluationStatus::Aborted(_, diags) => {
+                    pass_result.append_diagnostics(diags, construct_id);
                     return pass_result;
                 }
             },
-            Err(mut diags) => {
-                pass_result.diagnostics.append(&mut diags);
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, construct_id);
                 return pass_result;
             }
         };
@@ -479,7 +563,7 @@ pub async fn run_constructs_evaluation(
                     updated_wallets
                 }
                 Err((updated_wallets, diag)) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, construct_id);
                     runbook_execution_context.signing_commands_state = Some(updated_wallets);
                     return pass_result;
                 }
@@ -553,7 +637,7 @@ pub async fn run_constructs_evaluation(
                     pass_result.actions.append(&mut new_actions);
                 }
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, construct_id);
                     return pass_result;
                 }
             }
@@ -602,7 +686,7 @@ pub async fn run_constructs_evaluation(
         let mut execution_result = match execution_result {
             Ok(res) => res,
             Err(diag) => {
-                pass_result.diagnostics.push(diag);
+                pass_result.push_diagnostic(&diag, construct_id);
                 continue;
             }
         };

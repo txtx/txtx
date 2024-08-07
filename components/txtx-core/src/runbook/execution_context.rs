@@ -159,6 +159,8 @@ impl RunbookExecutionContext {
                 continue;
             };
 
+            let construct_id = workspace_context.expect_construct_id(&construct_did);
+
             let addon_context_key = (
                 command_instance.package_id.did(),
                 command_instance.namespace.clone(),
@@ -225,8 +227,8 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
                     CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
-                Err(mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                Err(diags) => {
+                    pass_result.append_diagnostics(diags, &construct_id);
                     continue;
                 }
             };
@@ -273,7 +275,7 @@ impl RunbookExecutionContext {
                     }
                 }
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
             }
@@ -309,7 +311,7 @@ impl RunbookExecutionContext {
             let mut execution_result = match execution_result {
                 Ok(res) => res,
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
             };

@@ -101,8 +101,8 @@ pub async fn start_unsupervised_runbook_runloop(
             )]);
         }
 
-        if !pass_results.diagnostics.is_empty() {
-            return Err(pass_results.diagnostics.clone());
+        if pass_results.has_diagnostics() {
+            return Err(pass_results.with_spans_filled(&runbook.sources));
         }
 
         let mut uuid = Uuid::new_v4();
@@ -123,8 +123,8 @@ pub async fn start_unsupervised_runbook_runloop(
             )
             .await;
 
-            if !pass_results.diagnostics.is_empty() {
-                return Err(pass_results.diagnostics.clone());
+            if pass_results.has_diagnostics() {
+                return Err(pass_results.with_spans_filled(&runbook.sources));
             }
 
             if !pass_results
@@ -336,7 +336,7 @@ pub async fn start_supervised_runbook_runloop(
 
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
-                    return Err(pass_results.diagnostics);
+                    return Err(pass_results.with_spans_filled(&runbook.sources));
                 } else if !pass_results.actions.has_pending_actions()
                     && background_tasks_contructs_dids.is_empty()
                 {
@@ -632,9 +632,9 @@ pub async fn build_genesis_panel(
     )
     .await;
 
-    if !pass_result.diagnostics.is_empty() {
+    if pass_result.has_diagnostics() {
         println!("Diagnostics");
-        for diag in pass_result.diagnostics.iter() {
+        for diag in pass_result.diagnostics().iter() {
             println!("- {}", diag);
         }
     }
