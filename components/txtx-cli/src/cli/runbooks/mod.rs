@@ -37,8 +37,8 @@ use txtx_core::{
         RunbookMetadata, RunbookState, WorkspaceManifest,
     },
     runbook::{
-        self, AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode,
-        RunbookExecutionSnapshot, RunbookInputsMap, SynthesizedChange,
+        AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot,
+        RunbookInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
@@ -92,13 +92,16 @@ pub fn display_snapshot_diffing(
         println!("{}\n", consolidated_changes.new_plans_to_add.join(", "));
     }
 
-    let has_critical_changes = synthesized_changes.iter().filter(|(c, _)| match c { SynthesizedChange::Edition(_, _) => true, _ => false }).count();
+    let has_critical_changes = synthesized_changes
+        .iter()
+        .filter(|(c, _)| match c {
+            SynthesizedChange::Edition(_, _) => true,
+            _ => false,
+        })
+        .count();
     if has_critical_changes > 0 {
         println!("\n{}\n", yellow!("Changes detected:"));
-        for (i, (change, _impacted)) in synthesized_changes
-            .into_iter()
-            .enumerate()
-        {
+        for (i, (change, _impacted)) in synthesized_changes.into_iter().enumerate() {
             match change {
                 SynthesizedChange::Edition(change, _) => {
                     let formatted_change = change
@@ -111,8 +114,8 @@ pub fn display_snapshot_diffing(
                             }
                         })
                         .join("");
-                    println!("{}. The following edits:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-                    println!("\rwill introduce consensus breaking changes.\n\n");
+                    println!("{}. The following edits:\n-------------------------\n{}\n-------------------------", i + 1, formatted_change);
+                    println!("will introduce breaking changes.\n\n");
                 }
                 SynthesizedChange::Addition(_new_construct_did) => {}
             }
@@ -530,7 +533,6 @@ pub async fn handle_run_command(
             let mut actions_to_execute = IndexMap::new();
 
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
-
                 let critical_edits = changes
                     .contructs_to_update
                     .iter()
@@ -565,6 +567,11 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(vec![]);
 
+                let mut added_construct_dids: Vec<ConstructDid> = additions
+                    .into_iter()
+                    .map(|(construct_did, _)| construct_did.clone())
+                    .collect();
+
                 let descendants_of_critically_changed_commands = critical_edits
                     .iter()
                     .filter_map(|c| {
@@ -584,6 +591,8 @@ pub async fn handle_run_command(
                         }
                     })
                     .flatten()
+                    .filter(|d| !added_construct_dids.contains(d))
+                    .dedup()
                     .collect::<Vec<_>>();
 
                 let actions: Vec<(String, Option<String>)> =
@@ -606,21 +615,7 @@ pub async fn handle_run_command(
                         .collect();
                 actions_to_re_execute.insert(running_context_key, actions);
 
-                let mut descendants_of_added_commands = additions
-                    .iter()
-                    .map(|(construct_did, _)| {
-                        let mut segment = vec![];
-                        segment.push(construct_did.clone());
-                        let mut deps = running_context
-                            .graph_context
-                            .get_downstream_dependencies_for_construct_did(&construct_did, true);
-                        segment.append(&mut deps);
-                        segment
-                    })
-                    .flatten()
-                    .collect::<Vec<_>>();
-
-                let added_actions: Vec<(String, Option<String>)> = descendants_of_added_commands
+                let added_actions: Vec<(String, Option<String>)> = added_construct_dids
                     .iter()
                     .map(|construct_did| {
                         let documentation = running_context
@@ -640,7 +635,7 @@ pub async fn handle_run_command(
                 actions_to_execute.insert(running_context_key, added_actions);
 
                 let mut great_filter = descendants_of_critically_changed_commands;
-                great_filter.append(&mut descendants_of_added_commands);
+                great_filter.append(&mut added_construct_dids);
 
                 running_context
                     .execution_context
@@ -653,7 +648,10 @@ pub async fn handle_run_command(
                     .collect();
             }
 
-            let has_actions = actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
+            let has_actions = actions_to_re_execute
+                .iter()
+                .filter(|(_, actions)| !actions.is_empty())
+                .count();
             if has_actions > 0 {
                 println!("The following actions will be re-executed:");
                 for (context, actions) in actions_to_re_execute.iter() {
@@ -670,9 +668,12 @@ pub async fn handle_run_command(
                 println!("\n");
             }
 
-            let has_actions = actions_to_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
+            let has_actions = actions_to_execute
+                .iter()
+                .filter(|(_, actions)| !actions.is_empty())
+                .count();
             if has_actions > 0 {
-                println!("The following actions will be executed:");
+                println!("The following actions have been added and will be executed for the first time:");
                 for (context, actions) in actions_to_execute.iter() {
                     let documentation_missing = black!("<description field empty>");
                     println!("\n{}", green!(format!("{}", context)));
