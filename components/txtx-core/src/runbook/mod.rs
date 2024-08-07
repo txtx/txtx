@@ -155,7 +155,8 @@ impl Runbook {
         let mut inputs_map = self.inputs_map.clone();
         inputs_map.current = selector;
         let available_addons = self.runtime_context.collect_available_addons();
-        let authorization_context = self.runtime_context.authorization_context.clone();
+        let authorization_context: AuthorizationContext =
+            self.runtime_context.authorization_context.clone();
         self.build_contexts_from_sources(
             self.sources.clone(),
             inputs_map,

@@ -550,7 +550,6 @@ impl RunbookSnapshotContext {
                     new_index: _,
                     new_len: _,
                 } => {
-                    println!("REPLACE UNSUPPORTED: {:?}", change);
                     // for i in 0..*old_len {
                     //     for j in 0..*new_len {
                     //         comparable_runs_ids_list.push((old_index + i, new_index + j));
