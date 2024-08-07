@@ -36,6 +36,12 @@ lazy_static! {
                   optional: false,
                   interpolable: true
                 },
+                chain_id: {
+                  documentation: "Coming soon",
+                  typing: Type::uint(),
+                  optional: false,
+                  interpolable: true
+                },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::uint(),
@@ -115,10 +121,11 @@ impl CommandImplementation for CheckEVMConfirmations {
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
+        use alloy_chains::{Chain, ChainKind};
         use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
 
         use crate::{
-            constants::{CONTRACT_ADDRESS, TX_HASH},
+            constants::{CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
             rpc::EVMRpc,
             typing::ETH_TX_HASH,
         };
@@ -132,12 +139,20 @@ impl CommandImplementation for CheckEVMConfirmations {
 
         let tx_hash = inputs.get_expected_buffer(TX_HASH, &ETH_TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
+        let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
+        let chain_name = match Chain::from(chain_id).into_kind() {
+            ChainKind::Named(name) => name.to_string(),
+            ChainKind::Id(id) => id.to_string(),
+        };
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
 
         let tx_hash_str = hex::encode(tx_hash.bytes.clone());
-        let receipt_msg = format!("Checking Tx 0x{} Receipt", &tx_hash_str);
+        let receipt_msg = format!(
+            "Checking Tx 0x{} Receipt on Chain {}",
+            &tx_hash_str, chain_name
+        );
 
         let future = async move {
             // initial progress status
@@ -194,7 +209,10 @@ impl CommandImplementation for CheckEVMConfirmations {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
                         &format!("Pending {}", progress_symbol[progress]),
-                        &format!("Awaiting Inclusion in Block for Tx 0x{}", tx_hash_str),
+                        &format!(
+                            "Awaiting Inclusion in Block for Tx 0x{} on Chain {}",
+                            tx_hash_str, chain_name
+                        ),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -211,7 +229,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                     let diag = diagnosed_error!("transaction reverted");
                     status_update.update_status(&ProgressBarStatus::new_err(
                         "Failed",
-                        "Transaction Failed",
+                        &format!("Transaction Failed for Chain {}", chain_name),
                         &diag,
                     ));
                     let _ = progress_tx
@@ -232,7 +250,10 @@ impl CommandImplementation for CheckEVMConfirmations {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
                         &format!("Pending {}", progress_symbol[progress]),
-                        &format!("Waiting for {} Block Confirmations", confirmations_required),
+                        &format!(
+                            "Waiting for {} Block Confirmations on Chain {}",
+                            confirmations_required, chain_name
+                        ),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -250,14 +271,15 @@ impl CommandImplementation for CheckEVMConfirmations {
                 ProgressBarStatusColor::Green,
                 "Confirmed",
                 &format!(
-                    "Confirmed {} {} for Tx 0x{}",
+                    "Confirmed {} {} for Tx 0x{} on Chain {}",
                     &confirmations_required,
                     if confirmations_required.eq(&1) {
                         "block"
                     } else {
                         "blocks"
                     },
-                    tx_hash_str
+                    tx_hash_str,
+                    chain_name
                 ),
             ));
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
