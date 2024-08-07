@@ -4,15 +4,7 @@ macro_rules! diagnosed_error {
         use txtx_addon_kit::types::diagnostics::{DiagnosticLevel, Diagnostic};
 
         let res = format_args!($($arg)*).to_string();
-        Diagnostic {
-            span: None,
-            location: None,
-            message: res,
-            level: DiagnosticLevel::Error,
-            documentation: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Diagnostic::error_from_string(res)
     }};
 }
 

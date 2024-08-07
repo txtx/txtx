@@ -1,4 +1,4 @@
-use diagnostics::{Diagnostic, DiagnosticLevel};
+use diagnostics::Diagnostic;
 use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -260,18 +260,10 @@ impl ValueStore {
             return Ok(res.to_string());
         };
         let Some(value) = value.as_string() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected string)",
+                self.name, key
+            )));
         };
         Ok(value.to_string())
     }
@@ -286,18 +278,10 @@ impl ValueStore {
             return Ok(res);
         };
         let Some(value) = value.as_uint() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected uint)",
+                self.name, key
+            )));
         };
         Ok(value)
     }
@@ -315,18 +299,10 @@ impl ValueStore {
             return Ok(res);
         };
         let Some(value) = value.as_string() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected string)",
+                self.name, key
+            )));
         };
         Ok(Some(value.to_string()))
     }

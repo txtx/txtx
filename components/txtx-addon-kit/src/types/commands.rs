@@ -11,7 +11,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use hcl_edit::{expr::Expression, structure::Block};
+use hcl_edit::{expr::Expression, structure::Block, Span};
 
 use crate::{
     helpers::hcl::{
@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    diagnostics::{Diagnostic, DiagnosticLevel},
+    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
@@ -626,18 +626,10 @@ impl CommandInstance {
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "command '{}' (type '{}') is missing value for field '{}'",
-                    self.name, self.specification.matcher, input.name
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            }]),
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 

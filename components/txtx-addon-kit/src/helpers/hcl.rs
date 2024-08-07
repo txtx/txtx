@@ -9,10 +9,7 @@ use crate::{
     types::commands::CommandInput,
 };
 
-use crate::{
-    helpers::fs::FileLocation,
-    types::diagnostics::{Diagnostic, DiagnosticLevel},
-};
+use crate::{helpers::fs::FileLocation, types::diagnostics::Diagnostic};
 
 #[derive(Debug, Clone)]
 pub enum StringExpression {
@@ -102,15 +99,10 @@ pub fn build_diagnostics_for_unused_fields(
         if fields_names.contains(&attr.key.as_str()) {
             continue;
         }
-        diagnostics.push(Diagnostic {
-            location: Some(location.clone()),
-            span: None,
-            message: format!("'{}' field is unused", attr.key.as_str()),
-            level: DiagnosticLevel::Warning,
-            documentation: None,
-            example: None,
-            parent_diagnostic: None,
-        })
+        diagnostics.push(
+            Diagnostic::error_from_string(format!("'{}' field is unused", attr.key.as_str()))
+                .location(&location),
+        )
     }
     diagnostics
 }
