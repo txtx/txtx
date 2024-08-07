@@ -471,8 +471,10 @@ impl RunbookWorkspaceContext {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
-
         let Some(root) = traversal.expr.as_variable() else {
+            if traversal.expr.is_func_call() {
+                return Err("properties of function results cannot be referenced in-line; the function result must be stored in a command and referenced".into());
+            }
             return Ok(None);
         };
 
@@ -502,7 +504,6 @@ impl RunbookWorkspaceContext {
         }
 
         let mut is_root = true;
-
         while let Some(component) = components.pop_front() {
             // Look for modules
             if is_root {
@@ -606,5 +607,12 @@ impl RunbookWorkspaceContext {
             }
         }
         Ok(None)
+    }
+
+    pub fn expect_construct_id(&self, construct_did: &ConstructDid) -> ConstructId {
+        match self.constructs.get(construct_did) {
+            Some(id) => id.clone(),
+            None => unreachable!(),
+        }
     }
 }

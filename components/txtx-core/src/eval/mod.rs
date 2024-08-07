@@ -942,13 +942,23 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
+            let (dependency, mut components, mut subpath) = match runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
-            else {
-                return Err(diagnosed_error!(
-                    "unable to resolve expression '{}'",
-                    expr.to_string().trim()
-                ));
+            {
+                Ok(Some(res)) => res,
+                Ok(None) => {
+                    return Err(diagnosed_error!(
+                        "unable to resolve expression '{}'",
+                        expr.to_string().trim()
+                    ));
+                }
+                Err(e) => {
+                    return Err(diagnosed_error!(
+                        "unable to resolve expression '{}': {}",
+                        expr.to_string().trim(),
+                        e
+                    ))
+                }
             };
 
             let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
