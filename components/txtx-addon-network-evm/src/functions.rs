@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use alloy::{
+    dyn_abi::DynSolValue,
     hex::FromHex,
     primitives::{Bytes, B256},
 };
@@ -16,7 +17,8 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    codec::{foundry::FoundryConfig, string_to_address},
+    codec::{foundry::FoundryConfig, string_to_address, value_to_sol_value},
+    commands::actions::deploy_contract::create_init_code,
     typing::{BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS},
 };
 const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
@@ -119,6 +121,29 @@ lazy_static! {
                     input: {
                         documentation: "Coming Soon",
                         typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
+                },
+            }
+        },
+        define_function! {
+            CreateInitCode => {
+                name: "create_init_code",
+                documentation: "Coming soon",
+                example: indoc! {r#"
+                        // Coming Soon
+                        "#},
+                inputs: [
+                    bytecode: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::string()]
+                    },
+                    constructor_args: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::array(Type::string())]
                     }
                 ],
                 output: {
@@ -278,10 +303,6 @@ impl FunctionImplementation for EncodeEVMChain {
             ("chain_id".into(), Value::uint(chain.id())),
             ("rpc_api_url".into(), Value::string(rpc_api_url)),
         ]);
-        println!(
-            "//// function result: {:?}",
-            Value::object(obj_props.clone())
-        );
         Ok(Value::object(obj_props))
     }
 }
@@ -359,6 +380,51 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             "evm_version".to_string() => evm_version,
         };
         Ok(Value::object(obj_props))
+    }
+}
+
+#[derive(Clone)]
+pub struct CreateInitCode;
+impl FunctionImplementation for CreateInitCode {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let prefix = "command 'evm::create_init_code'";
+        let bytecode = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            other => return Err(format_fn_error(&prefix, 1, "string", other)),
+        };
+        let constructor_args = match args.get(1) {
+            Some(constructor_args) => {
+                let sol_args = constructor_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v))
+                    .collect::<Result<Vec<DynSolValue>, String>>()
+                    .map_err(|e| {
+                        diagnosed_error!(
+                            "{}, argument position 2: failed to encode solidity value: {}",
+                            prefix,
+                            e
+                        )
+                    })?;
+                sol_args
+            }
+            other => return Err(format_fn_error(&prefix, 2, "array", other)),
+        };
+        let init_code = create_init_code(bytecode, Some(constructor_args), None)
+            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
+        Ok(Value::buffer(init_code, ETH_ADDRESS.clone()))
     }
 }
 
