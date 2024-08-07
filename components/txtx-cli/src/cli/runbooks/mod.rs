@@ -758,7 +758,6 @@ pub async fn handle_run_command(
             return Ok(());
         }
 
-        let ascii_table = AsciiTable::default();
         let mut collected_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
         for running_context in runbook.running_contexts.iter() {
             let grouped_actions_items = running_context
@@ -786,11 +785,24 @@ pub async fn handle_run_command(
 
         if !collected_outputs.is_empty() {
             let mut data = vec![];
-            for (key, mut values) in collected_outputs.drain(..) {
-                let mut row = vec![key];
-                row.append(&mut values);
-                data.push(row)
+            for (key, values) in collected_outputs.drain(..) {
+                let mut rows = vec![];
+
+                for (i, value) in values.into_iter().enumerate() {
+                    let parts = value.split("\n");
+                    for (j, part) in parts.into_iter().enumerate() {
+                        if i == 0 && j == 0 {
+                            rows.push(vec![key.clone(), part.to_string()]);
+                        } else {
+                            let row = vec!["".to_string(), part.to_string()];
+                            rows.push(row);
+                        }
+                    }
+                }
+                data.append(&mut rows)
             }
+            let mut ascii_table = AsciiTable::default();
+            ascii_table.set_max_width(150);
             ascii_table.print(data);
         }
 
