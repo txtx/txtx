@@ -354,15 +354,10 @@ impl RuntimeContext {
                     match block.ident.value().as_str() {
                         "runtime" => {
                             let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                diagnostics.push(Diagnostic {
-                                    location: Some(location.clone()),
-                                    span: None,
-                                    message: "addon name missing".to_string(),
-                                    level: DiagnosticLevel::Error,
-                                    documentation: None,
-                                    example: None,
-                                    parent_diagnostic: None,
-                                });
+                                diagnostics.push(
+                                    Diagnostic::error_from_string("addon name missing".into())
+                                        .location(&location),
+                                );
                                 continue;
                             };
 
