@@ -140,12 +140,12 @@ impl FileLocation {
         use std::fs::File;
         use std::io::{BufReader, Read};
         let file = File::open(path)
-            .map_err(|e| format!("unable to read file {}\n{:?}", path.display(), e))?;
+            .map_err(|e| format!("unable to read file {}: {}", path.display(), format_err(e)))?;
         let mut file_reader = BufReader::new(file);
         let mut file_buffer = vec![];
         file_reader
             .read_to_end(&mut file_buffer)
-            .map_err(|e| format!("unable to read file {}\n{:?}", path.display(), e))?;
+            .map_err(|e| format!("unable to read file {}: {}", path.display(), format_err(e)))?;
         Ok(file_buffer)
     }
 
@@ -399,4 +399,11 @@ pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::erro
         })
         .collect::<Vec<_>>();
     Ok(paths)
+}
+
+fn format_err(e: std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => "not found".into(),
+        _ => e.to_string(),
+    }
 }
