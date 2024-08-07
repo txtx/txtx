@@ -87,9 +87,9 @@ impl EVMRpc {
             Err(e) => {
                 let err = format!("received error result from RPC API during eth_call: {}", e);
                 if let Ok(trace) = self.trace_call(&tx).await {
-                    return Err(diagnosed_error!("{}\ncall trace: {}", err, trace));
+                    return Err(format!("{}\ncall trace: {}", err, trace));
                 } else {
-                    return Err(diagnosed_error!("{}", err));
+                    return Err(format!("{}", err));
                 }
             }
         };
