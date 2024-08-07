@@ -345,7 +345,20 @@ impl Value {
             Value::Primitive(PrimitiveValue::Buffer(val)) => {
                 format!("0x{}", hex::encode(&val.bytes))
             }
-            Value::Object(obj) => json!(obj).to_string(),
+            Value::Object(obj) => {
+                let mut res = "{".to_string();
+                let len = obj.len();
+                for (i, (k, v)) in obj.iter().enumerate() {
+                    res.push_str(&format!(
+                        "\n\t{}: {}{}",
+                        k,
+                        v.to_string(),
+                        if i == (len - 1) { "" } else { "," }
+                    ));
+                }
+                res.push_str("\n}");
+                res
+            }
             Value::Array(array) => {
                 format!(
                     "[{}]",
