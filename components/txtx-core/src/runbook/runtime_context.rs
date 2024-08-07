@@ -4,10 +4,10 @@ use kit::{
     indexmap::IndexMap,
     types::{
         commands::{
-            CommandId, CommandInputsEvaluationResult, CommandInstance, CommandInstanceType,
-            PreCommandSpecification,
+            CommandExecutionResult, CommandId, CommandInputsEvaluationResult, CommandInstance,
+            CommandInstanceType, PreCommandSpecification,
         },
-        diagnostics::{Diagnostic, DiagnosticLevel},
+        diagnostics::Diagnostic,
         functions::FunctionSpecification,
         types::Value,
         wallets::{WalletInstance, WalletSpecification},
@@ -66,14 +66,44 @@ impl RuntimeContext {
         addons
     }
 
+    pub fn generate_initial_input_sets(&self, inputs_map: &RunbookInputsMap) -> Vec<ValueStore> {
+        let mut inputs_sets = vec![];
+        if inputs_sets.is_empty() {
+            let default_name = "default".to_string();
+            let name = inputs_map.current.as_ref().unwrap_or(&default_name);
+
+            let mut values = ValueStore::new(name, &Did::zero());
+
+            if let Some(current_inputs) = inputs_map.values.get(&inputs_map.current) {
+                for (key, value) in current_inputs.iter() {
+                    values.insert(key, value.clone());
+                }
+            }
+            inputs_sets.push(values)
+        }
+        inputs_sets
+    }
+
     pub fn collect_environment_variables(
         &self,
         runbook_id: &RunbookId,
         inputs_map: &RunbookInputsMap,
         runbook_sources: &RunbookSources,
     ) -> Result<Vec<ValueStore>, Vec<Diagnostic>> {
-        let dummy_workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
-        let dummy_execution_context = &RunbookExecutionContext::new();
+        let mut dummy_workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
+        let mut dummy_execution_context = RunbookExecutionContext::new();
+
+        let initial_input_sets = self.generate_initial_input_sets(inputs_map);
+
+        for (key, value) in initial_input_sets.first().unwrap().iter() {
+            let construct_did = dummy_workspace_context.index_environment_variable(key, value);
+
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert("value".into(), value.clone());
+            dummy_execution_context
+                .commands_execution_results
+                .insert(construct_did, result);
+        }
 
         let mut sources = VecDeque::new();
         // todo(lgalabru): basing files_visited on path is fragile, we should hash file contents instead
@@ -83,6 +113,13 @@ impl RuntimeContext {
             sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
         }
         let dependencies_execution_results = HashMap::new();
+
+        let mut result = CommandExecutionResult::new();
+        if let Some(values) = inputs_map.values.get(&inputs_map.current) {
+            values.iter().for_each(|(k, v)| {
+                result.outputs.insert(k.clone(), v.clone());
+            });
+        }
 
         let mut inputs_sets = vec![];
 
