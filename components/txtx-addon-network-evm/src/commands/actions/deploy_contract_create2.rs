@@ -221,6 +221,8 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
+        use txtx_addon_kit::helpers::build_diag_context_fn;
+
         use crate::constants::TRANSACTION_PAYLOAD_BYTES;
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
@@ -232,6 +234,11 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
         let wallets_instances = wallets_instances.clone();
+
+        let to_diag_with_ctx = build_diag_context_fn(
+            instance_name.to_string(),
+            "evm::deploy_contract_create2".to_string(),
+        );
 
         let future = async move {
             let mut actions = Actions::none();
@@ -249,6 +256,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 &spec,
                 &args,
                 &defaults,
+                &to_diag_with_ctx,
             )
             .await
             .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
@@ -264,7 +272,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 (
                     wallets.clone(),
                     signing_command_state.clone(),
-                    diagnosed_error!("command 'evm::deploy_contract_create2': {e}"),
+                    to_diag_with_ctx(e),
                 )
             })?;
 
@@ -450,6 +458,7 @@ async fn build_unsigned_create2_deployment(
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
+    to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<(TransactionRequest, String), Diagnostic> {
     use alloy::dyn_abi::{DynSolValue, Word};
 
@@ -477,8 +486,7 @@ async fn build_unsigned_create2_deployment(
     let contract_address = args
         .get_value(CREATE2_FACTORY_ADDRESS)
         .and_then(|v| Some(v.clone()));
-    let init_code = get_contract_init_code(args)
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {}", e))?;
+    let init_code = get_contract_init_code(args).map_err(to_diag_with_ctx)?;
     let expected_contract_address = args.get_string(EXPECTED_CONTRACT_ADDRESS);
 
     let amount = args
@@ -499,8 +507,7 @@ async fn build_unsigned_create2_deployment(
     let input = if contract_address.is_some() {
         let contract_abi = args.get_string(CREATE2_FACTORY_ABI);
         let function_name = args.get_expected_string(CREATE2_FUNCTION_NAME)?;
-        let salt = salt_str_to_hex(salt.unwrap())
-            .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?;
+        let salt = salt_str_to_hex(salt.unwrap()).map_err(to_diag_with_ctx)?;
         let function_args: Vec<DynSolValue> = vec![
             DynSolValue::FixedBytes(Word::from_slice(&salt), 32),
             DynSolValue::Bytes(init_code.clone()),
@@ -508,19 +515,17 @@ async fn build_unsigned_create2_deployment(
 
         if let Some(abi_str) = contract_abi {
             encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?
+                .map_err(to_diag_with_ctx)?
         } else {
             let function_args = vec![DynSolValue::Tuple(function_args)];
             encode_contract_call_inputs_from_selector(function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?
+                .map_err(to_diag_with_ctx)?
         }
     } else {
-        encode_default_create2_proxy_args(salt, &init_code)
-            .map_err(|e| diagnosed_error!("command 'deploy_contract_create2': {e}"))?
+        encode_default_create2_proxy_args(salt, &init_code).map_err(to_diag_with_ctx)?
     };
 
-    let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {}", e))?;
+    let rpc = EVMRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
     let contract_address = contract_address
         .and_then(|a| Some(a.clone()))
@@ -539,27 +544,26 @@ async fn build_unsigned_create2_deployment(
 
     let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract_create2': {e}"))?;
+        .map_err(to_diag_with_ctx)?;
 
-    let actual_contract_address = rpc.call(&tx).await.map_err(|e| {
-        diagnosed_error!(
-            "command 'evm::deploy_contract_create2': failed to simulate deployment: {}",
-            e
-        )
-    })?;
+    let actual_contract_address = rpc
+        .call(&tx)
+        .await
+        .map_err(|e| to_diag_with_ctx(format!("failed to simulate deployment: {}", e)))?;
     let actual = string_to_address(actual_contract_address.to_string()).map_err(|e| {
-        diagnosed_error!(
-            "command 'evm::deploy_contract_create2': create2 call created invalid contract address ({}): {}",actual_contract_address, e
-        )
+        to_diag_with_ctx(format!(
+            "create2 call created invalid contract address ({}): {}",
+            actual_contract_address, e
+        ))
     })?;
     if let Some(expected_contract_address) = expected_contract_address {
-        let expected = string_to_address(expected_contract_address.to_string()).map_err(|e| {
-            diagnosed_error!(
-                "command 'evm::deploy_contract_create2': invalid expected contract address: {e}"
-            )
-        })?;
+        let expected = string_to_address(expected_contract_address.to_string())
+            .map_err(|e| to_diag_with_ctx(format!("invalid expected contract address: {e}")))?;
         if !actual.eq(&expected) {
-            return Err(diagnosed_error!("command 'evm::deploy_contract_create2': contract deployment does not yield expected address: actual ({}), expected ({})", actual, expected));
+            return Err(to_diag_with_ctx(format!(
+                "contract deployment does not yield expected address: actual ({}), expected ({})",
+                actual, expected
+            )));
         }
     }
     Ok((tx, actual.to_string()))
