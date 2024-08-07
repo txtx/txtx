@@ -26,7 +26,7 @@ use sign_transaction::SIGN_TRANSACTION;
 use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_contract::VERIFY_CONTRACT;
 
-use crate::constants::TRANSACTION_FROM;
+use crate::constants::SIGNER;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -54,7 +54,7 @@ pub fn get_expected_address(value: &Value) -> Result<Address, String> {
 }
 
 fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
-    let signer = args.get_expected_string(TRANSACTION_FROM)?;
+    let signer = args.get_expected_string(SIGNER)?;
     let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
     Ok(signing_construct_did)
 }

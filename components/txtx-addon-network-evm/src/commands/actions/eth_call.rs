@@ -50,7 +50,7 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
-            from: {
+            signer: {
                 documentation: "The address that will be used as the sender of this contract call.",
                 typing: Type::string(),
                 optional: false,
@@ -206,8 +206,7 @@ async fn build_eth_call(
         },
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_FROM,
-            TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT, TRANSACTION_TYPE,
         },
     };
 
@@ -216,7 +215,7 @@ async fn build_eth_call(
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let contract_address: &Value = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let from = args.get_expected_value(TRANSACTION_FROM)?;
+    let from = args.get_expected_value(SIGNER)?;
     let contract_abi = args.get_string(CONTRACT_ABI);
     let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
     let function_args: Vec<DynSolValue> = args

@@ -58,7 +58,7 @@ lazy_static! {
               optional: true,
               interpolable: true
             },
-            from: {
+            signer: {
                 documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
@@ -458,7 +458,6 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
     else {
         return Err(format!("contract missing required bytecode"));
     };
-    let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
 
     // if we have an abi available in the contract, parse it out
     let json_abi: Option<JsonAbi> = match contract.get("abi") {
@@ -469,7 +468,15 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
         }
         None => None,
     };
+    create_init_code(bytecode, constructor_args, json_abi)
+}
 
+pub fn create_init_code(
+    bytecode: String,
+    constructor_args: Option<Vec<DynSolValue>>,
+    json_abi: Option<JsonAbi>,
+) -> Result<Vec<u8>, String> {
+    let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
     if let Some(constructor_args) = constructor_args {
         // if we have an abi, use it to validate the constructor arguments
         let mut abi_encoded_args = if let Some(json_abi) = json_abi {

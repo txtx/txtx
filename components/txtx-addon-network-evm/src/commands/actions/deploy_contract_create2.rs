@@ -57,7 +57,7 @@ lazy_static! {
               optional: true,
               interpolable: true
             },
-            from: {
+            signer: {
                 documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
