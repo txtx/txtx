@@ -59,7 +59,7 @@ lazy_static! {
             function_name: {
                 documentation: "The contract function to call.",
                 typing: Type::string(),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             function_args: {
@@ -217,19 +217,8 @@ async fn build_eth_call(
     let contract_address: &Value = args.get_expected_value(CONTRACT_ADDRESS)?;
     let from = args.get_expected_value(SIGNER)?;
     let contract_abi = args.get_string(CONTRACT_ABI);
-    let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = args
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| {
-                    value_to_sol_value(&v)
-                        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
-                })
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
+    let function_name = args.get_string(CONTRACT_FUNCTION_NAME);
+    let function_args = args.get_value(CONTRACT_FUNCTION_ARGS);
 
     let amount = args
         .get_value(TRANSACTION_AMOUNT)
@@ -242,12 +231,31 @@ async fn build_eth_call(
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
-    let input = if let Some(abi_str) = contract_abi {
-        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+    let input = if let Some(function_name) = function_name {
+        let function_args: Vec<DynSolValue> = function_args
+            .map(|v| {
+                v.expect_array()
+                    .iter()
+                    .map(|v| {
+                        value_to_sol_value(&v)
+                            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
+                    })
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+            })
+            .unwrap_or(Ok(vec![]))?;
+
+        if let Some(abi_str) = contract_abi {
+            encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+        } else {
+            encode_contract_call_inputs_from_selector(function_name, &function_args)
+                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+        }
     } else {
-        encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+        // todo(hack): assume yul contract if no function name
+        function_args
+            .and_then(|a| Some(a.expect_buffer_bytes()))
+            .unwrap_or(vec![])
     };
 
     let common = CommonTransactionFields {
