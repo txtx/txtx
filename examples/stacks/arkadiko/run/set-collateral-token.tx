@@ -76,7 +76,7 @@ input "redemption_fee_block_rate" {
   type = "uint"
 }
 
-prompt "set_token_transaction" "stacks::send_contract_call" {
+prompt "set_token_transaction" "stacks::call_contract" {
   description = "Encodes the contract call, prompts the user to sign, and broadcasts the set-token function."
   network_id = input.network_id.value
   contract_id = "${input.contract_address.value}.arkadiko-vaults-tokens-v1-1"

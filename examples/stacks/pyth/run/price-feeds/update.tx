@@ -27,7 +27,7 @@ action "fetch_execution_plan" "std::send_http_request" {
     request_body = "{ \"arguments\": [], \"sender\": \"SP19F0S4GN8CJQ4K9PKWRBVE00G2C86QTPTRXZ7GP\" }"
 }
 
-action "update_price_feed" "stacks::send_contract_call" {
+action "update_price_feed" "stacks::call_contract" {
   description = "Encodes the contract call, prompts the user to sign, and broadcasts the update-price-feed function."
   contract_id = "${env.pyth_deployer_address}.pyth-oracle-v2"
   function_name = "verify-and-update-price"

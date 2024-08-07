@@ -46,7 +46,7 @@ action "get_name_price" "stacks::call_readonly_fn" {
   sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 }
 
-action "send_name_preorder" "stacks::send_contract_call" {
+action "send_name_preorder" "stacks::call_contract" {
   description = "Send Preorder ${input.name}.${input.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "name-preorder"

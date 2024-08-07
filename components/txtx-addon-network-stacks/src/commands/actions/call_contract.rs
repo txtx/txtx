@@ -36,8 +36,8 @@ lazy_static! {
     pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
         SendContractCall => {
           name: "Send Contract Call Transaction",
-          matcher: "send_contract_call",
-          documentation: "The `send_contract_call` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
+          matcher: "call_contract",
+          documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: true,
           inputs: [
@@ -127,7 +127,7 @@ lazy_static! {
             }
           ],
         example: txtx_addon_kit::indoc! {r#"
-            action "my_ref" "stacks::send_contract_call" {
+            action "my_ref" "stacks::call_contract" {
                 description = "Encodes the contract call, sign, and broadcasts the set-token function."
                 contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                 function_name = "verify-and-update-price-feeds"
