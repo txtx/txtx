@@ -516,12 +516,12 @@ lazy_static! {
                 documentation: "`stacks::get_contract_from_clarinet_project` retrieves the source of a contract present in a Clarinet manifest.",
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
-                    contract_name: {
-                        documentation: "Contract name of the contract source to fetch.",
-                        typing: vec![Type::string()]
-                    },
                     clarinet_manifest_path: {
                         documentation: "The path of the Clarinet toml file.",
+                        typing: vec![Type::string()]
+                    },
+                    contract_name: {
+                        documentation: "Contract name of the contract source to fetch.",
                         typing: vec![Type::string()]
                     }
                 ],
@@ -1440,8 +1440,8 @@ impl FunctionImplementation for RetrieveClarinetContract {
         auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let contract_key = args.get(0).unwrap();
-        let clarinet_toml_path = args.get(1).unwrap();
+        let clarinet_toml_path = args.get(0).unwrap();
+        let contract_key = args.get(1).unwrap();
 
         let mut clarinet_manifest = auth_ctx
             .workspace_location
