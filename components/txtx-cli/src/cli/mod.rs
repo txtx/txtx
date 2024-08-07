@@ -153,7 +153,9 @@ pub struct ExecuteRunbook {
     /// Execute the runbook with supervision via the terminal console (coming soon)
     #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
-
+    /// Explain how the runbook will be executed.
+    #[arg(long = "explain", action=ArgAction::SetTrue)]
+    pub explain: bool,
     /// Set the port for hosting the web UI
     #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
     pub network_binding_port: u16,

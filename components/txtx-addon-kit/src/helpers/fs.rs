@@ -132,7 +132,7 @@ impl FileLocation {
     pub fn read_content_as_utf8(&self) -> Result<String, String> {
         let content = self.read_content()?;
         let contract_as_utf8 = String::from_utf8(content)
-            .map_err(|e| format!("unable to read content as utf8 {}\n{:?}", self, e))?;
+            .map_err(|e| format!("unable to read content from {} as utf8 ({})", self, e.to_string()))?;
         Ok(contract_as_utf8)
     }
 
@@ -140,12 +140,12 @@ impl FileLocation {
         use std::fs::File;
         use std::io::{BufReader, Read};
         let file = File::open(path)
-            .map_err(|e| format!("unable to read file {}: {}", path.display(), format_err(e)))?;
+            .map_err(|e| format!("unable to read file {} ({})", path.display(), e.to_string()))?;
         let mut file_reader = BufReader::new(file);
         let mut file_buffer = vec![];
         file_reader
             .read_to_end(&mut file_buffer)
-            .map_err(|e| format!("unable to read file {}: {}", path.display(), format_err(e)))?;
+            .map_err(|e| format!("unable to read file {} ({})", path.display(), e.to_string()))?;
         Ok(file_buffer)
     }
 

@@ -84,7 +84,7 @@ pub fn display_snapshot_diffing(
             "{} Latest snapshot in sync with latest runbook updates",
             green!("✓")
         );
-        return Some(consolidated_changes);
+        return None;
     }
 
     if !consolidated_changes.new_plans_to_add.is_empty() {
@@ -702,6 +702,27 @@ pub async fn handle_run_command(
             "{} Executing Runbook with 'force' flag - ignoring previous execution state",
             yellow!("→"),
         );
+    }
+
+    if cmd.explain {
+        for running_context in runbook.running_contexts.iter_mut() {
+            // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
+
+            let sorted_commands = &running_context
+                .execution_context
+                .order_for_commands_execution;
+            for c in sorted_commands.iter() {
+                let Some(command_instance) =
+                    running_context.execution_context.commands_instances.get(c)
+                else {
+                    continue;
+                };
+                println!(
+                    "{}::{}",
+                    command_instance.specification.matcher, command_instance.name
+                );
+            }
+        }
     }
 
     // should not be generating actions

@@ -1033,7 +1033,13 @@ impl CommandInstance {
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
-        for input in self.specification.inputs.iter() {
+
+        for input in self
+            .specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+        {
             match input.typing {
                 Type::Object(ref props) => {
                     if let Some(attr) = self.block.body.get_attribute(&input.name) {

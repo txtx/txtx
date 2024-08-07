@@ -211,9 +211,12 @@ impl RunbookGraphContext {
             {
                 self.constructs_dag.remove_edge(edge_to_root);
             }
-            self.constructs_dag
-                .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
-                .unwrap();
+            if let Err(e) =
+                self.constructs_dag
+                    .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
+            {
+                diags.push(diagnosed_error!("Cycling dependency"));
+            }
         }
 
         if !diags.is_empty() {

@@ -1,15 +1,17 @@
+use clarity::codec::StacksMessageCodec;
 use clarity::types::StacksEpochId;
 use clarity::vm::ast::ContractAST;
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{ClarityVersion, ContractName};
 use clarity_repl::analysis::ast_dependency_detector::ASTDependencyDetector;
+use clarity_repl::codec::StacksTransaction;
 use clarity_repl::repl::{
     ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
 };
 use std::collections::{BTreeMap, HashMap};
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
-use txtx_addon_kit::types::types::ObjectProperty;
+use txtx_addon_kit::types::types::{ObjectProperty, PrimitiveValue};
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -120,6 +122,33 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
+                transforms: {
+                    documentation: "An array of transform operations to perform on the contract source, before being its signature.",
+                    typing: Type::array(Type::object(vec![
+                        ObjectProperty {
+                            name: "type".into(),
+                            documentation: "Type of transform (supported: 'contract_source_find_and_replace').".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            interpolable: true,
+                        },
+                        ObjectProperty {
+                            name: "from".into(),
+                            documentation: "The pattern to locate.".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            interpolable: true,
+                        },
+                        ObjectProperty {
+                            name: "to".into(),
+                            documentation: "The update.".into(),
+                            typing: Type::uint(),
+                            optional: false,
+                            interpolable: true,
+                        }, ])),
+                    optional: true,
+                    interpolable: true
+                },
                 contracts_ids_dependencies: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
@@ -140,6 +169,10 @@ lazy_static! {
                 },
                 tx_id: {
                     documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                contract_id: {
+                    documentation: "The contract id.",
                     typing: Type::string()
                 },
                 result: {
@@ -168,14 +201,19 @@ lazy_static! {
     };
 }
 
+pub enum ContractSourceTransformsApplied {
+    FindAndReplace(String, String)
+}
+
 pub struct StacksDeployContract;
 impl CommandImplementation for StacksDeployContract {
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
+        // ) -> InputPostProcessingFutureResult {
     ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
-        let contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
+        let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_source'")),
         };
@@ -227,6 +265,7 @@ impl CommandImplementation for StacksDeployContract {
             }
         }
 
+        // Dependencies muts be identified before applying the contract_source_transforms
         evaluated_inputs
             .inputs
             .insert("contract_id", Value::string(contract_id.to_string()));
@@ -237,6 +276,44 @@ impl CommandImplementation for StacksDeployContract {
             "contracts_ids_lazy_dependencies",
             Value::array(lazy_dependencies),
         );
+
+
+        // contract_source_transforms_handling.
+        let mut transforms_applied = vec![];
+        if let Ok(transforms) = evaluated_inputs.inputs.get_expected_array("transforms") {
+            for transform in transforms.iter() {
+                let Value::Object(props) = transform else {
+                    return Err(diagnosed_error!("unable to read transform '{}'", transform.to_string()));
+                };
+
+                match props.get("type") {
+                    Some(Value::Primitive(PrimitiveValue::String(transform_type))) if transform_type.eq("contract_source_find_and_replace") => {},
+                    _ => {
+                        return Err(diagnosed_error!("transform type unsupported"));
+                    }
+                }
+
+                let from = match props.get("from") {
+                    Some(Value::Primitive(PrimitiveValue::String(from_value))) => from_value,
+                    _ => {
+                        return Err(diagnosed_error!("missing attribute 'from'"));
+                    }
+                };
+                let to = match props.get("to") {
+                    Some(Value::Primitive(PrimitiveValue::String(to_value))) => to_value,
+                    _ => {
+                        return Err(diagnosed_error!("missing attribute 'to'"));
+                    }
+                };
+
+                contract_source = contract_source.replace(from, to);
+                transforms_applied.push(ContractSourceTransformsApplied::FindAndReplace(from.to_string(), to.to_string()));
+            }
+        } 
+
+        evaluated_inputs
+            .inputs
+            .insert("contract_source_post_transforms", Value::string(contract_source));
 
         Ok(evaluated_inputs)
     }
@@ -268,7 +345,7 @@ impl CommandImplementation for StacksDeployContract {
             .get_expected_object("contract")
         {
             Ok(value) => {
-                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
+                let contract_source = match args.get_value("contract_source_post_transforms").or(value.get("contract_source")).map(|v| v.as_string()) {
                     Some(Some(value)) => value.to_string(),
                     _ => {
                         return Err((
@@ -350,7 +427,7 @@ impl CommandImplementation for StacksDeployContract {
             .get_expected_object("contract")
         {
             Ok(value) => {
-                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
+                let contract_source = match args.get_value("contract_source_post_transforms").or(value.get("contract_source")).map(|v| v.as_string()) {
                     Some(Some(value)) => value.to_string(),
                     _ => {
                         return Err((
@@ -420,6 +497,14 @@ impl CommandImplementation for StacksDeployContract {
                 Err(err) => return Err(err),
             };
 
+            let signed_transaction = res_signing
+                .outputs
+                .get(SIGNED_TRANSACTION_BYTES)
+                .unwrap();
+            let mut signed_transaction_bytes = signed_transaction.clone().expect_buffer_bytes();
+            let transaction = StacksTransaction::consensus_deserialize(&mut &signed_transaction_bytes[..]).unwrap();
+            let sender_address = transaction.origin_address().to_string();
+
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
                 res_signing
@@ -428,6 +513,7 @@ impl CommandImplementation for StacksDeployContract {
                     .unwrap()
                     .clone(),
             );
+
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,
                 &spec,
@@ -441,6 +527,7 @@ impl CommandImplementation for StacksDeployContract {
                 },
                 Err(data) => return Err((wallets, signing_command_state, data)),
             };
+            res.outputs.insert("contract_id".into(), Value::string(format!("{}.{}", sender_address.to_string(), contract_name)));
 
             res_signing.append(&mut res);
 

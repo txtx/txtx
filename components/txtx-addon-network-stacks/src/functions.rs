@@ -20,6 +20,7 @@ use crate::{
         AssetInfo, FungibleConditionCode, NonfungibleConditionCode, PostConditionPrincipal,
         TransactionPostCondition,
     },
+    rpc::StacksRpc,
     stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
         CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
@@ -485,27 +486,6 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The inner value that was wrapped in an `(ok <inner>)` Clarity type.",
-                    typing: Type::buffer()
-                },
-            }
-        },
-        define_function! {
-            RetrieveDeployedContract => {
-                name: "retrieve_deployed_contract",
-                documentation: "`stacks::retrieve_deployed_contract` retrieves the source of a contract deployed on mainnet.",
-                example: indoc! {r#"// Coming soon "#},
-                inputs: [
-                    contract_id: {
-                        documentation: "Contract Id of the contract source to fetch.",
-                        typing: vec![Type::string()]
-                    },
-                    rpc_api_url: {
-                        documentation: "The URL of the Stacks API to broadcast to.",
-                        typing: vec![Type::string()]
-                    }
-                ],
-                output: {
-                    documentation: "The source code of the contract",
                     typing: Type::buffer()
                 },
             }
@@ -1397,31 +1377,6 @@ impl FunctionImplementation for DecodeClarityValueOk {
         let inner_bytes: Vec<u8> = value.serialize_to_vec();
 
         Ok(Value::buffer(inner_bytes, CLARITY_VALUE.clone()))
-    }
-}
-
-pub struct RetrieveDeployedContract;
-impl FunctionImplementation for RetrieveDeployedContract {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        let contract_id = args.get(0).unwrap();
-        let rpc_api_url = args.get(1).unwrap();
-        Ok(Value::object(indexmap! {
-            "contract_source".to_string() => Value::string("<source>".to_string()),
-            "contract_name".to_string() => Value::string("contract-name".to_string()),
-            "clarity_version".to_string() => Value::uint(2)
-        }))
     }
 }
 

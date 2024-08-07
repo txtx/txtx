@@ -361,10 +361,10 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
                 Err(d) => {
-                    println!("{:?}", d);
                     continue;
                 }
             };
+
             // Update the evaluated inputs
             self.commands_inputs_simulation_results
                 .insert(construct_did.clone(), evaluated_inputs);

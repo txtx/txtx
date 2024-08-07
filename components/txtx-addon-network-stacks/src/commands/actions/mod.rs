@@ -2,6 +2,7 @@ pub mod broadcast_transaction;
 pub mod call_readonly_fn;
 mod decode_contract_call;
 mod deploy_contract;
+mod deploy_contract_requirement;
 pub mod encode_contract_call;
 mod send_contract_call;
 mod send_stx;
@@ -11,6 +12,7 @@ use clarity_repl::clarity::Value as ClarityValue;
 
 use std::str::FromStr;
 
+use crate::typing::CLARITY_PRINCIPAL;
 use crate::{stacks_helpers::parse_clarity_value, typing::STACKS_CONTRACT_CALL};
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
 use call_readonly_fn::CALL_READONLY_FN;
@@ -140,7 +142,12 @@ pub fn encode_primitive_value_to_clarity_value(src: &Value) -> Result<ClarityVal
                 .map_err(|e| diagnosed_error!("unable to encode Clarity list ({})", e.to_string()))?
         }
         Value::Primitive(PrimitiveValue::String(_)) => {
-            return Err(diagnosed_error!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."))
+            if let Some(bytes) = src.try_get_buffer_bytes() {
+                ClarityValue::buff_from(bytes)
+                    .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
+            } else {
+                return Err(diagnosed_error!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."))
+            }
         }
         Value::Primitive(PrimitiveValue::Bool(value)) => {
             ClarityValue::Bool(*value)
@@ -155,8 +162,15 @@ pub fn encode_primitive_value_to_clarity_value(src: &Value) -> Result<ClarityVal
             ClarityValue::UInt((*uint).into())
         }
         Value::Primitive(PrimitiveValue::Buffer(data)) => {
-            ClarityValue::buff_from(data.bytes.clone())
-                .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
+            if data.typing.eq(&CLARITY_PRINCIPAL) {
+                let value_bytes = data.bytes.clone();
+                ClarityValue::consensus_deserialize(&mut &value_bytes[..]).map_err(
+                    |e| diagnosed_error!("{}", e.to_string())
+                )?
+            } else {
+                ClarityValue::buff_from(data.bytes.clone())
+                    .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
+            }
         }
         Value::Primitive(PrimitiveValue::Float(_)) => {
             // should return an error

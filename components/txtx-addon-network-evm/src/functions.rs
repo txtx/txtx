@@ -255,6 +255,7 @@ impl FunctionImplementation for EncodeEVMBytes {
         Ok(Value::addon(val, BYTES.clone()))
     }
 }
+
 #[derive(Clone)]
 pub struct EncodeEVMChain;
 impl FunctionImplementation for EncodeEVMChain {
