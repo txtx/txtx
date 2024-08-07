@@ -5,6 +5,7 @@ use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
 use alloy::transports::http::Http;
 use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
+use alloy_rpc_types::BlockId;
 use alloy_rpc_types::BlockNumberOrTag::Latest;
 use txtx_addon_kit::reqwest::{Client, Url};
 
@@ -82,7 +83,7 @@ impl EVMRpc {
     }
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
-        let result = match self.provider.call(tx).await {
+        let result = match self.provider.call(tx).block(BlockId::pending()).await {
             Ok(res) => res,
             Err(e) => {
                 let err = format!("received error result from RPC API during eth_call: {}", e);
