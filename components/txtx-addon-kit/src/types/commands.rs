@@ -820,7 +820,8 @@ impl CommandInstance {
             &addon_defaults,
             progress_tx,
         )?
-        .await;
+        .await
+        .map_err(|e| e.set_span_range(self.block.span()));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -925,7 +926,9 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         );
-        let res = consolidate_wallet_future_result(future).await?;
+        let res = consolidate_wallet_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
         let (signing_command_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
@@ -959,7 +962,9 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         );
-        let res = consolidate_wallet_activate_future_result(future).await?;
+        let res = consolidate_wallet_activate_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {

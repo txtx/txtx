@@ -5,7 +5,7 @@ use crate::{
     AddonDefaults,
 };
 use futures::future;
-use hcl_edit::{expr::Expression, structure::Block};
+use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::{
@@ -453,7 +453,9 @@ impl WalletInstance {
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
-                            return consolidate_wallet_future_result(res).await?;
+                            return consolidate_wallet_future_result(res).await?.map_err(
+                                |(state, diag)| (state, diag.set_span_range(self.block.span())),
+                            );
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {
@@ -501,7 +503,9 @@ impl WalletInstance {
             is_public_key_required,
         );
 
-        consolidate_wallet_future_result(res).await?
+        consolidate_wallet_future_result(res)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))
     }
 
     pub async fn perform_activation(
@@ -531,7 +535,9 @@ impl WalletInstance {
             &addon_defaults,
             progress_tx,
         );
-        let res = consolidate_wallet_activate_future_result(future).await?;
+        let res = consolidate_wallet_activate_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
         res
     }
