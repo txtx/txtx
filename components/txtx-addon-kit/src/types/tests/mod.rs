@@ -1,5 +1,5 @@
-use super::types::{PrimitiveValue, Type, TypeSpecification, Value};
-use crate::types::diagnostics::Diagnostic;
+use super::types::{PrimitiveValue, TypeSpecification, Value};
+use crate::types::types::default_checker;
 use test_case::test_case;
 
 lazy_static! {
@@ -7,7 +7,7 @@ lazy_static! {
     pub static ref TYPING: TypeSpecification = TypeSpecification {
         id: "typing".to_string(),
         documentation: "test".to_string(),
-        checker: check
+        checker: default_checker()
     };
 }
 
@@ -26,14 +26,11 @@ lazy_static! {
      Value::Object(o)
 })]
 #[test_case(Value::buffer(BYTES.clone(), TYPING.clone()))]
+#[test_case(Value::addon(Value::buffer(BYTES.clone(), TYPING.clone()), TYPING.clone()))]
 fn it_serdes_values(value: Value) {
     let ser = serde_json::to_string(&value).unwrap();
+    println!("\nserialized: {}", ser);
     let de: Value = serde_json::from_str(&ser).unwrap();
+    println!("deserialized:  {:?}\n", de);
     assert_eq!(de, value);
-    println!("serialized: {}", ser);
-    println!("deserialized:  {:?}", de);
-}
-
-fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-    todo!();
 }

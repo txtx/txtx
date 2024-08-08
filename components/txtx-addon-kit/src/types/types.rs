@@ -663,7 +663,7 @@ pub struct TypeSpecification {
 fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
     todo!();
 }
-fn default_checker() -> TypeChecker {
+pub fn default_checker() -> TypeChecker {
     check
 }
 
