@@ -1,5 +1,5 @@
 use alloy::hex;
-use alloy::primitives::{Address, FixedBytes, Uint};
+use alloy::primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
@@ -96,6 +96,19 @@ impl EVMRpc {
         };
 
         Ok(hex::encode(result))
+    }
+
+    pub async fn get_code(&self, address: &Address) -> Result<Bytes, RpcError> {
+        self.provider
+            .get_code_at(address.clone())
+            .await
+            .map_err(|e| {
+                RpcError::Message(format!(
+                    "error getting code at address {}: {}",
+                    address.to_string(),
+                    e.to_string()
+                ))
+            })
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
