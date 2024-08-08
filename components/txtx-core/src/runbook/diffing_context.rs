@@ -2,7 +2,7 @@ use super::{RunbookExecutionMode, RunningContext};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
-    types::{types::Value, ConstructDid, PackageDid, RunbookId},
+    types::{diagnostics::Diagnostic, types::Value, ConstructDid, PackageDid, RunbookId},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -107,7 +107,7 @@ impl RunbookSnapshotContext {
         runbook_id: &RunbookId,
         running_contexts: &Vec<RunningContext>,
         previous_snapshot: Option<RunbookExecutionSnapshot>,
-    ) -> RunbookExecutionSnapshot {
+    ) -> Result<RunbookExecutionSnapshot, Diagnostic> {
         // &runbook.workspace_context,
         // workspace_context: &RunbookWorkspaceContext,
 
@@ -146,10 +146,14 @@ impl RunbookSnapshotContext {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_run = previous_snapshot
                             .as_ref()
-                            .expect("unexpected error: former snapshot should have been provided")
+                            .ok_or(diagnosed_error!(
+                                "former snapshot should have been provided"
+                            ))?
                             .runs
                             .get(&run_id)
-                            .expect("unexpected error: former snapshot corrupted")
+                            .ok_or(diagnosed_error!(
+                                "unexpected error: former snapshot corrupted"
+                            ))?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
                         (previous_run, constructs_ids_to_consider)
@@ -455,7 +459,7 @@ impl RunbookSnapshotContext {
         }
 
         let rountrip: RunbookExecutionSnapshot = serde_json::from_value(json!(snapshot)).unwrap();
-        rountrip
+        Ok(rountrip)
     }
 
     pub fn diff(

@@ -162,11 +162,9 @@ pub async fn handle_check_command(
                     .await;
             }
             runbook.enable_full_execution_mode();
-            let new = ctx.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                None,
-            );
+            let new = ctx
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -491,7 +489,6 @@ pub async fn handle_run_command(
 
     if !cmd.force_execution {
         if let Some(old) = previous_state_opt {
-            // if !cmd.force_execution {
             let ctx = RunbookSnapshotContext::new();
 
             let mut execution_context_backups = HashMap::new();
@@ -512,11 +509,9 @@ pub async fn handle_run_command(
                     .insert(run.inputs_set.name.clone(), execution_context_backup);
             }
 
-            let new = ctx.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                None,
-            );
+            let new = ctx
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -637,6 +632,13 @@ pub async fn handle_run_command(
                 let mut great_filter = descendants_of_critically_changed_commands;
                 great_filter.append(&mut added_construct_dids);
 
+                for construct_did in great_filter.iter() {
+                    let Some(input_evaluations) = running_context.execution_context.commands_inputs_evaluation_results.get_mut(construct_did) else {
+                        continue;
+                    };
+                    input_evaluations.inputs.storage.clear();
+                }
+                
                 running_context
                     .execution_context
                     .order_for_commands_execution = running_context
@@ -839,11 +841,13 @@ pub async fn handle_run_command(
                 state_file_location
             );
             let diff = RunbookSnapshotContext::new();
-            let snapshot = diff.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                previous_snapshot,
-            );
+            let snapshot = diff
+                .snapshot_runbook_execution(
+                    &runbook.runbook_id,
+                    &runbook.running_contexts,
+                    previous_snapshot,
+                )
+                .map_err(|e| e.message)?;
             state_file_location
                 .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
                 .expect("unable to save state");

@@ -131,8 +131,13 @@ impl FileLocation {
 
     pub fn read_content_as_utf8(&self) -> Result<String, String> {
         let content = self.read_content()?;
-        let contract_as_utf8 = String::from_utf8(content)
-            .map_err(|e| format!("unable to read content from {} as utf8 ({})", self, e.to_string()))?;
+        let contract_as_utf8 = String::from_utf8(content).map_err(|e| {
+            format!(
+                "unable to read content from {} as utf8 ({})",
+                self,
+                e.to_string()
+            )
+        })?;
         Ok(contract_as_utf8)
     }
 
