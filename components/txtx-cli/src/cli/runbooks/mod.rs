@@ -527,6 +527,16 @@ pub async fn handle_run_command(
             let mut actions_to_re_execute = IndexMap::new();
             let mut actions_to_execute = IndexMap::new();
 
+            for running_context_key in consolidated_changes.new_plans_to_add.iter() {
+                let running_context =
+                runbook.find_expected_running_context_mut(&running_context_key);
+                running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
+                let pristine_execution_context = execution_context_backups
+                    .remove(running_context_key)
+                    .unwrap();
+                running_context.execution_context = pristine_execution_context;
+            }
+
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
                 let critical_edits = changes
                     .contructs_to_update
@@ -538,20 +548,6 @@ pub async fn handle_run_command(
 
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
-
-                let pristine_execution_context = execution_context_backups
-                    .remove(running_context_key)
-                    .unwrap();
-
-                if consolidated_changes
-                    .new_plans_to_add
-                    .contains(running_context_key)
-                {
-                    // Restore a pristing execution context
-                    running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
-                    running_context.execution_context = pristine_execution_context;
-                    continue;
-                }
 
                 if critical_edits.is_empty() && additions.is_empty() {
                     running_context.execution_context.execution_mode =

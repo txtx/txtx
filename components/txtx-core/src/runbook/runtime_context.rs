@@ -171,8 +171,11 @@ impl RuntimeContext {
                                             ])?;
                                             // todo: hack -> we want to be able to display the batch "name" in the cli. we don't have a way
                                             // to properly set this yet, so we're defaulting to getting this evm key
-                                            let batch_name = match inputs.get("chain_id") {
-                                                Some(value) => value.to_string(),
+                                            let name = inputs.get("evm_defaults")
+                                                .map(|v| v.as_object().map(|o| o.get("chain_id")));
+
+                                            let batch_name = match name {
+                                                Some(Some(Some(value))) => value.to_string(),
                                                 _ => format!("Batch {}", index + 1),
                                             };
                                             let mut values =
