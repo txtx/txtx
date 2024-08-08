@@ -17,8 +17,11 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    codec::{foundry::FoundryConfig, string_to_address, value_to_sol_value},
+    codec::{
+        foundry::FoundryConfig, generate_create2_address, string_to_address, value_to_sol_value,
+    },
     commands::actions::deploy_contract::create_init_code,
+    constants::DEFAULT_CREATE2_FACTORY_ADDRESS,
     typing::{
         BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS, ETH_INIT_CODE,
     },
@@ -146,6 +149,33 @@ lazy_static! {
                     constructor_args: {
                         documentation: "Coming Soon",
                         typing: vec![Type::array(Type::string())]
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
+                },
+            }
+        },
+        define_function! {
+            GenerateCreate2Address => {
+                name: "create2",
+                documentation: "Coming soon",
+                example: indoc! {r#"
+                        // Coming Soon
+                        "#},
+                inputs: [
+                    salt: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::string()]
+                    },
+                    init_code: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::addon(ETH_INIT_CODE.clone()), Type::string()]
+                    },
+                    create2_factory_contract_address: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::addon(ETH_ADDRESS.clone()), Type::string()]
                     }
                 ],
                 output: {
@@ -430,6 +460,63 @@ impl FunctionImplementation for CreateInitCode {
         Ok(Value::addon(
             Value::buffer(init_code, ETH_INIT_CODE.clone()),
             ETH_INIT_CODE.clone(),
+        ))
+    }
+}
+
+#[derive(Clone)]
+pub struct GenerateCreate2Address;
+impl FunctionImplementation for GenerateCreate2Address {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let prefix = "command 'evm::create2'";
+        let salt = match args.get(0) {
+            Some(Value::Primitive(PrimitiveValue::String(salt))) => salt,
+            other => return Err(format_fn_error(&prefix, 1, "string", other)),
+        };
+
+        let init_code = match args.get(1) {
+            Some(Value::Primitive(PrimitiveValue::String(init_code))) => {
+                alloy::hex::decode(init_code).map_err(|e| {
+                    diagnosed_error!("{}: failed to decode init_code: {}", prefix, e)
+                })?
+            }
+            Some(Value::Addon(addon_data)) => {
+                if addon_data.typing.id != ETH_INIT_CODE.id {
+                    return Err(format_fn_error(
+                        &prefix,
+                        2,
+                        "string or ETH_INIT_CODE",
+                        Some(&Value::Addon(addon_data.clone())),
+                    ));
+                }
+                addon_data.value.expect_buffer_bytes()
+            }
+            other => return Err(format_fn_error(&prefix, 2, "string", other)),
+        };
+
+        let factory_address = args
+            .get(2)
+            .and_then(|v| Some(v.clone()))
+            .unwrap_or(Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()));
+
+        let create2 = generate_create2_address(&factory_address, &salt, &init_code)
+            .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
+        let bytes = create2.0 .0;
+        Ok(Value::addon(
+            Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()),
+            ETH_ADDRESS.clone(),
         ))
     }
 }
