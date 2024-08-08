@@ -62,3 +62,6 @@ pub const ACTION_OPEN_MODAL: &str = "open_modal";
 
 // Default contracts
 pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78FbF26c0B4956C";
+
+// API Responses
+pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";
