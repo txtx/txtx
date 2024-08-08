@@ -34,6 +34,12 @@ lazy_static! {
             documentation: "A 32-byte Ethereum transaction hash.",
         }
     };
+    pub static ref ETH_INIT_CODE: TypeSpecification = define_addon_type! {
+        EthereumBytes => {
+            name: "eth_init_code",
+            documentation: "",
+        }
+    };
     pub static ref CONTRACT_METADATA: Type = define_object_type! {
         abi: {
             documentation: "The contract abi.",

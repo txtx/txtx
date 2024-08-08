@@ -44,6 +44,7 @@ pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 pub const DO_VERIFY_CONTRACT: &str = "verify";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
+pub const ALREADY_DEPLOYED: &str = "already_deployed";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
@@ -61,3 +62,6 @@ pub const ACTION_OPEN_MODAL: &str = "open_modal";
 
 // Default contracts
 pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78FbF26c0B4956C";
+
+// API Responses
+pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";

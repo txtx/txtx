@@ -26,7 +26,7 @@ use sign_transaction::SIGN_TRANSACTION;
 use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_contract::VERIFY_CONTRACT;
 
-use crate::constants::SIGNER;
+use crate::{constants::SIGNER, typing::ETH_ADDRESS};
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -48,6 +48,15 @@ pub fn get_expected_address(value: &Value) -> Result<Address, String> {
         }
         Value::Primitive(PrimitiveValue::String(address)) => {
             Ok(Address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?)
+        }
+        Value::Addon(addon_data) => {
+            if addon_data.typing.id != ETH_ADDRESS.id {
+                return Err(format!(
+                    "invalid data type for address: {}",
+                    addon_data.typing.id
+                ));
+            }
+            get_expected_address(&addon_data.value)
         }
         value => Err(format!("unexpected address type: {:?}", value)),
     }

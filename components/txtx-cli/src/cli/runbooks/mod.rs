@@ -587,6 +587,7 @@ pub async fn handle_run_command(
                     })
                     .flatten()
                     .filter(|d| !added_construct_dids.contains(d))
+                    .sorted()
                     .dedup()
                     .collect::<Vec<_>>();
 
@@ -781,8 +782,10 @@ pub async fn handle_run_command(
             return Ok(());
         }
 
-        let mut collected_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<String>>> =
+            IndexMap::new();
         for running_context in runbook.running_contexts.iter() {
+            let mut running_context_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
             let grouped_actions_items = running_context
                 .execution_context
                 .collect_outputs_constructs_results();
@@ -790,12 +793,12 @@ pub async fn handle_run_command(
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
                     if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                        match collected_outputs.get_mut(&output.name) {
+                        match running_context_outputs.get_mut(&output.name) {
                             Some(entries) => {
                                 entries.push(output.value.to_string());
                             }
                             None => {
-                                collected_outputs.insert(
+                                running_context_outputs.insert(
                                     output.name.to_string(),
                                     vec![output.value.to_string()],
                                 );
@@ -804,29 +807,38 @@ pub async fn handle_run_command(
                     }
                 }
             }
+            collected_outputs.insert(
+                running_context.inputs_set.name.clone(),
+                running_context_outputs,
+            );
         }
 
         if !collected_outputs.is_empty() {
-            let mut data = vec![];
-            for (key, values) in collected_outputs.drain(..) {
-                let mut rows = vec![];
+            for (batch_name, mut batch_outputs) in collected_outputs.drain(..) {
+                if !batch_outputs.is_empty() {
+                    println!("{}", yellow!(format!("{} Outputs: ", batch_name)));
+                    let mut data = vec![];
+                    for (key, values) in batch_outputs.drain(..) {
+                        let mut rows = vec![];
 
-                for (i, value) in values.into_iter().enumerate() {
-                    let parts = value.split("\n");
-                    for (j, part) in parts.into_iter().enumerate() {
-                        if i == 0 && j == 0 {
-                            rows.push(vec![key.clone(), part.to_string()]);
-                        } else {
-                            let row = vec!["".to_string(), part.to_string()];
-                            rows.push(row);
+                        for (i, value) in values.into_iter().enumerate() {
+                            let parts = value.split("\n");
+                            for (j, part) in parts.into_iter().enumerate() {
+                                if i == 0 && j == 0 {
+                                    rows.push(vec![key.clone(), part.to_string()]);
+                                } else {
+                                    let row = vec!["".to_string(), part.to_string()];
+                                    rows.push(row);
+                                }
+                            }
                         }
+                        data.append(&mut rows)
                     }
+                    let mut ascii_table = AsciiTable::default();
+                    ascii_table.set_max_width(150);
+                    ascii_table.print(data);
                 }
-                data.append(&mut rows)
             }
-            let mut ascii_table = AsciiTable::default();
-            ascii_table.set_max_width(150);
-            ascii_table.print(data);
         }
 
         if let Some(RunbookState::File(state_file_location)) = runbook_state {

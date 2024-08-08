@@ -140,7 +140,7 @@ impl CommandImplementation for VerifyEVMContract {
             commands::actions::get_expected_address,
             constants::{
                 ARTIFACTS, BLOCK_EXPLORER_API_KEY, CHAIN_ID, CONTRACT_ADDRESS,
-                CONTRACT_CONSTRUCTOR_ARGS,
+                CONTRACT_CONSTRUCTOR_ARGS, EXPLORER_NO_CONTRACT,
             },
         };
 
@@ -223,55 +223,69 @@ impl CommandImplementation for VerifyEVMContract {
                 .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
 
             let guid = {
-                progress = (progress + 1) % progress_symbol.len();
-                let verify_contract = VerifyContract::new(
-                    contract_address,
-                    contract_name.clone(),
-                    source.clone(),
-                    compiler_version.clone(),
-                )
-                // todo: need to check if other formats
-                .code_format(CodeFormat::SingleFile)
-                // todo: need to set from compilation settings
-                .optimization(optimizer_enabled)
-                .runs(optimizer_runs)
-                .evm_version(evm_version)
-                .constructor_arguments(constructor_args);
+                let mut attempts = 0;
+                let max_attempts = 10;
+                loop {
+                    progress = (progress + 1) % progress_symbol.len();
+                    let verify_contract = VerifyContract::new(
+                        contract_address,
+                        contract_name.clone(),
+                        source.clone(),
+                        compiler_version.clone(),
+                    )
+                    // todo: need to check if other formats
+                    .code_format(CodeFormat::SingleFile)
+                    // todo: need to set from compilation settings
+                    .optimization(optimizer_enabled)
+                    .runs(optimizer_runs)
+                    .evm_version(evm_version.clone())
+                    .constructor_arguments(constructor_args.clone());
 
-                let res = explorer_client
+                    let res = explorer_client
                     .submit_contract_verification(&verify_contract)
                     .await
                     .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {e}"))?;
 
-                if res.message.eq("NOTOK") {
-                    result
-                        .outputs
-                        .insert("result".into(), Value::string(res.result.clone()));
+                    if res.message.eq("NOTOK") {
+                        println!("received notok response");
 
-                    let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", res.result);
-                    status_update.update_status(&ProgressBarStatus::new_err(
-                        "Failed",
-                        "Contract Verification Failed",
-                        &diag,
+                        let err_msg = res.result;
+                        if err_msg.starts_with(EXPLORER_NO_CONTRACT) {
+                            if attempts < max_attempts {
+                                attempts += 1;
+                                continue;
+                            }
+                        }
+
+                        result
+                            .outputs
+                            .insert("result".into(), Value::string(err_msg.clone()));
+
+                        let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", err_msg);
+                        status_update.update_status(&ProgressBarStatus::new_err(
+                            "Failed",
+                            "Contract Verification Failed",
+                            &diag,
+                        ));
+                        let _ = progress_tx
+                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                        return Err(diag);
+                    }
+                    let guid = res.result;
+
+                    status_update.update_status(&ProgressBarStatus::new_msg(
+                        ProgressBarStatusColor::Yellow,
+                        &format!("Pending {}", progress_symbol[progress]),
+                        &format!(
+                            "Contract {} Submitted to Explorer for Verification",
+                            contract_address.to_string()
+                        ),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-
-                    return Err(diag);
+                    break guid;
                 }
-                let guid = res.result;
-
-                status_update.update_status(&ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Yellow,
-                    &format!("Pending {}", progress_symbol[progress]),
-                    &format!(
-                        "Contract {} Submitted to Explorer for Verification",
-                        contract_address.to_string()
-                    ),
-                ));
-                let _ =
-                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                guid
             };
 
             let max_attempts = 5;
