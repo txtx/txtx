@@ -19,7 +19,9 @@ use txtx_addon_kit::{
 use crate::{
     codec::{foundry::FoundryConfig, string_to_address, value_to_sol_value},
     commands::actions::deploy_contract::create_init_code,
-    typing::{BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS},
+    typing::{
+        BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS, ETH_INIT_CODE,
+    },
 };
 const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
 
@@ -425,7 +427,10 @@ impl FunctionImplementation for CreateInitCode {
         };
         let init_code = create_init_code(bytecode, Some(constructor_args), None)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
-        Ok(Value::buffer(init_code, ETH_ADDRESS.clone()))
+        Ok(Value::addon(
+            Value::buffer(init_code, ETH_INIT_CODE.clone()),
+            ETH_INIT_CODE.clone(),
+        ))
     }
 }
 

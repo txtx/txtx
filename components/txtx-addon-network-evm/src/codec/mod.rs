@@ -3,7 +3,7 @@ pub mod foundry;
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
-use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
+use crate::typing::{BYTES, BYTES32, ETH_ADDRESS, ETH_INIT_CODE};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::FromHex;
 use alloy::network::TransactionBuilder;
@@ -239,6 +239,9 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
                 let word = Word::from_slice(&value.bytes);
                 DynSolValue::FixedBytes(word, 32)
             } else if addon.typing.id == BYTES.clone().id {
+                let value = addon.value.as_buffer_data().unwrap();
+                DynSolValue::Bytes(value.bytes.clone())
+            } else if addon.typing.id == ETH_INIT_CODE.clone().id {
                 let value = addon.value.as_buffer_data().unwrap();
                 DynSolValue::Bytes(value.bytes.clone())
             } else {
