@@ -325,6 +325,16 @@ impl ValueStore {
         self.storage.get(&format!("{}:{}", scope, key))
     }
 
+    pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
+        if let Some(Value::Primitive(PrimitiveValue::Bool(bool))) =
+            self.get_scoped_value(scope, key)
+        {
+            Some(*bool)
+        } else {
+            None
+        }
+    }
+
     pub fn get_value(&self, key: &str) -> Option<&Value> {
         self.storage.get(key)
     }
