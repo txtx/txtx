@@ -592,6 +592,7 @@ pub async fn handle_run_command(
                     })
                     .flatten()
                     .filter(|d| !added_construct_dids.contains(d))
+                    .sorted()
                     .dedup()
                     .collect::<Vec<_>>();
 
