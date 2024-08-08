@@ -217,17 +217,26 @@ impl CommandImplementation for VerifyEVMContract {
                         "command 'evm::verify_contract': invalid number of optimizer runs: {e}"
                     )
                 })?;
+            let via_ir = get_bool_from_map(&artifacts, "via_ir");
 
             let chain = Chain::from(chain_id);
             let explorer_client = BlockExplorerClient::new(chain, explorer_api_key)
                 .map_err(|e| diagnosed_error!("command 'evm::verify_contract': failed to create block explorer client: {e}"))?;
+
+            println!("contract_name: {}", contract_name);
+            println!("compiler: {}", compiler_version);
+            println!("evm_version: {}", evm_version);
+            println!("optimizer_enabled: {}", optimizer_enabled);
+            println!("optimizer_runs: {}", optimizer_runs);
+            println!("via_id: {:?}", via_ir);
+            println!("constructor_args: {:?}", constructor_args);
 
             let guid = {
                 let mut attempts = 0;
                 let max_attempts = 10;
                 loop {
                     progress = (progress + 1) % progress_symbol.len();
-                    let verify_contract = VerifyContract::new(
+                    let mut verify_contract = VerifyContract::new(
                         contract_address,
                         contract_name.clone(),
                         source.clone(),
@@ -240,6 +249,9 @@ impl CommandImplementation for VerifyEVMContract {
                     .runs(optimizer_runs)
                     .evm_version(evm_version.clone())
                     .constructor_arguments(constructor_args.clone());
+                    if let Some(via_ir) = via_ir {
+                        verify_contract = verify_contract.via_ir(via_ir);
+                    }
 
                     let res = explorer_client
                     .submit_contract_verification(&verify_contract)
@@ -465,4 +477,12 @@ pub fn get_expected_bool_from_map(
         ));
     };
     Ok(*val)
+}
+
+pub fn get_bool_from_map(map: &IndexMap<String, Value>, key: &str) -> Option<bool> {
+    if let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) {
+        Some(*val)
+    } else {
+        None
+    }
 }

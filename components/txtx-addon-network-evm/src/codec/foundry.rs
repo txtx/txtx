@@ -82,6 +82,8 @@ pub struct ContractSettings {
     pub compilation_target: HashMap<String, String>,
     pub optimizer: ContractOptimizerSettings,
     pub evm_version: String,
+    #[serde(rename = "viaIR")]
+    pub via_ir: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

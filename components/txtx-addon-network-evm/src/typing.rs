@@ -88,6 +88,12 @@ lazy_static! {
             typing: Type::string(),
             optional: true,
             interpolable: false
+        },
+        via_ir: {
+            documentation: "Coming soon",
+            typing: Type::string(),
+            optional: true,
+            interpolable: false
         }
     };
     pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
@@ -137,6 +143,12 @@ lazy_static! {
             documentation: "The EVM version used to compile the contract.",
             typing: Type::string(),
             optional: false,
+            interpolable: false
+        },
+        via_ir: {
+            documentation: "Coming soon",
+            typing: Type::string(),
+            optional: true,
             interpolable: false
         }
     };

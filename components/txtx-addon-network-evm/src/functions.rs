@@ -402,7 +402,7 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
         let optimizer_runs = Value::uint(compiled_output.metadata.settings.optimizer.runs);
         let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
 
-        let obj_props = indexmap::indexmap! {
+        let mut obj_props = indexmap::indexmap! {
             "abi".to_string() => abi,
             "bytecode".to_string() => bytecode,
             "source".to_string() => source,
@@ -412,6 +412,10 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             "optimizer_runs".to_string() => optimizer_runs,
             "evm_version".to_string() => evm_version,
         };
+        if let Some(via_ir) = compiled_output.metadata.settings.via_ir {
+            let via_ir = Value::bool(via_ir);
+            obj_props.insert("via_ir".to_string(), via_ir);
+        }
         Ok(Value::object(obj_props))
     }
 }
