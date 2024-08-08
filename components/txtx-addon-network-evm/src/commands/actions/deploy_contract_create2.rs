@@ -1,4 +1,4 @@
-use alloy::hex;
+use alloy::primitives::Address;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
@@ -24,9 +24,9 @@ use txtx_addon_kit::AddonDefaults;
 use crate::typing::{CONTRACT_METADATA, ETH_ADDRESS};
 use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
 
-use crate::codec::CommonTransactionFields;
+use crate::codec::{salt_str_to_hex, CommonTransactionFields};
 use crate::constants::{
-    ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT, RPC_API_URL,
+    ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT, RPC_API_URL,
     SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
@@ -245,7 +245,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 return Ok((wallets, signing_command_state, Actions::none()));
             }
 
-            let (transaction, contract_address) = build_unsigned_create2_deployment(
+            let res = build_unsigned_create2_deployment(
                 &mut signing_command_state,
                 &spec,
                 &args,
@@ -255,12 +255,35 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             .await
             .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
 
-            // for the create2 contract deployment, the tx receipt won't have the contract address, so we need to store it
-            signing_command_state.insert_scoped_value(
-                &construct_did.to_string(),
-                CONTRACT_ADDRESS,
-                Value::string(contract_address),
-            );
+            let transaction = match res {
+                Create2DeploymentResult::AlreadyDeployed(contract_address) => {
+                    signing_command_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        ALREADY_DEPLOYED,
+                        Value::bool(true),
+                    );
+                    signing_command_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        CONTRACT_ADDRESS,
+                        Value::addon(
+                            Value::buffer(contract_address.0 .0.to_vec(), ETH_ADDRESS.clone()),
+                            ETH_ADDRESS.clone(),
+                        ),
+                    );
+                    return Ok((wallets, signing_command_state, actions));
+                }
+                Create2DeploymentResult::NotDeployed((tx, contract_address)) => {
+                    signing_command_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        CONTRACT_ADDRESS,
+                        Value::addon(
+                            Value::buffer(contract_address.0 .0.to_vec(), ETH_ADDRESS.clone()),
+                            ETH_ADDRESS.clone(),
+                        ),
+                    );
+                    tx
+                }
+            };
 
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
@@ -314,26 +337,58 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
+        let mut wallets = wallets.clone();
 
+        let mut result: CommandExecutionResult = CommandExecutionResult::new();
+        let signing_construct_did = get_signing_construct_did(&args).unwrap();
+        let signing_command_state = wallets
+            .clone()
+            .pop_signing_command_state(&signing_construct_did)
+            .unwrap();
+        // insert pre-calculated contract address into outputs to be used by verify contract bg task
+        let contract_address = signing_command_state
+            .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
+            .unwrap(); // insert pre-calculated contract addr
+        result
+            .outputs
+            .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+
+        let already_deployed = signing_command_state
+            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
+            .unwrap_or(false);
+        result
+            .outputs
+            .insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
         let future = async move {
-            let run_signing_future = SignEVMTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &defaults,
-                &progress_tx,
-                &wallets_instances,
-                wallets,
-            );
-            let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
-                Ok(future) => match future.await {
-                    Ok(res) => res,
+            // if this contract has already been deployed, we'll skip signing and confirming
+            let (wallets, signing_command_state) = if !already_deployed {
+                wallets.push_signing_command_state(signing_command_state);
+                let run_signing_future = SignEVMTransaction::run_signed_execution(
+                    &construct_did,
+                    &spec,
+                    &args,
+                    &defaults,
+                    &progress_tx,
+                    &wallets_instances,
+                    wallets,
+                );
+                let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+                    Ok(future) => match future.await {
+                        Ok(res) => res,
+                        Err(err) => return Err(err),
+                    },
                     Err(err) => return Err(err),
-                },
-                Err(err) => return Err(err),
+                };
+
+                result.append(&mut res_signing);
+                args.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
+
+                (wallets, signing_command_state)
+            } else {
+                (wallets.clone(), signing_command_state.clone())
             };
 
-            args.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
+            args.insert(ALREADY_DEPLOYED, Value::bool(already_deployed));
             let mut res = match CheckEVMConfirmations::run_execution(
                 &construct_did,
                 &spec,
@@ -347,8 +402,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 },
                 Err(data) => return Err((wallets, signing_command_state, data)),
             };
-
-            res_signing.append(&mut res);
+            result.append(&mut res);
 
             let do_verify = args.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
@@ -366,18 +420,10 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     Err(data) => return Err((wallets, signing_command_state, data)),
                 };
 
-                // insert pre-calculated contract address into outputs to be used by verify contract bg task
-                let contract_address = signing_command_state
-                    .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
-                    .unwrap();
-                res_signing
-                    .outputs
-                    .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
-
-                res_signing.append(&mut res);
+                result.append(&mut res);
             }
 
-            Ok((wallets, signing_command_state, res_signing))
+            Ok((wallets, signing_command_state, result))
         };
 
         Ok(Box::pin(future))
@@ -402,8 +448,11 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
 
+        // insert pre-calculated contract address into outputs to be used by verify contract bg task
+
         let future = async move {
             let mut result = CommandExecutionResult::new();
+
             let mut res = CheckEVMConfirmations::build_background_task(
                 &construct_did,
                 &spec,
@@ -446,6 +495,11 @@ impl CommandImplementation for EVMDeployContractCreate2 {
     }
 }
 
+enum Create2DeploymentResult {
+    AlreadyDeployed(Address),
+    NotDeployed((TransactionRequest, Address)),
+}
+
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_create2_deployment(
     wallet_state: &ValueStore,
@@ -453,11 +507,14 @@ async fn build_unsigned_create2_deployment(
     args: &ValueStore,
     defaults: &AddonDefaults,
     to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
-) -> Result<(TransactionRequest, String), Diagnostic> {
+) -> Result<Create2DeploymentResult, Diagnostic> {
     use alloy::dyn_abi::{DynSolValue, Word};
 
     use crate::{
-        codec::{build_unsigned_transaction, string_to_address, TransactionType},
+        codec::{
+            build_unsigned_transaction, generate_create2_address, string_to_address,
+            TransactionType,
+        },
         commands::actions::{
             deploy_contract::get_contract_init_code,
             sign_contract_call::{
@@ -496,12 +553,12 @@ async fn build_unsigned_create2_deployment(
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
-    let salt = args.get_string(SALT);
+    let salt = args.get_expected_string(SALT)?;
     // if the user provided a contract address, they aren't using the default create2 factory
     let input = if contract_address.is_some() {
         let contract_abi = args.get_string(CREATE2_FACTORY_ABI);
         let function_name = args.get_expected_string(CREATE2_FUNCTION_NAME)?;
-        let salt = salt_str_to_hex(salt.unwrap()).map_err(to_diag_with_ctx)?;
+        let salt = salt_str_to_hex(salt).map_err(to_diag_with_ctx)?;
         let function_args: Vec<DynSolValue> = vec![
             DynSolValue::FixedBytes(Word::from_slice(&salt), 32),
             DynSolValue::Bytes(init_code.clone()),
@@ -516,7 +573,7 @@ async fn build_unsigned_create2_deployment(
                 .map_err(to_diag_with_ctx)?
         }
     } else {
-        encode_default_create2_proxy_args(salt, &init_code).map_err(to_diag_with_ctx)?
+        encode_default_create2_proxy_args(Some(salt), &init_code).map_err(to_diag_with_ctx)?
     };
 
     let rpc = EVMRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
@@ -524,6 +581,32 @@ async fn build_unsigned_create2_deployment(
     let contract_address = contract_address
         .and_then(|a| Some(a.clone()))
         .unwrap_or(Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()));
+
+    let calculated_deployed_contract_address =
+        generate_create2_address(&contract_address, salt, &init_code).map_err(to_diag_with_ctx)?;
+
+    if let Some(expected_contract_address) = expected_contract_address {
+        let expected = string_to_address(expected_contract_address.to_string())
+            .map_err(|e| to_diag_with_ctx(format!("invalid expected contract address: {e}")))?;
+        if !calculated_deployed_contract_address.eq(&expected) {
+            return Err(to_diag_with_ctx(format!(
+                "contract deployment does not yield expected address: actual ({}), expected ({})",
+                calculated_deployed_contract_address, expected
+            )));
+        }
+    }
+
+    let code_at_address = rpc
+        .get_code(&calculated_deployed_contract_address)
+        .await
+        .map_err(|e| to_diag_with_ctx(e.to_string()))?;
+
+    if !code_at_address.is_empty() {
+        return Ok(Create2DeploymentResult::AlreadyDeployed(
+            calculated_deployed_contract_address,
+        ));
+    }
+
     let common = CommonTransactionFields {
         to: Some(contract_address),
         from: from.clone(),
@@ -550,6 +633,7 @@ async fn build_unsigned_create2_deployment(
             actual_contract_address, e
         ))
     })?;
+
     if let Some(expected_contract_address) = expected_contract_address {
         let expected = string_to_address(expected_contract_address.to_string())
             .map_err(|e| to_diag_with_ctx(format!("invalid expected contract address: {e}")))?;
@@ -560,15 +644,7 @@ async fn build_unsigned_create2_deployment(
             )));
         }
     }
-    Ok((tx, actual.to_string()))
-}
-
-fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
-    let salt = hex::decode(salt).map_err(|e| format!("failed to decode salt: {e}"))?;
-    if salt.len() != 32 {
-        return Err("salt must be a 32-byte string".into());
-    }
-    Ok(salt)
+    Ok(Create2DeploymentResult::NotDeployed((tx, actual)))
 }
 
 fn encode_default_create2_proxy_args(

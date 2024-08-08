@@ -44,6 +44,7 @@ pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 pub const DO_VERIFY_CONTRACT: &str = "verify";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
+pub const ALREADY_DEPLOYED: &str = "already_deployed";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;

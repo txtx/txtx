@@ -122,10 +122,13 @@ impl CommandImplementation for CheckEVMConfirmations {
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use alloy_chains::{Chain, ChainKind};
-        use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
+        use txtx_addon_kit::{
+            hex,
+            types::{commands::return_synchronous_result, frontend::ProgressBarStatusColor},
+        };
 
         use crate::{
-            constants::{CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
+            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
             rpc::EVMRpc,
             typing::ETH_TX_HASH,
         };
@@ -136,16 +139,43 @@ impl CommandImplementation for CheckEVMConfirmations {
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
-
-        let tx_hash = inputs.get_expected_buffer(TX_HASH, &ETH_TX_HASH)?;
-        let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
         let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
         let chain_name = match Chain::from(chain_id).into_kind() {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
         };
-
         let progress_tx = progress_tx.clone();
+
+        let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
+        let contract_address = inputs.get_value(CONTRACT_ADDRESS);
+        if skip_confirmations {
+            let mut result = CommandExecutionResult::new();
+            if let Some(contract_address) = contract_address {
+                result
+                    .outputs
+                    .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+            }
+
+            let status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &construct_did,
+                &ProgressBarStatus {
+                    status_color: ProgressBarStatusColor::Green,
+                    status: format!("Confirmed"),
+                    message: format!(
+                        "Contract deployment transaction already confirmed on Chain {}",
+                        chain_name
+                    ),
+                    diagnostic: None,
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            return return_synchronous_result(Ok(result));
+        }
+
+        let tx_hash = inputs.get_expected_buffer(TX_HASH, &ETH_TX_HASH)?;
+        let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
+
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
 
         let tx_hash_str = hex::encode(tx_hash.bytes.clone());
