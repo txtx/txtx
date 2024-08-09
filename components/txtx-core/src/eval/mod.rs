@@ -691,6 +691,12 @@ pub async fn run_constructs_evaluation(
             }
         };
 
+        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
+            runbook_execution_context.execution_mode
+        {
+            executed_constructs.push(construct_did.clone());
+        }
+
         if command_instance
             .specification
             .implements_background_task_capability
@@ -715,19 +721,13 @@ pub async fn run_constructs_evaluation(
             pass_result
                 .pending_background_tasks_constructs_uuids
                 .push(construct_did.clone());
+        } else {
+            runbook_execution_context
+                .commands_execution_results
+                .entry(construct_did)
+                .or_insert_with(CommandExecutionResult::new)
+                .append(&mut execution_result);
         }
-
-        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
-            runbook_execution_context.execution_mode
-        {
-            executed_constructs.push(construct_did.clone());
-        }
-
-        runbook_execution_context
-            .commands_execution_results
-            .entry(construct_did)
-            .or_insert_with(CommandExecutionResult::new)
-            .append(&mut execution_result);
     }
     pass_result
 }
