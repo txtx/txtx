@@ -49,7 +49,7 @@ lazy_static! {
               },
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
-                  typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
                   interpolable: true
               },
@@ -61,7 +61,7 @@ lazy_static! {
               },
               function_args: {
                   documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(STACKS_CV_GENERIC.clone())),
+                  typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                   optional: true,
                   interpolable: true
               },
@@ -95,9 +95,15 @@ lazy_static! {
                 optional: true,
                 interpolable: true
               },
+              fee_strategy: {
+                documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
+              },
               post_conditions: {
                 documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
+                typing: Type::array(Type::addon(STACKS_POST_CONDITION)),
                 optional: true,
                 interpolable: true
               }

@@ -55,7 +55,7 @@ use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
-pub const DEFAULT_BINDING_ADDRESS: &str = "0.0.0.0";
+pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
@@ -474,7 +474,7 @@ pub async fn handle_run_command(
 
     let previous_state_opt =
         if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
-            match load_runbook_execution_snapshot(&state_file_location) {
+            match load_runbook_execution_snapshot(&state_file_location, true) {
                 Ok(snapshot) => Some(snapshot),
                 Err(e) => {
                     println!("{} {}", red!("x"), e);
@@ -708,9 +708,11 @@ pub async fn handle_run_command(
     }
 
     if cmd.explain {
+        for (location, _) in runbook.sources.tree.iter() {
+            println!("Loading {}", location);
+        }
         for running_context in runbook.running_contexts.iter_mut() {
             // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
-
             let sorted_commands = &running_context
                 .execution_context
                 .order_for_commands_execution;
@@ -1055,6 +1057,7 @@ pub async fn handle_run_command(
 
 pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
+    environment_selector: &Option<String>,
 ) -> Result<
     (
         WorkspaceManifest,
@@ -1064,7 +1067,7 @@ pub async fn load_runbooks_from_manifest(
 > {
     let manifest_location = FileLocation::from_path_string(manifest_path)?;
     let manifest = WorkspaceManifest::from_location(&manifest_location)?;
-    let runbooks = read_runbooks_from_manifest(&manifest, None)?;
+    let runbooks = read_runbooks_from_manifest(&manifest, environment_selector, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
     Ok((manifest, runbooks))
 }
@@ -1077,7 +1080,8 @@ pub async fn load_runbook_from_manifest(
     available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
-    let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
+    let (manifest, runbooks) =
+        load_runbooks_from_manifest(manifest_path, environment_selector).await?;
     // Select first runbook by default
     for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in
         runbooks.into_iter()
@@ -1115,7 +1119,7 @@ pub async fn load_runbook_from_file_path(
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
-        read_runbook_from_location(&location, &None)?;
+        read_runbook_from_location(&location, &None, &None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookInputsMap::new();

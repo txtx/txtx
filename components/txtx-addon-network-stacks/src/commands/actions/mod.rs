@@ -27,6 +27,7 @@ use clarity_repl::codec::{
 };
 use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
+use deploy_contract_requirement::DEPLOY_STACKS_CONTRACT_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
 use send_contract_call::SEND_CONTRACT_CALL;
 use send_stx::SEND_STX_TRANSFER;
@@ -43,6 +44,7 @@ lazy_static! {
         SIGN_STACKS_TRANSACTION.clone(),
         DECODE_STACKS_CONTRACT_CALL.clone(),
         DEPLOY_STACKS_CONTRACT.clone(),
+        DEPLOY_STACKS_CONTRACT_REQUIREMENT.clone(),
         ENCODE_STACKS_CONTRACT_CALL.clone(),
         BROADCAST_STACKS_TRANSACTION.clone(),
         CALL_READONLY_FN.clone(),

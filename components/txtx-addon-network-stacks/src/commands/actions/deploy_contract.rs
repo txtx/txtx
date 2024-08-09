@@ -118,7 +118,7 @@ lazy_static! {
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
-                    typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
+                    typing: Type::array(Type::addon(STACKS_POST_CONDITION)),
                     optional: true,
                     interpolable: true
                 },
@@ -158,6 +158,12 @@ lazy_static! {
                 contracts_ids_lazy_dependencies: {
                     documentation: "Contracts that are depending on this contract after their deployment.",
                     typing: Type::array(Type::string()),
+                    optional: true,
+                    interpolable: true
+                },
+                fee_strategy: {
+                    documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
+                    typing: Type::string(),
                     optional: true,
                     interpolable: true
                 }
@@ -511,7 +517,7 @@ impl CommandImplementation for StacksDeployContract {
             };
 
             let signed_transaction = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            let mut signed_transaction_bytes = signed_transaction.clone().expect_buffer_bytes();
+            let signed_transaction_bytes = signed_transaction.clone().expect_buffer_bytes();
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &signed_transaction_bytes[..])
                     .unwrap();

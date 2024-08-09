@@ -26,7 +26,7 @@ lazy_static! {
           inputs: [
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
-                  typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
                   interpolable: true
               },
@@ -38,7 +38,7 @@ lazy_static! {
               },
               function_args: {
                   documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(STACKS_CV_GENERIC.clone())),
+                  typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                   optional: true,
                   interpolable: true
               },

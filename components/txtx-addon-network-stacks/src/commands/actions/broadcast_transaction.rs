@@ -145,7 +145,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
         use crate::{
-            constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
+            constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID},
+            rpc::TransactionStatus,
+            stacks_helpers::txid_display_str,
         };
 
         let args = inputs.clone();
@@ -200,7 +202,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
             })?;
 
-            let backoff_ms = 5000;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
@@ -272,7 +278,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let mut block_height = 0;
             let mut included_in_block = u64::MAX - confirmations_required;
-            let backoff_ms = 500;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             loop {
                 progress = (progress + 1) % progress_symbol.len();

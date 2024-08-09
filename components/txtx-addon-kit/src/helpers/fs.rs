@@ -389,7 +389,10 @@ pub fn get_manifest_location(path: Option<String>) -> Option<FileLocation> {
     }
 }
 
-pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+pub fn get_txtx_files_paths(
+    dir: &str,
+    environment_selector: &Option<String>,
+) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let paths = std::fs::read_dir(dir)?
         .filter_map(|res| res.ok())
         .map(|dir_entry| dir_entry.path())
@@ -397,6 +400,27 @@ pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::erro
             if path.extension().map_or(false, |ext| {
                 ["tx", "txvars"].contains(&ext.to_str().unwrap())
             }) {
+                Some(path)
+            } else {
+                None
+            }
+        })
+        .filter_map(|path| {
+            if path
+                .file_name()
+                .map(|f| f.to_str().unwrap_or(""))
+                .map_or(false, |filename| {
+                    let comps = filename.split(".").collect::<Vec<_>>();
+                    if comps.len() > 2 {
+                        let Some(env) = environment_selector else {
+                            return false;
+                        };
+                        return comps[comps.len() - 2].eq(env);
+                    } else {
+                        return true;
+                    }
+                })
+            {
                 Some(path)
             } else {
                 None

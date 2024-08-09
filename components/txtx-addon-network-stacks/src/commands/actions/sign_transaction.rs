@@ -88,6 +88,12 @@ lazy_static! {
                 typing: Type::integer(),
                 optional: false,
                 interpolable: true
+            },
+            fee_strategy: {
+                documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true
             }
           ],
           outputs: [
@@ -164,6 +170,7 @@ impl CommandImplementation for SignStacksTransaction {
 
             let nonce = args.get_value("nonce").map(|v| v.expect_uint().unwrap());
             let fee = args.get_value("fee").map(|v| v.expect_uint().unwrap());
+            let fee_strategy = args.get_string("fee_strategy");
             let post_conditions = match args.get_value("post_conditions") {
                 Some(Value::Addon(v)) => vec![Value::Addon(v.clone())],
                 Some(Value::Array(data)) => *data.clone(),
@@ -174,6 +181,7 @@ impl CommandImplementation for SignStacksTransaction {
                 &signing_command_state,
                 &spec,
                 fee,
+                fee_strategy,
                 nonce,
                 post_conditions,
                 &args,
@@ -307,6 +315,7 @@ async fn build_unsigned_transaction(
     signing_command_state: &ValueStore,
     _spec: &CommandSpecification,
     fee: Option<u64>,
+    fee_strategy: Option<&str>,
     nonce: Option<u64>,
     post_conditions: Vec<Value>,
     args: &ValueStore,
@@ -353,9 +362,15 @@ async fn build_unsigned_transaction(
     let fee = match fee {
         Some(fee) => fee,
         None => {
+            let fee_strategy = match fee_strategy {
+                Some("low") => 0,
+                Some("medium") => 1,
+                Some("high") => 2,
+                _ => 1,
+            };
             let rpc = StacksRpc::new(&rpc_api_url);
             let fee = rpc
-                .estimate_transaction_fee(&transaction_payload, 1, &default_payload)
+                .estimate_transaction_fee(&transaction_payload, fee_strategy, &default_payload)
                 .await
                 .map_err(|e| {
                     diagnosed_error!("failure fetching fee estimation: {}", e.to_string())
@@ -365,7 +380,6 @@ async fn build_unsigned_transaction(
     };
 
     // Extract network_id
-    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let transaction_version = match network_id.as_str() {
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
@@ -446,9 +460,10 @@ async fn build_unsigned_transaction(
     let auth = TransactionAuth::Standard(spending_condition);
 
     let mut unsigned_tx = StacksTransaction::new(transaction_version, auth, transaction_payload);
-    if let TransactionVersion::Testnet = transaction_version {
-        unsigned_tx.chain_id = 0x80000000;
-    }
+    unsigned_tx.chain_id = match transaction_version {
+        TransactionVersion::Testnet => 0x80000000,
+        TransactionVersion::Mainnet => 0x00000001,
+    };
     unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
     for post_condition_bytes in post_conditions.iter() {
         let post_condition = match TransactionPostCondition::consensus_deserialize(

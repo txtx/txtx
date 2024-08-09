@@ -40,7 +40,7 @@ lazy_static! {
           inputs: [
               amount: {
                   documentation: "The amount of STX to send.",
-                  typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
                   interpolable: true
               },

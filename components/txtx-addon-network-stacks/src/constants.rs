@@ -21,6 +21,8 @@ pub const CACHED_NONCE: &str = "cached_nonce";
 pub const NETWORK_ID: &str = "network_id";
 pub const RPC_API_URL: &str = "rpc_api_url";
 
+pub const DEFAULT_DEVNET_BACKOFF: u64 = 500;
+pub const DEFAULT_MAINNET_BACKOFF: u64 = 10000;
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";

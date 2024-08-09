@@ -12,7 +12,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::RPC_API_URL;
+use crate::constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_URL};
 use crate::rpc::StacksRpc;
 use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
@@ -28,7 +28,7 @@ lazy_static! {
             inputs: [
                 contract_id: {
                     documentation: "The address and identifier of the contract to invoke.",
-                    typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
+                    typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     interpolable: true
                 },
@@ -40,7 +40,7 @@ lazy_static! {
                 },
                 function_args: {
                     documentation: "The function arguments for the contract call.",
-                    typing: Type::array(Type::addon(STACKS_CV_GENERIC.clone())),
+                    typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                     optional: true,
                     interpolable: true
                 },
@@ -124,6 +124,10 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         }
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err(diag),
+        };
 
         let sender = args
             .get_expected_string("sender")
@@ -134,7 +138,11 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
-            let backoff_ms = 5000;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;

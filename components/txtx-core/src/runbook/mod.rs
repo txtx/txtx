@@ -90,6 +90,7 @@ impl Runbook {
                 &inputs_sets,
                 &sources,
                 &running_context.execution_context,
+                &inputs_map.current,
             )?;
             // Step 2: identify and index all the constructs (nodes)
             running_context.workspace_context.build_from_sources(
@@ -97,6 +98,7 @@ impl Runbook {
                 &runtime_context,
                 &mut running_context.graph_context,
                 &mut running_context.execution_context,
+                &inputs_map.current,
             )?;
             // Step 3: simulate inputs evaluation - some more edges could be hidden in there
             running_context
