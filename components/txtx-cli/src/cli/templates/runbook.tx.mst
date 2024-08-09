@@ -15,7 +15,7 @@ input "step" {
   value = 1
 }
 
-action "increment_counter" "stacks::send_contract_call" {
+action "increment_counter" "stacks::call_contract" {
   description = "Increment counter contract of ${input.step}"
   contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.counter"
   function_name = "increment"

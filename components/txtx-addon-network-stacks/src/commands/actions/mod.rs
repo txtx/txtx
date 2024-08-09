@@ -1,10 +1,10 @@
 pub mod broadcast_transaction;
+mod call_contract;
 pub mod call_readonly_fn;
 mod decode_contract_call;
 mod deploy_contract;
 mod deploy_contract_requirement;
 pub mod encode_contract_call;
-mod send_contract_call;
 mod send_stx;
 pub mod sign_transaction;
 
@@ -14,6 +14,7 @@ use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use crate::stacks_helpers::parse_clarity_value;
 use crate::typing::StacksValue;
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
+use call_contract::SEND_CONTRACT_CALL;
 use call_readonly_fn::CALL_READONLY_FN;
 use clarity::codec::StacksMessageCodec;
 use clarity::vm::ClarityVersion;
@@ -29,7 +30,6 @@ use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
 use deploy_contract_requirement::DEPLOY_STACKS_CONTRACT_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
-use send_contract_call::SEND_CONTRACT_CALL;
 use send_stx::SEND_STX_TRANSFER;
 use sign_transaction::SIGN_STACKS_TRANSACTION;
 use txtx_addon_kit::types::{

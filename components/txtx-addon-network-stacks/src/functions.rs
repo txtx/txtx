@@ -292,7 +292,7 @@ lazy_static! {
                 name: "revert_if_account_sends_more_than",
                 documentation: "`stacks::revert_if_account_sends_more_than` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account sending more than the specified number of tokens. The default token is µSTX.",
                 example: indoc! {r#"
-                action "my_tx" "stacks::send_contract_call" {
+                action "my_tx" "stacks::call_contract" {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
@@ -324,7 +324,7 @@ lazy_static! {
                 name: "revert_if_account_not_sending_exactly",
                 documentation: "`stacks::revert_if_account_not_sending_exactly` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending exactly the specified number of tokens. The default token is µSTX.",
                 example: indoc! {r#"
-                action "my_tx" "stacks::send_contract_call" {
+                action "my_tx" "stacks::call_contract" {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
@@ -356,7 +356,7 @@ lazy_static! {
                 name: "revert_if_account_not_sending_at_least",
                 documentation: "`stacks::revert_if_account_not_sending_at_least` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account sending the minimum specified number of tokens. The default token is µSTX.",
                 example: indoc! {r#"
-                action "my_tx" "stacks::send_contract_call" {
+                action "my_tx" "stacks::call_contract" {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
@@ -388,7 +388,7 @@ lazy_static! {
                 name: "revert_if_nft_not_owned_by_account",
                 documentation: "`stacks::revert_if_nft_not_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction does not result in the specified account owning a specific NFT.",
                 example: indoc! {r#"
-                action "my_tx" "stacks::send_contract_call" {
+                action "my_tx" "stacks::call_contract" {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
@@ -426,7 +426,7 @@ lazy_static! {
                 name: "revert_if_nft_owned_by_account",
                 documentation: "`stacks::revert_if_nft_owned_by_account` returns a post condition that will cancel a successfully executed transaction if the transaction results in the specified account owning a specific NFT.",
                 example: indoc! {r#"
-                action "my_tx" "stacks::send_contract_call" {
+                action "my_tx" "stacks::call_contract" {
                     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
                     function_name = "some-function"
                     function_args = []
