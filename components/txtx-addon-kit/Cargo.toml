@@ -15,7 +15,7 @@ uuid = { version = "1.7.0", features = ["v4", "serde"] }
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
 rust-fsm = "0.6.2"
-reqwest = { version = "0.12.3", default-features = false, features = [
+reqwest = { version = "0.12.5", default-features = false, features = [
     "json",
     "rustls-tls",
 ]}
