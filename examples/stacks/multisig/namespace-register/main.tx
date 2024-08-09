@@ -3,7 +3,7 @@ runtime "stacks::defaults" {
     rpc_api_url = env.stacks_api_url
 }
 
-action "send_namespace_preorder" "stacks::send_contract_call" {
+action "send_namespace_preorder" "stacks::call_contract" {
   description = "Send Namespace Preorder transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-preorder"
@@ -23,7 +23,7 @@ action "send_namespace_preorder" "stacks::send_contract_call" {
   confirmations = 0
 }
 
-action "send_namespace_reveal" "stacks::send_contract_call" {
+action "send_namespace_reveal" "stacks::call_contract" {
   description = "Send Namespace Reveal ${input.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-reveal"
@@ -58,7 +58,7 @@ action "send_namespace_reveal" "stacks::send_contract_call" {
   depends_on = [action.send_namespace_preorder.tx_id]
 }
 
-action "send_namespace_ready" "stacks::send_contract_call" {
+action "send_namespace_ready" "stacks::call_contract" {
   description = "Send Namespace Ready ${input.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-ready"

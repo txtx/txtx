@@ -571,9 +571,9 @@ When the `call_readonly_fn` action is successfully executed, the following outpu
 ---
 
 
-## send_contract_call {{ tag: 'action' }}
+## call_contract {{ tag: 'action' }}
 
-The `send_contract_call` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.
+The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.
 
 ### Inputs
 
@@ -641,7 +641,7 @@ The `send_contract_call` action encodes a contract call transaction, signs the t
 
 <Note>
 
-When the `send_contract_call` action is successfully executed, the following outputs are attached to the action
+When the `call_contract` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -670,11 +670,11 @@ When the `send_contract_call` action is successfully executed, the following out
 
 </Properties>
 
-<CodeGroup title="Example using send_contract_call">
+<CodeGroup title="Example using call_contract">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "my_ref" "stacks::send_contract_call" {
+action "my_ref" "stacks::call_contract" {
     description = "Encodes the contract call, sign, and broadcasts the set-token function."
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
     function_name = "verify-and-update-price-feeds"
