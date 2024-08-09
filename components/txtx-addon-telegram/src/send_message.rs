@@ -90,7 +90,7 @@ impl CommandImplementation for TelegramSendMessage {
         let args = args.clone();
 
         let telegram_chat_id: i64 = args
-            .get_expected_uint("telegram_chat_id")?
+            .get_expected_integer("telegram_chat_id")?
             .try_into()
             .unwrap();
         let telegram_bot_api_token = args

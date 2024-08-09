@@ -36,7 +36,7 @@ action "artifacts" "evm::get_forge_deployment_artifacts" {
     chain_id = env.evm_chain_id
 }
 
-action "deploy_simple_storage" "evm::sign_contract_deploy" {
+action "deploy_simple_storage" "evm::deploy_contract" {
     description = "Deploy SimpleStorage"
     from = wallet.alice
     init_code = action.artifacts.init_code
@@ -64,7 +64,7 @@ action "artifacts_another" "evm::get_forge_deployment_artifacts" {
     chain_id = env.evm_chain_id
 }
 
-action "deploy_another" "evm::sign_contract_deploy" {
+action "deploy_another" "evm::deploy_contract" {
     description = "Deploy Another"
     from = wallet.alice
     init_code = action.artifacts_another.init_code

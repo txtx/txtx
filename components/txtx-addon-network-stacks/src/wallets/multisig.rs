@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecification};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
-use crate::typing::STACKS_TRANSACTION;
+use crate::typing::{StacksValue, STACKS_TRANSACTION};
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
@@ -368,7 +368,7 @@ impl WalletImplementation for StacksConnect {
                 "mainnet" => AddressHashMode::SerializeP2SH.to_version_mainnet(),
                 _ => AddressHashMode::SerializeP2SH.to_version_testnet(),
             };
-            signing_command_state.insert("hash_flag", Value::uint(version.into()));
+            signing_command_state.insert("hash_flag", Value::integer(version.into()));
             signing_command_state.insert("multi_sig", Value::bool(true));
             signing_command_state.insert("signers", Value::array(signers_uuids.clone()));
 
@@ -423,9 +423,9 @@ impl WalletImplementation for StacksConnect {
         }
 
         let mut payload = args
-            .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_SIGNATURE)
+            .get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)
             .ok()
-            .and_then(|buff| Some(Value::buffer(buff.bytes, buff.typing)))
+            .and_then(|buff| Some(Value::buffer(buff)))
             .unwrap_or(payload.clone());
         let mut all_signed = true;
         for (signer_uuid, signer_wallet_instance) in signers.into_iter() {
@@ -457,19 +457,19 @@ impl WalletImplementation for StacksConnect {
 
         if all_signed {
             let signed_buff = args
-                .get_expected_buffer(SIGNED_TRANSACTION_BYTES, &STACKS_TRANSACTION)
+                .get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)
                 .unwrap();
             let transaction =
-                StacksTransaction::consensus_deserialize(&mut &signed_buff.bytes[..]).unwrap();
+                StacksTransaction::consensus_deserialize(&mut &signed_buff[..]).unwrap();
             transaction.verify().unwrap();
 
             let nonce = transaction.get_origin_nonce();
-            signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
+            signing_command_state.insert(CACHED_NONCE, Value::integer(nonce.into()));
 
             signing_command_state.insert_scoped_value(
                 &origin_uuid.value().to_string(),
                 SIGNED_TRANSACTION_BYTES,
-                Value::string(txtx_addon_kit::hex::encode(signed_buff.bytes)),
+                Value::string(txtx_addon_kit::hex::encode(signed_buff)),
             );
             // we know that there are no pending actions because we're in all_signed,
             // so we don't want to include the actions to open the modal
@@ -545,7 +545,7 @@ impl WalletImplementation for StacksConnect {
                     .pop_signing_command_state(&signing_construct_did)
                     .unwrap();
 
-                let payload = Value::buffer(
+                let payload = StacksValue::signature(
                     TransactionSpendingCondition::make_sighash_presign(
                         &presign_input,
                         &TransactionAuthFlags::AuthStandard,
@@ -554,7 +554,6 @@ impl WalletImplementation for StacksConnect {
                     )
                     .to_bytes()
                     .to_vec(),
-                    STACKS_SIGNATURE.clone(),
                 );
 
                 let future = (wallet_instance.specification.sign)(

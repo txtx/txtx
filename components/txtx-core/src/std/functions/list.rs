@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{PrimitiveValue, Type, Value},
+        types::{Type, Value},
     },
 };
 
@@ -22,11 +22,11 @@ lazy_static! {
             inputs: [
                 list: {
                     documentation: "The list to retrieve an entry from.",
-                    typing: vec![Type::string(), Type::uint(), Type::int()] // todo: needs to be any
+                    typing: vec![Type::array(Type::string()), Type::array(Type::integer()), Type::array(Type::buffer())] // todo: needs to be any
                 },
                 index: {
                     documentation: "The index of the entry to retrieve.",
-                    typing: vec![Type::uint()]
+                    typing: vec![Type::integer()]
                 }
             ],
             output: {
@@ -55,7 +55,7 @@ impl FunctionImplementation for Index {
         let Value::Array(list) = args.get(0).unwrap() else {
             panic!("index function requires list for first input")
         };
-        let Value::Primitive(PrimitiveValue::UnsignedInteger(index)) = args.get(1).unwrap() else {
+        let Value::Integer(index) = args.get(1).unwrap() else {
             panic!("index function requires uint for second input")
         };
         match list.get(*index as usize) {

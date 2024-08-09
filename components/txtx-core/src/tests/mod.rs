@@ -318,7 +318,7 @@ fn test_ab_c_runbook_no_env() {
         harness.send(&ActionItemResponse {
             action_item_id: input_b_action.id.clone(),
             payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
-                updated_value: Value::uint(5),
+                updated_value: Value::integer(5),
                 input_name: "default".into(),
             }),
         });

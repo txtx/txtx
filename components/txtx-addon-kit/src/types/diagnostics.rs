@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Range};
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -10,6 +10,16 @@ pub struct DiagnosticSpan {
     pub line_end: u32,
     pub column_start: u32,
     pub column_end: u32,
+}
+impl DiagnosticSpan {
+    pub fn new() -> Self {
+        DiagnosticSpan {
+            line_start: 0,
+            line_end: 0,
+            column_start: 0,
+            column_end: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -32,6 +42,7 @@ impl Display for DiagnosticLevel {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Diagnostic {
     pub span: Option<DiagnosticSpan>,
+    span_range: Option<Range<usize>>,
     pub location: Option<FileLocation>,
     pub message: String,
     pub level: DiagnosticLevel,
@@ -68,6 +79,7 @@ impl Diagnostic {
     pub fn error_from_string(message: String) -> Diagnostic {
         Diagnostic {
             span: None,
+            span_range: None,
             location: None,
             message,
             level: DiagnosticLevel::Error,
@@ -79,6 +91,7 @@ impl Diagnostic {
     pub fn warning_from_string(message: String) -> Diagnostic {
         Diagnostic {
             span: None,
+            span_range: None,
             location: None,
             message,
             level: DiagnosticLevel::Warning,
@@ -90,6 +103,7 @@ impl Diagnostic {
     pub fn note_from_string(message: String) -> Diagnostic {
         Diagnostic {
             span: None,
+            span_range: None,
             location: None,
             message,
             level: DiagnosticLevel::Note,
@@ -111,10 +125,27 @@ impl Diagnostic {
             false
         }
     }
+
+    pub fn set_span_range(mut self, span: Option<Range<usize>>) -> Self {
+        self.span_range = span;
+        self
+    }
+    pub fn span_range(&self) -> Option<Range<usize>> {
+        self.span_range.clone()
+    }
 }
 
 impl Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.level, self.message)
+        let mut msg = String::new();
+        if let Some(location) = &self.location {
+            let absolute = location.to_string().replace("./", "");
+            msg = format!("{} at {}", self.level, absolute);
+        }
+        if let Some(span) = &self.span {
+            msg = format!("{}:{}:{}", msg, span.line_start, span.column_start);
+        }
+        msg = format!("{}\n\t{}: {}", msg, self.level, self.message);
+        write!(f, "{}", msg)
     }
 }

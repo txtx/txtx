@@ -12,10 +12,10 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::RPC_API_URL;
+use crate::constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_URL};
 use crate::rpc::StacksRpc;
 use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
-use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
+use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 lazy_static! {
     pub static ref CALL_READONLY_FN: PreCommandSpecification = define_command! {
@@ -28,7 +28,7 @@ lazy_static! {
             inputs: [
                 contract_id: {
                     documentation: "The address and identifier of the contract to invoke.",
-                    typing: Type::addon(CLARITY_PRINCIPAL.clone()),
+                    typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     interpolable: true
                 },
@@ -40,7 +40,7 @@ lazy_static! {
                 },
                 function_args: {
                     documentation: "The function arguments for the contract call.",
-                    typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
+                    typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                     optional: true,
                     interpolable: true
                 },
@@ -58,15 +58,9 @@ lazy_static! {
                 },
                 block_height: {
                     documentation: "Coming soon.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
-                },
-                depends_on: {
-                  documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
                 }
             ],
             outputs: [
@@ -118,18 +112,22 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         let function_args_values = args.get_expected_array("function_args")?.clone();
         let mut function_args = vec![];
         for arg_value in function_args_values.iter() {
-            let Some(buffer) = arg_value.as_buffer_data() else {
+            let Some(data) = arg_value.as_addon_data() else {
                 return Err(diagnosed_error!(
                     "function '{}': expected array, got {:?}",
                     spec.matcher,
                     arg_value
                 ));
             };
-            let arg = parse_clarity_value(&buffer.bytes, &buffer.typing)?;
+            let arg = parse_clarity_value(&data.bytes, &data.id)?;
             function_args.push(arg);
         }
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err(diag),
+        };
 
         let sender = args
             .get_expected_string("sender")
@@ -140,7 +138,11 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
-            let backoff_ms = 5000;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;

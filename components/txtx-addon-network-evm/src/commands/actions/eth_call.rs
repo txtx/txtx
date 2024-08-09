@@ -15,7 +15,7 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
 use crate::rpc::EVMRpc;
-use crate::typing::ETH_ADDRESS;
+use crate::typing::EVM_ADDRESS;
 
 lazy_static! {
     pub static ref ETH_CALL: PreCommandSpecification = define_command! {
@@ -40,17 +40,17 @@ lazy_static! {
             },
             contract_address: {
                 documentation: "The address of the contract being called.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: false,
                 interpolable: true
             },
             contract_abi: {
                 documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: true,
                 interpolable: true
             },
-            from: {
+            signer: {
                 documentation: "The address that will be used as the sender of this contract call.",
                 typing: Type::string(),
                 optional: false,
@@ -59,7 +59,7 @@ lazy_static! {
             function_name: {
                 documentation: "The contract function to call.",
                 typing: Type::string(),
-                optional: false,
+                optional: true,
                 interpolable: true
             },
             function_args: {
@@ -70,7 +70,7 @@ lazy_static! {
             },
             amount: {
                 documentation: "The amount, in Wei, to send in the transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -82,13 +82,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -100,33 +100,21 @@ lazy_static! {
             },
             nonce: {
                 documentation: "The account nonce of the sender. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
-            },
-            // network_id: {
-            //     documentation: "The network id.",
-            //     typing: Type::string(),
-            //     optional: true,
-            //     interpolable: true
-            // },
-            depends_on: {
-              documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true
             }
           ],
           outputs: [
@@ -196,17 +184,20 @@ async fn build_eth_call(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<Value, Diagnostic> {
-    use alloy::{contract::Interface, json_abi::JsonAbi};
-
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
             TransactionType,
         },
+        commands::actions::{
+            get_common_tx_params_from_args,
+            sign_contract_call::{
+                encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+            },
+        },
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_FROM,
-            TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, SIGNER, TRANSACTION_TYPE,
         },
     };
 
@@ -215,48 +206,43 @@ async fn build_eth_call(
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let contract_address: &Value = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let from = args.get_expected_value(TRANSACTION_FROM)?;
+    let from = args.get_expected_value(SIGNER)?;
     let contract_abi = args.get_string(CONTRACT_ABI);
-    let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = args
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| {
-                    value_to_sol_value(&v)
-                        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
-                })
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
+    let function_name = args.get_string(CONTRACT_FUNCTION_NAME);
+    let function_args = args.get_value(CONTRACT_FUNCTION_ARGS);
 
-    let amount = args
-        .get_value(TRANSACTION_AMOUNT)
-        .map(|v| v.expect_uint())
-        .unwrap_or(0);
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
-    let input = if let Some(abi_str) = contract_abi {
-        let abi: JsonAbi = serde_json::from_str(&abi_str)
-            .map_err(|e| diagnosed_error!("command 'eth_call': invalid contract abi: {}", e))?;
+    let input = if let Some(function_name) = function_name {
+        let function_args: Vec<DynSolValue> = function_args
+            .map(|v| {
+                v.expect_array()
+                    .iter()
+                    .map(|v| {
+                        value_to_sol_value(&v)
+                            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
+                    })
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+            })
+            .unwrap_or(Ok(vec![]))?;
 
-        let interface = Interface::new(abi);
-        interface
-            .encode_input(function_name, &function_args)
-            .map_err(|e| {
-                diagnosed_error!("command 'eth_call': failed to encode contract inputs: {e}")
-            })?
+        if let Some(abi_str) = contract_abi {
+            encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+        } else {
+            encode_contract_call_inputs_from_selector(function_name, &function_args)
+                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+        }
     } else {
+        // todo(hack): assume yul contract if no function name
         function_args
-            .iter()
-            .flat_map(|v| v.abi_encode_params())
-            .collect()
+            .and_then(|a| Some(a.expect_buffer_bytes()))
+            .unwrap_or(vec![])
     };
 
     let common = CommonTransactionFields {
@@ -272,7 +258,7 @@ async fn build_eth_call(
     };
     let tx = build_unsigned_transaction(rpc.clone(), args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::eth_call': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
 
     let call_result = rpc
         .call(&tx)

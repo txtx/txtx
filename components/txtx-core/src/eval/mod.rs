@@ -1,14 +1,15 @@
 use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
-use crate::types::RunbookExecutionContext;
+use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
+use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::wallets::SigningCommandsState;
-use kit::types::PackageId;
+use kit::types::{ConstructId, PackageId};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
 use txtx_addon_kit::{
@@ -20,7 +21,7 @@ use txtx_addon_kit::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::Diagnostic,
         frontend::{ActionItemRequest, ActionItemStatus},
-        types::{PrimitiveValue, Value},
+        types::Value,
         wallets::WalletInstance,
         ConstructDid,
     },
@@ -57,6 +58,8 @@ pub async fn run_wallets_evaluation(
             command.package_id.clone()
         };
 
+        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
+
         let instantiated =
             runbook_execution_context.is_signing_command_instantiated(&construct_did);
 
@@ -92,7 +95,7 @@ pub async fn run_wallets_evaluation(
                                         .insert(dependency, Ok(evaluation_result));
                                 }
                                 Some(Err(diag)) => {
-                                    pass_result.diagnostics.push((*diag).clone());
+                                    pass_result.push_diagnostic(diag, construct_id);
                                     continue;
                                 }
                                 Some(Ok(_)) => {}
@@ -128,13 +131,13 @@ pub async fn run_wallets_evaluation(
                 CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
                     continue;
                 }
-                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                CommandInputEvaluationStatus::Aborted(_, diags) => {
+                    pass_result.append_diagnostics(diags, construct_id);
                     continue;
                 }
             },
-            Err(mut diags) => {
-                pass_result.diagnostics.append(&mut diags);
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, construct_id);
                 return pass_result;
             }
         };
@@ -185,7 +188,7 @@ pub async fn run_wallets_evaluation(
                         pass_result.actions.push_action_item_update(update);
                     }
                 }
-                pass_result.diagnostics.push(diag.clone());
+                pass_result.push_diagnostic(&diag, construct_id);
                 return pass_result;
             }
         };
@@ -209,7 +212,7 @@ pub async fn run_wallets_evaluation(
             Ok((signing_commands_state, result)) => (Some(result), Some(signing_commands_state)),
             Err((signing_commands_state, diag)) => {
                 runbook_execution_context.signing_commands_state = Some(signing_commands_state);
-                pass_result.diagnostics.push(diag);
+                pass_result.push_diagnostic(&diag, construct_id);
                 return pass_result;
             }
         };
@@ -227,7 +230,7 @@ pub async fn run_wallets_evaluation(
 
 pub struct EvaluationPassResult {
     pub actions: Actions,
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
     pub pending_background_tasks_futures: Vec<CommandExecutionFuture>,
     pub pending_background_tasks_constructs_uuids: Vec<ConstructDid>,
     pub background_tasks_uuid: Uuid,
@@ -253,6 +256,86 @@ impl EvaluationPassResult {
             visible: true,
             panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&self.diagnostics)),
         })
+    }
+
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        self.diagnostics.clone()
+    }
+    pub fn has_diagnostics(&self) -> bool {
+        !self.diagnostics.is_empty()
+    }
+
+    pub fn push_diagnostic(&mut self, diag: &Diagnostic, construct_id: &ConstructId) {
+        self.diagnostics
+            .push(diag.clone().location(&construct_id.construct_location))
+    }
+
+    pub fn append_diagnostics(&mut self, diags: Vec<Diagnostic>, construct_id: &ConstructId) {
+        diags
+            .iter()
+            .for_each(|diag| self.push_diagnostic(diag, construct_id))
+    }
+
+    pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
+        for diag in self.diagnostics.iter_mut() {
+            let Some(construct_location) = &diag.location else {
+                continue;
+            };
+            let Some(span_range) = &diag.span_range() else {
+                continue;
+            };
+
+            let Some((_, (_, raw_content))) = runbook_sources
+                .tree
+                .iter()
+                .find(|(location, _)| location.eq(&construct_location))
+            else {
+                unimplemented!();
+            };
+            let mut bytes = vec![0u8; 2 * raw_content.len()];
+            txtx_addon_kit::hex::encode_to_slice(raw_content, &mut bytes).unwrap();
+            let mut lines = 1;
+            let mut cols = 1;
+            let mut span = DiagnosticSpan::new();
+
+            let mut chars = raw_content.chars().enumerate().peekable();
+            while let Some((i, ch)) = chars.next() {
+                if i == span_range.start {
+                    span.line_start = lines;
+                    span.column_start = cols;
+                }
+                if i == span_range.end {
+                    span.line_end = lines;
+                    span.column_end = cols;
+                }
+                match ch {
+                    '\n' => {
+                        lines += 1;
+                        cols = 1;
+                    }
+                    '\r' => {
+                        // check for \r\n
+                        if let Some((_, '\n')) = chars.peek() {
+                            // Skip the next character
+                            chars.next();
+                            lines += 1;
+                            cols = 1;
+                        } else {
+                            cols += 1;
+                        }
+                    }
+                    _ => {
+                        cols += 1;
+                    }
+                }
+            }
+            diag.span = Some(span)
+        }
+    }
+
+    pub fn with_spans_filled(mut self, runbook_sources: &RunbookSources) -> Vec<Diagnostic> {
+        self.fill_diagnostic_span(runbook_sources);
+        self.diagnostics()
     }
 }
 
@@ -352,6 +435,7 @@ pub async fn run_constructs_evaluation(
         }
 
         let package_id = command_instance.package_id.clone();
+        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
 
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
         let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
@@ -426,13 +510,13 @@ pub async fn run_constructs_evaluation(
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
                 CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
-                CommandInputEvaluationStatus::Aborted(_, mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                CommandInputEvaluationStatus::Aborted(_, diags) => {
+                    pass_result.append_diagnostics(diags, construct_id);
                     return pass_result;
                 }
             },
-            Err(mut diags) => {
-                pass_result.diagnostics.append(&mut diags);
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, construct_id);
                 return pass_result;
             }
         };
@@ -479,7 +563,7 @@ pub async fn run_constructs_evaluation(
                     updated_wallets
                 }
                 Err((updated_wallets, diag)) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, construct_id);
                     runbook_execution_context.signing_commands_state = Some(updated_wallets);
                     return pass_result;
                 }
@@ -553,7 +637,7 @@ pub async fn run_constructs_evaluation(
                     pass_result.actions.append(&mut new_actions);
                 }
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, construct_id);
                     return pass_result;
                 }
             }
@@ -602,10 +686,16 @@ pub async fn run_constructs_evaluation(
         let mut execution_result = match execution_result {
             Ok(res) => res,
             Err(diag) => {
-                pass_result.diagnostics.push(diag);
+                pass_result.push_diagnostic(&diag, construct_id);
                 continue;
             }
         };
+
+        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
+            runbook_execution_context.execution_mode
+        {
+            executed_constructs.push(construct_did.clone());
+        }
 
         if command_instance
             .specification
@@ -631,19 +721,13 @@ pub async fn run_constructs_evaluation(
             pass_result
                 .pending_background_tasks_constructs_uuids
                 .push(construct_did.clone());
+        } else {
+            runbook_execution_context
+                .commands_execution_results
+                .entry(construct_did)
+                .or_insert_with(CommandExecutionResult::new)
+                .append(&mut execution_result);
         }
-
-        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
-            runbook_execution_context.execution_mode
-        {
-            executed_constructs.push(construct_did.clone());
-        }
-
-        runbook_execution_context
-            .commands_execution_results
-            .entry(construct_did)
-            .or_insert_with(CommandExecutionResult::new)
-            .append(&mut execution_result);
     }
     pass_result
 }
@@ -683,8 +767,8 @@ pub fn eval_expression(
                 formatted_number.value().as_i64(),
                 formatted_number.value().as_f64(),
             ) {
-                (Some(value), _, _) => Value::uint(value),
-                (_, Some(value), _) => Value::int(value),
+                (Some(value), _, _) => Value::integer(value.into()),
+                (_, Some(value), _) => Value::integer(value.into()),
                 (_, _, Some(value)) => Value::float(value),
                 (None, None, None) => unreachable!(), // todo(lgalabru): return Diagnostic
             }
@@ -730,11 +814,8 @@ pub fn eval_expression(
                             runtime_context,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => match result {
-                                Value::Primitive(PrimitiveValue::String(result)) => result,
-                                Value::Primitive(_)
-                                | Value::Addon(_)
-                                | Value::Array(_)
-                                | Value::Object(_) => {
+                                Value::String(result) => result,
+                                _ => {
                                     return Ok(ExpressionEvaluationStatus::CompleteErr(
                                         Diagnostic::error_from_string(
                                             "object key must evaluate to a string".to_string(),
@@ -760,8 +841,10 @@ pub fn eval_expression(
                     runbook_execution_context,
                     runtime_context,
                 )? {
-                    ExpressionEvaluationStatus::CompleteOk(result) => Ok(result),
-                    ExpressionEvaluationStatus::CompleteErr(e) => Err(e),
+                    ExpressionEvaluationStatus::CompleteOk(result) => result,
+                    ExpressionEvaluationStatus::CompleteErr(e) => {
+                        return Ok(ExpressionEvaluationStatus::CompleteErr(e))
+                    }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
                         return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                     }
@@ -856,13 +939,23 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let Ok(Some((dependency, mut components, mut subpath))) = runbook_workspace_context
+            let (dependency, mut components, mut subpath) = match runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
-            else {
-                return Err(diagnosed_error!(
-                    "unable to resolve expression '{}'",
-                    expr.to_string().trim()
-                ));
+            {
+                Ok(Some(res)) => res,
+                Ok(None) => {
+                    return Err(diagnosed_error!(
+                        "unable to resolve expression '{}'",
+                        expr.to_string().trim()
+                    ));
+                }
+                Err(e) => {
+                    return Err(diagnosed_error!(
+                        "unable to resolve expression '{}': {}",
+                        expr.to_string().trim(),
+                        e
+                    ))
+                }
             };
 
             let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
@@ -881,22 +974,15 @@ pub fn eval_expression(
             };
 
             let attribute = components.pop_front().unwrap_or("value".into());
-
-            match res.outputs.get(&attribute) {
+            // this is a bit hacky. in some cases, our outputs are nested in a "value", but we don't want the user
+            // to have to provide it. if that's the case, the above line consumed an attribute we want to use and
+            // didn't actually use the default "value" key. so if fetching the provided attribute key yields no
+            // results, fetch "value", and add our attribute back to the list of components
+            match res.outputs.get(&attribute).or(res.outputs.get("value")) {
                 Some(output) => {
-                    if let Some(ref object) = output.as_object() {
-                        if let Some(key) = subpath.pop_front() {
-                            object
-                                .get(&key.to_string())
-                                .as_ref()
-                                .clone()
-                                .unwrap()
-                                .as_ref()
-                                .unwrap()
-                                .clone()
-                        } else {
-                            output.clone()
-                        }
+                    if let Some(_) = output.as_object() {
+                        components.push_front(attribute);
+                        output.get_keys_from_object(components)?
                     } else {
                         output.clone()
                     }
@@ -961,7 +1047,7 @@ pub fn eval_expression(
             let func = match &binary_op.operator.value() {
                 BinaryOperator::And => "and_bool",
                 BinaryOperator::Div => match rhs {
-                    Value::Primitive(PrimitiveValue::SignedInteger(_)) => "div_int",
+                    Value::Integer(_) => "div_int",
                     _ => "div_uint",
                 },
                 BinaryOperator::Eq => "eq",
@@ -1189,7 +1275,7 @@ pub fn perform_inputs_evaluation(
                             }
                         }
                         v => {
-                            object_values.insert(prop.name.to_string(), Ok(v));
+                            object_values.insert(prop.name.to_string(), v);
                         }
                     };
                 }
@@ -1208,33 +1294,35 @@ pub fn perform_inputs_evaluation(
                     runbook_execution_context,
                     runtime_context,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
                         continue;
                     }
                 };
 
-                if let Err(ref diag) = value {
-                    diags.push(diag.clone());
-                    if diag.is_error() {
-                        fatal_error = true;
-                    }
-                }
-
                 match value.clone() {
-                    Ok(Value::Object(obj)) => {
+                    Value::Object(obj) => {
                         for (k, v) in obj.into_iter() {
                             object_values.insert(k, v);
                         }
                     }
-                    Ok(v) => {
-                        object_values.insert(prop.name.to_string(), Ok(v));
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
+                    v => {
+                        object_values.insert(prop.name.to_string(), v);
                     }
                 };
             }
@@ -1249,7 +1337,7 @@ pub fn perform_inputs_evaluation(
                     Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
+                    _ => {
                         unreachable!()
                     }
                 }
@@ -1269,13 +1357,13 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
                     Value::Addon(_) => unreachable!(),
                     Value::Object(_) => unreachable!(),
-                    Value::Primitive(_) => result,
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
                         Value::array(array_values)
                     }
+                    _ => result,
                 },
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
                     if e.is_error() {
@@ -1429,7 +1517,7 @@ pub fn perform_wallet_inputs_evaluation(
                             }
                         }
                         v => {
-                            object_values.insert(prop.name.to_string(), Ok(v));
+                            object_values.insert(prop.name.to_string(), v);
                         }
                     };
                 }
@@ -1447,33 +1535,35 @@ pub fn perform_wallet_inputs_evaluation(
                     runbook_execution_context,
                     runtime_context,
                 ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => Ok(result),
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => Err(e),
-                    Err(e) => Err(e),
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            fatal_error = true;
+                        }
+                        diags.push(e);
+                        continue;
+                    }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
                         continue;
                     }
                 };
 
-                if let Err(ref diag) = value {
-                    diags.push(diag.clone());
-                    if diag.is_error() {
-                        fatal_error = true;
-                    }
-                }
-
                 match value.clone() {
-                    Ok(Value::Object(obj)) => {
+                    Value::Object(obj) => {
                         for (k, v) in obj.into_iter() {
                             object_values.insert(k, v);
                         }
                     }
-                    Ok(v) => {
-                        object_values.insert(prop.name.to_string(), Ok(v));
-                    }
-                    Err(diag) => {
-                        object_values.insert(prop.name.to_string(), Err(diag));
+                    v => {
+                        object_values.insert(prop.name.to_string(), v);
                     }
                 };
             }
@@ -1487,7 +1577,7 @@ pub fn perform_wallet_inputs_evaluation(
                     Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
+                    _ => {
                         unreachable!()
                     }
                 }
@@ -1505,13 +1595,13 @@ pub fn perform_wallet_inputs_evaluation(
                 runtime_context,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
                         Value::array(array_values)
                     }
+                    _ => unreachable!(),
                 },
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
                     if e.is_error() {

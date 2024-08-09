@@ -14,9 +14,10 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
+use crate::typing::StacksValue;
+
 use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
 use crate::rpc::StacksRpc;
-use crate::typing::{CLARITY_BUFFER, CLARITY_VALUE};
 
 lazy_static! {
     pub static ref BROADCAST_STACKS_TRANSACTION: PreCommandSpecification = define_command! {
@@ -41,7 +42,7 @@ lazy_static! {
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 }
@@ -144,7 +145,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
         use crate::{
-            constants::NETWORK_ID, rpc::TransactionStatus, stacks_helpers::txid_display_str,
+            constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID},
+            rpc::TransactionStatus,
+            stacks_helpers::txid_display_str,
         };
 
         let args = inputs.clone();
@@ -153,17 +156,16 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
-        let confirmations_required = args
-            .get_expected_uint("confirmations")
-            .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as u64;
+        let confirmations_required =
+            args.get_expected_integer("confirmations")
+                .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER as i128) as u64;
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err(diag),
         };
 
-        let transaction_bytes =
-            args.get_expected_buffer(SIGNED_TRANSACTION_BYTES, &CLARITY_BUFFER)?;
+        let transaction_bytes = args.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)?;
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
         let progress_tx = progress_tx.clone();
@@ -191,7 +193,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
             let mut s = String::from("0x");
             s.write_str(
                 &transaction_bytes
-                    .bytes
                     .clone()
                     .iter()
                     .map(|b| format!("{:02X}", b))
@@ -201,13 +202,17 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
             })?;
 
-            let backoff_ms = 5000;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             let client = StacksRpc::new(&rpc_api_url);
             let mut retry_count = 4;
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();
-                match client.post_transaction(&transaction_bytes.bytes).await {
+                match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
                     Err(e) => {
                         retry_count -= 1;
@@ -225,14 +230,14 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
-                            "Failed to broadcast Stacks transaction",
+                            "unable to broadcast Stacks transaction",
                             &diagnosed_error!("{}", e),
                         ));
                         let _ = progress_tx
                             .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
                         return Err(Diagnostic::error_from_string(format!(
-                            "Failed to broadcast Stacks transaction: {}",
+                            "unable to broadcast Stacks transaction ({})",
                             e,
                         )));
                     }
@@ -273,7 +278,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let mut block_height = 0;
             let mut included_in_block = u64::MAX - confirmations_required;
-            let backoff_ms = 500;
+            let backoff_ms = if network_id.eq("devnet") {
+                DEFAULT_DEVNET_BACKOFF
+            } else {
+                DEFAULT_MAINNET_BACKOFF
+            };
 
             loop {
                 progress = (progress + 1) % progress_symbol.len();
@@ -307,7 +316,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                             continue;
                         }
                         let diag = Diagnostic::error_from_string(format!(
-                            "Failed to broadcast stacks transaction: {e}"
+                            "unable to broadcast Stacks transaction - {e}"
                         ));
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
@@ -348,7 +357,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                 let tx_details_result = client.get_tx(&txid).await.map_err(|e| {
                     Diagnostic::error_from_string(format!(
-                        "Failed to broadcast stacks transaction: {e}"
+                        "unable to broadcast Stacks transaction - {e}"
                     ))
                 });
 
@@ -372,7 +381,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                                 .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                             result.outputs.insert(
                                 "result".into(),
-                                Value::buffer(tx_result_bytes, CLARITY_VALUE.clone()),
+                                StacksValue::generic_clarity_value(tx_result_bytes),
                             );
                             included_in_block = tx_details.block_height;
                         }

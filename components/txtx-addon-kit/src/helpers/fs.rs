@@ -131,8 +131,13 @@ impl FileLocation {
 
     pub fn read_content_as_utf8(&self) -> Result<String, String> {
         let content = self.read_content()?;
-        let contract_as_utf8 = String::from_utf8(content)
-            .map_err(|e| format!("unable to read content as utf8 {}\n{:?}", self, e))?;
+        let contract_as_utf8 = String::from_utf8(content).map_err(|e| {
+            format!(
+                "unable to read content from {} as utf8 ({})",
+                self,
+                e.to_string()
+            )
+        })?;
         Ok(contract_as_utf8)
     }
 
@@ -140,12 +145,12 @@ impl FileLocation {
         use std::fs::File;
         use std::io::{BufReader, Read};
         let file = File::open(path)
-            .map_err(|e| format!("unable to read file {}\n{:?}", path.display(), e))?;
+            .map_err(|e| format!("unable to read file {} ({})", path.display(), e.to_string()))?;
         let mut file_reader = BufReader::new(file);
         let mut file_buffer = vec![];
         file_reader
             .read_to_end(&mut file_buffer)
-            .map_err(|e| format!("unable to read file {}\n{:?}", path.display(), e))?;
+            .map_err(|e| format!("unable to read file {} ({})", path.display(), e.to_string()))?;
         Ok(file_buffer)
     }
 
@@ -384,7 +389,10 @@ pub fn get_manifest_location(path: Option<String>) -> Option<FileLocation> {
     }
 }
 
-pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+pub fn get_txtx_files_paths(
+    dir: &str,
+    environment_selector: &Option<String>,
+) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let paths = std::fs::read_dir(dir)?
         .filter_map(|res| res.ok())
         .map(|dir_entry| dir_entry.path())
@@ -397,6 +405,34 @@ pub fn get_txtx_files_paths(dir: &str) -> Result<Vec<PathBuf>, Box<dyn std::erro
                 None
             }
         })
+        .filter_map(|path| {
+            if path
+                .file_name()
+                .map(|f| f.to_str().unwrap_or(""))
+                .map_or(false, |filename| {
+                    let comps = filename.split(".").collect::<Vec<_>>();
+                    if comps.len() > 2 {
+                        let Some(env) = environment_selector else {
+                            return false;
+                        };
+                        return comps[comps.len() - 2].eq(env);
+                    } else {
+                        return true;
+                    }
+                })
+            {
+                Some(path)
+            } else {
+                None
+            }
+        })
         .collect::<Vec<_>>();
     Ok(paths)
+}
+
+fn format_err(e: std::io::Error) -> String {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => "not found".into(),
+        _ => e.to_string(),
+    }
 }

@@ -17,7 +17,7 @@ use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 
 lazy_static! {
     pub static ref CHECK_CONFIRMATIONS: PreCommandSpecification = define_command! {
-        CheckConfirmations => {
+        CheckEVMConfirmations => {
             name: "Check Transaction Confirmations",
             matcher: "check_confirmations",
             documentation: "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
@@ -36,9 +36,15 @@ lazy_static! {
                   optional: false,
                   interpolable: true
                 },
+                chain_id: {
+                  documentation: "Coming soon",
+                  typing: Type::integer(),
+                  optional: false,
+                  interpolable: true
+                },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 }
@@ -58,8 +64,8 @@ lazy_static! {
         }
     };
 }
-pub struct CheckConfirmations;
-impl CommandImplementation for CheckConfirmations {
+pub struct CheckEVMConfirmations;
+impl CommandImplementation for CheckEVMConfirmations {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -115,28 +121,64 @@ impl CommandImplementation for CheckConfirmations {
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::{hex, types::frontend::ProgressBarStatusColor};
+        use alloy_chains::{Chain, ChainKind};
+        use txtx_addon_kit::{
+            hex,
+            types::{commands::return_synchronous_result, frontend::ProgressBarStatusColor},
+        };
 
-        use crate::{constants::CONTRACT_ADDRESS, rpc::EVMRpc, typing::ETH_TX_HASH};
+        use crate::{
+            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
+            rpc::EVMRpc,
+        };
 
         let inputs = inputs.clone();
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
-
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
+        let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
+        let chain_name = match Chain::from(chain_id).into_kind() {
+            ChainKind::Named(name) => name.to_string(),
+            ChainKind::Id(id) => id.to_string(),
+        };
+        let progress_tx = progress_tx.clone();
 
-        // let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
+        let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
+        let contract_address = inputs.get_value(CONTRACT_ADDRESS);
+        if skip_confirmations {
+            let mut result = CommandExecutionResult::new();
+            if let Some(contract_address) = contract_address {
+                result
+                    .outputs
+                    .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+            }
 
-        let tx_hash = inputs.get_expected_buffer("tx_hash", &ETH_TX_HASH)?;
+            let status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &construct_did,
+                &ProgressBarStatus {
+                    status_color: ProgressBarStatusColor::Green,
+                    status: format!("Confirmed"),
+                    message: format!(
+                        "Contract deployment transaction already confirmed on Chain {}",
+                        chain_name
+                    ),
+                    diagnostic: None,
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            return return_synchronous_result(Ok(result));
+        }
+
+        let tx_hash_bytes = inputs.get_expected_buffer_bytes(TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
 
-        let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
 
-        let tx_hash_str = hex::encode(tx_hash.bytes.clone());
-        let receipt_msg = format!("Checking Tx 0x{} Receipt", &tx_hash_str);
+        let tx_hash = hex::encode(&tx_hash_bytes);
+        let receipt_msg = format!("Checking Tx 0x{} Receipt on Chain {}", &tx_hash, chain_name);
 
         let future = async move {
             // initial progress status
@@ -166,7 +208,7 @@ impl CommandImplementation for CheckConfirmations {
                 progress = (progress + 1) % progress_symbol.len();
 
                 let Some(receipt) = rpc
-                    .get_receipt(&tx_hash.bytes)
+                    .get_receipt(&tx_hash_bytes)
                     .await
                     .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?
                 else {
@@ -193,7 +235,10 @@ impl CommandImplementation for CheckConfirmations {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
                         &format!("Pending {}", progress_symbol[progress]),
-                        &format!("Awaiting Inclusion in Block for Tx 0x{}", tx_hash_str),
+                        &format!(
+                            "Awaiting Inclusion in Block for Tx 0x{} on Chain {}",
+                            tx_hash, chain_name
+                        ),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -206,6 +251,18 @@ impl CommandImplementation for CheckConfirmations {
                     latest_block = block_number;
                 }
 
+                if !receipt.status() {
+                    let diag = diagnosed_error!("transaction reverted");
+                    status_update.update_status(&ProgressBarStatus::new_err(
+                        "Failed",
+                        &format!("Transaction Failed for Chain {}", chain_name),
+                        &diag,
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+                    return Err(diag);
+                }
                 if let Some(contract_address) = receipt.contract_address {
                     result.outputs.insert(
                         CONTRACT_ADDRESS.to_string(),
@@ -219,7 +276,10 @@ impl CommandImplementation for CheckConfirmations {
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Yellow,
                         &format!("Pending {}", progress_symbol[progress]),
-                        &format!("Waiting for {} Block Confirmations", confirmations_required),
+                        &format!(
+                            "Waiting for {} Block Confirmations on Chain {}",
+                            confirmations_required, chain_name
+                        ),
                     ));
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -237,14 +297,15 @@ impl CommandImplementation for CheckConfirmations {
                 ProgressBarStatusColor::Green,
                 "Confirmed",
                 &format!(
-                    "Confirmed {} {} for Tx 0x{}",
+                    "Confirmed {} {} for Tx 0x{} on Chain {}",
                     &confirmations_required,
                     if confirmations_required.eq(&1) {
                         "block"
                     } else {
                         "blocks"
                     },
-                    tx_hash_str
+                    tx_hash,
+                    chain_name
                 ),
             ));
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));

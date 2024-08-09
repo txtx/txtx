@@ -105,10 +105,20 @@ impl RunbookExecutionContext {
                 else {
                     return action_items;
                 };
+                let Some(input_evaluations) =
+                    self.commands_inputs_evaluation_results.get(&construct_did)
+                else {
+                    return action_items;
+                };
 
                 let Some(value) = execution_result.outputs.get("value") else {
                     unreachable!()
                 };
+
+                let description = input_evaluations
+                    .inputs
+                    .get_string("description")
+                    .and_then(|d| Some(d.to_string()));
 
                 action_items
                     .entry(command_instance.get_group())
@@ -120,7 +130,7 @@ impl RunbookExecutionContext {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                             name: command_instance.name.to_string(),
-                            description: None,
+                            description,
                             value: value.clone(),
                         }),
                         "output".into(),
@@ -158,6 +168,8 @@ impl RunbookExecutionContext {
             if let Some(_) = self.commands_execution_results.get(&construct_did) {
                 continue;
             };
+
+            let construct_id = workspace_context.expect_construct_id(&construct_did);
 
             let addon_context_key = (
                 command_instance.package_id.did(),
@@ -225,8 +237,8 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
                     CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
-                Err(mut diags) => {
-                    pass_result.diagnostics.append(&mut diags);
+                Err(diags) => {
+                    pass_result.append_diagnostics(diags, &construct_id);
                     continue;
                 }
             };
@@ -273,7 +285,7 @@ impl RunbookExecutionContext {
                     }
                 }
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
             }
@@ -309,7 +321,7 @@ impl RunbookExecutionContext {
             let mut execution_result = match execution_result {
                 Ok(res) => res,
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
             };
@@ -359,10 +371,10 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
                 Err(d) => {
-                    println!("{:?}", d);
                     continue;
                 }
             };
+
             // Update the evaluated inputs
             self.commands_inputs_simulation_results
                 .insert(construct_did.clone(), evaluated_inputs);

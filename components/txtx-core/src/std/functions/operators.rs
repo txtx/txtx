@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{PrimitiveValue, Type, Value},
+        types::{Type, Value},
     },
 };
 
@@ -64,8 +64,8 @@ lazy_static! {
         },
         define_function! {
             BinaryDivSignedInteger => {
-                name: "div_int",
-                documentation: "`div_int` returns the integer division of the left-hand-side argument by the right-hand-side argument, rounding any remainder down to the nearest integer.",
+                name: "div",
+                documentation: "`div` returns the integer division of the left-hand-side argument by the right-hand-side argument, rounding any remainder down to the nearest integer.",
                 example: indoc!{r#"
                 output "my_int" { 
                   value = 11 / -3
@@ -75,42 +75,16 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "The `int` dividend.",
-                        typing: vec![Type::int()]
+                        typing: vec![Type::integer()]
                     },
                     rhs: {
                         documentation: "The `int` divisor.",
-                        typing: vec![Type::int()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The result of dividing the dividend by the divisor.",
-                    typing: Type::int()
-                },
-            }
-        },
-        define_function! {
-            BinaryDivUnsignedInteger => {
-                name: "div_uint",
-                documentation: "`div_int` returns the integer division of the left-hand-side argument by the right-hand-side argument, rounding any remainder down to the nearest integer.",
-                example: indoc!{r#"
-                output "my_uint" { 
-                  value = 11 / 3
-                }
-                // > my_uint: 3
-                "#},
-                inputs: [
-                    lhs: {
-                        documentation: "The `uint` dividend.",
-                        typing: vec![Type::int()]
-                    },
-                    rhs: {
-                        documentation: "The `uint` divisor.",
-                        typing: vec![Type::int()]
-                    }
-                ],
-                output: {
-                    documentation: "The result of dividing the dividend by the divisor.",
-                    typing: Type::int()
+                    typing: Type::integer()
                 },
             }
         },
@@ -126,12 +100,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -152,12 +126,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -178,12 +152,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -204,12 +178,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -230,12 +204,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -256,12 +230,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
-                        documentation: "An `int`, `uint`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::int(), Type::float(), Type::uint(), Type::string(), Type::bool()]
+                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -271,35 +245,35 @@ lazy_static! {
             }
         },
         define_function! {
-            BinaryMinusUInt => {
-                name: "minus_uint",
-                documentation: "`minus_uint` returns the result of subtracting the right-hand-side `uint` argument from the left-hand-side `uint` argument.",
+            BinaryMinus => {
+                name: "minus",
+                documentation: "`minus` returns the result of subtracting the right-hand-side `integer` argument from the left-hand-side `integer` argument.",
                 example: indoc!{r#"
-                output "my_uint" { 
+                output "my_integer" { 
                   value = 10 - 6
                 }
-                // > my_uint: 4
+                // > my_integer: 4
                 "#},
                 inputs: [
                     lhs: {
-                      documentation: "The `uint` minuend.",
-                      typing: vec![Type::int()]
+                      documentation: "The `integer` minuend.",
+                      typing: vec![Type::integer()]
                     },
                     rhs: {
-                        documentation: "The `uint` subtrahend.",
-                        typing: vec![Type::int()]
+                        documentation: "The `integer` subtrahend.",
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The result of the subtraction operation.",
-                    typing: Type::uint()
+                    typing: Type::integer()
                 },
             }
         },
         define_function! {
-            BinaryModuloUInt => {
-                name: "modulo_uint",
-                documentation: "`modulo_uint` returns the remainder of dividing the left-hand-side `uint` argument by the right-hand-side `uint` argument.",
+            BinaryModulo => {
+                name: "modulo",
+                documentation: "`modulo` returns the remainder of dividing the left-hand-side `integer` argument by the right-hand-side `integer` argument.",
                 example: indoc!{r#"
                   output "my_mod" { 
                       value = 10 % 3
@@ -308,24 +282,24 @@ lazy_static! {
               "#},
                 inputs: [
                     lhs: {
-                        documentation: "The `uint` dividend.",
-                        typing: vec![Type::uint()]
+                        documentation: "The `integer` dividend.",
+                        typing: vec![Type::integer()]
                     },
                     rhs: {
-                        documentation: "The `uint` divisor.",
-                        typing: vec![Type::uint()]
+                        documentation: "The `integer` divisor.",
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The remainder of the division operation.",
-                    typing: Type::uint()
+                    typing: Type::integer()
                 },
             }
         },
         define_function! {
-            BinaryMulUInt => {
-                name: "multiply_uint",
-                documentation: "`multiply_uint` returns the product of the left-hand-side `uint` argument and the right-hand-side `uint` argument.",
+            BinaryMul => {
+                name: "multiply",
+                documentation: "`multiply` returns the product of the left-hand-side `integer` argument and the right-hand-side `integer` argument.",
                 example: indoc!{r#"
                   output "my_product" { 
                       value = 10 * 5
@@ -334,24 +308,24 @@ lazy_static! {
               "#},
                 inputs: [
                     lhs: {
-                        documentation: "The first `uint` operand.",
-                        typing: vec![Type::uint()]
+                        documentation: "The first `integer` operand.",
+                        typing: vec![Type::integer()]
                     },
                     rhs: {
-                        documentation: "The second `uint` operand.",
-                        typing: vec![Type::uint()]
+                        documentation: "The second `integer` operand.",
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The result of the multiplication operation.",
-                    typing: Type::uint()
+                    typing: Type::integer()
                 },
             }
         },
         define_function! {
-            BinaryPlusUInt => {
-                name: "add_uint",
-                documentation: "`add_uint` returns the sum of the left-hand-side `uint` argument and the right-hand-side `uint` argument.",
+            BinaryPlus => {
+                name: "add",
+                documentation: "`add` returns the sum of the left-hand-side `integer` argument and the right-hand-side `integer` argument.",
                 example: indoc!{r#"
                   output "my_sum" { 
                       value = 10 + 5
@@ -360,17 +334,17 @@ lazy_static! {
               "#},
                 inputs: [
                     lhs: {
-                        documentation: "The first `uint` operand.",
-                        typing: vec![Type::uint()]
+                        documentation: "The first `integer` operand.",
+                        typing: vec![Type::integer()]
                     },
                     rhs: {
-                        documentation: "The second `uint` operand.",
-                        typing: vec![Type::uint()]
+                        documentation: "The second `integer` operand.",
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The result of the addition operation.",
-                    typing: Type::uint()
+                    typing: Type::integer()
                 },
             }
         },
@@ -382,12 +356,12 @@ lazy_static! {
                 inputs: [
                     value: {
                         documentation: "An integer value.",
-                        typing: vec![Type::int()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The negated integer value.",
-                    typing: Type::int()
+                    typing: Type::integer()
                 },
             }
         },
@@ -464,10 +438,10 @@ impl FunctionImplementation for BinaryAndBool {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::Bool(lhs))) = args.get(0) else {
+        let Some(Value::Bool(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::Bool(rhs))) = args.get(1) else {
+        let Some(Value::Bool(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(*lhs && *rhs))
@@ -489,10 +463,10 @@ impl FunctionImplementation for BinaryOrBool {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::Bool(lhs))) = args.get(0) else {
+        let Some(Value::Bool(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::Bool(rhs))) = args.get(1) else {
+        let Some(Value::Bool(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(*lhs || *rhs))
@@ -514,41 +488,10 @@ impl FunctionImplementation for BinaryDivSignedInteger {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::SignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::SignedInteger(rhs))) = args.get(1) else {
-            unreachable!()
-        };
-        if rhs.eq(&0) {
-            Err(Diagnostic::error_from_string(
-                "cannot divide by zero".to_string(),
-            ))
-        } else {
-            Ok(Value::int(lhs.saturating_div(*rhs)))
-        }
-    }
-}
-
-pub struct BinaryDivUnsignedInteger;
-impl FunctionImplementation for BinaryDivUnsignedInteger {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         if rhs.eq(&0) {
@@ -556,7 +499,7 @@ impl FunctionImplementation for BinaryDivUnsignedInteger {
                 "cannot divide by zero".to_string(),
             ))
         } else {
-            Ok(Value::uint(lhs.saturating_div(*rhs)))
+            Ok(Value::integer(lhs.saturating_div(*rhs)))
         }
     }
 }
@@ -577,39 +520,32 @@ impl FunctionImplementation for BinaryEq {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) => {
-                let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1)
-                else {
+            Some(Value::Integer(lhs)) => {
+                let Some(Value::Integer(rhs)) = args.get(1) else {
                     unreachable!()
                 };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
-            Some(Value::Primitive(PrimitiveValue::SignedInteger(lhs))) => {
-                let Some(Value::Primitive(PrimitiveValue::SignedInteger(rhs))) = args.get(1) else {
+            Some(Value::Float(lhs)) => {
+                let Some(Value::Float(rhs)) = args.get(1) else {
                     unreachable!()
                 };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
-            Some(Value::Primitive(PrimitiveValue::Float(lhs))) => {
-                let Some(Value::Primitive(PrimitiveValue::Float(rhs))) = args.get(1) else {
+            Some(Value::Bool(lhs)) => {
+                let Some(Value::Bool(rhs)) = args.get(1) else {
                     unreachable!()
                 };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
-            Some(Value::Primitive(PrimitiveValue::Bool(lhs))) => {
-                let Some(Value::Primitive(PrimitiveValue::Bool(rhs))) = args.get(1) else {
+            Some(Value::String(lhs)) => {
+                let Some(Value::String(rhs)) = args.get(1) else {
                     unreachable!()
                 };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
-            Some(Value::Primitive(PrimitiveValue::String(lhs))) => {
-                let Some(Value::Primitive(PrimitiveValue::String(rhs))) = args.get(1) else {
-                    unreachable!()
-                };
-                Ok(Value::bool(lhs.eq(rhs)))
-            }
-            Some(Value::Primitive(PrimitiveValue::Null)) => {
-                let Some(Value::Primitive(PrimitiveValue::Null)) = args.get(1) else {
+            Some(Value::Null) => {
+                let Some(Value::Null) = args.get(1) else {
                     return Ok(Value::bool(false));
                 };
                 Ok(Value::bool(true))
@@ -634,10 +570,10 @@ impl FunctionImplementation for BinaryGreater {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(lhs.gt(rhs)))
@@ -659,10 +595,10 @@ impl FunctionImplementation for BinaryGreaterEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(lhs.ge(rhs)))
@@ -684,10 +620,10 @@ impl FunctionImplementation for BinaryLess {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(lhs.lt(rhs)))
@@ -709,10 +645,10 @@ impl FunctionImplementation for BinaryLessEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(lhs.le(rhs)))
@@ -734,18 +670,18 @@ impl FunctionImplementation for BinaryNotEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
         Ok(Value::bool(!lhs.eq(rhs)))
     }
 }
 
-pub struct BinaryMinusUInt;
-impl FunctionImplementation for BinaryMinusUInt {
+pub struct BinaryMinus;
+impl FunctionImplementation for BinaryMinus {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -759,18 +695,18 @@ impl FunctionImplementation for BinaryMinusUInt {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
-        Ok(Value::uint(lhs.saturating_sub(*rhs)))
+        Ok(Value::integer(lhs - rhs))
     }
 }
 
-pub struct BinaryModuloUInt;
-impl FunctionImplementation for BinaryModuloUInt {
+pub struct BinaryModulo;
+impl FunctionImplementation for BinaryModulo {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -784,18 +720,18 @@ impl FunctionImplementation for BinaryModuloUInt {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
-        Ok(Value::uint(lhs.rem_euclid(*rhs)))
+        Ok(Value::integer(lhs.rem_euclid(*rhs)))
     }
 }
 
-pub struct BinaryMulUInt;
-impl FunctionImplementation for BinaryMulUInt {
+pub struct BinaryMul;
+impl FunctionImplementation for BinaryMul {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -809,18 +745,18 @@ impl FunctionImplementation for BinaryMulUInt {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
-        Ok(Value::uint(lhs.saturating_mul(*rhs)))
+        Ok(Value::integer(lhs.saturating_mul(*rhs)))
     }
 }
 
-pub struct BinaryPlusUInt;
-impl FunctionImplementation for BinaryPlusUInt {
+pub struct BinaryPlus;
+impl FunctionImplementation for BinaryPlus {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -834,12 +770,12 @@ impl FunctionImplementation for BinaryPlusUInt {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(lhs))) = args.get(0) else {
+        let Some(Value::Integer(lhs)) = args.get(0) else {
             unreachable!()
         };
-        let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(rhs))) = args.get(1) else {
+        let Some(Value::Integer(rhs)) = args.get(1) else {
             unreachable!()
         };
-        Ok(Value::uint(lhs + rhs))
+        Ok(Value::integer(lhs + rhs))
     }
 }

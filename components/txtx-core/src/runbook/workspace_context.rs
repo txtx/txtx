@@ -7,7 +7,7 @@ use kit::hcl::structure::{Block, BlockLabel};
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
-use kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
+use kit::types::diagnostics::Diagnostic;
 use kit::types::types::Value;
 use kit::types::wallets::WalletInstance;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
@@ -63,6 +63,7 @@ impl RunbookWorkspaceContext {
         runtime_context: &RuntimeContext,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
+        environment_selector: &Option<String>,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = vec![];
         let mut sources = VecDeque::new();
@@ -97,15 +98,10 @@ impl RunbookWorkspaceContext {
                     "import" => {
                         // imports are the only constructs that we need to process in this step
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "import name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("import name missing".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
 
@@ -122,12 +118,14 @@ impl RunbookWorkspaceContext {
 
                         match std::fs::read_dir(imported_package_location.to_string()) {
                             Ok(_) => {
-                                let files =
-                                    get_txtx_files_paths(&imported_package_location.to_string())
-                                        .map_err(|e| {
-                                            vec![diagnosed_error!("{}", e.to_string())
-                                                .location(&imported_package_location)]
-                                        })?;
+                                let files = get_txtx_files_paths(
+                                    &imported_package_location.to_string(),
+                                    environment_selector,
+                                )
+                                .map_err(|e| {
+                                    vec![diagnosed_error!("{}", e.to_string())
+                                        .location(&imported_package_location)]
+                                })?;
                                 for file_path in files.into_iter() {
                                     let file_location = FileLocation::from_path(file_path);
                                     if !files_visited.contains(&file_location) {
@@ -173,15 +171,10 @@ impl RunbookWorkspaceContext {
                     }
                     "input" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "variable name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("variable name missing".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
                         let _ = self.index_construct(
@@ -195,15 +188,10 @@ impl RunbookWorkspaceContext {
                     }
                     "module" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "module name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("module name missing".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
                         let _ = self.index_construct(
@@ -217,15 +205,10 @@ impl RunbookWorkspaceContext {
                     }
                     "output" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "output name missing".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("output name missing".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
                         let _ = self.index_construct(
@@ -241,15 +224,10 @@ impl RunbookWorkspaceContext {
                         let (Some(command_name), Some(namespaced_action)) =
                             (block.labels.get(0), block.labels.get(1))
                         else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "action syntax invalid".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("action syntax invalid".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
 
@@ -286,15 +264,10 @@ impl RunbookWorkspaceContext {
                         let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
                             (block.labels.get(0), block.labels.get(1))
                         else {
-                            diagnostics.push(Diagnostic {
-                                location: Some(location.clone()),
-                                span: None,
-                                message: "action syntax invalid".to_string(),
-                                level: DiagnosticLevel::Error,
-                                documentation: None,
-                                example: None,
-                                parent_diagnostic: None,
-                            });
+                            diagnostics.push(
+                                Diagnostic::error_from_string("wallet syntax invalid".into())
+                                    .location(&location),
+                            );
                             continue;
                         };
                         match runtime_context
@@ -323,16 +296,11 @@ impl RunbookWorkspaceContext {
                         }
                     }
                     "runtime" => {}
-                    _ => {
-                        diagnostics.push(Diagnostic {
-                            location: Some(location.clone()),
-                            span: None,
-                            message: "construct unknown".to_string(),
-                            level: DiagnosticLevel::Error,
-                            documentation: None,
-                            example: None,
-                            parent_diagnostic: None,
-                        });
+                    unknown => {
+                        diagnostics.push(
+                            Diagnostic::error_from_string(format!("unknown construct {}", unknown))
+                                .location(&location),
+                        );
                     }
                 }
             }
@@ -506,8 +474,10 @@ impl RunbookWorkspaceContext {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);
         };
-
         let Some(root) = traversal.expr.as_variable() else {
+            if traversal.expr.is_func_call() {
+                return Err("properties of function results cannot be referenced in-line; the function result must be stored in a command and referenced".into());
+            }
             return Ok(None);
         };
 
@@ -523,7 +493,7 @@ impl RunbookWorkspaceContext {
             if let TraversalOperator::Index(expr) = op.value() {
                 match expr {
                     Expression::Number(value) => {
-                        subpath.push_back(Value::int(value.as_i64().unwrap()));
+                        subpath.push_back(Value::integer(value.as_i64().unwrap().into()));
                     }
                     Expression::String(value) => {
                         subpath.push_back(Value::string(value.to_string()));
@@ -537,7 +507,6 @@ impl RunbookWorkspaceContext {
         }
 
         let mut is_root = true;
-
         while let Some(component) = components.pop_front() {
             // Look for modules
             if is_root {
@@ -641,5 +610,12 @@ impl RunbookWorkspaceContext {
             }
         }
         Ok(None)
+    }
+
+    pub fn expect_construct_id(&self, construct_did: &ConstructDid) -> ConstructId {
+        match self.constructs.get(construct_did) {
+            Some(id) => id.clone(),
+            None => unreachable!(),
+        }
     }
 }

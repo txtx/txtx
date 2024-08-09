@@ -3,13 +3,14 @@ pub mod foundry;
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
-use crate::typing::{BYTES, BYTES32, ETH_ADDRESS};
+use crate::typing::{EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE};
 use alloy::dyn_abi::{DynSolValue, Word};
+use alloy::hex::{self, FromHex};
 use alloy::network::TransactionBuilder;
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::types::{PrimitiveValue, Value};
+use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ValueStore;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -119,7 +120,10 @@ async fn build_unsigned_legacy_transaction(
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
-    let gas_price = args.get_value(GAS_PRICE).map(|v| v.expect_uint());
+    let gas_price = args
+        .get_value(GAS_PRICE)
+        .map(|v| v.expect_uint())
+        .transpose()?;
 
     let gas_price = match gas_price {
         Some(gas_price) => gas_price as u128,
@@ -139,7 +143,7 @@ async fn build_unsigned_legacy_transaction(
         tx = tx.with_input(input.clone());
     }
     if let Some(code) = &fields.deploy_code {
-        tx = tx.with_deploy_code(code.clone());
+        tx = tx.with_deploy_code(code.clone()).with_kind(TxKind::Create);
     }
     Ok(tx)
 }
@@ -149,10 +153,14 @@ async fn build_unsigned_eip1559_transaction(
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
-    let max_fee_per_gas = args.get_value(MAX_FEE_PER_GAS).map(|v| v.expect_uint());
+    let max_fee_per_gas = args
+        .get_value(MAX_FEE_PER_GAS)
+        .map(|v| v.expect_uint())
+        .transpose()?;
     let max_priority_fee_per_gas = args
         .get_value(MAX_PRIORITY_FEE_PER_GAS)
-        .map(|v| v.expect_uint());
+        .map(|v| v.expect_uint())
+        .transpose()?;
 
     let (max_fee_per_gas, max_priority_fee_per_gas) =
         if max_fee_per_gas.is_none() || max_priority_fee_per_gas.is_none() {
@@ -191,7 +199,7 @@ async fn build_unsigned_eip1559_transaction(
         tx = tx.with_input(input.clone());
     }
     if let Some(code) = &fields.deploy_code {
-        tx = tx.with_deploy_code(code.clone());
+        tx = tx.with_deploy_code(code.clone()).with_kind(TxKind::Create);
     }
 
     Ok(tx)
@@ -217,29 +225,23 @@ pub fn get_typed_transaction_bytes(tx: &TransactionRequest) -> Result<Vec<u8>, S
 
 pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
     let sol_value = match value {
-        Value::Primitive(PrimitiveValue::Bool(value)) => DynSolValue::Bool(value.clone()),
-        Value::Primitive(PrimitiveValue::SignedInteger(value)) => todo!(),
-        Value::Primitive(PrimitiveValue::UnsignedInteger(value)) => {
-            DynSolValue::Uint(U256::from(*value), 256)
-        }
-        Value::Primitive(PrimitiveValue::String(value)) => DynSolValue::String(value.clone()),
-        Value::Primitive(PrimitiveValue::Float(value)) => todo!(),
-        Value::Primitive(PrimitiveValue::Buffer(value)) => DynSolValue::Bytes(value.bytes.clone()),
-        Value::Primitive(PrimitiveValue::Null) => {
+        Value::Bool(value) => DynSolValue::Bool(value.clone()),
+        Value::Integer(value) => DynSolValue::Uint(U256::from(*value), 256),
+        Value::String(value) => DynSolValue::String(value.clone()),
+        Value::Float(value) => todo!(),
+        Value::Buffer(bytes) => DynSolValue::Bytes(bytes.clone()),
+        Value::Null => {
             todo!()
         }
         Value::Object(_) => todo!(),
         Value::Array(_) => todo!(),
         Value::Addon(addon) => {
-            if addon.typing.id == ETH_ADDRESS.clone().id {
-                todo!()
-            } else if addon.typing.id == BYTES32.clone().id {
-                let value = addon.value.as_buffer_data().unwrap();
-                let word = Word::from_slice(&value.bytes);
-                DynSolValue::FixedBytes(word, 32)
-            } else if addon.typing.id == BYTES.clone().id {
-                let value = addon.value.as_buffer_data().unwrap();
-                DynSolValue::Bytes(value.bytes.clone())
+            if addon.id == EVM_ADDRESS {
+                DynSolValue::Address(Address::from_slice(&addon.bytes))
+            } else if addon.id == EVM_BYTES32 {
+                DynSolValue::FixedBytes(Word::from_slice(&addon.bytes), 32)
+            } else if addon.id == EVM_BYTES || addon.id == EVM_INIT_CODE {
+                DynSolValue::Bytes(addon.bytes.clone())
             } else {
                 todo!()
             }
@@ -252,10 +254,10 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
 pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
     let value = match sol_value {
         DynSolValue::Bool(value) => Value::bool(*value),
-        DynSolValue::Int(value, _) => Value::int(value.as_i64()),
-        DynSolValue::Uint(value, _) => Value::uint(value.to::<u64>()),
+        DynSolValue::Int(value, _) => Value::integer(value.as_i64() as i128),
+        DynSolValue::Uint(value, _) => Value::integer(value.to::<u64>() as i128),
         DynSolValue::FixedBytes(_, _) => todo!(),
-        DynSolValue::Address(value) => Value::buffer(value.0 .0.to_vec(), ETH_ADDRESS.clone()),
+        DynSolValue::Address(value) => EvmValue::address(value.0 .0.to_vec()),
         DynSolValue::Function(_) => todo!(),
         DynSolValue::Bytes(_) => todo!(),
         DynSolValue::String(value) => Value::string(value.clone()),
@@ -264,4 +266,45 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Tuple(_) => todo!(),
     };
     Ok(value)
+}
+
+pub fn string_to_address(address_str: String) -> Result<Address, String> {
+    let mut address_str = address_str.replace("0x", "");
+    // hack: we're assuming that if the address is 32 bytes, it's a sol value that's padded with 0s, so we trim them
+    if address_str.len() == 64 {
+        let split_pos = address_str.char_indices().nth_back(39).unwrap().0;
+        address_str = address_str[split_pos..].to_owned();
+    }
+    let address = Address::from_hex(&address_str).map_err(|e| format!("invalid address: {}", e))?;
+    Ok(address)
+}
+pub fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
+    let salt = hex::decode(salt).map_err(|e| format!("failed to decode salt: {e}"))?;
+    if salt.len() != 32 {
+        return Err("salt must be a 32-byte string".into());
+    }
+    Ok(salt)
+}
+
+pub fn generate_create2_address(
+    factory_address: &Value,
+    salt: &str,
+    init_code: &Vec<u8>,
+) -> Result<Address, String> {
+    let Some(factory_address_bytes) = factory_address.try_get_buffer_bytes() else {
+        return Err("failed to generate create2 address: invalid create2 factory address".into());
+    };
+    let salt_bytes =
+        salt_str_to_hex(salt).map_err(|e| format!("failed to generate create2 address: {e}"))?;
+
+    let init_code_hash = keccak256(&init_code);
+    let mut hasher = Keccak256::new();
+    hasher.update(&[0xff]);
+    hasher.update(factory_address_bytes);
+    hasher.update(&salt_bytes);
+    hasher.update(&init_code_hash);
+
+    let result = hasher.finalize();
+    let address_bytes = &result[12..32];
+    Ok(Address::from_slice(&address_bytes))
 }

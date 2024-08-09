@@ -1,4 +1,7 @@
+use alloy::contract::Interface;
 use alloy::dyn_abi::DynSolValue;
+use alloy::hex;
+use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
@@ -25,7 +28,7 @@ use txtx_addon_kit::AddonDefaults;
 use crate::codec::CommonTransactionFields;
 use crate::constants::{RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
-use crate::typing::ETH_ADDRESS;
+use crate::typing::EVM_ADDRESS;
 
 use super::get_signing_construct_did;
 
@@ -50,7 +53,7 @@ lazy_static! {
               optional: false,
               interpolable: true
             },
-            from: {
+            signer: {
                 documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
@@ -58,13 +61,13 @@ lazy_static! {
             },
             contract_address: {
                 documentation: "The address of the contract being called.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: false,
                 interpolable: true
             },
             contract_abi: {
                 documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: true,
                 interpolable: true
             },
@@ -82,7 +85,7 @@ lazy_static! {
             },
             amount: {
                 documentation: "The amount, in WEI, to transfer.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -94,13 +97,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -110,35 +113,23 @@ lazy_static! {
                 optional: true,
                 interpolable: true
             },
-            // network_id: {
-            //     documentation: "The network id.",
-            //     typing: Type::string(),
-            //     optional: true,
-            //     interpolable: true
-            // },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
-            },
-            depends_on: {
-              documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true
             }
           ],
           outputs: [
@@ -184,7 +175,7 @@ impl CommandImplementation for SignEVMContractCall {
         use crate::{
             codec::get_typed_transaction_bytes,
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
-            typing::ETH_TRANSACTION,
+            typing::EvmValue,
         };
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
@@ -225,7 +216,7 @@ impl CommandImplementation for SignEVMContractCall {
             })?;
             let transaction = transaction.build_unsigned().unwrap();
 
-            let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
+            let payload = EvmValue::transaction(bytes);
 
             wallet_state.insert_scoped_value(
                 &construct_did.value().to_string(),
@@ -244,7 +235,7 @@ impl CommandImplementation for SignEVMContractCall {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.nonce()),
+                            value: Value::integer(transaction.nonce().into()),
                         }),
                         ACTION_ITEM_CHECK_NONCE,
                     ),
@@ -255,7 +246,7 @@ impl CommandImplementation for SignEVMContractCall {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.gas_limit().try_into().unwrap()), // todo
+                            value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
                         }),
                         ACTION_ITEM_CHECK_FEE,
                     ),
@@ -345,13 +336,12 @@ async fn build_unsigned_contract_call(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<TransactionRequest, Diagnostic> {
-    use alloy::{contract::Interface, json_abi::JsonAbi};
-
     use crate::{
         codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        commands::actions::get_common_tx_params_from_args,
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
         },
     };
 
@@ -376,35 +366,21 @@ async fn build_unsigned_contract_call(
                 .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
         })
         .unwrap_or(Ok(vec![]))?;
-    let amount = args
-        .get_value(TRANSACTION_AMOUNT)
-        .map(|v| v.expect_uint())
-        .unwrap_or(0);
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+
+    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
+
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
-        let abi: JsonAbi = serde_json::from_str(&abi_str).map_err(|e| {
-            diagnosed_error!("command 'sign_contract_call': invalid contract abi: {}", e)
-        })?;
-
-        let interface = Interface::new(abi);
-        interface
-            .encode_input(function_name, &function_args)
-            .map_err(|e| {
-                diagnosed_error!(
-                    "command 'sign_contract_call': failed to encode contract inputs: {e}"
-                )
-            })?
+        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
     } else {
-        function_args
-            .iter()
-            .flat_map(|v| v.abi_encode_params())
-            .collect()
+        encode_contract_call_inputs_from_selector(function_name, &function_args)
+            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
     };
 
     let common = CommonTransactionFields {
@@ -421,6 +397,42 @@ async fn build_unsigned_contract_call(
 
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
-        .map_err(|e| diagnosed_error!("command: 'evm::sign_contract_call': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {e}"))?;
     Ok(tx)
+}
+
+pub fn encode_contract_call_inputs_from_selector(
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let selector =
+        hex::decode(function_name).map_err(|e| format!("failed to decode function_name: {e}"))?;
+    if selector.len() != 4 {
+        return Err(
+            "function_name must be a valid 4-byte function selector if no contract abi is provided"
+                .into(),
+        );
+    }
+    let encoded_args = function_args
+        .iter()
+        .flat_map(|v| v.abi_encode_params())
+        .collect::<Vec<u8>>();
+    let mut data = Vec::with_capacity(encoded_args.len() + 4);
+    data.extend_from_slice(&selector[..]);
+    data.extend_from_slice(&encoded_args[..]);
+    Ok(data)
+}
+
+pub fn encode_contract_call_inputs_from_abi(
+    abi_str: &str,
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let abi: JsonAbi =
+        serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
+
+    let interface = Interface::new(abi);
+    interface
+        .encode_input(function_name, &function_args)
+        .map_err(|e| format!("failed to encode contract inputs: {e}"))
 }

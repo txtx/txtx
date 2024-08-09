@@ -13,7 +13,7 @@ mod constants;
 mod functions;
 pub mod rpc;
 mod stacks_helpers;
-mod typing;
+pub mod typing;
 mod utils;
 mod wallets;
 
@@ -88,11 +88,8 @@ impl Addon for StacksNetworkAddon {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
-                let contract_id = simulated_inputs
-                    .inputs
-                    .get_expected_string("contract_id")
-                    .unwrap();
-                contracts_lookup.insert(contract_id, construct_did.clone());
+                let contract_id = simulated_inputs.inputs.get_expected_string("contract_id")?;
+                contracts_lookup.insert(contract_id.to_string(), construct_did.clone());
             }
         }
 
@@ -108,9 +105,12 @@ impl Addon for StacksNetworkAddon {
                     .get_expected_array("contracts_ids_dependencies")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
-                    let Some(construct) = contracts_lookup.get(contract_id) else {
-                        println!("Missing dependencies");
-                        continue;
+                    let construct = match contracts_lookup.get(contract_id) {
+                        Some(construct) => construct,
+                        None => {
+                            println!("Missing dependency: {}", contract_id);
+                            continue;
+                        }
                     };
                     consolidated_dependencies.push(construct.clone());
                 }
@@ -120,9 +120,12 @@ impl Addon for StacksNetworkAddon {
                     .get_expected_array("contracts_ids_lazy_dependencies")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
-                    let Some(construct) = contracts_lookup.get(contract_id) else {
-                        println!("Missing dependencies");
-                        continue;
+                    let construct = match contracts_lookup.get(contract_id) {
+                        Some(construct) => construct,
+                        None => {
+                            println!("Missing dependency: {}", contract_id);
+                            continue;
+                        }
                     };
                     consolidated_dependencies.push(construct.clone());
                 }

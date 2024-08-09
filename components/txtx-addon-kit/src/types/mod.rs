@@ -1,10 +1,9 @@
-use diagnostics::{Diagnostic, DiagnosticLevel};
+use diagnostics::Diagnostic;
 use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
+use types::Value;
 
 use crate::{helpers::fs::FileLocation, AddonDefaults};
 
@@ -261,20 +260,30 @@ impl ValueStore {
             return Ok(res.to_string());
         };
         let Some(value) = value.as_string() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected string)",
+                self.name, key
+            )));
         };
         Ok(value.to_string())
+    }
+
+    pub fn get_defaulting_integer(
+        &self,
+        key: &str,
+        defaults: &AddonDefaults,
+    ) -> Result<i128, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            let res = defaults.store.get_expected_integer(key)?;
+            return Ok(res);
+        };
+        let Some(value) = value.as_integer() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected uint)",
+                self.name, key
+            )));
+        };
+        Ok(value)
     }
 
     pub fn get_defaulting_uint(
@@ -287,20 +296,17 @@ impl ValueStore {
             return Ok(res);
         };
         let Some(value) = value.as_uint() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer)",
+                self.name, key
+            )));
         };
-        Ok(value)
+        value.map_err(|e| {
+            Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer): {}",
+                self.name, key, e
+            ))
+        })
     }
 
     pub fn get_optional_defaulting_string(
@@ -316,18 +322,10 @@ impl ValueStore {
             return Ok(res);
         };
         let Some(value) = value.as_string() else {
-            return Err(Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "store '{}': value associated to '{}' mismatch (expected string)",
-                    self.name, key
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            });
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected string)",
+                self.name, key
+            )));
         };
         Ok(Some(value.to_string()))
     }
@@ -335,8 +333,8 @@ impl ValueStore {
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         Ok(value)
@@ -350,39 +348,35 @@ impl ValueStore {
         self.storage.get(&format!("{}:{}", scope, key))
     }
 
+    pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
+        if let Some(Value::Bool(bool)) = self.get_scoped_value(scope, key) {
+            Some(*bool)
+        } else {
+            None
+        }
+    }
+
     pub fn get_value(&self, key: &str) -> Option<&Value> {
         self.storage.get(key)
+    }
+
+    pub fn get_uint(&self, key: &str) -> Result<Option<u64>, String> {
+        self.storage.get(key).map(|v| v.expect_uint()).transpose()
     }
 
     pub fn get_string(&self, key: &str) -> Option<&str> {
         self.storage.get(key).and_then(|v| v.as_string())
     }
 
-    pub fn get_object(&self, key: &str) -> Result<Option<HashMap<String, Value>>, Diagnostic> {
-        let Some(value) = self.storage.get(key) else {
-            return Ok(None);
-        };
-        let Some(value) = value.as_object() else {
-            return Err(Diagnostic::error_from_string(format!(
-                "store '{}': value associated to '{}' mismatch (expected object)",
-                self.name, key
-            )));
-        };
-        let mut result = HashMap::new();
-        value.into_iter().for_each(|(k, v)| match v {
-            Ok(v) => {
-                result.insert(k.clone(), v.clone());
-            }
-            Err(_) => {}
-        });
-        Ok(Some(result))
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.storage.get(key).and_then(|v| v.as_bool())
     }
 
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_bool() else {
@@ -397,8 +391,8 @@ impl ValueStore {
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_string() else {
@@ -413,8 +407,8 @@ impl ValueStore {
     pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
         let Some(value) = value.as_array() else {
@@ -429,67 +423,75 @@ impl ValueStore {
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
-        let Some(value) = value.as_object() else {
+        let Some(result) = value.as_object() else {
             return Err(Diagnostic::error_from_string(format!(
                 "store '{}': value associated to '{}' mismatch (expected object)",
                 self.name, key
             )));
         };
-        let mut result = IndexMap::new();
-        value.into_iter().for_each(|(k, v)| match v {
-            Ok(v) => {
-                result.insert(k.clone(), v.clone());
-            }
-            Err(_) => {}
-        });
-        Ok(result)
+        Ok(result.clone())
     }
 
-    pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
+    pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
-                self.name, key
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
-        let Some(value) = value.as_uint() else {
+        let Some(value) = value.as_integer() else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': value associated to '{}' mismatch (expected uint)",
+                "store '{}': value associated to '{}' mismatch (expected integer)",
                 self.name, key
             )));
         };
         Ok(value)
     }
 
-    pub fn get_expected_buffer(
-        &self,
-        key: &str,
-        typing: &TypeSpecification,
-    ) -> Result<BufferData, Diagnostic> {
+    pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': unable to retrieve key '{}'",
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
+            )));
+        };
+        let Some(value) = value.as_uint() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer)",
                 self.name, key
+            )));
+        };
+        value.map_err(|e| {
+            Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer): {}",
+                self.name, key, e,
+            ))
+        })
+    }
+
+    pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
             )));
         };
 
         let bytes = match value {
-            Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes.clone(),
-            Value::Primitive(PrimitiveValue::String(bytes)) => {
+            Value::Buffer(bytes) => bytes.clone(),
+            Value::String(bytes) => {
                 let bytes = if bytes.starts_with("0x") {
                     crate::hex::decode(&bytes[2..]).unwrap()
                 } else {
                     crate::hex::decode(&bytes).unwrap()
                 };
-                BufferData {
-                    bytes,
-                    typing: typing.clone(),
-                }
+                bytes
             }
+            Value::Addon(data) => data.bytes.clone(),
             _ => {
                 return Err(Diagnostic::error_from_string(format!(
                     "store '{}': value associated to '{}' mismatch (expected buffer)",

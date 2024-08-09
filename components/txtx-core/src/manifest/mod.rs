@@ -39,7 +39,7 @@ impl WorkspaceManifest {
         let manifest_file: WorkspaceManifestFile = match serde_yml::from_slice(content.as_bytes()) {
             Ok(s) => s,
             Err(e) => {
-                return Err(format!("Clarinet.toml file malformatted {:?}", e));
+                return Err(format!("txtx.yml file malformatted {:?}", e));
             }
         };
         WorkspaceManifest::from_manifest_file(manifest_file, location)
@@ -51,7 +51,7 @@ impl WorkspaceManifest {
             match serde_yml::from_slice(&manifest_file_content[..]) {
                 Ok(s) => s,
                 Err(e) => {
-                    return Err(format!("Clarinet.toml file malformatted {:?}", e));
+                    return Err(format!("txtx.yml file malformatted {:?}", e));
                 }
             };
 

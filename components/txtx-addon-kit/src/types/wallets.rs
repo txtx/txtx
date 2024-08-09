@@ -5,7 +5,7 @@ use crate::{
     AddonDefaults,
 };
 use futures::future;
-use hcl_edit::{expr::Expression, structure::Block};
+use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::{
@@ -358,20 +358,16 @@ impl WalletInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
-                visit_optional_untyped_attribute(&input.name, &self.block)?
-            }
             Type::Object(_) => unreachable!(),
+            _ => visit_optional_untyped_attribute(&input.name, &self.block)?,
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => todo!(
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                 "command '{}' (type '{}') is missing value for field '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
@@ -394,22 +390,17 @@ impl WalletInstance {
                 match (expr_res, prop.optional) {
                     (Some(expression), _) => Ok(Some(expression)),
                     (None, true) => Ok(None),
-                    (None, false) => todo!(
+                    (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                         "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name,
-                        self.specification.matcher,
-                        prop.name,
-                        input.name
-                    ),
+                        self.name, self.specification.matcher, prop.name, input.name
+                    ))]),
                 }
             }
             (None, true) => Ok(None),
-            (None, false) => todo!(
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
                 "command '{}' (type '{}') is missing object '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
@@ -460,7 +451,9 @@ impl WalletInstance {
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
-                            return consolidate_wallet_future_result(res).await?;
+                            return consolidate_wallet_future_result(res).await?.map_err(
+                                |(state, diag)| (state, diag.set_span_range(self.block.span())),
+                            );
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {
@@ -508,7 +501,9 @@ impl WalletInstance {
             is_public_key_required,
         );
 
-        consolidate_wallet_future_result(res).await?
+        consolidate_wallet_future_result(res)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))
     }
 
     pub async fn perform_activation(
@@ -538,7 +533,9 @@ impl WalletInstance {
             &addon_defaults,
             progress_tx,
         );
-        let res = consolidate_wallet_activate_future_result(future).await?;
+        let res = consolidate_wallet_activate_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
         res
     }

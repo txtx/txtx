@@ -37,8 +37,8 @@ use txtx_core::{
         RunbookMetadata, RunbookState, WorkspaceManifest,
     },
     runbook::{
-        self, AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode,
-        RunbookExecutionSnapshot, RunbookInputsMap,
+        AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot,
+        RunbookInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
@@ -55,22 +55,52 @@ use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
-pub const DEFAULT_BINDING_ADDRESS: &str = "0.0.0.0";
+pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
+pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
+    let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
+    let mut lock_file_location = state_file_location.get_parent_location().unwrap();
+    lock_file_location.append_path(&lock_file_name).unwrap();
+    lock_file_location
+}
+
+pub fn get_lock_file(state_file_location: &FileLocation) -> Option<FileLocation> {
+    let lock_file_location = get_lock_file_location(state_file_location);
+    if lock_file_location.exists() {
+        Some(lock_file_location)
+    } else {
+        None
+    }
+}
+
 pub fn load_runbook_execution_snapshot(
     state_file_location: &FileLocation,
+    load_lock_file_if_exists: bool,
 ) -> Result<RunbookExecutionSnapshot, String> {
-    let snapshot_bytes = state_file_location.read_content()?;
+    // Are we resuming an interrupted workflow or excuting from scratch?
+    // If we're resuming a stateful workflow, we need to:
+    // - retrieve the transient state
+    // - compare it with a new simulation
+    // - taint the executed nodes
+    // - execute
+
+    let file_to_load = if load_lock_file_if_exists {
+        match get_lock_file(&state_file_location) {
+            Some(location) => location,
+            None => state_file_location.clone(),
+        }
+    } else {
+        state_file_location.clone()
+    };
+
+    let snapshot_bytes = file_to_load.read_content()?;
     if snapshot_bytes.is_empty() {
-        return Err(format!(
-            "unable to read {}: file empty",
-            state_file_location
-        ));
+        return Err(format!("unable to read {}: file empty", file_to_load));
     }
     let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
-        .map_err(|e| format!("unable to read {}: {}", state_file_location, e.to_string()))?;
+        .map_err(|e| format!("unable to read {}: {}", file_to_load, e.to_string()))?;
     Ok(snapshot)
 }
 
@@ -92,25 +122,33 @@ pub fn display_snapshot_diffing(
         println!("{}\n", consolidated_changes.new_plans_to_add.join(", "));
     }
 
-    if !synthesized_changes.is_empty() {
+    let has_critical_changes = synthesized_changes
+        .iter()
+        .filter(|(c, _)| match c {
+            SynthesizedChange::Edition(_, _) => true,
+            _ => false,
+        })
+        .count();
+    if has_critical_changes > 0 {
         println!("\n{}\n", yellow!("Changes detected:"));
-        for (i, ((change, critical), _impacted)) in consolidated_changes
-            .get_synthesized_changes()
-            .into_iter()
-            .enumerate()
-        {
-            let formatted_change = change
-                .iter()
-                .map(|c| {
-                    if c.starts_with("-") {
-                        red!(c)
-                    } else {
-                        green!(c)
-                    }
-                })
-                .join("");
-            println!("{}. The following edits:\n-------------------------\n{}\r-------------------------", i + 1, formatted_change);
-            println!("\rwill introduce consensus breaking changes.\n\n");
+        for (i, (change, _impacted)) in synthesized_changes.into_iter().enumerate() {
+            match change {
+                SynthesizedChange::Edition(change, _) => {
+                    let formatted_change = change
+                        .iter()
+                        .map(|c| {
+                            if c.starts_with("-") {
+                                red!(c)
+                            } else {
+                                green!(c)
+                            }
+                        })
+                        .join("");
+                    println!("{}. The following edits:\n-------------------------\n{}\n-------------------------", i + 1, formatted_change);
+                    println!("will introduce breaking changes.\n\n");
+                }
+                SynthesizedChange::Addition(_new_construct_did) => {}
+            }
         }
     }
     Some(consolidated_changes)
@@ -140,7 +178,7 @@ pub async fn handle_check_command(
     match &runbook_state {
         Some(RunbookState::File(state_file_location)) => {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_runbook_execution_snapshot(state_file_location)?;
+            let old = load_runbook_execution_snapshot(state_file_location, true)?;
             for run in runbook.running_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let _res = run
@@ -154,11 +192,9 @@ pub async fn handle_check_command(
                     .await;
             }
             runbook.enable_full_execution_mode();
-            let new = ctx.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                None,
-            );
+            let new = ctx
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -468,7 +504,7 @@ pub async fn handle_run_command(
 
     let previous_state_opt =
         if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
-            match load_runbook_execution_snapshot(&state_file_location) {
+            match load_runbook_execution_snapshot(&state_file_location, true) {
                 Ok(snapshot) => Some(snapshot),
                 Err(e) => {
                     println!("{} {}", red!("x"), e);
@@ -483,7 +519,6 @@ pub async fn handle_run_command(
 
     if !cmd.force_execution {
         if let Some(old) = previous_state_opt {
-            // if !cmd.force_execution {
             let ctx = RunbookSnapshotContext::new();
 
             let mut execution_context_backups = HashMap::new();
@@ -504,11 +539,9 @@ pub async fn handle_run_command(
                     .insert(run.inputs_set.name.clone(), execution_context_backup);
             }
 
-            let new = ctx.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                None,
-            );
+            let new = ctx
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -521,33 +554,32 @@ pub async fn handle_run_command(
                 ..ColorfulTheme::default()
             };
 
-            let mut actions_to_re_execture = IndexMap::new();
+            let mut actions_to_re_execute = IndexMap::new();
+            let mut actions_to_execute = IndexMap::new();
+
+            for running_context_key in consolidated_changes.new_plans_to_add.iter() {
+                let running_context =
+                    runbook.find_expected_running_context_mut(&running_context_key);
+                running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
+                let pristine_execution_context = execution_context_backups
+                    .remove(running_context_key)
+                    .unwrap();
+                running_context.execution_context = pristine_execution_context;
+            }
 
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
-                let critical_changes = changes
+                let critical_edits = changes
                     .contructs_to_update
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
-                // for running_context in
+
+                let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
+
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
 
-                let pristine_execution_context = execution_context_backups
-                    .remove(running_context_key)
-                    .unwrap();
-
-                if consolidated_changes
-                    .new_plans_to_add
-                    .contains(running_context_key)
-                {
-                    // Restore a pristing execution context
-                    running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
-                    running_context.execution_context = pristine_execution_context;
-                    continue;
-                }
-
-                if critical_changes.is_empty() {
+                if critical_edits.is_empty() && additions.is_empty() {
                     running_context.execution_context.execution_mode =
                         RunbookExecutionMode::Ignored;
                     continue;
@@ -556,7 +588,12 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(vec![]);
 
-                let descendants_of_critically_changed_commands = critical_changes
+                let mut added_construct_dids: Vec<ConstructDid> = additions
+                    .into_iter()
+                    .map(|(construct_did, _)| construct_did.clone())
+                    .collect();
+
+                let descendants_of_critically_changed_commands = critical_edits
                     .iter()
                     .filter_map(|c| {
                         if let Some(construct_did) = &c.construct_did {
@@ -575,6 +612,9 @@ pub async fn handle_run_command(
                         }
                     })
                     .flatten()
+                    .filter(|d| !added_construct_dids.contains(d))
+                    .sorted()
+                    .dedup()
                     .collect::<Vec<_>>();
 
                 let actions: Vec<(String, Option<String>)> =
@@ -595,7 +635,40 @@ pub async fn handle_run_command(
                             (command.name.to_string(), documentation)
                         })
                         .collect();
-                actions_to_re_execture.insert(running_context_key, actions);
+                actions_to_re_execute.insert(running_context_key, actions);
+
+                let added_actions: Vec<(String, Option<String>)> = added_construct_dids
+                    .iter()
+                    .map(|construct_did| {
+                        let documentation = running_context
+                            .execution_context
+                            .commands_inputs_simulation_results
+                            .get(construct_did)
+                            .and_then(|r| r.inputs.get_string("description"))
+                            .and_then(|d| Some(d.to_string()));
+                        let command = running_context
+                            .execution_context
+                            .commands_instances
+                            .get(construct_did)
+                            .unwrap();
+                        (command.name.to_string(), documentation)
+                    })
+                    .collect();
+                actions_to_execute.insert(running_context_key, added_actions);
+
+                let mut great_filter = descendants_of_critically_changed_commands;
+                great_filter.append(&mut added_construct_dids);
+
+                for construct_did in great_filter.iter() {
+                    let Some(input_evaluations) = running_context
+                        .execution_context
+                        .commands_inputs_evaluation_results
+                        .get_mut(construct_did)
+                    else {
+                        continue;
+                    };
+                    input_evaluations.inputs.storage.clear();
+                }
 
                 running_context
                     .execution_context
@@ -604,15 +677,39 @@ pub async fn handle_run_command(
                     .order_for_commands_execution
                     .clone()
                     .into_iter()
-                    .filter(|c| descendants_of_critically_changed_commands.contains(&c))
+                    .filter(|c| great_filter.contains(&c))
                     .collect();
             }
 
-            if !actions_to_re_execture.is_empty() {
+            let has_actions = actions_to_re_execute
+                .iter()
+                .filter(|(_, actions)| !actions.is_empty())
+                .count();
+            if has_actions > 0 {
                 println!("The following actions will be re-executed:");
-                for (context, actions) in actions_to_re_execture.iter() {
+                for (context, actions) in actions_to_re_execute.iter() {
                     let documentation_missing = black!("<description field empty>");
-                    println!("\n{}", purple!(format!("{}", context)));
+                    println!("\n{}", yellow!(format!("{}", context)));
+                    for (action_name, documentation) in actions.into_iter() {
+                        println!(
+                            "- {}: {}",
+                            action_name,
+                            documentation.as_ref().unwrap_or(&documentation_missing)
+                        );
+                    }
+                }
+                println!("\n");
+            }
+
+            let has_actions = actions_to_execute
+                .iter()
+                .filter(|(_, actions)| !actions.is_empty())
+                .count();
+            if has_actions > 0 {
+                println!("The following actions have been added and will be executed for the first time:");
+                for (context, actions) in actions_to_execute.iter() {
+                    let documentation_missing = black!("<description field empty>");
+                    println!("\n{}", green!(format!("{}", context)));
                     for (action_name, documentation) in actions.into_iter() {
                         println!(
                             "- {}: {}",
@@ -640,6 +737,30 @@ pub async fn handle_run_command(
         );
     }
 
+    if cmd.explain {
+        for (location, _) in runbook.sources.tree.iter() {
+            println!("Loading {}", location);
+        }
+        for running_context in runbook.running_contexts.iter_mut() {
+            // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
+            let sorted_commands = &running_context
+                .execution_context
+                .order_for_commands_execution;
+            for c in sorted_commands.iter() {
+                let Some(command_instance) =
+                    running_context.execution_context.commands_instances.get(c)
+                else {
+                    continue;
+                };
+                println!(
+                    "{}::{}",
+                    command_instance.specification.matcher, command_instance.name
+                );
+            }
+        }
+        return Ok(());
+    }
+
     // should not be generating actions
     if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
@@ -649,7 +770,7 @@ pub async fn handle_run_command(
                         match update.new_status.status_color {
                             ProgressBarStatusColor::Yellow => {
                                 print!(
-                                    "\r{} {} {:<100}",
+                                    "\r{} {} {:<150}",
                                     yellow!("→"),
                                     yellow!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
@@ -657,7 +778,7 @@ pub async fn handle_run_command(
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{} {} {:<100}\n",
+                                    "\r{} {} {:<150}\n",
                                     green!("✓"),
                                     green!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
@@ -665,7 +786,7 @@ pub async fn handle_run_command(
                             }
                             ProgressBarStatusColor::Red => {
                                 print!(
-                                    "\r{} {} {:<100}\n",
+                                    "\r{} {} {:<150}\n",
                                     red!("x"),
                                     red!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
@@ -691,12 +812,36 @@ pub async fn handle_run_command(
             for diag in diags.iter() {
                 println!("{}", red!(format!("- {}", diag)));
             }
+
+            if let Some(RunbookState::File(state_file_location)) = runbook_state {
+                let previous_snapshot =
+                    match load_runbook_execution_snapshot(&state_file_location, false) {
+                        Ok(snapshot) => Some(snapshot),
+                        Err(_e) => None,
+                    };
+
+                let lock_file = get_lock_file_location(&state_file_location);
+                println!("{} Saving transient state to {}", yellow!("!"), lock_file);
+                let diff = RunbookSnapshotContext::new();
+                let snapshot = diff
+                    .snapshot_runbook_execution(
+                        &runbook.runbook_id,
+                        &runbook.running_contexts,
+                        previous_snapshot,
+                    )
+                    .map_err(|e| e.message)?;
+                lock_file
+                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                    .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
+                ();
+            }
             return Ok(());
         }
 
-        let ascii_table = AsciiTable::default();
-        let mut collected_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<String>>> =
+            IndexMap::new();
         for running_context in runbook.running_contexts.iter() {
+            let mut running_context_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
             let grouped_actions_items = running_context
                 .execution_context
                 .collect_outputs_constructs_results();
@@ -704,38 +849,70 @@ pub async fn handle_run_command(
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
                     if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                        match collected_outputs.get_mut(&output.name) {
+                        let value = output.value.to_string();
+                        let output_name = output.name.to_string();
+                        let display_name = output
+                            .description
+                            .as_ref()
+                            .and_then(|d| Some(d.as_str()))
+                            .unwrap_or(output_name.as_str());
+
+                        match running_context_outputs.get_mut(&output.name) {
                             Some(entries) => {
-                                entries.push(output.value.to_string());
+                                entries.push(value);
                             }
                             None => {
-                                collected_outputs.insert(
-                                    output.name.to_string(),
-                                    vec![output.value.to_string()],
-                                );
+                                running_context_outputs
+                                    .insert(display_name.to_string(), vec![value]);
                             }
                         }
                     }
                 }
             }
+            collected_outputs.insert(
+                running_context.inputs_set.name.clone(),
+                running_context_outputs,
+            );
         }
 
-        if collected_outputs.is_empty() {
-            return Ok(());
+        if !collected_outputs.is_empty() {
+            for (batch_name, mut batch_outputs) in collected_outputs.drain(..) {
+                if !batch_outputs.is_empty() {
+                    println!("{}", yellow!(format!("{} Outputs: ", batch_name)));
+                    let mut data = vec![];
+                    for (key, values) in batch_outputs.drain(..) {
+                        let mut rows = vec![];
+
+                        for (i, value) in values.into_iter().enumerate() {
+                            let parts = value.split("\n");
+                            for (j, part) in parts.into_iter().enumerate() {
+                                if i == 0 && j == 0 {
+                                    rows.push(vec![key.clone(), part.to_string()]);
+                                } else {
+                                    let row = vec!["".to_string(), part.to_string()];
+                                    rows.push(row);
+                                }
+                            }
+                        }
+                        data.append(&mut rows)
+                    }
+                    let mut ascii_table = AsciiTable::default();
+                    ascii_table.set_max_width(150);
+                    ascii_table.print(data);
+                }
+            }
         }
 
-        let mut data = vec![];
-        for (key, mut values) in collected_outputs.drain(..) {
-            let mut row = vec![key];
-            row.append(&mut values);
-            data.push(row)
-        }
-        ascii_table.print(data);
         if let Some(RunbookState::File(state_file_location)) = runbook_state {
-            let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
-                Ok(snapshot) => Some(snapshot),
-                Err(_e) => None,
-            };
+            let previous_snapshot =
+                match load_runbook_execution_snapshot(&state_file_location, false) {
+                    Ok(snapshot) => Some(snapshot),
+                    Err(_e) => None,
+                };
+
+            if let Some(lock_file) = get_lock_file(&state_file_location) {
+                let _ = std::fs::remove_file(&lock_file.to_string());
+            }
 
             println!(
                 "{} Saving execution state to {}",
@@ -743,11 +920,13 @@ pub async fn handle_run_command(
                 state_file_location
             );
             let diff = RunbookSnapshotContext::new();
-            let snapshot = diff.snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.running_contexts,
-                previous_snapshot,
-            );
+            let snapshot = diff
+                .snapshot_runbook_execution(
+                    &runbook.runbook_id,
+                    &runbook.running_contexts,
+                    previous_snapshot,
+                )
+                .map_err(|e| e.message)?;
             state_file_location
                 .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
                 .expect("unable to save state");
@@ -937,6 +1116,7 @@ pub async fn handle_run_command(
 
 pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
+    environment_selector: &Option<String>,
 ) -> Result<
     (
         WorkspaceManifest,
@@ -946,7 +1126,7 @@ pub async fn load_runbooks_from_manifest(
 > {
     let manifest_location = FileLocation::from_path_string(manifest_path)?;
     let manifest = WorkspaceManifest::from_location(&manifest_location)?;
-    let runbooks = read_runbooks_from_manifest(&manifest, None)?;
+    let runbooks = read_runbooks_from_manifest(&manifest, environment_selector, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
     Ok((manifest, runbooks))
 }
@@ -959,7 +1139,8 @@ pub async fn load_runbook_from_manifest(
     available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
-    let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
+    let (manifest, runbooks) =
+        load_runbooks_from_manifest(manifest_path, environment_selector).await?;
     // Select first runbook by default
     for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in
         runbooks.into_iter()
@@ -997,7 +1178,7 @@ pub async fn load_runbook_from_file_path(
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
-        read_runbook_from_location(&location, &None)?;
+        read_runbook_from_location(&location, &None, &None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookInputsMap::new();

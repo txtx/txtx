@@ -13,7 +13,7 @@ mod runtime_context;
 mod workspace_context;
 
 pub use diffing_context::ConsolidatedChanges;
-pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext};
+pub use diffing_context::{RunbookExecutionSnapshot, RunbookSnapshotContext, SynthesizedChange};
 pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
 pub use runtime_context::{AddonConstructFactory, RuntimeContext};
@@ -69,6 +69,9 @@ impl Runbook {
         // Re-initialize some shiny new contexts
         self.running_contexts.clear();
         let mut runtime_context = RuntimeContext::new(available_addons, authorization_context);
+
+        runtime_context.load_all_addons(&self.runbook_id, &sources)?;
+
         let inputs_sets = runtime_context.collect_environment_variables(
             &self.runbook_id,
             &inputs_map,
@@ -87,6 +90,7 @@ impl Runbook {
                 &inputs_sets,
                 &sources,
                 &running_context.execution_context,
+                &inputs_map.current,
             )?;
             // Step 2: identify and index all the constructs (nodes)
             running_context.workspace_context.build_from_sources(
@@ -94,6 +98,7 @@ impl Runbook {
                 &runtime_context,
                 &mut running_context.graph_context,
                 &mut running_context.execution_context,
+                &inputs_map.current,
             )?;
             // Step 3: simulate inputs evaluation - some more edges could be hidden in there
             running_context
@@ -152,7 +157,8 @@ impl Runbook {
         let mut inputs_map = self.inputs_map.clone();
         inputs_map.current = selector;
         let available_addons = self.runtime_context.collect_available_addons();
-        let authorization_context = self.runtime_context.authorization_context.clone();
+        let authorization_context: AuthorizationContext =
+            self.runtime_context.authorization_context.clone();
         self.build_contexts_from_sources(
             self.sources.clone(),
             inputs_map,

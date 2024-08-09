@@ -38,7 +38,8 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
-use crate::typing::{CLARITY_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
+use crate::typing::StacksValue;
+use crate::typing::{STACKS_CV_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
 
 use super::DEFAULT_DERIVATION_PATH;
 
@@ -142,7 +143,7 @@ impl WalletImplementation for StacksMnemonic {
         signing_command_state.insert("mnemonic", mnemonic);
         signing_command_state.insert("derivation_path", derivation_path);
         signing_command_state.insert("is_encrypted", is_encrypted);
-        signing_command_state.insert("hash_flag", Value::uint(version.into()));
+        signing_command_state.insert("hash_flag", Value::integer(version.into()));
         signing_command_state.insert("multi_sig", Value::bool(false));
 
         let (_, public_key, expected_address) =
@@ -219,9 +220,8 @@ impl WalletImplementation for StacksMnemonic {
                 Err(diag) => return Err((wallets, signing_command_state, diag)),
             };
 
-        let payload_buffer = payload.expect_buffer_data();
-
-        if payload_buffer.typing.eq(&STACKS_TRANSACTION) {
+        let payload_buffer = payload.expect_addon_data();
+        if payload_buffer.id.eq(&STACKS_TRANSACTION) {
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &payload_buffer.bytes[..]).unwrap();
             let mut tx_signer = StacksTransactionSigner::new(&transaction);
@@ -230,7 +230,7 @@ impl WalletImplementation for StacksMnemonic {
             let signed_transaction = tx_signer.get_tx_incomplete();
 
             let nonce = signed_transaction.get_origin_nonce();
-            signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
+            signing_command_state.insert(CACHED_NONCE, Value::integer(nonce.into()));
 
             let mut signed_transaction_bytes = vec![];
             signed_transaction
@@ -238,7 +238,7 @@ impl WalletImplementation for StacksMnemonic {
                 .unwrap(); // todo
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
-                Value::buffer(signed_transaction_bytes, STACKS_TRANSACTION.clone()),
+                StacksValue::transaction(signed_transaction_bytes),
             );
         } else {
             let secret_key =
@@ -252,8 +252,8 @@ impl WalletImplementation for StacksMnemonic {
                 &public_key,
                 &signature,
             );
-            let message = Value::buffer(next_sighash.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
-            let signature = Value::buffer(signature.to_bytes().to_vec(), STACKS_SIGNATURE.clone());
+            let message = StacksValue::signature(next_sighash.to_bytes().to_vec());
+            let signature = StacksValue::signature(signature.to_bytes().to_vec());
             result.outputs.insert(MESSAGE_BYTES.into(), message);
             result
                 .outputs
@@ -292,7 +292,7 @@ pub fn compute_keypair(
     // Enforce a 33 bytes secret key format, expected by Stacks
     let mut secret_key_bytes = secret_key.serialize().to_vec();
     secret_key_bytes.push(1);
-    let secret_key_hex = Value::buffer(secret_key_bytes, CLARITY_BUFFER.clone());
+    let secret_key_hex = StacksValue::buffer(secret_key_bytes);
 
     let public_key = PublicKey::from_secret_key(&secret_key);
     let pub_key = Secp256k1PublicKey::from_slice(&public_key.serialize_compressed()).unwrap();

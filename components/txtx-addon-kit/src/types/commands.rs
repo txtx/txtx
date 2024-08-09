@@ -11,23 +11,24 @@ use std::{
 };
 use uuid::Uuid;
 
-use hcl_edit::{expr::Expression, structure::Block};
+use hcl_edit::{expr::Expression, structure::Block, Span};
 
 use crate::{
     helpers::hcl::{
-        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
+        collect_constructs_references_from_expression, get_object_expression_key,
+        visit_optional_untyped_attribute,
     },
     AddonDefaults,
 };
 
 use super::{
-    diagnostics::{Diagnostic, DiagnosticLevel},
+    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
-    types::{ObjectProperty, RunbookSupervisionContext, Type, TypeSpecification, Value},
+    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
@@ -112,25 +113,40 @@ impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
         match &self.typing {
             Type::Object(spec) => Some(spec),
-            Type::Primitive(_) => None,
             Type::Addon(_) => None,
             Type::Array(_) => None,
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
         match &self.typing {
             Type::Object(_) => None,
-            Type::Primitive(_) => None,
             Type::Addon(_) => None,
             Type::Array(array) => Some(array),
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
-    pub fn as_action(&self) -> Option<&TypeSpecification> {
+    pub fn as_action(&self) -> Option<&String> {
         match &self.typing {
             Type::Object(_) => None,
-            Type::Primitive(_) => None,
             Type::Addon(addon) => Some(addon),
             Type::Array(_) => None,
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
 }
@@ -617,26 +633,14 @@ impl CommandInstance {
         &self,
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) | Type::Object(_) => {
-                visit_optional_untyped_attribute(&input.name, &self.block)?
-            }
-        };
+        let res = visit_optional_untyped_attribute(&input.name, &self.block)?;
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic {
-                span: None,
-                location: None,
-                message: format!(
-                    "command '{}' (type '{}') is missing value for field '{}'",
-                    self.name, self.specification.matcher, input.name
-                ),
-                level: DiagnosticLevel::Error,
-                documentation: None,
-                example: None,
-                parent_diagnostic: None,
-            }]),
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
@@ -652,20 +656,18 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let object = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
+            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
+            _ => {
                 unreachable!()
             }
-            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
         };
         match (object, input.optional) {
             (Some(expr), _) => Ok(Some(expr)),
             (None, true) => Ok(None),
-            (None, false) => todo!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for object '{}'",
+                self.name, self.specification.matcher, input.name
+            ))]),
         }
     }
 
@@ -674,12 +676,13 @@ impl CommandInstance {
         input: &CommandInput,
         prop: &ObjectProperty,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let object = self.block.body.get_blocks(&input.name).next();
-        match (object, input.optional) {
-            (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)?;
+        let expr = visit_optional_untyped_attribute(&input.name, &self.block)?;
+        match (expr, input.optional) {
+            (Some(expr), _) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = get_object_expression_key(object_expr, &prop.name);
                 match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression)),
+                    (Some(expression), _) => Ok(Some(expression.expr().clone())),
                     (None, true) => Ok(None),
                     (None, false) => todo!(
                         "command '{}' (type '{}') is missing property '{}' for object '{}'",
@@ -828,7 +831,8 @@ impl CommandInstance {
             &addon_defaults,
             progress_tx,
         )?
-        .await;
+        .await
+        .map_err(|e| e.set_span_range(self.block.span()));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -933,7 +937,9 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         );
-        let res = consolidate_wallet_future_result(future).await?;
+        let res = consolidate_wallet_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
         let (signing_command_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
@@ -967,7 +973,9 @@ impl CommandInstance {
             wallet_instances,
             wallets,
         );
-        let res = consolidate_wallet_activate_future_result(future).await?;
+        let res = consolidate_wallet_activate_future_result(future)
+            .await?
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -1036,7 +1044,13 @@ impl CommandInstance {
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
-        for input in self.specification.inputs.iter() {
+
+        for input in self
+            .specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+        {
             match input.typing {
                 Type::Object(ref props) => {
                     if let Some(attr) = self.block.body.get_attribute(&input.name) {

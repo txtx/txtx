@@ -81,9 +81,9 @@ impl RunbookGraphContext {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "input '{}': unable to resolve '{}'",
+                            "unable to resolve '{}' in input '{}'",
+                            dep,
                             construct.name,
-                            dep
                         ));
                     }
                 }
@@ -100,9 +100,9 @@ impl RunbookGraphContext {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "module '{}': unable to resolve '{}'",
+                            "unable to resolve '{}' in module '{}'",
+                            dep,
                             construct.name,
-                            dep
                         ));
                     }
                 }
@@ -119,9 +119,9 @@ impl RunbookGraphContext {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "output '{}': unable to resolve '{}'",
+                            "unable to resolve '{}' in output '{}'",
+                            dep,
                             construct.name,
-                            dep
                         ));
                     }
                 }
@@ -155,9 +155,9 @@ impl RunbookGraphContext {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "action '{}': unable to resolve '{}'",
+                            "unable to resolve '{}' in action '{}'",
+                            dep,
                             command_instance.name,
-                            dep
                         ));
                     }
                 }
@@ -186,9 +186,9 @@ impl RunbookGraphContext {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "wallet '{}': unable to resolve '{}'",
+                            "unable to resolve '{}' in wallet '{}'",
+                            dep,
                             wallet_instance.name,
-                            dep
                         ));
                     }
                 }
@@ -211,9 +211,12 @@ impl RunbookGraphContext {
             {
                 self.constructs_dag.remove_edge(edge_to_root);
             }
-            self.constructs_dag
-                .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
-                .unwrap();
+            if let Err(e) =
+                self.constructs_dag
+                    .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
+            {
+                diags.push(diagnosed_error!("Cycling dependency"));
+            }
         }
 
         if !diags.is_empty() {

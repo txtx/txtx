@@ -1,0 +1,66 @@
+[
+    {
+        "type": "addon::ns::type",
+        "value": {
+            "type": "std::buffer",
+            "value": {
+                "bytes": "0xFFFFFF",
+                "typing": {
+                    "id": "my_buffer_type",
+                    "documentation": "test documentation"
+                }
+            }
+        }
+    },
+    {
+        "type": "addon::ns::type",
+        "value": {
+            "value": {
+                "type": "std::buffer",
+                "value": {
+                    "bytes": "0xFFFFFF",
+                    "typing": {
+                        "id": "my_buffer_type",
+                        "documentation": "test documentation"
+                    }
+                }
+            },
+            "typing": {
+                "id": "ns::type",
+                "documentation": "test documentation"
+            }
+        }
+    },
+    {
+        "type": "stacks::uint",
+        "data": "0xFFFFFF",
+    },
+    {
+        "type": "number",
+        "data": 12,
+    },
+    {
+        "type": "string",
+        "data": "hello world",
+    },
+    {
+        "type": "buffer",
+        "data": "0x0000000000",
+    },
+    {
+        "type": "array",
+        "data": [
+            {
+                "type": "buffer",
+                "data": "0x0000000000",
+            }
+        ],
+    },
+    {
+        "type": "std::buffer",
+        "value": {
+            "bytes": "0xFFFFFFF",
+            "typing": ""
+        }
+    }
+]

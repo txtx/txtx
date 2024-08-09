@@ -1,6 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_addon_kit::types::frontend::ActionItemResponse;
+use txtx_addon_kit::{serde_json, types::frontend::ActionItemResponse};
 
 pub struct Mutation;
 

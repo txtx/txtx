@@ -250,7 +250,7 @@ lazy_static! {
                     // `console` is provided it will only insert `sole`. Therefore it is
                     // recommended to use `textEdit` instead since it avoids additional client
                     // side interpretation.
-                    insert_text: Some(format!("action \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
+                    insert_text: Some(format!("wallet \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
                     // The format of the insert text. The format applies to both the `insertText` property
                     // and the `newText` property of a provided `textEdit`. If omitted defaults to `InsertTextFormat.PlainText`.
                     insert_text_format: Some(InsertTextFormat::SNIPPET), // Option<InsertTextFormat>,

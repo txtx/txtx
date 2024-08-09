@@ -55,6 +55,7 @@ pub struct RunbookStateFile {
 
 pub fn read_runbooks_from_manifest(
     manifest: &WorkspaceManifest,
+    environment_selector: &Option<String>,
     runbooks_filter_in: Option<&Vec<String>>,
 ) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
     let mut runbooks = IndexMap::new();
@@ -73,8 +74,11 @@ pub fn read_runbooks_from_manifest(
         }
         let mut package_location = root_path.clone();
         package_location.append_path(&runbook_metadata.location)?;
-        let (_, runbook, sources) =
-            read_runbook_from_location(&package_location, &runbook_metadata.description)?;
+        let (_, runbook, sources) = read_runbook_from_location(
+            &package_location,
+            &runbook_metadata.description,
+            environment_selector,
+        )?;
 
         runbooks.insert(
             runbook_metadata.id.to_string(),
@@ -92,13 +96,14 @@ pub fn read_runbooks_from_manifest(
 pub fn read_runbook_from_location(
     location: &FileLocation,
     description: &Option<String>,
+    environment_selector: &Option<String>,
 ) -> Result<(String, Runbook, RunbookSources), String> {
     let runbook_name = location.get_file_name().unwrap_or(location.to_string());
     let mut runbook_sources = RunbookSources::new();
     let package_location = location.clone();
     match std::fs::read_dir(package_location.to_string()) {
         Ok(_) => {
-            let files = get_txtx_files_paths(&package_location.to_string())
+            let files = get_txtx_files_paths(&package_location.to_string(), environment_selector)
                 .map_err(|e| format!("unable to read directory: {}", e))?;
             for file_path in files.into_iter() {
                 let location = FileLocation::from_path(file_path);

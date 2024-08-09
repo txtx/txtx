@@ -18,6 +18,8 @@ serde = "1"
 serde_derive = "1"
 async-recursion = "1"
 alloy = { version = "0.1", features = ["full"] }
+alloy-provider = { version = "0.1", features = ["debug-api"] }
+alloy-rpc-types = { version = "0.1", features = ["trace"] }
 alloy-signer-local = { version = "0.1.4", features = ["mnemonic"] }
 thiserror = "1.0.62"
 toml = "0.5"

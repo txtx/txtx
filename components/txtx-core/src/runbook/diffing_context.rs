@@ -2,7 +2,7 @@ use super::{RunbookExecutionMode, RunningContext};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
-    types::{types::Value, ConstructDid, PackageDid, RunbookId},
+    types::{diagnostics::Diagnostic, types::Value, ConstructDid, PackageDid, RunbookId},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -107,7 +107,7 @@ impl RunbookSnapshotContext {
         runbook_id: &RunbookId,
         running_contexts: &Vec<RunningContext>,
         previous_snapshot: Option<RunbookExecutionSnapshot>,
-    ) -> RunbookExecutionSnapshot {
+    ) -> Result<RunbookExecutionSnapshot, Diagnostic> {
         // &runbook.workspace_context,
         // workspace_context: &RunbookWorkspaceContext,
 
@@ -146,10 +146,14 @@ impl RunbookSnapshotContext {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_run = previous_snapshot
                             .as_ref()
-                            .expect("unexpected error: former snapshot should have been provided")
+                            .ok_or(diagnosed_error!(
+                                "former snapshot should have been provided"
+                            ))?
                             .runs
                             .get(&run_id)
-                            .expect("unexpected error: former snapshot corrupted")
+                            .ok_or(diagnosed_error!(
+                                "unexpected error: former snapshot corrupted"
+                            ))?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
                         (previous_run, constructs_ids_to_consider)
@@ -427,7 +431,7 @@ impl RunbookSnapshotContext {
                             };
                             // This is a major shortcut, we should revisit this approach
                             let value = match value.as_object().map(|o| o.get(critical_output)) {
-                                Some(Some(Ok(value))) => value.clone(),
+                                Some(Some(value)) => value.clone(),
                                 _ => Value::null(),
                             };
                             let output_name = &output.name;
@@ -455,7 +459,7 @@ impl RunbookSnapshotContext {
         }
 
         let rountrip: RunbookExecutionSnapshot = serde_json::from_value(json!(snapshot)).unwrap();
-        rountrip
+        Ok(rountrip)
     }
 
     pub fn diff(
@@ -550,7 +554,6 @@ impl RunbookSnapshotContext {
                     new_index: _,
                     new_len: _,
                 } => {
-                    println!("REPLACE UNSUPPORTED: {:?}", change);
                     // for i in 0..*old_len {
                     //     for j in 0..*new_len {
                     //         comparable_runs_ids_list.push((old_index + i, new_index + j));
@@ -770,7 +773,13 @@ pub fn diff_command_snapshots(
             } => {
                 for i in 0..*new_len {
                     let entry = new_construct_dids.get(new_index + i).unwrap().clone();
-                    consolidated_changes.new_constructs_to_add.push(entry)
+                    let command = match new_run.commands.get(&entry) {
+                        Some(e) => Some(e.clone()),
+                        None => None,
+                    };
+                    consolidated_changes
+                        .new_constructs_to_add
+                        .push((entry, command))
                 }
             }
             DiffOp::Replace {
@@ -943,11 +952,8 @@ pub fn diff_command_snapshots(
                 ));
             // Input value_post_evaluation
             if let Some(props) = new_input.value_post_evaluation.as_object() {
-                for (prop, value_res) in props.iter() {
-                    let Ok(new_value) = value_res else {
-                        continue;
-                    };
-                    let Some(Ok(old_value)) = old_input
+                for (prop, new_value) in props.iter() {
+                    let Some(old_value) = old_input
                         .value_post_evaluation
                         .as_object()
                         .and_then(|o| o.get(prop))
@@ -1106,7 +1112,7 @@ pub struct ConsolidatedChanges {
 #[derive(Debug)]
 pub struct ConsolidatedPlanChanges {
     pub old_constructs_to_rem: Vec<ConstructDid>,
-    pub new_constructs_to_add: Vec<ConstructDid>,
+    pub new_constructs_to_add: Vec<(ConstructDid, Option<CommandSnapshot>)>,
     pub contructs_to_update: Vec<Change>,
 }
 
@@ -1120,6 +1126,12 @@ impl ConsolidatedPlanChanges {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
+pub enum SynthesizedChange {
+    Edition(Vec<String>, bool),
+    Addition(ConstructDid),
+}
+
 impl ConsolidatedChanges {
     pub fn new() -> Self {
         Self {
@@ -1131,8 +1143,8 @@ impl ConsolidatedChanges {
 
     pub fn get_synthesized_changes(
         &self,
-    ) -> IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> {
-        let mut reverse_lookup: IndexMap<(Vec<String>, bool), Vec<(String, Option<ConstructDid>)>> =
+    ) -> IndexMap<SynthesizedChange, Vec<(String, Option<ConstructDid>)>> {
+        let mut reverse_lookup: IndexMap<SynthesizedChange, Vec<(String, Option<ConstructDid>)>> =
             IndexMap::new();
 
         for (plan_id, plan_changes) in self.plans_to_update.iter() {
@@ -1140,7 +1152,7 @@ impl ConsolidatedChanges {
                 if change.description.is_empty() {
                     continue;
                 }
-                let key = (change.description.clone(), change.critical);
+                let key = SynthesizedChange::Edition(change.description.clone(), change.critical);
                 let value = (plan_id.to_string(), change.construct_did.clone());
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)
@@ -1148,8 +1160,8 @@ impl ConsolidatedChanges {
                     reverse_lookup.insert(key, vec![value]);
                 }
             }
-            for new_construct in plan_changes.new_constructs_to_add.iter() {
-                let key = (vec![format!("Execute {}", new_construct.to_string())], true);
+            for (new_construct, _) in plan_changes.new_constructs_to_add.iter() {
+                let key = SynthesizedChange::Addition(new_construct.clone());
                 let value = (plan_id.to_string(), Some(new_construct.clone()));
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)

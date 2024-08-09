@@ -1,4 +1,3 @@
-use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
 use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionFutureResult, PreCommandSpecification,
 };
@@ -11,6 +10,8 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
+
+use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 use super::encode_contract_call;
 
@@ -25,7 +26,7 @@ lazy_static! {
           inputs: [
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
-                  typing: Type::addon(CLARITY_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
                   interpolable: true
               },
@@ -37,7 +38,7 @@ lazy_static! {
               },
               function_args: {
                   documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
+                  typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                   optional: true,
                   interpolable: true
               },
@@ -46,12 +47,6 @@ lazy_static! {
                   typing: Type::string(),
                   optional: true,
                   interpolable: true
-              },
-              depends_on: {
-                documentation: "References another command's outputs, preventing this command from executing until the referenced command is successful.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
               }
           ],
           outputs: [

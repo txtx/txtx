@@ -30,7 +30,7 @@ use crate::constants::{
     CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
     REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
-use crate::typing::CLARITY_BUFFER;
+use crate::typing::STACKS_CV_BUFFER;
 
 use super::get_addition_actions_for_address;
 
@@ -106,9 +106,9 @@ impl WalletImplementation for StacksConnect {
             .unwrap_or(false);
         let _checked_address = signing_command_state.get_expected_string(CHECKED_ADDRESS);
         let _checked_cost_provision =
-            signing_command_state.get_expected_uint(CHECKED_COST_PROVISION);
-        let _fetched_nonce = signing_command_state.get_expected_uint(FETCHED_NONCE);
-        let _fetched_balance = signing_command_state.get_expected_uint(FETCHED_BALANCE);
+            signing_command_state.get_expected_integer(CHECKED_COST_PROVISION);
+        let _fetched_nonce = signing_command_state.get_expected_integer(FETCHED_NONCE);
+        let _fetched_balance = signing_command_state.get_expected_integer(FETCHED_BALANCE);
 
         let expected_address = args.get_string("expected_address").map(|e| e.to_string());
         let do_request_address_check = expected_address.is_some();
@@ -129,14 +129,14 @@ impl WalletImplementation for StacksConnect {
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
 
-        if let Ok(public_key_buffer) = args.get_expected_buffer("public_key", &CLARITY_BUFFER) {
+        if let Ok(public_key_bytes) = args.get_expected_buffer_bytes("public_key") {
             let version = if network_id.eq("mainnet") {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
             } else {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_TESTNET_SINGLESIG
             };
 
-            let public_key = Secp256k1PublicKey::from_slice(&public_key_buffer.bytes).unwrap();
+            let public_key = Secp256k1PublicKey::from_slice(&public_key_bytes).unwrap();
 
             let stx_address = StacksAddress::from_public_keys(
                 version,
@@ -171,7 +171,7 @@ impl WalletImplementation for StacksConnect {
             if success {
                 signing_command_state.insert(
                     CHECKED_PUBLIC_KEY,
-                    Value::string(txtx_addon_kit::hex::encode(public_key_buffer.bytes)),
+                    Value::string(txtx_addon_kit::hex::encode(public_key_bytes)),
                 );
             }
             let update = ActionItemRequestUpdate::from_context(
@@ -248,7 +248,7 @@ impl WalletImplementation for StacksConnect {
             _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
         };
 
-        signing_command_state.insert("hash_flag", Value::uint(version.into()));
+        signing_command_state.insert("hash_flag", Value::integer(version.into()));
         signing_command_state.insert("multi_sig", Value::bool(false));
 
         return_synchronous_result(Ok((wallets, signing_command_state, result)))
@@ -284,7 +284,7 @@ impl WalletImplementation for StacksConnect {
             {
                 Ok(tx) => {
                     let nonce = tx.get_origin_nonce();
-                    signing_command_state.insert(CACHED_NONCE, Value::uint(nonce));
+                    signing_command_state.insert(CACHED_NONCE, Value::integer(nonce as i128));
                 }
                 Err(_) => {}
             }
