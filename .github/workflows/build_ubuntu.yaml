@@ -1,0 +1,77 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          path: txtx
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Checkout Txtx Web UI
+        uses: actions/checkout@v4
+        with:
+          repository: txtx/txtx-web-ui
+          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
+          path: txtx-web-ui 
+
+      - name: Build .env file for Txtx Web UI
+        run: |
+          cd txtx-web-ui
+          touch .env
+          echo HANKO_API_URL=${{ secrets.HANKO_API_URL }} >> .env
+          cat .env
+          cd ..
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Build Txtx Web UI
+        run: |
+          cd txtx-web-ui
+          npm i
+          npm run build
+          cd ..
+
+      - name: Build .env file for Txtx Core
+        run: |
+          cd txtx
+          touch .env
+          echo RELAYER_BASE_URL="https://txtx.link" >> .env
+          echo RELAYER_HOST="txtx.link" >> .env
+          echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
+          cat .env
+          cd ..
+
+      - name: Build Docker image
+        run: |
+          docker build -t txtx -f ./txtx/dockerfiles/txtx.dockerfile .
+
+      - name: Tag Docker image
+        run: |
+          docker tag txtx:latest 339713119280.dkr.ecr.us-east-2.amazonaws.com/txtx-relay-svc:latest
+
+      - name: Push Docker image to Amazon ECR
+        run: |
+          docker push 339713119280.dkr.ecr.us-east-2.amazonaws.com/txtx-relay-svc:latest
