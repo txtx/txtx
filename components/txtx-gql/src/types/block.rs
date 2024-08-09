@@ -1,10 +1,13 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
-use txtx_addon_kit::types::frontend::{
-    ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
-    ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
-    NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
-    ProgressBarVisibilityUpdate,
+use txtx_addon_kit::{
+    serde_json,
+    types::frontend::{
+        ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
+        ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
+        NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
+        ProgressBarVisibilityUpdate,
+    },
 };
 
 #[derive(Clone)]
