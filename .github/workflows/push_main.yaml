@@ -53,6 +53,7 @@ jobs:
           touch .env
           echo RELAYER_BASE_URL="https://txtx.link" >> .env
           echo RELAYER_HOST="txtx.link" >> .env
+          echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
           cat .env
 
       - name: Checkout Web UI
