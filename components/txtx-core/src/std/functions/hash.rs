@@ -1,5 +1,4 @@
 use kit::sha2::Sha256 as LibSha256;
-use kit::types::types::{TypeImplementation, TypeSpecification};
 use kit::types::AuthorizationContext;
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
 
@@ -11,6 +10,8 @@ use txtx_addon_kit::{
         types::{Type, Value},
     },
 };
+
+use crate::std::typing::StdValue;
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -59,12 +60,6 @@ lazy_static! {
             }
         }
     ];
-    pub static ref HASH_BUFFER: TypeSpecification = define_addon_type! {
-        HashBuffer => {
-            name: "hash_buffer",
-            documentation: "Hash Buffer",
-        }
-    };
 }
 
 pub struct Ripemd160;
@@ -92,8 +87,7 @@ impl FunctionImplementation for Ripemd160 {
         let mut hasher = LibRipemd160::new();
         hasher.update(value.to_bytes());
         let result = hasher.finalize();
-        let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
-        Ok(value)
+        Ok(StdValue::hash(result[..].to_vec()))
     }
 }
 
@@ -122,14 +116,6 @@ impl FunctionImplementation for Sha256 {
         let mut hasher = LibSha256::new();
         hasher.update(value.to_bytes());
         let result = hasher.finalize();
-        let value = Value::buffer(result[..].to_vec(), HASH_BUFFER.clone());
-        Ok(value)
-    }
-}
-
-pub struct HashBuffer;
-impl TypeImplementation for HashBuffer {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+        Ok(StdValue::hash(result[..].to_vec()))
     }
 }

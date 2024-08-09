@@ -11,7 +11,7 @@ use clarity_repl::repl::{
 use std::collections::{BTreeMap, HashMap};
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
-use txtx_addon_kit::types::types::{ObjectProperty, PrimitiveValue};
+use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -79,7 +79,7 @@ lazy_static! {
                         ObjectProperty {
                             name: "clarity_version".into(),
                             documentation: "The version of clarity to use (default: latest).".into(),
-                            typing: Type::uint(),
+                            typing: Type::integer(),
                             optional: true,
                             interpolable: true,
                         }, ]),
@@ -100,19 +100,19 @@ lazy_static! {
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
                 nonce: {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
@@ -142,7 +142,7 @@ lazy_static! {
                         ObjectProperty {
                             name: "to".into(),
                             documentation: "The update.".into(),
-                            typing: Type::uint(),
+                            typing: Type::string(),
                             optional: false,
                             interpolable: true,
                         }, ])),
@@ -202,7 +202,7 @@ lazy_static! {
 }
 
 pub enum ContractSourceTransformsApplied {
-    FindAndReplace(String, String)
+    FindAndReplace(String, String),
 }
 
 pub struct StacksDeployContract;
@@ -224,8 +224,8 @@ impl CommandImplementation for StacksDeployContract {
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_name'")),
         };
         let clarity_version = match contract.get("clarity_version").map(|v| v.as_uint()) {
-            Some(Some(1)) => ClarityVersion::Clarity1,
-            Some(Some(2)) => ClarityVersion::Clarity2,
+            Some(Some(Ok(1))) => ClarityVersion::Clarity1,
+            Some(Some(Ok(2))) => ClarityVersion::Clarity2,
             _ => ClarityVersion::latest(),
         };
 
@@ -277,43 +277,50 @@ impl CommandImplementation for StacksDeployContract {
             Value::array(lazy_dependencies),
         );
 
-
         // contract_source_transforms_handling.
         let mut transforms_applied = vec![];
         if let Ok(transforms) = evaluated_inputs.inputs.get_expected_array("transforms") {
             for transform in transforms.iter() {
                 let Value::Object(props) = transform else {
-                    return Err(diagnosed_error!("unable to read transform '{}'", transform.to_string()));
+                    return Err(diagnosed_error!(
+                        "unable to read transform '{}'",
+                        transform.to_string()
+                    ));
                 };
 
                 match props.get("type") {
-                    Some(Value::Primitive(PrimitiveValue::String(transform_type))) if transform_type.eq("contract_source_find_and_replace") => {},
+                    Some(Value::String(transform_type))
+                        if transform_type.eq("contract_source_find_and_replace") => {}
                     _ => {
                         return Err(diagnosed_error!("transform type unsupported"));
                     }
                 }
 
                 let from = match props.get("from") {
-                    Some(Value::Primitive(PrimitiveValue::String(from_value))) => from_value,
+                    Some(Value::String(from_value)) => from_value,
                     _ => {
                         return Err(diagnosed_error!("missing attribute 'from'"));
                     }
                 };
                 let to = match props.get("to") {
-                    Some(Value::Primitive(PrimitiveValue::String(to_value))) => to_value,
+                    Some(Value::String(to_value)) => to_value,
                     _ => {
                         return Err(diagnosed_error!("missing attribute 'to'"));
                     }
                 };
 
                 contract_source = contract_source.replace(from, to);
-                transforms_applied.push(ContractSourceTransformsApplied::FindAndReplace(from.to_string(), to.to_string()));
+                transforms_applied.push(ContractSourceTransformsApplied::FindAndReplace(
+                    from.to_string(),
+                    to.to_string(),
+                ));
             }
-        } 
+        }
 
-        evaluated_inputs
-            .inputs
-            .insert("contract_source_post_transforms", Value::string(contract_source));
+        evaluated_inputs.inputs.insert(
+            "contract_source_post_transforms",
+            Value::string(contract_source),
+        );
 
         Ok(evaluated_inputs)
     }
@@ -341,38 +348,41 @@ impl CommandImplementation for StacksDeployContract {
             .unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
-            .get_expected_object("contract")
-        {
-            Ok(value) => {
-                let contract_source = match args.get_value("contract_source_post_transforms").or(value.get("contract_source")).map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            wallets,
-                            signing_command_state,
-                            diagnosed_error!("unable to retrieve 'contract_source'"),
-                        ))
-                    }
-                };
-                let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            wallets,
-                            signing_command_state,
-                            diagnosed_error!("unable to retrieve 'contract_name'"),
-                        ))
-                    }
-                };
-                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(value)) => Some(value),
-                    _ => None,
-                };
-                (contract_source, contract_name, clarity_version)
-            }
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
-        };
+        let (contract_source, contract_name, clarity_version) =
+            match args.get_expected_object("contract") {
+                Ok(value) => {
+                    let contract_source = match args
+                        .get_value("contract_source_post_transforms")
+                        .or(value.get("contract_source"))
+                        .map(|v| v.as_string())
+                    {
+                        Some(Some(value)) => value.to_string(),
+                        _ => {
+                            return Err((
+                                wallets,
+                                signing_command_state,
+                                diagnosed_error!("unable to retrieve 'contract_source'"),
+                            ))
+                        }
+                    };
+                    let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
+                        Some(Some(value)) => value.to_string(),
+                        _ => {
+                            return Err((
+                                wallets,
+                                signing_command_state,
+                                diagnosed_error!("unable to retrieve 'contract_name'"),
+                            ))
+                        }
+                    };
+                    let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
+                        Some(Some(Ok(value))) => Some(value),
+                        _ => None,
+                    };
+                    (contract_source, contract_name, clarity_version)
+                }
+                Err(diag) => return Err((wallets, signing_command_state, diag)),
+            };
 
         let empty_vec = vec![];
         let post_conditions_values = args
@@ -423,38 +433,41 @@ impl CommandImplementation for StacksDeployContract {
             .unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
-            .get_expected_object("contract")
-        {
-            Ok(value) => {
-                let contract_source = match args.get_value("contract_source_post_transforms").or(value.get("contract_source")).map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            wallets,
-                            signing_command_state,
-                            diagnosed_error!("unable to retrieve 'contract_source'"),
-                        ))
-                    }
-                };
-                let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            wallets,
-                            signing_command_state,
-                            diagnosed_error!("unable to retrieve 'contract_name'"),
-                        ))
-                    }
-                };
-                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(value)) => Some(value),
-                    _ => None,
-                };
-                (contract_source, contract_name, clarity_version)
-            }
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
-        };
+        let (contract_source, contract_name, clarity_version) =
+            match args.get_expected_object("contract") {
+                Ok(value) => {
+                    let contract_source = match args
+                        .get_value("contract_source_post_transforms")
+                        .or(value.get("contract_source"))
+                        .map(|v| v.as_string())
+                    {
+                        Some(Some(value)) => value.to_string(),
+                        _ => {
+                            return Err((
+                                wallets,
+                                signing_command_state,
+                                diagnosed_error!("unable to retrieve 'contract_source'"),
+                            ))
+                        }
+                    };
+                    let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
+                        Some(Some(value)) => value.to_string(),
+                        _ => {
+                            return Err((
+                                wallets,
+                                signing_command_state,
+                                diagnosed_error!("unable to retrieve 'contract_name'"),
+                            ))
+                        }
+                    };
+                    let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
+                        Some(Some(Ok(value))) => Some(value),
+                        _ => None,
+                    };
+                    (contract_source, contract_name, clarity_version)
+                }
+                Err(diag) => return Err((wallets, signing_command_state, diag)),
+            };
         wallets.push_signing_command_state(signing_command_state);
 
         let empty_vec = vec![];
@@ -497,12 +510,11 @@ impl CommandImplementation for StacksDeployContract {
                 Err(err) => return Err(err),
             };
 
-            let signed_transaction = res_signing
-                .outputs
-                .get(SIGNED_TRANSACTION_BYTES)
-                .unwrap();
+            let signed_transaction = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
             let mut signed_transaction_bytes = signed_transaction.clone().expect_buffer_bytes();
-            let transaction = StacksTransaction::consensus_deserialize(&mut &signed_transaction_bytes[..]).unwrap();
+            let transaction =
+                StacksTransaction::consensus_deserialize(&mut &signed_transaction_bytes[..])
+                    .unwrap();
             let sender_address = transaction.origin_address().to_string();
 
             args.insert(
@@ -527,7 +539,10 @@ impl CommandImplementation for StacksDeployContract {
                 },
                 Err(data) => return Err((wallets, signing_command_state, data)),
             };
-            res.outputs.insert("contract_id".into(), Value::string(format!("{}.{}", sender_address.to_string(), contract_name)));
+            res.outputs.insert(
+                "contract_id".into(),
+                Value::string(format!("{}.{}", sender_address.to_string(), contract_name)),
+            );
 
             res_signing.append(&mut res);
 

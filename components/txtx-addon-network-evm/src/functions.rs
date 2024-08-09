@@ -12,7 +12,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{PrimitiveValue, Type, Value},
+        types::{Type, Value},
         AuthorizationContext,
     },
 };
@@ -24,7 +24,8 @@ use crate::{
     commands::actions::deploy_contract::create_init_code,
     constants::DEFAULT_CREATE2_FACTORY_ADDRESS,
     typing::{
-        BYTES, BYTES32, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, ETH_ADDRESS, ETH_INIT_CODE,
+        EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
+        EVM_INIT_CODE,
     },
 };
 const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
@@ -43,12 +44,12 @@ lazy_static! {
                 inputs: [
                     address_string: {
                         documentation: "An Ethereum address string.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The input string as an Ethereum address.",
-                    typing: Type::uint()
+                    typing: Type::addon(EVM_ADDRESS)
                 },
             }
         },
@@ -69,7 +70,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "A 32-byte buffer.",
-                    typing: Type::addon(BYTES32.clone())
+                    typing: Type::addon(EVM_BYTES32)
                 },
             }
         },
@@ -90,7 +91,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string encoded as a buffer.",
-                    typing: Type::addon(BYTES.clone())
+                    typing: Type::addon(EVM_BYTES)
                 },
             }
         },
@@ -172,11 +173,11 @@ lazy_static! {
                     },
                     init_code: {
                         documentation: "Coming Soon",
-                        typing: vec![Type::addon(ETH_INIT_CODE.clone()), Type::string()]
+                        typing: vec![Type::addon(EVM_INIT_CODE), Type::string()]
                     },
                     create2_factory_contract_address: {
                         documentation: "Coming Soon",
-                        typing: vec![Type::addon(ETH_ADDRESS.clone()), Type::string()]
+                        typing: vec![Type::addon(EVM_ADDRESS), Type::string()]
                     }
                 ],
                 output: {
@@ -205,7 +206,7 @@ impl FunctionImplementation for EncodeEVMAddress {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::address' function: expected string, got {:?}",
@@ -215,11 +216,8 @@ impl FunctionImplementation for EncodeEVMAddress {
         };
         let address = string_to_address(entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
-        let bytes = address.0 .0;
-        Ok(Value::addon(
-            Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()),
-            ETH_ADDRESS.clone(),
-        ))
+        let bytes = address.0 .0.to_vec();
+        Ok(EvmValue::address(bytes))
     }
 }
 
@@ -240,7 +238,7 @@ impl FunctionImplementation for EncodeEVMBytes32 {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes32' function: expected string, got {:?}",
@@ -251,8 +249,7 @@ impl FunctionImplementation for EncodeEVMBytes32 {
         let bytes = B256::from_hex(&entry).map_err(|e| {
             diagnosed_error!("'evm::bytes32' function: failed to parse string: {:?}", e)
         })?;
-        let val = Value::buffer(bytes.to_vec(), BYTES32.clone());
-        Ok(Value::addon(val, BYTES32.clone()))
+        Ok(EvmValue::bytes32(bytes.to_vec()))
     }
 }
 
@@ -273,7 +270,7 @@ impl FunctionImplementation for EncodeEVMBytes {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes' function: expected string, got {:?}",
@@ -284,8 +281,7 @@ impl FunctionImplementation for EncodeEVMBytes {
         let bytes = Bytes::from_hex(&entry).map_err(|e| {
             diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
         })?;
-        let val = Value::buffer(bytes.to_vec(), BYTES32.clone());
-        Ok(Value::addon(val, BYTES.clone()))
+        Ok(EvmValue::bytes(bytes.to_vec()))
     }
 }
 
@@ -306,7 +302,7 @@ impl FunctionImplementation for EncodeEVMChain {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let chain_name = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.to_ascii_lowercase().clone(),
+            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::chain' function: expected string, got {:?}",
@@ -323,7 +319,7 @@ impl FunctionImplementation for EncodeEVMChain {
         })?;
 
         let rpc_api_url = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.to_ascii_lowercase().clone(),
+            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
             None => format!("https://{}.infura.io/v3/{}", &chain_name, INFURA_API_KEY),
             other => {
                 return Err(diagnosed_error!(
@@ -339,7 +335,7 @@ impl FunctionImplementation for EncodeEVMChain {
         };
 
         let obj_props = IndexMap::from([
-            ("chain_id".into(), Value::uint(chain.id())),
+            ("chain_id".into(), Value::integer(chain.id() as i128)),
             ("rpc_api_url".into(), Value::string(rpc_api_url)),
             ("chain_alias".into(), Value::string(chain_alias)),
         ]);
@@ -365,22 +361,22 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
     ) -> Result<Value, Diagnostic> {
         let prefix = "command 'evm::get_contract_from_foundry_project'";
         let manifest_file_path = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
         let contract_filename = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => return Err(format_fn_error(&prefix, 2, "string", other)),
         };
 
         let contract_name = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             None => contract_filename.clone(),
             other => return Err(format_fn_error(&prefix, 3, "string", other)),
         };
 
         let foundry_profile = match args.get(3) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             None => "default".into(),
             other => return Err(format_fn_error(&prefix, 4, "string", other)),
         };
@@ -406,7 +402,8 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             Value::string(format!("v{}", compiled_output.metadata.compiler.version));
         let contract_name = Value::string(contract_name.to_string());
         let optimizer_enabled = Value::bool(compiled_output.metadata.settings.optimizer.enabled);
-        let optimizer_runs = Value::uint(compiled_output.metadata.settings.optimizer.runs);
+        let optimizer_runs =
+            Value::integer(compiled_output.metadata.settings.optimizer.runs as i128);
         let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
 
         let mut obj_props = indexmap::indexmap! {
@@ -445,7 +442,7 @@ impl FunctionImplementation for CreateInitCode {
     ) -> Result<Value, Diagnostic> {
         let prefix = "command 'evm::create_init_code'";
         let bytecode = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val.clone(),
+            Some(Value::String(val)) => val.clone(),
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
         let constructor_args = match args.get(1) {
@@ -468,10 +465,7 @@ impl FunctionImplementation for CreateInitCode {
         };
         let init_code = create_init_code(bytecode, Some(constructor_args), None)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
-        Ok(Value::addon(
-            Value::buffer(init_code, ETH_INIT_CODE.clone()),
-            ETH_INIT_CODE.clone(),
-        ))
+        Ok(EvmValue::init_code(init_code))
     }
 }
 
@@ -493,18 +487,15 @@ impl FunctionImplementation for GenerateCreate2Address {
     ) -> Result<Value, Diagnostic> {
         let prefix = "command 'evm::create2'";
         let salt = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(salt))) => salt,
+            Some(Value::String(salt)) => salt,
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
 
         let init_code = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::String(init_code))) => {
-                alloy::hex::decode(init_code).map_err(|e| {
-                    diagnosed_error!("{}: failed to decode init_code: {}", prefix, e)
-                })?
-            }
+            Some(Value::String(init_code)) => alloy::hex::decode(init_code)
+                .map_err(|e| diagnosed_error!("{}: failed to decode init_code: {}", prefix, e))?,
             Some(Value::Addon(addon_data)) => {
-                if addon_data.typing.id != ETH_INIT_CODE.id {
+                if addon_data.id != EVM_INIT_CODE {
                     return Err(format_fn_error(
                         &prefix,
                         2,
@@ -512,7 +503,7 @@ impl FunctionImplementation for GenerateCreate2Address {
                         Some(&Value::Addon(addon_data.clone())),
                     ));
                 }
-                addon_data.value.expect_buffer_bytes()
+                addon_data.bytes.clone()
             }
             other => return Err(format_fn_error(&prefix, 2, "string", other)),
         };
@@ -524,11 +515,8 @@ impl FunctionImplementation for GenerateCreate2Address {
 
         let create2 = generate_create2_address(&factory_address, &salt, &init_code)
             .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
-        let bytes = create2.0 .0;
-        Ok(Value::addon(
-            Value::buffer(bytes.to_vec(), ETH_ADDRESS.clone()),
-            ETH_ADDRESS.clone(),
-        ))
+        let bytes = create2.0 .0.to_vec();
+        Ok(EvmValue::address(bytes))
     }
 }
 

@@ -11,19 +11,14 @@ use txtx_addon_kit::types::wallets::{
     WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
 };
 use txtx_addon_kit::types::ValueStore;
-use txtx_addon_kit::types::{
-    commands::CommandSpecification,
-    diagnostics::Diagnostic,
-    types::{Type, Value},
-};
+use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{
     types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
 };
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::typing::CONTRACT_METADATA;
-use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
+use crate::codec::get_typed_transaction_bytes;
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
@@ -31,6 +26,7 @@ use crate::constants::{
     SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
+use crate::typing::CONTRACT_METADATA;
 
 use super::check_confirmations::CheckEVMConfirmations;
 use super::get_signing_construct_did;
@@ -66,7 +62,7 @@ lazy_static! {
             },
             amount: {
                 documentation: "The amount, in WEI, to send with the deployment.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -78,13 +74,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -96,19 +92,19 @@ lazy_static! {
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -126,7 +122,7 @@ lazy_static! {
             },
             confirmations: {
                 documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -176,7 +172,9 @@ impl CommandImplementation for EVMDeployContract {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use crate::constants::TRANSACTION_PAYLOAD_BYTES;
+        use txtx_addon_kit::helpers::build_diag_context_fn;
+
+        use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
 
@@ -187,6 +185,10 @@ impl CommandImplementation for EVMDeployContract {
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
         let wallets_instances = wallets_instances.clone();
+        let to_diag_with_ctx = build_diag_context_fn(
+            instance_name.to_string(),
+            "evm::deploy_contract".to_string(),
+        );
 
         let future = async move {
             let mut actions = Actions::none();
@@ -199,10 +201,15 @@ impl CommandImplementation for EVMDeployContract {
                 return Ok((wallets, signing_command_state, Actions::none()));
             }
 
-            let transaction =
-                build_unsigned_contract_deploy(&mut signing_command_state, &spec, &args, &defaults)
-                    .await
-                    .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+            let transaction = build_unsigned_contract_deploy(
+                &mut signing_command_state,
+                &spec,
+                &args,
+                &defaults,
+                &to_diag_with_ctx,
+            )
+            .await
+            .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
@@ -212,7 +219,7 @@ impl CommandImplementation for EVMDeployContract {
                 )
             })?;
 
-            let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
+            let payload = EvmValue::transaction(bytes);
             let mut args = args.clone();
             args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             wallets.push_signing_command_state(signing_command_state);
@@ -385,10 +392,12 @@ async fn build_unsigned_contract_deploy(
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
+    to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<TransactionRequest, Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
-        constants::{CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TYPE},
+        commands::actions::get_common_tx_params_from_args,
+        constants::{CHAIN_ID, NONCE, TRANSACTION_TYPE},
     };
 
     let from = wallet_state.get_expected_value("signer_address")?.clone();
@@ -398,14 +407,15 @@ async fn build_unsigned_contract_deploy(
     let init_code = get_contract_init_code(args)
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
 
-    let amount = args
-        .get_value(TRANSACTION_AMOUNT)
-        .map(|v| v.expect_uint())
-        .unwrap_or(0);
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let mut nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let (amount, gas_limit, mut nonce) =
+        get_common_tx_params_from_args(args).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(wallet_nonce) = wallet_state.get_value(NONCE).map(|v| v.expect_uint()) {
+        if let Some(wallet_nonce) = wallet_state
+            .get_value(NONCE)
+            .map(|v| v.expect_uint())
+            .transpose()
+            .map_err(to_diag_with_ctx)?
+        {
             nonce = Some(wallet_nonce + 1);
         }
     }

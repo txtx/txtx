@@ -21,8 +21,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
 
-use crate::typing::{CONTRACT_METADATA, ETH_ADDRESS};
-use crate::{codec::get_typed_transaction_bytes, typing::ETH_TRANSACTION};
+use crate::codec::get_typed_transaction_bytes;
 
 use crate::codec::{salt_str_to_hex, CommonTransactionFields};
 use crate::constants::{
@@ -30,6 +29,7 @@ use crate::constants::{
     SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
+use crate::typing::{CONTRACT_METADATA, EVM_ADDRESS};
 
 use super::check_confirmations::CheckEVMConfirmations;
 use super::get_signing_construct_did;
@@ -65,7 +65,7 @@ lazy_static! {
             },
             create2_factory_address: {
                 documentation: "Coming soon",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: true,
                 interpolable: true
             },
@@ -89,7 +89,7 @@ lazy_static! {
             },
             amount: {
                 documentation: "The amount, in WEI, to send with the deployment.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -101,13 +101,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -119,19 +119,19 @@ lazy_static! {
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -161,7 +161,7 @@ lazy_static! {
             },
             confirmations: {
                 documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -217,7 +217,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
     ) -> WalletActionsFutureResult {
         use txtx_addon_kit::helpers::build_diag_context_fn;
 
-        use crate::constants::TRANSACTION_PAYLOAD_BYTES;
+        use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
 
@@ -265,10 +265,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     signing_command_state.insert_scoped_value(
                         &construct_did.to_string(),
                         CONTRACT_ADDRESS,
-                        Value::addon(
-                            Value::buffer(contract_address.0 .0.to_vec(), ETH_ADDRESS.clone()),
-                            ETH_ADDRESS.clone(),
-                        ),
+                        EvmValue::address(contract_address.0 .0.to_vec()),
                     );
                     return Ok((wallets, signing_command_state, actions));
                 }
@@ -276,10 +273,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     signing_command_state.insert_scoped_value(
                         &construct_did.to_string(),
                         CONTRACT_ADDRESS,
-                        Value::addon(
-                            Value::buffer(contract_address.0 .0.to_vec(), ETH_ADDRESS.clone()),
-                            ETH_ADDRESS.clone(),
-                        ),
+                        EvmValue::address(contract_address.0 .0.to_vec()),
                     );
                     tx
                 }
@@ -293,7 +287,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 )
             })?;
 
-            let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
+            let payload = EvmValue::transaction(bytes);
             let mut args = args.clone();
             args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             wallets.push_signing_command_state(signing_command_state);
@@ -517,14 +511,15 @@ async fn build_unsigned_create2_deployment(
         },
         commands::actions::{
             deploy_contract::get_contract_init_code,
+            get_common_tx_params_from_args,
             sign_contract_call::{
                 encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
             },
         },
         constants::{
             CHAIN_ID, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS, CREATE2_FUNCTION_NAME,
-            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, GAS_LIMIT, NONCE, SALT,
-            TRANSACTION_AMOUNT, TRANSACTION_TYPE,
+            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, NONCE, SALT,
+            TRANSACTION_TYPE,
         },
     };
 
@@ -540,14 +535,15 @@ async fn build_unsigned_create2_deployment(
     let init_code = get_contract_init_code(args).map_err(to_diag_with_ctx)?;
     let expected_contract_address = args.get_string(EXPECTED_CONTRACT_ADDRESS);
 
-    let amount = args
-        .get_value(TRANSACTION_AMOUNT)
-        .map(|v| v.expect_uint())
-        .unwrap_or(0);
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let mut nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let (amount, gas_limit, mut nonce) =
+        get_common_tx_params_from_args(args).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(wallet_nonce) = wallet_state.get_value(NONCE).map(|v| v.expect_uint()) {
+        if let Some(wallet_nonce) = wallet_state
+            .get_value(NONCE)
+            .map(|v| v.expect_uint())
+            .transpose()
+            .map_err(to_diag_with_ctx)?
+        {
             nonce = Some(wallet_nonce + 1);
         }
     }

@@ -21,7 +21,7 @@ use txtx_addon_kit::{
         commands::{CommandExecutionResult, CommandInputsEvaluationResult, CommandInstance},
         diagnostics::Diagnostic,
         frontend::{ActionItemRequest, ActionItemStatus},
-        types::{PrimitiveValue, Value},
+        types::Value,
         wallets::WalletInstance,
         ConstructDid,
     },
@@ -767,8 +767,8 @@ pub fn eval_expression(
                 formatted_number.value().as_i64(),
                 formatted_number.value().as_f64(),
             ) {
-                (Some(value), _, _) => Value::uint(value),
-                (_, Some(value), _) => Value::int(value),
+                (Some(value), _, _) => Value::integer(value.into()),
+                (_, Some(value), _) => Value::integer(value.into()),
                 (_, _, Some(value)) => Value::float(value),
                 (None, None, None) => unreachable!(), // todo(lgalabru): return Diagnostic
             }
@@ -814,11 +814,8 @@ pub fn eval_expression(
                             runtime_context,
                         )? {
                             ExpressionEvaluationStatus::CompleteOk(result) => match result {
-                                Value::Primitive(PrimitiveValue::String(result)) => result,
-                                Value::Primitive(_)
-                                | Value::Addon(_)
-                                | Value::Array(_)
-                                | Value::Object(_) => {
+                                Value::String(result) => result,
+                                _ => {
                                     return Ok(ExpressionEvaluationStatus::CompleteErr(
                                         Diagnostic::error_from_string(
                                             "object key must evaluate to a string".to_string(),
@@ -1050,7 +1047,7 @@ pub fn eval_expression(
             let func = match &binary_op.operator.value() {
                 BinaryOperator::And => "and_bool",
                 BinaryOperator::Div => match rhs {
-                    Value::Primitive(PrimitiveValue::SignedInteger(_)) => "div_int",
+                    Value::Integer(_) => "div_int",
                     _ => "div_uint",
                 },
                 BinaryOperator::Eq => "eq",
@@ -1340,7 +1337,7 @@ pub fn perform_inputs_evaluation(
                     Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
+                    _ => {
                         unreachable!()
                     }
                 }
@@ -1360,13 +1357,13 @@ pub fn perform_inputs_evaluation(
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
                     Value::Addon(_) => unreachable!(),
                     Value::Object(_) => unreachable!(),
-                    Value::Primitive(_) => result,
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
                         Value::array(array_values)
                     }
+                    _ => result,
                 },
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
                     if e.is_error() {
@@ -1580,7 +1577,7 @@ pub fn perform_wallet_inputs_evaluation(
                     Value::Array(entries) => {
                         array_values.extend::<Vec<Value>>(entries.into_iter().collect());
                     }
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => {
+                    _ => {
                         unreachable!()
                     }
                 }
@@ -1598,13 +1595,13 @@ pub fn perform_wallet_inputs_evaluation(
                 runtime_context,
             ) {
                 Ok(ExpressionEvaluationStatus::CompleteOk(result)) => match result {
-                    Value::Primitive(_) | Value::Object(_) | Value::Addon(_) => unreachable!(),
                     Value::Array(entries) => {
                         for (i, entry) in entries.into_iter().enumerate() {
                             array_values.insert(i, entry); // todo: is it okay that we possibly overwrite array values from previous input evals?
                         }
                         Value::array(array_values)
                     }
+                    _ => unreachable!(),
                 },
                 Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
                     if e.is_error() {

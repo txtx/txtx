@@ -7,13 +7,12 @@ pub mod encode_contract_call;
 mod send_contract_call;
 mod send_stx;
 pub mod sign_transaction;
-use clarity::vm::types::TupleData;
-use clarity_repl::clarity::Value as ClarityValue;
 
 use std::str::FromStr;
 
-use crate::typing::CLARITY_PRINCIPAL;
-use crate::{stacks_helpers::parse_clarity_value, typing::STACKS_CONTRACT_CALL};
+use crate::stacks_helpers::encode_any_value_to_clarity_value;
+use crate::stacks_helpers::parse_clarity_value;
+use crate::typing::StacksValue;
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
 use call_readonly_fn::CALL_READONLY_FN;
 use clarity::codec::StacksMessageCodec;
@@ -35,7 +34,7 @@ use sign_transaction::SIGN_STACKS_TRANSACTION;
 use txtx_addon_kit::types::{
     commands::{CommandSpecification, PreCommandSpecification},
     diagnostics::Diagnostic,
-    types::{PrimitiveValue, Value},
+    types::Value,
 };
 use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 
@@ -61,18 +60,16 @@ pub fn encode_contract_call(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let contract_id = match contract_id_value {
-        Value::Primitive(PrimitiveValue::Buffer(contract_id)) => {
-            match parse_clarity_value(&contract_id.bytes, &contract_id.typing).unwrap() {
-                clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
-                cv => {
-                    return Err(diagnosed_error!(
-                        "command {}: unexpected clarity value {cv}",
-                        spec.matcher
-                    ))
-                }
+        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+            clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
+            cv => {
+                return Err(diagnosed_error!(
+                    "command {}: unexpected clarity value {cv}",
+                    spec.matcher
+                ))
             }
-        }
-        Value::Primitive(PrimitiveValue::String(contract_id)) => {
+        },
+        Value::String(contract_id) => {
             match clarity::vm::types::QualifiedContractIdentifier::parse(contract_id) {
                 Ok(v) => v,
                 Err(e) => {
@@ -108,7 +105,7 @@ pub fn encode_contract_call(
 
     let mut function_args = vec![];
     for raw_value in function_args_values.iter() {
-        let value = encode_primitive_value_to_clarity_value(raw_value)?;
+        let value = encode_any_value_to_clarity_value(raw_value)?;
         function_args.push(value);
     }
 
@@ -121,76 +118,9 @@ pub fn encode_contract_call(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
+    let value = StacksValue::contract_call(bytes);
 
     Ok(value)
-}
-
-pub fn encode_primitive_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Diagnostic> {
-    let dst = match src {
-        Value::Addon(addon_data) => {
-            parse_clarity_value(&addon_data.value.expect_buffer_bytes(), &addon_data.typing)?
-        }
-        Value::Array(array) => {
-            // should be encoded to list
-            let mut values = vec![];
-            for element in array.iter() {
-                let value = encode_primitive_value_to_clarity_value(element)?;
-                values.push(value);
-            }
-            ClarityValue::list_from(values)
-                .map_err(|e| diagnosed_error!("unable to encode Clarity list ({})", e.to_string()))?
-        }
-        Value::Primitive(PrimitiveValue::String(_)) => {
-            if let Some(bytes) = src.try_get_buffer_bytes() {
-                ClarityValue::buff_from(bytes)
-                    .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
-            } else {
-                return Err(diagnosed_error!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."))
-            }
-        }
-        Value::Primitive(PrimitiveValue::Bool(value)) => {
-            ClarityValue::Bool(*value)
-        }
-        Value::Primitive(PrimitiveValue::Null) => {
-            ClarityValue::none()
-        }
-        Value::Primitive(PrimitiveValue::SignedInteger(int)) => {
-            ClarityValue::Int((*int).into())
-        }
-        Value::Primitive(PrimitiveValue::UnsignedInteger(uint)) => {
-            ClarityValue::UInt((*uint).into())
-        }
-        Value::Primitive(PrimitiveValue::Buffer(data)) => {
-            if data.typing.eq(&CLARITY_PRINCIPAL) {
-                let value_bytes = data.bytes.clone();
-                ClarityValue::consensus_deserialize(&mut &value_bytes[..]).map_err(
-                    |e| diagnosed_error!("{}", e.to_string())
-                )?
-            } else {
-                ClarityValue::buff_from(data.bytes.clone())
-                    .map_err(|e| diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string()))?
-            }
-        }
-        Value::Primitive(PrimitiveValue::Float(_)) => {
-            // should return an error
-            return Err(diagnosed_error!("unable to encode float to a Clarity type"))
-        }
-        Value::Object(object) => {
-            // should be encoded as a tuple
-            let mut data = vec![];
-            for (key, value) in object.iter() {
-                let tuple_value = encode_primitive_value_to_clarity_value(&value.clone())?;
-                let tuple_key = ClarityName::try_from(key.as_str())
-                    .map_err(|e| diagnosed_error!("unable to encode key {} to clarity ({})", key, e.to_string()))?;
-                data.push((tuple_key, tuple_value));
-            }
-            let tuple_data = TupleData::from_data(data)
-                .map_err(|e| diagnosed_error!("unable to encode tuple data ({})", e.to_string()))?;
-            ClarityValue::Tuple(tuple_data)
-        }
-    };
-    Ok(dst)
 }
 
 pub fn encode_contract_deployment(
@@ -230,7 +160,7 @@ pub fn encode_contract_deployment(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
+    let value = StacksValue::contract_call(bytes);
 
     Ok(value)
 }
@@ -244,18 +174,16 @@ pub fn encode_stx_transfer(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let recipient_address = match recipient {
-        Value::Primitive(PrimitiveValue::Buffer(contract_id)) => {
-            match parse_clarity_value(&contract_id.bytes, &contract_id.typing).unwrap() {
-                clarity::vm::Value::Principal(principal) => principal,
-                cv => {
-                    return Err(diagnosed_error!(
-                        "command {}: unexpected clarity value {cv}",
-                        spec.matcher
-                    ))
-                }
+        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+            clarity::vm::Value::Principal(principal) => principal,
+            cv => {
+                return Err(diagnosed_error!(
+                    "command {}: unexpected clarity value {cv}",
+                    spec.matcher
+                ))
             }
-        }
-        Value::Primitive(PrimitiveValue::String(recipient_address)) => {
+        },
+        Value::String(recipient_address) => {
             match clarity::vm::types::PrincipalData::parse(recipient_address) {
                 Ok(v) => v,
                 Err(e) => {
@@ -305,7 +233,7 @@ pub fn encode_stx_transfer(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = Value::buffer(bytes, STACKS_CONTRACT_CALL.clone());
+    let value = StacksValue::contract_call(bytes);
 
     Ok(value)
 }

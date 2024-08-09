@@ -24,7 +24,7 @@ use txtx_addon_kit::AddonDefaults;
 use crate::codec::CommonTransactionFields;
 use crate::constants::{RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
-use crate::typing::ETH_ADDRESS;
+use crate::typing::EVM_ADDRESS;
 
 use super::get_signing_construct_did;
 
@@ -51,13 +51,13 @@ lazy_static! {
             },
             to: {
                 documentation: "The address of the recipient of the transfer.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: false,
                 interpolable: true
             },
             amount: {
                 documentation: "The amount, in WEI, to transfer.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: false,
                 interpolable: true
             },
@@ -69,13 +69,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -93,19 +93,19 @@ lazy_static! {
             // },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -153,12 +153,12 @@ impl CommandImplementation for SignEVMTransfer {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use alloy::{consensus::Transaction, hex, network::TransactionBuilder};
+        use alloy::{consensus::Transaction, network::TransactionBuilder};
 
         use crate::{
             codec::get_typed_transaction_bytes,
             constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
-            typing::ETH_TRANSACTION,
+            typing::EvmValue,
         };
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
@@ -200,9 +200,8 @@ impl CommandImplementation for SignEVMTransfer {
                 )
             })?;
             let transaction = transaction.build_unsigned().unwrap();
-            println!("tx bytes: 0x{}", hex::encode(&bytes));
 
-            let payload = Value::buffer(bytes, ETH_TRANSACTION.clone());
+            let payload = EvmValue::transaction(bytes);
 
             signing_command_state.insert_scoped_value(
                 &construct_did.value().to_string(),
@@ -221,7 +220,7 @@ impl CommandImplementation for SignEVMTransfer {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.nonce()),
+                            value: Value::integer(transaction.nonce().into()),
                         }),
                         ACTION_ITEM_CHECK_NONCE,
                     ),
@@ -232,7 +231,7 @@ impl CommandImplementation for SignEVMTransfer {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.gas_limit().try_into().unwrap()), // todo
+                            value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
                         }),
                         ACTION_ITEM_CHECK_FEE,
                     ),
@@ -324,9 +323,8 @@ async fn build_unsigned_transfer(
 ) -> Result<TransactionRequest, Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
-        constants::{
-            CHAIN_ID, GAS_LIMIT, NONCE, TRANSACTION_AMOUNT, TRANSACTION_TO, TRANSACTION_TYPE,
-        },
+        commands::actions::get_common_tx_params_from_args,
+        constants::{CHAIN_ID, TRANSACTION_TO, TRANSACTION_TYPE},
     };
 
     let from = wallet_state.get_expected_value("signer_address")?;
@@ -336,9 +334,10 @@ async fn build_unsigned_transfer(
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
     let to = args.get_expected_value(TRANSACTION_TO)?;
-    let amount = args.get_expected_uint(TRANSACTION_AMOUNT)?;
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+
+    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+        .map_err(|e| diagnosed_error!("command 'evm::sign_transfer': {}", e))?;
+
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc: EVMRpc = EVMRpc::new(&rpc_api_url)

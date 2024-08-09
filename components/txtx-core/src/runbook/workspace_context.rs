@@ -490,7 +490,7 @@ impl RunbookWorkspaceContext {
             if let TraversalOperator::Index(expr) = op.value() {
                 match expr {
                     Expression::Number(value) => {
-                        subpath.push_back(Value::int(value.as_i64().unwrap()));
+                        subpath.push_back(Value::integer(value.as_i64().unwrap().into()));
                     }
                     Expression::String(value) => {
                         subpath.push_back(Value::string(value.to_string()));

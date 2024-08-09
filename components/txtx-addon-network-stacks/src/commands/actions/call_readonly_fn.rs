@@ -15,7 +15,7 @@ use txtx_addon_kit::AddonDefaults;
 use crate::constants::RPC_API_URL;
 use crate::rpc::StacksRpc;
 use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
-use crate::typing::{CLARITY_PRINCIPAL, CLARITY_VALUE};
+use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 lazy_static! {
     pub static ref CALL_READONLY_FN: PreCommandSpecification = define_command! {
@@ -28,7 +28,7 @@ lazy_static! {
             inputs: [
                 contract_id: {
                     documentation: "The address and identifier of the contract to invoke.",
-                    typing: Type::addon(CLARITY_PRINCIPAL.clone()),
+                    typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
                     optional: false,
                     interpolable: true
                 },
@@ -40,7 +40,7 @@ lazy_static! {
                 },
                 function_args: {
                     documentation: "The function arguments for the contract call.",
-                    typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
+                    typing: Type::array(Type::addon(STACKS_CV_GENERIC.clone())),
                     optional: true,
                     interpolable: true
                 },
@@ -58,7 +58,7 @@ lazy_static! {
                 },
                 block_height: {
                     documentation: "Coming soon.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 }
@@ -112,14 +112,14 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         let function_args_values = args.get_expected_array("function_args")?.clone();
         let mut function_args = vec![];
         for arg_value in function_args_values.iter() {
-            let Some(buffer) = arg_value.as_buffer_data() else {
+            let Some(data) = arg_value.as_addon_data() else {
                 return Err(diagnosed_error!(
                     "function '{}': expected array, got {:?}",
                     spec.matcher,
                     arg_value
                 ));
             };
-            let arg = parse_clarity_value(&buffer.bytes, &buffer.typing)?;
+            let arg = parse_clarity_value(&data.bytes, &data.id)?;
             function_args.push(arg);
         }
 

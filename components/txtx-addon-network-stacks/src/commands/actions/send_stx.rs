@@ -20,7 +20,7 @@ use txtx_addon_kit::{
 
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
-    typing::CLARITY_PRINCIPAL,
+    typing::STACKS_CV_PRINCIPAL,
 };
 
 use super::encode_stx_transfer;
@@ -40,7 +40,7 @@ lazy_static! {
           inputs: [
               amount: {
                   documentation: "The amount of STX to send.",
-                  typing: Type::addon(CLARITY_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL.clone()),
                   optional: false,
                   interpolable: true
               },
@@ -64,19 +64,19 @@ lazy_static! {
               },
               confirmations: {
                 documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
               },
               nonce: {
                   documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                  typing: Type::uint(),
+                  typing: Type::integer(),
                   optional: true,
                   interpolable: true
               },
               fee: {
                 documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
               }

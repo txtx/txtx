@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
     SequenceData, SequencedValue, UTF8Data,
@@ -10,21 +11,22 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{PrimitiveValue, Type, Value},
+        types::{Type, Value},
         AuthorizationContext,
     },
 };
 
+use crate::typing::StacksValue;
 use crate::{
     codec::codec::{
         AssetInfo, FungibleConditionCode, NonfungibleConditionCode, PostConditionPrincipal,
         TransactionPostCondition,
     },
-    rpc::StacksRpc,
     stacks_helpers::{parse_clarity_value, value_to_tuple},
     typing::{
-        CLARITY_ASCII, CLARITY_BUFFER, CLARITY_INT, CLARITY_PRINCIPAL, CLARITY_TUPLE, CLARITY_UINT,
-        CLARITY_UTF8, CLARITY_VALUE, STACKS_POST_CONDITION,
+        STACKS_CV_BOOL, STACKS_CV_BUFFER, STACKS_CV_GENERIC, STACKS_CV_INT, STACKS_CV_NONE,
+        STACKS_CV_OK, STACKS_CV_PRINCIPAL, STACKS_CV_SOME, STACKS_CV_STRING_ASCII,
+        STACKS_CV_STRING_UTF8, STACKS_CV_TUPLE, STACKS_CV_UINT,
     },
 };
 
@@ -43,12 +45,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A Clarity Value.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The input Clarity value wrapped in a Clarity `Optional`.",
-                    typing: Type::uint()
+                    typing: Type::addon(STACKS_CV_SOME)
                 },
             }
         },
@@ -65,7 +67,7 @@ lazy_static! {
                 inputs: [],
                 output: {
                     documentation: "The Clarity value `None`.",
-                    typing: Type::uint()
+                    typing: Type::addon(STACKS_CV_NONE)
                 },
             }
         },
@@ -82,12 +84,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "The boolean values `true` or `false`.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::bool()]
                     }
                 ],
                 output: {
                     documentation: "The input boolean as a Clarity `bool`.",
-                    typing: Type::uint()
+                    typing: Type::addon(STACKS_CV_BOOL)
                 },
             }
         },
@@ -104,12 +106,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A positive integer between 0 and 2<sup>128</sup>-1.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The input integer as a Clarity `uint`.",
-                    typing: Type::uint()
+                    typing: Type::addon(STACKS_CV_UINT)
                 },
             }
         },
@@ -126,12 +128,12 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "An integer between -2<sup>127</sup> and 2<sup>127</sup>-1.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     }
                 ],
                 output: {
                     documentation: "The input integer as a Clarity `int`.",
-                    typing: Type::int()
+                    typing: Type::addon(STACKS_CV_INT)
                 },
             }
         },
@@ -159,7 +161,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string as a Clarity principal.",
-                    typing: Type::string()
+                    typing: Type::addon(STACKS_CV_PRINCIPAL)
                 },
             }
         },
@@ -181,7 +183,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string as a Clarity ASCII string.",
-                    typing: Type::string()
+                    typing: Type::addon(STACKS_CV_STRING_ASCII)
                 },
             }
         },
@@ -203,7 +205,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string as a Clarity UTF-8 string.",
-                    typing: Type::string()
+                    typing: Type::addon(STACKS_CV_STRING_UTF8)
                 },
             }
         },
@@ -225,7 +227,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input object as a Clarity tuple.",
-                    typing: Type::int()
+                    typing: Type::addon(STACKS_CV_TUPLE)
                 },
             }
         },
@@ -247,7 +249,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string as a Clarity buffer.",
-                    typing: Type::int()
+                    typing: Type::addon(STACKS_CV_BUFFER)
                 },
             }
         },
@@ -264,7 +266,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input wrapped in an `Ok` Clarity type.",
-                    typing: Type::bool()
+                    typing: Type::addon(STACKS_CV_OK)
                 },
             }
         },
@@ -277,23 +279,6 @@ lazy_static! {
                     clarity_value: {
                         documentation: "Any valid Clarity value.",
                         typing: vec![Type::bool()]
-                    }
-                ],
-                output: {
-                    documentation: "The input wrapped in an `Err` Clarity type.",
-                    typing: Type::bool()
-                },
-            }
-        },
-        define_function! {
-            EncodeClarityValueList => {
-                name: "cv_list",
-                documentation: "Coming soon - `stacks::cv_tuple` returns the given sequence as a Clarity list.",
-                example: indoc! {r#"// Coming soon "#},
-                inputs: [
-                    clarity_value: {
-                        documentation: "An array of values.",
-                        typing: vec![Type::array(Type::buffer())]
                     }
                 ],
                 output: {
@@ -321,7 +306,7 @@ lazy_static! {
                     },
                     tokens_amount: {
                         documentation: "Threshold of tokens that triggers the revert action to prevent overspending.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
@@ -353,7 +338,7 @@ lazy_static! {
                     },
                     tokens_amount: {
                         documentation: "The number of tokens required to be sent.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
@@ -385,7 +370,7 @@ lazy_static! {
                     },
                     tokens_amount: {
                         documentation: "The minimum number of tokens required to be sent.",
-                        typing: vec![Type::uint()]
+                        typing: vec![Type::integer()]
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
@@ -527,9 +512,18 @@ impl FunctionImplementation for EncodeClarityValueOk {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        Ok(Value::bool(true))
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_ok' function (expected 1 argument, got 0)."
+            ));
+        };
+        let value = encode_any_value_to_clarity_value(arg)?;
+        let clarity_value = ClarityValue::okay(value)
+            .map_err(|e| diagnosed_error!("unable of run 'cv_ok' function ({})", e.to_string()))?;
+        let bytes = clarity_value.serialize_to_vec();
+        Ok(StacksValue::ok(bytes))
     }
 }
 
@@ -546,9 +540,18 @@ impl FunctionImplementation for EncodeClarityValueErr {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        unimplemented!()
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_err' function (expected 1 argument, got 0)."
+            ));
+        };
+        let value = encode_any_value_to_clarity_value(arg)?;
+        let clarity_value = ClarityValue::okay(value)
+            .map_err(|e| diagnosed_error!("unable of run 'cv_err' function ({})", e.to_string()))?;
+        let bytes = clarity_value.serialize_to_vec();
+        Ok(StacksValue::err(bytes))
     }
 }
 
@@ -568,29 +571,17 @@ impl FunctionImplementation for EncodeClarityValueSome {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::Buffer(val))) => val.clone(),
-            Some(any) => {
-                return Err(diagnosed_error!(
-                    "'cv_some' function: expected cv, got {:?}",
-                    any
-                ))
-            }
-            None => {
-                return Err(diagnosed_error!(
-                    "'cv_some' function: expected cv, got none :("
-                ))
-            }
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_some' function (expected 1 argument, got 0)."
+            ));
         };
-        let cv = match parse_clarity_value(&entry.bytes, &entry.typing) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let clarity_value = ClarityValue::Optional(OptionalData {
-            data: Some(Box::new(cv)),
-        });
+        let value = encode_any_value_to_clarity_value(arg)?;
+        let clarity_value = ClarityValue::okay(value).map_err(|e| {
+            diagnosed_error!("unable of run 'cv_some' function ({})", e.to_string())
+        })?;
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
+        Ok(StacksValue::some(bytes))
     }
 }
 
@@ -616,7 +607,7 @@ impl FunctionImplementation for EncodeClarityValueNone {
         }
         let clarity_value = ClarityValue::Optional(OptionalData { data: None });
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
+        Ok(StacksValue::none(bytes))
     }
 }
 
@@ -636,7 +627,7 @@ impl FunctionImplementation for EncodeClarityValueBool {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::Bool(val))) => val.clone(),
+            Some(Value::Bool(val)) => val.clone(),
             Some(any) => {
                 return Err(diagnosed_error!(
                     "'cv_bool' function: expected bool, got {:?}",
@@ -651,7 +642,7 @@ impl FunctionImplementation for EncodeClarityValueBool {
         };
         let clarity_value = ClarityValue::Bool(entry);
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
+        Ok(StacksValue::bool(bytes))
     }
 }
 
@@ -671,14 +662,13 @@ impl FunctionImplementation for EncodeClarityValueUint {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val.clone(),
-            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => {
-                let as_u64 = u64::try_from(val.clone()).map_err(|e| {
+            Some(Value::Integer(val)) => {
+                let as_u128 = u128::try_from(val.clone()).map_err(|e| {
                     Diagnostic::error_from_string(format!(
-                        "Failed to stacks::cv_uint, could not parse SignedInteger: {e}"
+                        "Failed to stacks::cv_uint, could not parse Integer: {e}"
                     ))
                 })?;
-                as_u64
+                as_u128
             }
             Some(any) => {
                 return Err(diagnosed_error!(
@@ -694,9 +684,10 @@ impl FunctionImplementation for EncodeClarityValueUint {
         };
         let clarity_value = ClarityValue::UInt(u128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_UINT.clone()))
+        Ok(StacksValue::uint(bytes))
     }
 }
+
 pub struct EncodeClarityValueInt;
 impl FunctionImplementation for EncodeClarityValueInt {
     fn check_instantiability(
@@ -713,12 +704,29 @@ impl FunctionImplementation for EncodeClarityValueInt {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::SignedInteger(val))) => val,
-            _ => unreachable!(),
+            Some(Value::Integer(val)) => {
+                let as_i128 = i128::try_from(val.clone()).map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "'cv_int' function: could not parse Integer ({e})"
+                    ))
+                })?;
+                as_i128
+            }
+            Some(any) => {
+                return Err(diagnosed_error!(
+                    "'cv_int' function: expected uint, got {:?}",
+                    any
+                ))
+            }
+            None => {
+                return Err(diagnosed_error!(
+                    "'cv_int' function: expected uint, got none :("
+                ))
+            }
         };
-        let clarity_value = ClarityValue::Int(i128::from(*entry));
+        let clarity_value = ClarityValue::Int(i128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_INT.clone()))
+        Ok(StacksValue::int(bytes))
     }
 }
 
@@ -737,13 +745,21 @@ impl FunctionImplementation for EncodeClarityValuePrincipal {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
-            _ => unreachable!(),
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_principal' function (expected 1 argument, got 0)."
+            ));
         };
-        let clarity_value = ClarityValue::Principal(PrincipalData::parse(&entry).unwrap());
+
+        let Some(arg_str) = arg.as_string() else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_principal' function (expected string argument)."
+            ));
+        };
+
+        let clarity_value = ClarityValue::Principal(PrincipalData::parse(&arg_str).unwrap());
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_PRINCIPAL.clone()))
+        Ok(StacksValue::principal(bytes))
     }
 }
 
@@ -762,16 +778,24 @@ impl FunctionImplementation for EncodeClarityValueAscii {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
-            _ => unreachable!(),
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_string_ascii' function (expected 1 argument, got 0)."
+            ));
         };
+
+        let Some(arg_str) = arg.as_string() else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_string_ascii' function (expected string argument)."
+            ));
+        };
+
         let clarity_value =
             ClarityValue::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
-                data: entry.as_bytes().to_vec(),
+                data: arg_str.as_bytes().to_vec(),
             })));
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_ASCII.clone()))
+        Ok(StacksValue::string_ascii(bytes))
     }
 }
 
@@ -790,13 +814,20 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
-            _ => unreachable!(),
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_string_utf8' function (expected 1 argument, got 0)."
+            ));
         };
-        let clarity_value = UTF8Data::to_value(&entry.as_bytes().to_vec());
+
+        let Some(arg_str) = arg.as_string() else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_string_utf8' function (expected string argument)."
+            ));
+        };
+        let clarity_value = UTF8Data::to_value(&arg_str.as_bytes().to_vec());
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_UTF8.clone()))
+        Ok(StacksValue::string_utf8(bytes))
     }
 }
 
@@ -815,21 +846,20 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let data = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => {
-                if val.starts_with("0x") {
-                    txtx_addon_kit::hex::decode(&val[2..]).unwrap()
-                } else {
-                    txtx_addon_kit::hex::decode(&val[0..]).unwrap()
-                }
-            }
-            Some(Value::Primitive(PrimitiveValue::Buffer(val))) => val.bytes.clone(),
-            _ => unreachable!(),
+        let Some(arg) = args.get(0) else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_buff' function (expected 1 argument, got 0)."
+            ));
         };
 
+        let Some(data) = arg.try_get_buffer_bytes() else {
+            return Err(diagnosed_error!(
+                "unable of run 'cv_buff' function (expected buffer argument)."
+            ));
+        };
         let bytes =
             ClarityValue::Sequence(SequenceData::Buffer(BuffData { data })).serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_BUFFER.clone()))
+        Ok(StacksValue::buffer(bytes))
     }
 }
 
@@ -853,146 +883,13 @@ impl FunctionImplementation for EncodeClarityValueTuple {
             _ => unreachable!(),
         };
         let bytes = clarity_value.serialize_to_vec();
-        Ok(Value::buffer(bytes, CLARITY_TUPLE.clone()))
-    }
-}
-
-pub struct StacksEncodeInt;
-impl FunctionImplementation for StacksEncodeInt {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct StacksEncodeBuffer;
-impl FunctionImplementation for StacksEncodeBuffer {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct StacksEncodeList;
-impl FunctionImplementation for StacksEncodeList {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct StacksEncodeAsciiString;
-impl FunctionImplementation for StacksEncodeAsciiString {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct StacksEncodePrincipal;
-impl FunctionImplementation for StacksEncodePrincipal {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct StacksEncodeTuple;
-impl FunctionImplementation for StacksEncodeTuple {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct EncodeClarityValueList;
-impl FunctionImplementation for EncodeClarityValueList {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        unimplemented!()
+        Ok(StacksValue::tuple(bytes))
     }
 }
 
 fn encode_ft_post_condition(
     address: &str,
-    token_amount: u64,
+    token_amount: i128,
     token_id: &str,
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
@@ -1017,7 +914,7 @@ fn encode_ft_post_condition(
         principal_monitored,
         asset_info,
         condition,
-        token_amount,
+        token_amount as u64,
     );
 
     Ok(post_condition)
@@ -1065,7 +962,7 @@ fn encode_nft_post_condition(
 
 fn encode_stx_post_condition(
     address: &str,
-    token_amount: u64,
+    token_amount: i128,
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
     let principal_monitored = if address.eq("signer") {
@@ -1082,7 +979,7 @@ fn encode_stx_post_condition(
     };
 
     let post_condition =
-        TransactionPostCondition::STX(principal_monitored, condition, token_amount);
+        TransactionPostCondition::STX(principal_monitored, condition, token_amount as u64);
 
     Ok(post_condition)
 }
@@ -1103,17 +1000,17 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let token_amount = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            Some(Value::Integer(val)) => val,
             _ => unreachable!(),
         };
 
         let token_id_opt = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            Some(Value::String(val)) => Some(val),
             _ => None,
         };
 
@@ -1130,10 +1027,7 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
                     .serialize_to_vec()
             }
         };
-        Ok(Value::buffer(
-            post_condition_bytes,
-            STACKS_POST_CONDITION.clone(),
-        ))
+        Ok(StacksValue::post_condition(post_condition_bytes))
     }
 }
 
@@ -1153,17 +1047,17 @@ impl FunctionImplementation for RevertIfAccountNotSending {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let token_amount = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            Some(Value::Integer(val)) => val,
             _ => unreachable!(),
         };
 
         let token_id_opt = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            Some(Value::String(val)) => Some(val),
             _ => None,
         };
 
@@ -1180,10 +1074,7 @@ impl FunctionImplementation for RevertIfAccountNotSending {
                     .serialize_to_vec()
             }
         };
-        Ok(Value::buffer(
-            post_condition_bytes,
-            STACKS_POST_CONDITION.clone(),
-        ))
+        Ok(StacksValue::post_condition(post_condition_bytes))
     }
 }
 
@@ -1203,37 +1094,34 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let token_amount = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) => val,
+            Some(Value::Integer(val)) => *val,
             _ => unreachable!(),
         };
 
         let token_id_opt = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => Some(val),
+            Some(Value::String(val)) => Some(val),
             _ => None,
         };
 
         let post_condition_bytes = match token_id_opt {
             Some(token_id) => encode_ft_post_condition(
                 address,
-                *token_amount,
+                token_amount,
                 token_id,
                 FungibleConditionCode::SentGe,
             )?
             .serialize_to_vec(),
             None => {
-                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentGe)?
+                encode_stx_post_condition(address, token_amount, FungibleConditionCode::SentGe)?
                     .serialize_to_vec()
             }
         };
-        Ok(Value::buffer(
-            post_condition_bytes,
-            STACKS_POST_CONDITION.clone(),
-        ))
+        Ok(StacksValue::post_condition(post_condition_bytes))
     }
 }
 
@@ -1253,17 +1141,17 @@ impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let contract_asset_id = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let asset_id = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
@@ -1275,10 +1163,7 @@ impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
         )?
         .serialize_to_vec();
 
-        Ok(Value::buffer(
-            post_condition_bytes,
-            STACKS_POST_CONDITION.clone(),
-        ))
+        Ok(StacksValue::post_condition(post_condition_bytes))
     }
 }
 
@@ -1298,17 +1183,17 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let address = match args.get(0) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let contract_asset_id = match args.get(1) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
         let asset_id = match args.get(2) {
-            Some(Value::Primitive(PrimitiveValue::String(val))) => val,
+            Some(Value::String(val)) => val,
             _ => unreachable!(),
         };
 
@@ -1320,10 +1205,7 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
         )?
         .serialize_to_vec();
 
-        Ok(Value::buffer(
-            post_condition_bytes,
-            STACKS_POST_CONDITION.clone(),
-        ))
+        Ok(StacksValue::post_condition(post_condition_bytes))
     }
 }
 
@@ -1344,18 +1226,22 @@ impl FunctionImplementation for DecodeClarityValueOk {
     ) -> Result<Value, Diagnostic> {
         let value = match args.get(0) {
             // todo maybe we can assume some types?
-            Some(Value::Primitive(PrimitiveValue::Buffer(buffer_data))) => {
-                match parse_clarity_value(&buffer_data.bytes, &buffer_data.typing) {
+            Some(Value::Addon(data)) => match parse_clarity_value(&data.bytes, &data.id) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            },
+            Some(Value::Buffer(buffer_data)) => {
+                match parse_clarity_value(&buffer_data, &STACKS_CV_GENERIC) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 }
             }
-            Some(Value::Primitive(PrimitiveValue::String(buffer_hex))) => {
+            Some(Value::String(buffer_hex)) => {
                 if !buffer_hex.starts_with("0x") {
                     unreachable!()
                 }
                 let bytes = txtx_addon_kit::hex::decode(&buffer_hex[2..]).unwrap();
-                match parse_clarity_value(&bytes, &CLARITY_VALUE) {
+                match parse_clarity_value(&bytes, &STACKS_CV_GENERIC) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 }
@@ -1376,7 +1262,7 @@ impl FunctionImplementation for DecodeClarityValueOk {
 
         let inner_bytes: Vec<u8> = value.serialize_to_vec();
 
-        Ok(Value::buffer(inner_bytes, CLARITY_VALUE.clone()))
+        Ok(StacksValue::generic_clarity_value(inner_bytes))
     }
 }
 
@@ -1438,7 +1324,7 @@ impl FunctionImplementation for RetrieveClarinetContract {
         let res = Value::object(indexmap! {
             "contract_source".to_string() => Value::string(contract_source),
             "contract_name".to_string() => contract_key.clone(),
-            "clarity_version".to_string() => Value::uint(contract.clarity_version)
+            "clarity_version".to_string() => Value::integer(contract.clarity_version as i128)
         });
 
         Ok(res)

@@ -38,8 +38,9 @@ use crate::constants::{
     NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
     UNSIGNED_TRANSACTION_BYTES,
 };
+
 use crate::rpc::StacksRpc;
-use crate::typing::CLARITY_BUFFER;
+use crate::typing::StacksValue;
 
 use super::get_signing_construct_did;
 
@@ -78,13 +79,13 @@ lazy_static! {
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             fee: {
                 documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: false,
                 interpolable: true
             }
@@ -135,10 +136,7 @@ impl CommandImplementation for SignStacksTransaction {
         wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         mut wallets: SigningCommandsState,
     ) -> WalletActionsFutureResult {
-        use crate::{
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
-            typing::STACKS_TRANSACTION,
-        };
+        use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
         let signing_construct_did = get_signing_construct_did(args).unwrap();
         let wallet = wallets_instances
@@ -164,10 +162,10 @@ impl CommandImplementation for SignStacksTransaction {
                 return Ok((wallets, signing_command_state, Actions::none()));
             }
 
-            let nonce = args.get_value("nonce").map(|v| v.expect_uint());
-            let fee = args.get_value("fee").map(|v| v.expect_uint());
+            let nonce = args.get_value("nonce").map(|v| v.expect_uint().unwrap());
+            let fee = args.get_value("fee").map(|v| v.expect_uint().unwrap());
             let post_conditions = match args.get_value("post_conditions") {
-                Some(Value::Primitive(v)) => vec![Value::Primitive(v.clone())],
+                Some(Value::Addon(v)) => vec![Value::Addon(v.clone())],
                 Some(Value::Array(data)) => *data.clone(),
                 _ => vec![],
             };
@@ -191,7 +189,7 @@ impl CommandImplementation for SignStacksTransaction {
 
             let mut bytes = vec![];
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
-            let payload = Value::buffer(bytes, STACKS_TRANSACTION.clone());
+            let payload = StacksValue::transaction(bytes);
 
             signing_command_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -210,7 +208,7 @@ impl CommandImplementation for SignStacksTransaction {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.get_origin_nonce()),
+                            value: Value::integer(transaction.get_origin_nonce() as i128),
                         }),
                         ACTION_ITEM_CHECK_NONCE,
                     ),
@@ -221,7 +219,7 @@ impl CommandImplementation for SignStacksTransaction {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.get_tx_fee()),
+                            value: Value::integer(transaction.get_tx_fee() as i128),
                         }),
                         ACTION_ITEM_CHECK_FEE,
                     ),
@@ -319,19 +317,17 @@ async fn build_unsigned_transaction(
     use clarity_repl::codec::TransactionPostConditionMode;
 
     use crate::constants::CACHED_NONCE;
-    let transaction_payload_bytes =
-        args.get_expected_buffer(TRANSACTION_PAYLOAD_BYTES, &CLARITY_BUFFER)?;
-    let transaction_payload = match TransactionPayload::consensus_deserialize(
-        &mut &transaction_payload_bytes.bytes[..],
-    ) {
-        Ok(res) => res,
-        Err(e) => {
-            todo!(
-                "transaction payload invalid, return diagnostic ({})",
-                e.to_string()
-            )
-        }
-    };
+    let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
+    let transaction_payload =
+        match TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes[..]) {
+            Ok(res) => res,
+            Err(e) => {
+                todo!(
+                    "transaction payload invalid, return diagnostic ({})",
+                    e.to_string()
+                )
+            }
+        };
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let default_payload = {
         let boot_address = match network_id.as_str() {
@@ -394,7 +390,7 @@ async fn build_unsigned_transaction(
         .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
     let version: u8 = signing_command_state
-        .get_expected_uint("hash_flag")?
+        .get_expected_integer("hash_flag")?
         .try_into()
         .unwrap();
     let hash_mode = AddressHashMode::from_version(version);
@@ -410,7 +406,7 @@ async fn build_unsigned_transaction(
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
-            if let Some(wallet_nonce) = signing_command_state
+            if let Some(Ok(wallet_nonce)) = signing_command_state
                 .get_value(CACHED_NONCE)
                 .map(|v| v.expect_uint())
             {
@@ -456,7 +452,7 @@ async fn build_unsigned_transaction(
     unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
     for post_condition_bytes in post_conditions.iter() {
         let post_condition = match TransactionPostCondition::consensus_deserialize(
-            &mut &post_condition_bytes.expect_buffer_data().bytes[..],
+            &mut &post_condition_bytes.expect_buffer_bytes()[..],
         ) {
             Ok(res) => res,
             Err(e) => {

@@ -1,172 +1,92 @@
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    types::{Type, TypeImplementation, TypeSpecification},
-};
+use txtx_addon_kit::types::types::Value;
 
-lazy_static! {
-    pub static ref CLARITY_UINT: TypeSpecification = define_addon_type! {
-        ClarityIntegerUnsigned => {
-            name: "clarity_uint",
-            documentation: "Clarity unsigned integer (128 bits)",
-        }
-    };
-    pub static ref CLARITY_INT: TypeSpecification = define_addon_type! {
-        ClarityIntegerSigned => {
-            name: "clarity_int",
-            documentation: "Clarity signed integer (128 bits)",
-        }
-    };
-    pub static ref CLARITY_PRINCIPAL: TypeSpecification = define_addon_type! {
-        ClarityPrincipal => {
-            name: "clarity_principal",
-            documentation: "Clarity principal",
-        }
-    };
-    pub static ref CLARITY_ASCII: TypeSpecification = define_addon_type! {
-        ClarityAscii => {
-            name: "clarity_ascii",
-            documentation: "Clarity ASCII string",
-        }
-    };
-    pub static ref CLARITY_UTF8: TypeSpecification = define_addon_type! {
-        ClarityAscii => {
-            name: "clarity_utf8",
-            documentation: "Clarity UTF8 string",
-        }
-    };
-    pub static ref CLARITY_TUPLE: TypeSpecification = define_addon_type! {
-        ClarityTuple => {
-            name: "clarity_tuple",
-            documentation: "Clarity tuple",
-        }
-    };
-    pub static ref CLARITY_LIST: TypeSpecification = define_addon_type! {
-        ClarityList => {
-            name: "clarity_list",
-            documentation: "Clarity list",
-        }
-    };
-    pub static ref CLARITY_BUFFER: TypeSpecification = define_addon_type! {
-        ClarityBuffer => {
-            name: "clarity_buffer",
-            documentation: "Clarity buffer",
-        }
-    };
-    pub static ref CLARITY_OK: TypeSpecification = define_addon_type! {
-        ClarityBuffer => {
-            name: "clarity_ok",
-            documentation: "Clarity Result Ok",
-        }
-    };
-    pub static ref CLARITY_VALUE: TypeSpecification = define_addon_type! {
-        ClarityValue => {
-            name: "clarity_value",
-            documentation: "Any Clarity value",
-        }
-    };
-    // pub static ref CLARITY_CHAR_TYPE: TypeSpecification = define_addon_type! {
-    //     ClaritySequence => {
-    //         name: "clarity_sequence",
-    //         documentation: "Clarity sequence",
-    //     }
-    // };
+pub const STACKS_CV_UINT: &str = "stacks::cv_uint";
+pub const STACKS_CV_INT: &str = "stacks::cv_int";
+pub const STACKS_CV_BOOL: &str = "stacks::cv_bool";
+pub const STACKS_CV_PRINCIPAL: &str = "stacks::cv_principal";
+pub const STACKS_CV_STRING_ASCII: &str = "stacks::cv_string_ascii";
+pub const STACKS_CV_STRING_UTF8: &str = "stacks::cv_string_utf8";
+pub const STACKS_CV_TUPLE: &str = "stacks::cv_tuple";
+pub const STACKS_CV_OK: &str = "stacks::cv_ok";
+pub const STACKS_CV_ERR: &str = "stacks::cv_err";
+pub const STACKS_CV_NONE: &str = "stacks::cv_none";
+pub const STACKS_CV_SOME: &str = "stacks::cv_some";
+pub const STACKS_CV_LIST: &str = "stacks::cv_list";
+pub const STACKS_CV_BUFFER: &str = "stacks::cv_buffer";
+pub const STACKS_CV_GENERIC: &str = "stacks::cv_generic";
+pub const STACKS_CONTRACT_CALL: &str = "stacks::contract_call";
+pub const STACKS_POST_CONDITION: &str = "stacks::post_condition";
+pub const STACKS_TRANSACTION: &str = "stacks::transaction";
+pub const STACKS_SIGNATURE: &str = "stacks::signature";
 
-    pub static ref STACKS_TRANSACTION: TypeSpecification = define_addon_type! {
-        StacksTransaction => {
-            name: "stacks_transaction",
-            documentation: "Stacks transaction",
-        }
-    };
-    pub static ref STACKS_SIGNATURE: TypeSpecification = define_addon_type! {
-        StacksSignature => {
-            name: "stacks_signature",
-            documentation: "Stacks signature",
-        }
-    };
-    pub static ref STACKS_CONTRACT_CALL: TypeSpecification = define_addon_type! {
-        StacksContractCall => {
-            name: "stacks_contract_call",
-            documentation: "Stacks contract call payload",
-        }
-    };
-    pub static ref STACKS_POST_CONDITION: TypeSpecification = define_addon_type! {
-        StacksContractCall => {
-            name: "stacks_post_condition",
-            documentation: "Stacks post condition payload",
-        }
-    };
+pub struct StacksValue {}
 
-}
+impl StacksValue {
+    pub fn bool(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_BOOL)
+    }
 
-pub struct ClarityIntegerUnsigned;
-impl TypeImplementation for ClarityIntegerUnsigned {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn int(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_INT)
     }
-}
 
-pub struct ClarityIntegerSigned;
-impl TypeImplementation for ClarityIntegerSigned {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn uint(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_UINT)
     }
-}
-pub struct ClarityPrincipal;
-impl TypeImplementation for ClarityPrincipal {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
-pub struct ClarityAscii;
-impl TypeImplementation for ClarityAscii {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
 
-pub struct ClarityTuple;
-impl TypeImplementation for ClarityTuple {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn buffer(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_BUFFER)
     }
-}
-pub struct ClarityList;
-impl TypeImplementation for ClarityList {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
 
-pub struct ClarityBuffer;
-impl TypeImplementation for ClarityBuffer {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn tuple(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_TUPLE)
     }
-}
 
-pub struct ClarityValue;
-impl TypeImplementation for ClarityValue {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn string_ascii(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_STRING_ASCII)
     }
-}
-pub struct StacksTransaction;
-impl TypeImplementation for StacksTransaction {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
 
-pub struct StacksSignature;
-impl TypeImplementation for StacksSignature {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn string_utf8(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_STRING_UTF8)
     }
-}
 
-pub struct StacksContractCall;
-impl TypeImplementation for StacksContractCall {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
+    pub fn some(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_SOME)
+    }
+
+    pub fn none(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_NONE)
+    }
+
+    pub fn ok(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_OK)
+    }
+
+    pub fn err(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_ERR)
+    }
+
+    pub fn principal(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_PRINCIPAL)
+    }
+
+    pub fn post_condition(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_POST_CONDITION)
+    }
+
+    pub fn generic_clarity_value(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CV_GENERIC)
+    }
+
+    pub fn contract_call(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_CONTRACT_CALL)
+    }
+
+    pub fn transaction(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_TRANSACTION)
+    }
+
+    pub fn signature(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_SIGNATURE)
     }
 }

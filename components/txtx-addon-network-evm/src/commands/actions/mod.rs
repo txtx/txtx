@@ -3,10 +3,8 @@ use std::str::FromStr;
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
 use txtx_addon_kit::types::{
-    commands::PreCommandSpecification,
-    diagnostics::Diagnostic,
-    types::{PrimitiveValue, Value},
-    ConstructDid, Did, ValueStore,
+    commands::PreCommandSpecification, diagnostics::Diagnostic, types::Value, ConstructDid, Did,
+    ValueStore,
 };
 
 pub mod check_confirmations;
@@ -26,7 +24,10 @@ use sign_transaction::SIGN_TRANSACTION;
 use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_contract::VERIFY_CONTRACT;
 
-use crate::{constants::SIGNER, typing::ETH_ADDRESS};
+use crate::{
+    constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT},
+    typing::EVM_ADDRESS,
+};
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -43,23 +44,27 @@ lazy_static! {
 
 pub fn get_expected_address(value: &Value) -> Result<Address, String> {
     match value {
-        Value::Primitive(PrimitiveValue::Buffer(address)) => {
-            Ok(Address::from_slice(&address.bytes))
-        }
-        Value::Primitive(PrimitiveValue::String(address)) => {
+        Value::Buffer(bytes) => Ok(Address::from_slice(&bytes)),
+        Value::String(address) => {
             Ok(Address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?)
         }
         Value::Addon(addon_data) => {
-            if addon_data.typing.id != ETH_ADDRESS.id {
-                return Err(format!(
-                    "invalid data type for address: {}",
-                    addon_data.typing.id
-                ));
+            if addon_data.id != EVM_ADDRESS {
+                return Err(format!("invalid data type for address: {}", addon_data.id));
             }
-            get_expected_address(&addon_data.value)
+            Ok(Address::from_slice(&addon_data.bytes))
         }
         value => Err(format!("unexpected address type: {:?}", value)),
     }
+}
+
+pub fn get_common_tx_params_from_args(
+    args: &ValueStore,
+) -> Result<(u64, Option<u64>, Option<u64>), String> {
+    let amount = args.get_uint(TRANSACTION_AMOUNT)?.unwrap_or(0);
+    let gas_limit = args.get_uint(GAS_LIMIT)?;
+    let nonce = args.get_uint(NONCE)?;
+    Ok((amount, gas_limit, nonce))
 }
 
 fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {

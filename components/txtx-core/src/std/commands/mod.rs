@@ -207,7 +207,15 @@ impl CommandImplementation for Input {
                 let typing = args.get_expected_value("type")?;
                 (
                     None,
-                    Type::from(typing.as_string().unwrap_or("string").to_string()),
+                    Type::try_from(typing.as_string().unwrap_or("string").to_string()).map_err(
+                        |e| {
+                            diagnosed_error!(
+                                "input {}: attribute 'type' has invalid value: {}",
+                                instance_name,
+                                e
+                            )
+                        },
+                    )?,
                 )
             }
         };

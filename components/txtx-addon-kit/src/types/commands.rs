@@ -28,7 +28,7 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
-    types::{ObjectProperty, RunbookSupervisionContext, Type, TypeSpecification, Value},
+    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     wallets::{
         consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
         SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
@@ -113,25 +113,40 @@ impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
         match &self.typing {
             Type::Object(spec) => Some(spec),
-            Type::Primitive(_) => None,
             Type::Addon(_) => None,
             Type::Array(_) => None,
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
         match &self.typing {
             Type::Object(_) => None,
-            Type::Primitive(_) => None,
             Type::Addon(_) => None,
             Type::Array(array) => Some(array),
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
-    pub fn as_action(&self) -> Option<&TypeSpecification> {
+    pub fn as_action(&self) -> Option<&String> {
         match &self.typing {
             Type::Object(_) => None,
-            Type::Primitive(_) => None,
             Type::Addon(addon) => Some(addon),
             Type::Array(_) => None,
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
         }
     }
 }
@@ -618,11 +633,7 @@ impl CommandInstance {
         &self,
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) | Type::Object(_) => {
-                visit_optional_untyped_attribute(&input.name, &self.block)?
-            }
-        };
+        let res = visit_optional_untyped_attribute(&input.name, &self.block)?;
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),
             (None, true) => Ok(None),
@@ -645,10 +656,10 @@ impl CommandInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let object = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
+            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
+            _ => {
                 unreachable!()
             }
-            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
         };
         match (object, input.optional) {
             (Some(expr), _) => Ok(Some(expr)),

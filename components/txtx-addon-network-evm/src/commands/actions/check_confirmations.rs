@@ -38,13 +38,13 @@ lazy_static! {
                 },
                 chain_id: {
                   documentation: "Coming soon",
-                  typing: Type::uint(),
+                  typing: Type::integer(),
                   optional: false,
                   interpolable: true
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 }
@@ -130,7 +130,6 @@ impl CommandImplementation for CheckEVMConfirmations {
         use crate::{
             constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
             rpc::EVMRpc,
-            typing::ETH_TX_HASH,
         };
 
         let inputs = inputs.clone();
@@ -173,16 +172,13 @@ impl CommandImplementation for CheckEVMConfirmations {
             return return_synchronous_result(Ok(result));
         }
 
-        let tx_hash = inputs.get_expected_buffer(TX_HASH, &ETH_TX_HASH)?;
+        let tx_hash_bytes = inputs.get_expected_buffer_bytes(TX_HASH)?;
         let rpc_api_url = inputs.get_defaulting_string(RPC_API_URL, defaults)?;
 
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
 
-        let tx_hash_str = hex::encode(tx_hash.bytes.clone());
-        let receipt_msg = format!(
-            "Checking Tx 0x{} Receipt on Chain {}",
-            &tx_hash_str, chain_name
-        );
+        let tx_hash = hex::encode(&tx_hash_bytes);
+        let receipt_msg = format!("Checking Tx 0x{} Receipt on Chain {}", &tx_hash, chain_name);
 
         let future = async move {
             // initial progress status
@@ -212,7 +208,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                 progress = (progress + 1) % progress_symbol.len();
 
                 let Some(receipt) = rpc
-                    .get_receipt(&tx_hash.bytes)
+                    .get_receipt(&tx_hash_bytes)
                     .await
                     .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?
                 else {
@@ -241,7 +237,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                         &format!("Pending {}", progress_symbol[progress]),
                         &format!(
                             "Awaiting Inclusion in Block for Tx 0x{} on Chain {}",
-                            tx_hash_str, chain_name
+                            tx_hash, chain_name
                         ),
                     ));
                     let _ = progress_tx
@@ -308,7 +304,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                     } else {
                         "blocks"
                     },
-                    tx_hash_str,
+                    tx_hash,
                     chain_name
                 ),
             ));

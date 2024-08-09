@@ -151,7 +151,7 @@ impl CommandImplementation for SignEVMTransaction {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.nonce()),
+                            value: Value::integer(transaction.nonce().into()),
                         }),
                         ACTION_ITEM_CHECK_NONCE,
                     ),
@@ -162,7 +162,7 @@ impl CommandImplementation for SignEVMTransaction {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::ReviewInput(ReviewInputRequest {
                             input_name: "".into(),
-                            value: Value::uint(transaction.gas_limit().try_into().unwrap()), // todo
+                            value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
                         }),
                         ACTION_ITEM_CHECK_FEE,
                     ),

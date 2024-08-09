@@ -1,7 +1,4 @@
-use kit::types::{
-    types::{TypeImplementation, TypeSpecification},
-    AuthorizationContext,
-};
+use kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -34,12 +31,6 @@ lazy_static! {
             },
         }
     },];
-    pub static ref STD_BUFFER: TypeSpecification = define_addon_type! {
-        HashBuffer => {
-            name: "std_buffer",
-            documentation: "Standard Buffer",
-        }
-    };
 }
 
 pub struct EncodeHex;
@@ -60,12 +51,5 @@ impl FunctionImplementation for EncodeHex {
         let input = args.get(0).unwrap().expect_string();
         let hex = kit::hex::encode(input);
         Ok(Value::string(hex))
-    }
-}
-
-pub struct HashBuffer;
-impl TypeImplementation for HashBuffer {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
     }
 }
