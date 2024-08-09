@@ -272,6 +272,7 @@ impl Value {
                 };
                 bytes
             }
+            Value::Addon(data) => data.bytes.clone(),
             _ => unimplemented!(),
         }
     }
