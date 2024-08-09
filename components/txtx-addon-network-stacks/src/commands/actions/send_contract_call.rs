@@ -23,7 +23,7 @@ use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
 use crate::typing::STACKS_POST_CONDITION;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
-    typing::{CLARITY_PRINCIPAL, CLARITY_VALUE},
+    typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL},
 };
 
 use super::get_signing_construct_did;
@@ -49,7 +49,7 @@ lazy_static! {
               },
               contract_id: {
                   documentation: "The address and identifier of the contract to invoke.",
-                  typing: Type::addon(CLARITY_PRINCIPAL.clone()),
+                  typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
                   interpolable: true
               },
@@ -61,7 +61,7 @@ lazy_static! {
               },
               function_args: {
                   documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(CLARITY_VALUE.clone())),
+                  typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                   optional: true,
                   interpolable: true
               },
@@ -79,25 +79,31 @@ lazy_static! {
               },
               confirmations: {
                 documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
               },
               nonce: {
                   documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                  typing: Type::uint(),
+                  typing: Type::integer(),
                   optional: true,
                   interpolable: true
               },
               fee: {
                 documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
+                optional: true,
+                interpolable: true
+              },
+              fee_strategy: {
+                documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
+                typing: Type::string(),
                 optional: true,
                 interpolable: true
               },
               post_conditions: {
                 documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
+                typing: Type::array(Type::addon(STACKS_POST_CONDITION)),
                 optional: true,
                 interpolable: true
               }

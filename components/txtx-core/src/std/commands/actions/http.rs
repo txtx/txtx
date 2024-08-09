@@ -45,7 +45,7 @@ lazy_static! {
                 },
                 request_timeout_ms: {
                   documentation: "The request timeout in milliseconds.",
-                  typing: Type::uint(),
+                  typing: Type::integer(),
                   optional: true,
                   interpolable: true
                 },
@@ -69,7 +69,7 @@ lazy_static! {
                 },
                 status_code: {
                     documentation: "The HTTP response status code.",
-                    typing: Type::uint()
+                    typing: Type::integer()
                 }
             ],
             example: indoc!{r#"
@@ -157,7 +157,7 @@ impl CommandImplementation for SendHttpRequest {
 
             result.outputs.insert(
                 format!("status_code"),
-                Value::uint(status_code.as_u16().into()),
+                Value::integer(status_code.as_u16().into()),
             );
 
             result

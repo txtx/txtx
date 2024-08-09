@@ -6,7 +6,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{PrimitiveValue, Type, Value},
+        types::{Type, Value},
     },
 };
 
@@ -57,11 +57,11 @@ impl FunctionImplementation for JsonQuery {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Value::Primitive(PrimitiveValue::String(input_str)) = args.get(0).unwrap() else {
-            panic!("json query input must be a string");
+        let Value::String(input_str) = args.get(0).unwrap() else {
+            return Err(diagnosed_error!("json query input must be a string"));
         };
-        let Value::Primitive(PrimitiveValue::String(filter)) = args.get(1).unwrap() else {
-            panic!("json query filter must be a string");
+        let Value::String(filter) = args.get(1).unwrap() else {
+            return Err(diagnosed_error!("json query filter must be a string"));
         };
         let input: JsonValue = serde_json::from_str(&input_str).unwrap();
 

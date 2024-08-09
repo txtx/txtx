@@ -78,19 +78,19 @@ lazy_static! {
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
                 nonce: {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                    typing: Type::uint(),
+                    typing: Type::integer(),
                     optional: true,
                     interpolable: true
                 },
@@ -167,8 +167,8 @@ impl CommandImplementation for StacksDeployContractRequirement {
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_name'")),
         };
         let clarity_version = match contract.get("clarity_version").map(|v| v.as_uint()) {
-            Some(Some(1)) => ClarityVersion::Clarity1,
-            Some(Some(2)) => ClarityVersion::Clarity2,
+            Some(Some(Ok(1))) => ClarityVersion::Clarity1,
+            Some(Some(Ok(2))) => ClarityVersion::Clarity2,
             _ => ClarityVersion::latest(),
         };
 
@@ -271,7 +271,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
                     }
                 };
                 let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(value)) => Some(value),
+                    Some(Some(Ok(value))) => Some(value),
                     _ => None,
                 };
                 (contract_source, contract_name, clarity_version)
@@ -353,7 +353,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
                     }
                 };
                 let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(value)) => Some(value),
+                    Some(Some(Ok(value))) => Some(value),
                     _ => None,
                 };
                 (contract_source, contract_name, clarity_version)

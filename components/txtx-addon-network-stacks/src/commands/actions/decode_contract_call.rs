@@ -15,7 +15,6 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::stacks_helpers::clarity_value_to_value;
-use crate::typing::CLARITY_BUFFER;
 
 lazy_static! {
     pub static ref DECODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -48,7 +47,7 @@ lazy_static! {
               },
               nonce: {
                 documentation: "The transaction nonce.",
-                typing: Type::uint()
+                typing: Type::integer()
               },
               signer: {
                 documentation: "The transaction signer.",
@@ -56,7 +55,7 @@ lazy_static! {
               },
               fee: {
                 documentation: "The transaction fee.",
-                typing: Type::uint()
+                typing: Type::integer()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -97,9 +96,9 @@ impl CommandImplementation for EncodeStacksContractCall {
         let mut result = CommandExecutionResult::new();
 
         // Extract contract_id
-        let buffer = args.get_expected_buffer("bytes", &CLARITY_BUFFER)?;
+        let buffer = args.get_expected_buffer_bytes("bytes")?;
 
-        match StacksTransaction::consensus_deserialize(&mut &buffer.bytes[..]) {
+        match StacksTransaction::consensus_deserialize(&mut &buffer[..]) {
             Ok(tx) => {
                 match tx.payload {
                     TransactionPayload::ContractCall(payload) => {
@@ -128,14 +127,14 @@ impl CommandImplementation for EncodeStacksContractCall {
                 {
                     result
                         .outputs
-                        .insert("nonce".to_string(), Value::uint(auth.nonce));
+                        .insert("nonce".to_string(), Value::integer(auth.nonce as i128));
                     result.outputs.insert(
                         "signer".to_string(),
                         Value::string(format!("{}", auth.signer)),
                     );
                     result
                         .outputs
-                        .insert("fee".to_string(), Value::uint(auth.tx_fee));
+                        .insert("fee".to_string(), Value::integer(auth.tx_fee as i128));
                 } else {
                     unimplemented!("unimplemented auth decoding");
                 }

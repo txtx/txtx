@@ -15,7 +15,7 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
 use crate::rpc::EVMRpc;
-use crate::typing::ETH_ADDRESS;
+use crate::typing::EVM_ADDRESS;
 
 lazy_static! {
     pub static ref ETH_CALL: PreCommandSpecification = define_command! {
@@ -40,13 +40,13 @@ lazy_static! {
             },
             contract_address: {
                 documentation: "The address of the contract being called.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: false,
                 interpolable: true
             },
             contract_abi: {
                 documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
-                typing: Type::addon(ETH_ADDRESS.clone()),
+                typing: Type::addon(EVM_ADDRESS),
                 optional: true,
                 interpolable: true
             },
@@ -70,7 +70,7 @@ lazy_static! {
             },
             amount: {
                 documentation: "The amount, in Wei, to send in the transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -82,13 +82,13 @@ lazy_static! {
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
@@ -100,28 +100,22 @@ lazy_static! {
             },
             nonce: {
                 documentation: "The account nonce of the sender. This value will be retrieved from the network if omitted.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::uint(),
+                typing: Type::integer(),
                 optional: true,
                 interpolable: true
             }
-            // network_id: {
-            //     documentation: "The network id.",
-            //     typing: Type::string(),
-            //     optional: true,
-            //     interpolable: true
-            // },
           ],
           outputs: [
               result: {
@@ -195,12 +189,15 @@ async fn build_eth_call(
             build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
             TransactionType,
         },
-        commands::actions::sign_contract_call::{
-            encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+        commands::actions::{
+            get_common_tx_params_from_args,
+            sign_contract_call::{
+                encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+            },
         },
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT, TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, SIGNER, TRANSACTION_TYPE,
         },
     };
 
@@ -214,12 +211,8 @@ async fn build_eth_call(
     let function_name = args.get_string(CONTRACT_FUNCTION_NAME);
     let function_args = args.get_value(CONTRACT_FUNCTION_ARGS);
 
-    let amount = args
-        .get_value(TRANSACTION_AMOUNT)
-        .map(|v| v.expect_uint())
-        .unwrap_or(0);
-    let gas_limit = args.get_value(GAS_LIMIT).map(|v| v.expect_uint());
-    let nonce = args.get_value(NONCE).map(|v| v.expect_uint());
+    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)

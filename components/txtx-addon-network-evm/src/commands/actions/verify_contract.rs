@@ -4,7 +4,7 @@ use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSp
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
-use txtx_addon_kit::types::types::{PrimitiveValue, RunbookSupervisionContext};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
@@ -148,7 +148,6 @@ impl CommandImplementation for VerifyEVMContract {
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
-        // let network_id = inputs.get_defaulting_string(NETWORK_ID, &defaults)?;
         let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
         let contract_address = inputs.get_expected_value(CONTRACT_ADDRESS)?;
@@ -449,7 +448,7 @@ pub fn get_expected_string_from_map(
     map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<String, Diagnostic> {
-    let Some(Value::Primitive(PrimitiveValue::String(val))) = map.get(key) else {
+    let Some(Value::String(val)) = map.get(key) else {
         return Err(diagnosed_error!(
             "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
@@ -460,18 +459,19 @@ pub fn get_expected_uint_from_map(
     map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<u64, Diagnostic> {
-    let Some(Value::Primitive(PrimitiveValue::UnsignedInteger(val))) = map.get(key) else {
+    let Some(val) = map.get(key) else {
         return Err(diagnosed_error!(
             "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
     };
-    Ok(*val)
+    val.expect_uint()
+        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
 }
 pub fn get_expected_bool_from_map(
     map: &IndexMap<String, Value>,
     key: &str,
 ) -> Result<bool, Diagnostic> {
-    let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) else {
+    let Some(Value::Bool(val)) = map.get(key) else {
         return Err(diagnosed_error!(
             "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
@@ -480,7 +480,7 @@ pub fn get_expected_bool_from_map(
 }
 
 pub fn get_bool_from_map(map: &IndexMap<String, Value>, key: &str) -> Option<bool> {
-    if let Some(Value::Primitive(PrimitiveValue::Bool(val))) = map.get(key) {
+    if let Some(Value::Bool(val)) = map.get(key) {
         Some(*val)
     } else {
         None

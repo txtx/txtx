@@ -30,7 +30,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
-use crate::typing::ETH_TX_HASH;
+use crate::typing::EvmValue;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::PUBLIC_KEYS;
@@ -226,9 +226,9 @@ impl WalletImplementation for EVMMnemonic {
                 };
             let eth_wallet = EthereumWallet::from(mnemonic_signer);
 
-            let payload_buffer = payload.expect_buffer_data();
+            let payload_bytes = payload.expect_buffer_bytes();
 
-            let mut tx: TransactionRequest = serde_json::from_slice(&payload_buffer.bytes).unwrap();
+            let mut tx: TransactionRequest = serde_json::from_slice(&payload_bytes).unwrap();
             if tx.to.is_none() {
                 // there's no to address on the tx, which is invalid unless it's set as "create"
                 tx.set_create();
@@ -250,11 +250,10 @@ impl WalletImplementation for EVMMnemonic {
                 )
             })?;
             let tx_hash = pending_tx.tx_hash().0;
-            result.outputs.insert(
-                TX_HASH.to_string(),
-                Value::buffer(tx_hash.to_vec(), ETH_TX_HASH.clone()),
-            );
-            signing_command_state.insert(NONCE, Value::uint(tx_nonce));
+            result
+                .outputs
+                .insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
+            signing_command_state.insert(NONCE, Value::integer(tx_nonce.into()));
             Ok((wallets, signing_command_state, result))
         };
         Ok(Box::pin(future))

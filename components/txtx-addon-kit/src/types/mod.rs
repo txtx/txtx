@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use types::{BufferData, PrimitiveValue, TypeSpecification, Value};
+use types::Value;
 
 use crate::{helpers::fs::FileLocation, AddonDefaults};
 
@@ -268,6 +268,24 @@ impl ValueStore {
         Ok(value.to_string())
     }
 
+    pub fn get_defaulting_integer(
+        &self,
+        key: &str,
+        defaults: &AddonDefaults,
+    ) -> Result<i128, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            let res = defaults.store.get_expected_integer(key)?;
+            return Ok(res);
+        };
+        let Some(value) = value.as_integer() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected uint)",
+                self.name, key
+            )));
+        };
+        Ok(value)
+    }
+
     pub fn get_defaulting_uint(
         &self,
         key: &str,
@@ -279,11 +297,16 @@ impl ValueStore {
         };
         let Some(value) = value.as_uint() else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': value associated to '{}' mismatch (expected uint)",
+                "store '{}': value associated to '{}' mismatch (expected positive integer)",
                 self.name, key
             )));
         };
-        Ok(value)
+        value.map_err(|e| {
+            Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer): {}",
+                self.name, key, e
+            ))
+        })
     }
 
     pub fn get_optional_defaulting_string(
@@ -326,9 +349,7 @@ impl ValueStore {
     }
 
     pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
-        if let Some(Value::Primitive(PrimitiveValue::Bool(bool))) =
-            self.get_scoped_value(scope, key)
-        {
+        if let Some(Value::Bool(bool)) = self.get_scoped_value(scope, key) {
             Some(*bool)
         } else {
             None
@@ -337,6 +358,10 @@ impl ValueStore {
 
     pub fn get_value(&self, key: &str) -> Option<&Value> {
         self.storage.get(key)
+    }
+
+    pub fn get_uint(&self, key: &str) -> Result<Option<u64>, String> {
+        self.storage.get(key).map(|v| v.expect_uint()).transpose()
     }
 
     pub fn get_string(&self, key: &str) -> Option<&str> {
@@ -411,6 +436,22 @@ impl ValueStore {
         Ok(result.clone())
     }
 
+    pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
+        let Some(value) = self.storage.get(key) else {
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve key '{}' from store '{}'",
+                key, self.name,
+            )));
+        };
+        let Some(value) = value.as_integer() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected integer)",
+                self.name, key
+            )));
+        };
+        Ok(value)
+    }
+
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
@@ -420,18 +461,19 @@ impl ValueStore {
         };
         let Some(value) = value.as_uint() else {
             return Err(Diagnostic::error_from_string(format!(
-                "store '{}': value associated to '{}' mismatch (expected uint)",
+                "store '{}': value associated to '{}' mismatch (expected positive integer)",
                 self.name, key
             )));
         };
-        Ok(value)
+        value.map_err(|e| {
+            Diagnostic::error_from_string(format!(
+                "store '{}': value associated to '{}' mismatch (expected positive integer): {}",
+                self.name, key, e,
+            ))
+        })
     }
 
-    pub fn get_expected_buffer(
-        &self,
-        key: &str,
-        typing: &TypeSpecification,
-    ) -> Result<BufferData, Diagnostic> {
+    pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve key '{}' from store '{}'",
@@ -440,18 +482,16 @@ impl ValueStore {
         };
 
         let bytes = match value {
-            Value::Primitive(PrimitiveValue::Buffer(bytes)) => bytes.clone(),
-            Value::Primitive(PrimitiveValue::String(bytes)) => {
+            Value::Buffer(bytes) => bytes.clone(),
+            Value::String(bytes) => {
                 let bytes = if bytes.starts_with("0x") {
                     crate::hex::decode(&bytes[2..]).unwrap()
                 } else {
                     crate::hex::decode(&bytes).unwrap()
                 };
-                BufferData {
-                    bytes,
-                    typing: typing.clone(),
-                }
+                bytes
             }
+            Value::Addon(data) => data.bytes.clone(),
             _ => {
                 return Err(Diagnostic::error_from_string(format!(
                     "store '{}': value associated to '{}' mismatch (expected buffer)",

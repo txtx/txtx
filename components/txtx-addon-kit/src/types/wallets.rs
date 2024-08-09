@@ -358,10 +358,8 @@ impl WalletInstance {
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
         let res = match &input.typing {
-            Type::Primitive(_) | Type::Array(_) | Type::Addon(_) => {
-                visit_optional_untyped_attribute(&input.name, &self.block)?
-            }
             Type::Object(_) => unreachable!(),
+            _ => visit_optional_untyped_attribute(&input.name, &self.block)?,
         };
         match (res, input.optional) {
             (Some(res), _) => Ok(Some(res)),

@@ -63,6 +63,7 @@ impl RunbookWorkspaceContext {
         runtime_context: &RuntimeContext,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
+        environment_selector: &Option<String>,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = vec![];
         let mut sources = VecDeque::new();
@@ -117,12 +118,14 @@ impl RunbookWorkspaceContext {
 
                         match std::fs::read_dir(imported_package_location.to_string()) {
                             Ok(_) => {
-                                let files =
-                                    get_txtx_files_paths(&imported_package_location.to_string())
-                                        .map_err(|e| {
-                                            vec![diagnosed_error!("{}", e.to_string())
-                                                .location(&imported_package_location)]
-                                        })?;
+                                let files = get_txtx_files_paths(
+                                    &imported_package_location.to_string(),
+                                    environment_selector,
+                                )
+                                .map_err(|e| {
+                                    vec![diagnosed_error!("{}", e.to_string())
+                                        .location(&imported_package_location)]
+                                })?;
                                 for file_path in files.into_iter() {
                                     let file_location = FileLocation::from_path(file_path);
                                     if !files_visited.contains(&file_location) {
@@ -490,7 +493,7 @@ impl RunbookWorkspaceContext {
             if let TraversalOperator::Index(expr) = op.value() {
                 match expr {
                     Expression::Number(value) => {
-                        subpath.push_back(Value::int(value.as_i64().unwrap()));
+                        subpath.push_back(Value::integer(value.as_i64().unwrap().into()));
                     }
                     Expression::String(value) => {
                         subpath.push_back(Value::string(value.to_string()));

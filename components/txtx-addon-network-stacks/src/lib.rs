@@ -13,7 +13,7 @@ mod constants;
 mod functions;
 pub mod rpc;
 mod stacks_helpers;
-mod typing;
+pub mod typing;
 mod utils;
 mod wallets;
 

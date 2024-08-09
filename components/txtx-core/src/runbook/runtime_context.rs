@@ -349,6 +349,7 @@ impl RuntimeContext {
         inputs_sets: &Vec<ValueStore>,
         runbook_sources: &RunbookSources,
         runbook_execution_context: &RunbookExecutionContext,
+        environment_selector: &Option<String>,
     ) -> Result<(), Vec<Diagnostic>> {
         {
             let mut diagnostics = vec![];
@@ -419,11 +420,17 @@ impl RuntimeContext {
                                         )
                                         .map_err(|e| vec![e])?;
                                         match res {
-                                            ExpressionEvaluationStatus::CompleteOk(value) => {
-                                                value.as_uint().ok_or(vec![diagnosed_error!(
+                                            ExpressionEvaluationStatus::CompleteOk(value) => value
+                                                .as_uint()
+                                                .transpose()
+                                                .map_err(|e| {
+                                                    vec![diagnosed_error!(
+                                                        "invalid 'concurrency' value: {e}"
+                                                    )]
+                                                })?
+                                                .ok_or(vec![diagnosed_error!(
                                                     "unable to read attribute 'concurrency'"
-                                                )])?
-                                            }
+                                                )])?,
                                             ExpressionEvaluationStatus::DependencyNotComputed
                                             | ExpressionEvaluationStatus::CompleteErr(_) => {
                                                 return Err(vec![diagnosed_error!(

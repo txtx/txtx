@@ -10,6 +10,7 @@ use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
 
 pub mod commands;
 pub mod functions;
+pub mod typing;
 pub mod wallets;
 
 #[derive(Debug)]

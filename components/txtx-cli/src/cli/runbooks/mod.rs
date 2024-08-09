@@ -55,22 +55,52 @@ use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
-pub const DEFAULT_BINDING_ADDRESS: &str = "0.0.0.0";
+pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
+pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
+    let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
+    let mut lock_file_location = state_file_location.get_parent_location().unwrap();
+    lock_file_location.append_path(&lock_file_name).unwrap();
+    lock_file_location
+}
+
+pub fn get_lock_file(state_file_location: &FileLocation) -> Option<FileLocation> {
+    let lock_file_location = get_lock_file_location(state_file_location);
+    if lock_file_location.exists() {
+        Some(lock_file_location)
+    } else {
+        None
+    }
+}
+
 pub fn load_runbook_execution_snapshot(
     state_file_location: &FileLocation,
+    load_lock_file_if_exists: bool,
 ) -> Result<RunbookExecutionSnapshot, String> {
-    let snapshot_bytes = state_file_location.read_content()?;
+    // Are we resuming an interrupted workflow or excuting from scratch?
+    // If we're resuming a stateful workflow, we need to:
+    // - retrieve the transient state
+    // - compare it with a new simulation
+    // - taint the executed nodes
+    // - execute
+
+    let file_to_load = if load_lock_file_if_exists {
+        match get_lock_file(&state_file_location) {
+            Some(location) => location,
+            None => state_file_location.clone(),
+        }
+    } else {
+        state_file_location.clone()
+    };
+
+    let snapshot_bytes = file_to_load.read_content()?;
     if snapshot_bytes.is_empty() {
-        return Err(format!(
-            "unable to read {}: file empty",
-            state_file_location
-        ));
+        return Err(format!("unable to read {}: file empty", file_to_load));
     }
     let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
-        .map_err(|e| format!("unable to read {}: {}", state_file_location, e.to_string()))?;
+        .map_err(|e| format!("unable to read {}: {}", file_to_load, e.to_string()))?;
     Ok(snapshot)
 }
 
@@ -148,7 +178,7 @@ pub async fn handle_check_command(
     match &runbook_state {
         Some(RunbookState::File(state_file_location)) => {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_runbook_execution_snapshot(state_file_location)?;
+            let old = load_runbook_execution_snapshot(state_file_location, true)?;
             for run in runbook.running_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let _res = run
@@ -474,7 +504,7 @@ pub async fn handle_run_command(
 
     let previous_state_opt =
         if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
-            match load_runbook_execution_snapshot(&state_file_location) {
+            match load_runbook_execution_snapshot(&state_file_location, true) {
                 Ok(snapshot) => Some(snapshot),
                 Err(e) => {
                     println!("{} {}", red!("x"), e);
@@ -708,9 +738,11 @@ pub async fn handle_run_command(
     }
 
     if cmd.explain {
+        for (location, _) in runbook.sources.tree.iter() {
+            println!("Loading {}", location);
+        }
         for running_context in runbook.running_contexts.iter_mut() {
             // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
-
             let sorted_commands = &running_context
                 .execution_context
                 .order_for_commands_execution;
@@ -726,6 +758,7 @@ pub async fn handle_run_command(
                 );
             }
         }
+        return Ok(());
     }
 
     // should not be generating actions
@@ -778,6 +811,29 @@ pub async fn handle_run_command(
             println!("{} Execution aborted", red!("x"));
             for diag in diags.iter() {
                 println!("{}", red!(format!("- {}", diag)));
+            }
+
+            if let Some(RunbookState::File(state_file_location)) = runbook_state {
+                let previous_snapshot =
+                    match load_runbook_execution_snapshot(&state_file_location, false) {
+                        Ok(snapshot) => Some(snapshot),
+                        Err(_e) => None,
+                    };
+
+                let lock_file = get_lock_file_location(&state_file_location);
+                println!("{} Saving transient state to {}", yellow!("!"), lock_file);
+                let diff = RunbookSnapshotContext::new();
+                let snapshot = diff
+                    .snapshot_runbook_execution(
+                        &runbook.runbook_id,
+                        &runbook.running_contexts,
+                        previous_snapshot,
+                    )
+                    .map_err(|e| e.message)?;
+                lock_file
+                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                    .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
+                ();
             }
             return Ok(());
         }
@@ -848,10 +904,15 @@ pub async fn handle_run_command(
         }
 
         if let Some(RunbookState::File(state_file_location)) = runbook_state {
-            let previous_snapshot = match load_runbook_execution_snapshot(&state_file_location) {
-                Ok(snapshot) => Some(snapshot),
-                Err(_e) => None,
-            };
+            let previous_snapshot =
+                match load_runbook_execution_snapshot(&state_file_location, false) {
+                    Ok(snapshot) => Some(snapshot),
+                    Err(_e) => None,
+                };
+
+            if let Some(lock_file) = get_lock_file(&state_file_location) {
+                let _ = std::fs::remove_file(&lock_file.to_string());
+            }
 
             println!(
                 "{} Saving execution state to {}",
@@ -1055,6 +1116,7 @@ pub async fn handle_run_command(
 
 pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
+    environment_selector: &Option<String>,
 ) -> Result<
     (
         WorkspaceManifest,
@@ -1064,7 +1126,7 @@ pub async fn load_runbooks_from_manifest(
 > {
     let manifest_location = FileLocation::from_path_string(manifest_path)?;
     let manifest = WorkspaceManifest::from_location(&manifest_location)?;
-    let runbooks = read_runbooks_from_manifest(&manifest, None)?;
+    let runbooks = read_runbooks_from_manifest(&manifest, environment_selector, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
     Ok((manifest, runbooks))
 }
@@ -1077,7 +1139,8 @@ pub async fn load_runbook_from_manifest(
     available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
-    let (manifest, runbooks) = load_runbooks_from_manifest(manifest_path).await?;
+    let (manifest, runbooks) =
+        load_runbooks_from_manifest(manifest_path, environment_selector).await?;
     // Select first runbook by default
     for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in
         runbooks.into_iter()
@@ -1115,7 +1178,7 @@ pub async fn load_runbook_from_file_path(
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
-        read_runbook_from_location(&location, &None)?;
+        read_runbook_from_location(&location, &None, &None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookInputsMap::new();

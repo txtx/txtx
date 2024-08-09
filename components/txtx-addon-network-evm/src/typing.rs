@@ -1,45 +1,41 @@
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    types::{Type, TypeImplementation, TypeSpecification},
-};
+use txtx_addon_kit::types::types::{Type, Value};
+
+pub const EVM_ADDRESS: &str = "evm::address";
+pub const EVM_BYTES: &str = "evm::bytes";
+pub const EVM_BYTES32: &str = "evm::bytes32";
+pub const EVM_TRANSACTION: &str = "evm::transaction";
+pub const EVM_TX_HASH: &str = "evm::tx_hash";
+pub const EVM_INIT_CODE: &str = "evm::init_code";
+
+pub struct EvmValue {}
+
+impl EvmValue {
+    pub fn address(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_ADDRESS)
+    }
+
+    pub fn bytes(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_BYTES)
+    }
+
+    pub fn bytes32(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_BYTES32)
+    }
+
+    pub fn transaction(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_TRANSACTION)
+    }
+
+    pub fn tx_hash(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_TX_HASH)
+    }
+
+    pub fn init_code(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_INIT_CODE)
+    }
+}
 
 lazy_static! {
-    pub static ref ETH_ADDRESS: TypeSpecification = define_addon_type! {
-        EthereumAddress => {
-            name: "eth_address",
-            documentation: "A 20-byte Ethereum address.",
-        }
-    };
-    pub static ref BYTES: TypeSpecification = define_addon_type! {
-        EthereumBytes => {
-            name: "eth_bytes",
-            documentation: "",
-        }
-    };
-    pub static ref BYTES32: TypeSpecification = define_addon_type! {
-        EthereumBytes32 => {
-            name: "eth_bytes32",
-            documentation: "",
-        }
-    };
-    pub static ref ETH_TRANSACTION: TypeSpecification = define_addon_type! {
-        EthereumTransaction => {
-            name: "eth_transaction",
-            documentation: "Ethereum transaction bytes.",
-        }
-    };
-    pub static ref ETH_TX_HASH: TypeSpecification = define_addon_type! {
-        EthereumTransactionHash => {
-            name: "eth_tx_hash",
-            documentation: "A 32-byte Ethereum transaction hash.",
-        }
-    };
-    pub static ref ETH_INIT_CODE: TypeSpecification = define_addon_type! {
-        EthereumBytes => {
-            name: "eth_init_code",
-            documentation: "",
-        }
-    };
     pub static ref CONTRACT_METADATA: Type = define_object_type! {
         abi: {
             documentation: "The contract abi.",
@@ -79,7 +75,7 @@ lazy_static! {
         },
         optimizer_runs: {
             documentation: "The number of runs the optimizer performed.",
-            typing: Type::uint(),
+            typing: Type::integer(),
             optional: true,
             interpolable: false
         },
@@ -135,7 +131,7 @@ lazy_static! {
         },
         optimizer_runs: {
             documentation: "The number of runs the optimizer performed.",
-            typing: Type::uint(),
+            typing: Type::integer(),
             optional: false,
             interpolable: false
         },
@@ -155,7 +151,7 @@ lazy_static! {
     pub static ref CHAIN_DEFAULTS: Type = define_object_type! {
         chain_id: {
             documentation: "The chain id.",
-            typing: Type::uint(),
+            typing: Type::integer(),
             optional: false,
             interpolable: false
         },
@@ -166,36 +162,4 @@ lazy_static! {
             interpolable: false
         }
     };
-}
-
-pub struct EthereumAddress;
-impl TypeImplementation for EthereumAddress {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
-pub struct EthereumBytes;
-impl TypeImplementation for EthereumBytes {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
-pub struct EthereumBytes32;
-impl TypeImplementation for EthereumBytes32 {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
-pub struct EthereumTransaction;
-impl TypeImplementation for EthereumTransaction {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
-}
-
-pub struct EthereumTransactionHash;
-impl TypeImplementation for EthereumTransactionHash {
-    fn check(_ctx: &TypeSpecification, _lhs: &Type, _rhs: &Type) -> Result<bool, Diagnostic> {
-        unimplemented!()
-    }
 }
