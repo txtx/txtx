@@ -58,8 +58,8 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag txtx:latest 339713119280.dkr.ecr.us-east-2.amazonaws.com/txtx-relay-svc:latest
+          docker tag txtx:latest quay.io/txtx/txtx:latest
 
       - name: Push Docker image to Amazon ECR
         run: |
-          docker push 339713119280.dkr.ecr.us-east-2.amazonaws.com/txtx-relay-svc:latest
+          docker push quay.io/txtx/txtx:latest
