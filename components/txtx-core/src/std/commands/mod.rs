@@ -263,6 +263,12 @@ pub fn new_output_specification() -> CommandSpecification {
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
+                },
+                description: {
+                    documentation: "Description of the output",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
                 }
             ],
             outputs: [

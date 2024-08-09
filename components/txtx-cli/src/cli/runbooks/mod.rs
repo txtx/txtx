@@ -529,7 +529,7 @@ pub async fn handle_run_command(
 
             for running_context_key in consolidated_changes.new_plans_to_add.iter() {
                 let running_context =
-                runbook.find_expected_running_context_mut(&running_context_key);
+                    runbook.find_expected_running_context_mut(&running_context_key);
                 running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
                 let pristine_execution_context = execution_context_backups
                     .remove(running_context_key)
@@ -630,12 +630,16 @@ pub async fn handle_run_command(
                 great_filter.append(&mut added_construct_dids);
 
                 for construct_did in great_filter.iter() {
-                    let Some(input_evaluations) = running_context.execution_context.commands_inputs_evaluation_results.get_mut(construct_did) else {
+                    let Some(input_evaluations) = running_context
+                        .execution_context
+                        .commands_inputs_evaluation_results
+                        .get_mut(construct_did)
+                    else {
                         continue;
                     };
                     input_evaluations.inputs.storage.clear();
                 }
-                
+
                 running_context
                     .execution_context
                     .order_for_commands_execution = running_context
@@ -789,15 +793,21 @@ pub async fn handle_run_command(
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
                     if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                        let value = output.value.to_string();
+                        let output_name = output.name.to_string();
+                        let display_name = output
+                            .description
+                            .as_ref()
+                            .and_then(|d| Some(d.as_str()))
+                            .unwrap_or(output_name.as_str());
+
                         match running_context_outputs.get_mut(&output.name) {
                             Some(entries) => {
-                                entries.push(output.value.to_string());
+                                entries.push(value);
                             }
                             None => {
-                                running_context_outputs.insert(
-                                    output.name.to_string(),
-                                    vec![output.value.to_string()],
-                                );
+                                running_context_outputs
+                                    .insert(display_name.to_string(), vec![value]);
                             }
                         }
                     }

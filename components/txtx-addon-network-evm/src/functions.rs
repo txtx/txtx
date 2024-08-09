@@ -5,6 +5,7 @@ use alloy::{
     hex::FromHex,
     primitives::{Bytes, B256},
 };
+use alloy_chains::ChainKind;
 use txtx_addon_kit::indexmap;
 use txtx_addon_kit::{
     indexmap::IndexMap,
@@ -332,9 +333,15 @@ impl FunctionImplementation for EncodeEVMChain {
             }
         };
 
+        let chain_alias = match chain.into_kind() {
+            ChainKind::Named(name) => name.to_string(),
+            ChainKind::Id(id) => id.to_string(),
+        };
+
         let obj_props = IndexMap::from([
             ("chain_id".into(), Value::uint(chain.id())),
             ("rpc_api_url".into(), Value::string(rpc_api_url)),
+            ("chain_alias".into(), Value::string(chain_alias)),
         ]);
         Ok(Value::object(obj_props))
     }

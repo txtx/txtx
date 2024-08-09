@@ -105,10 +105,20 @@ impl RunbookExecutionContext {
                 else {
                     return action_items;
                 };
+                let Some(input_evaluations) =
+                    self.commands_inputs_evaluation_results.get(&construct_did)
+                else {
+                    return action_items;
+                };
 
                 let Some(value) = execution_result.outputs.get("value") else {
                     unreachable!()
                 };
+
+                let description = input_evaluations
+                    .inputs
+                    .get_string("description")
+                    .and_then(|d| Some(d.to_string()));
 
                 action_items
                     .entry(command_instance.get_group())
@@ -120,7 +130,7 @@ impl RunbookExecutionContext {
                         ActionItemStatus::Todo,
                         ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                             name: command_instance.name.to_string(),
-                            description: None,
+                            description,
                             value: value.clone(),
                         }),
                         "output".into(),
