@@ -1,14 +1,15 @@
 use indexmap::IndexMap;
 use jaq_interpret::Val;
-use serde::de::Error;
+use serde::de::{self, Error, MapAccess, Visitor};
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::VecDeque;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
 use super::diagnostics::Diagnostic;
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[serde(tag = "type", content = "value")]
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(tag = "type", content = "value", rename_all = "lowercase")]
 pub enum Value {
     Bool(bool),
     Null,
@@ -17,8 +18,139 @@ pub enum Value {
     String(String),
     Array(Box<Vec<Value>>),
     Object(IndexMap<String, Value>),
+    #[serde(serialize_with = "hex_serializer")]
     Buffer(Vec<u8>),
+    #[serde(serialize_with = "addon_serializer")]
+    #[serde(untagged)]
     Addon(AddonData),
+}
+fn hex_serializer<S>(bytes: &Vec<u8>, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let value = format!("0x{}", hex::encode(&bytes));
+    ser.serialize_str(&value)
+}
+
+fn addon_serializer<S>(addon_data: &AddonData, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut map = ser.serialize_map(Some(2))?;
+    map.serialize_entry("type", &addon_data.id)?;
+    let value = format!("0x{}", hex::encode(&addon_data.bytes));
+    map.serialize_entry("value", &value)?;
+    map.end()
+}
+
+impl<'de> Deserialize<'de> for Value {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ValueVisitor;
+
+        fn decode_hex_string(value: String) -> Result<Vec<u8>, String> {
+            let value = value.replace("0x", "");
+            hex::decode(&value)
+                .map_err(|e| format!("failed to decode hex string ({}) to bytes: {}", value, e))
+        }
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Value;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a valid Value")
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let mut typing = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "type" => {
+                            if typing.is_some() {
+                                return Err(de::Error::duplicate_field("type"));
+                            }
+                            let the_typing = map.next_value::<String>()?;
+                            if the_typing.eq("null") {
+                                return Ok(Value::null());
+                            }
+                            typing = Some(the_typing);
+                        }
+                        "value" => {
+                            if typing.is_none() {
+                                let Some(key) = map.next_key::<String>()? else {
+                                    return Err(de::Error::missing_field("type"));
+                                };
+                                match key.as_str() {
+                                    "type" => {
+                                        let the_typing = map.next_value::<String>()?;
+                                        if the_typing.eq("null") {
+                                            return Ok(Value::null());
+                                        }
+                                        typing = Some(the_typing);
+                                    }
+                                    unexpected => {
+                                        return Err(de::Error::custom(format!(
+                                            "invalid Value: unexpected key {unexpected}"
+                                        )))
+                                    }
+                                };
+                            }
+                            let typing = typing.ok_or_else(|| de::Error::missing_field("type"))?;
+                            match typing.as_str() {
+                                "bool" => return Ok(Value::bool(map.next_value()?)),
+                                "integer" => return Ok(Value::integer(map.next_value()?)),
+                                "float" => return Ok(Value::float(map.next_value()?)),
+                                "string" => return Ok(Value::string(map.next_value()?)),
+                                "null" => unreachable!(),
+                                "buffer" => {
+                                    let bytes =
+                                        decode_hex_string(map.next_value()?).map_err(|e| {
+                                            de::Error::custom(format!(
+                                                "failed to deserialize buffer: {e}"
+                                            ))
+                                        })?;
+                                    return Ok(Value::buffer(bytes));
+                                }
+                                "object" => return Ok(Value::object(map.next_value()?)),
+
+                                "array" => return Ok(Value::array(map.next_value()?)),
+                                other => {
+                                    if other.contains("::") {
+                                        let bytes =
+                                            decode_hex_string(map.next_value()?).map_err(|e| {
+                                                de::Error::custom(format!(
+                                                    "failed to deserialize buffer: {e}"
+                                                ))
+                                            })?;
+                                        return Ok(Value::addon(bytes, other));
+                                    } else {
+                                        return Err(de::Error::custom(format!(
+                                            "invalid type {other}"
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                        unexpected => {
+                            return Err(de::Error::custom(format!(
+                                "invalid Value: unexpected key {unexpected}"
+                            )));
+                        }
+                    }
+                }
+
+                Err(de::Error::custom(
+                    "invalid Value: missing required key value",
+                ))
+            }
+        }
+
+        deserializer.deserialize_any(ValueVisitor)
+    }
 }
 
 impl Value {
