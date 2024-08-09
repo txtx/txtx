@@ -13,6 +13,7 @@ use super::diagnostics::Diagnostic;
 pub enum Value {
     Bool(bool),
     Null,
+    #[serde(serialize_with = "i128_serializer")]
     Integer(i128),
     Float(f64),
     String(String),
@@ -24,6 +25,14 @@ pub enum Value {
     #[serde(untagged)]
     Addon(AddonData),
 }
+
+fn i128_serializer<S>(value: &i128, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    ser.serialize_str(&value.to_string())
+}
+
 fn hex_serializer<S>(bytes: &Vec<u8>, ser: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -102,7 +111,11 @@ impl<'de> Deserialize<'de> for Value {
                             let typing = typing.ok_or_else(|| de::Error::missing_field("type"))?;
                             match typing.as_str() {
                                 "bool" => return Ok(Value::bool(map.next_value()?)),
-                                "integer" => return Ok(Value::integer(map.next_value()?)),
+                                "integer" => {
+                                    let value: String = map.next_value()?;
+                                    let i128 = value.parse().map_err(serde::de::Error::custom)?;
+                                    return Ok(Value::integer(i128));
+                                }
                                 "float" => return Ok(Value::float(map.next_value()?)),
                                 "string" => return Ok(Value::string(map.next_value()?)),
                                 "null" => unreachable!(),
