@@ -126,12 +126,13 @@ pub fn display_snapshot_diffing(
         .iter()
         .filter(|(c, _)| match c {
             SynthesizedChange::Edition(_, _) => true,
-            _ => false,
+            SynthesizedChange::FormerFailure(_, _) => false,
+            SynthesizedChange::Addition(_) => false,
         })
         .count();
     if has_critical_changes > 0 {
         println!("\n{}\n", yellow!("Changes detected:"));
-        for (i, (change, _impacted)) in synthesized_changes.into_iter().enumerate() {
+        for (i, (change, _impacted)) in synthesized_changes.iter().enumerate() {
             match change {
                 SynthesizedChange::Edition(change, _) => {
                     let formatted_change = change
@@ -147,10 +148,39 @@ pub fn display_snapshot_diffing(
                     println!("{}. The following edits:\n-------------------------\n{}\n-------------------------", i + 1, formatted_change);
                     println!("will introduce breaking changes.\n\n");
                 }
+                SynthesizedChange::FormerFailure(_construct_to_run, command_name) => {
+                    println!("{}. The action error:\n-------------------------\n{}\n-------------------------", i + 1, command_name);
+                    println!("will be re-executed.\n\n");
+                }
                 SynthesizedChange::Addition(_new_construct_did) => {}
             }
         }
     }
+
+    let unexecuted = synthesized_changes
+        .iter()
+        .filter(|(c, _)| match c {
+            SynthesizedChange::Edition(_, _) => false,
+            SynthesizedChange::FormerFailure(_, _) => true,
+            SynthesizedChange::Addition(_) => false,
+        })
+        .count();
+    if unexecuted > 0 {
+        println!("\n{}", yellow!("Runbook Recovery Plan"));
+        println!("The previous runbook execution was interrupted before completion, causing the following actions to be aborted:");
+
+        for (_i, (change, _impacted)) in synthesized_changes.iter().enumerate() {
+            match change {
+                SynthesizedChange::Edition(_, _) => {}
+                SynthesizedChange::FormerFailure(_construct_to_run, command_name) => {
+                    println!("- {}", command_name);
+                }
+                SynthesizedChange::Addition(_new_construct_did) => {}
+            }
+        }
+        println!("These actions will be re-executed in the next run.\n");
+    }
+
     Some(consolidated_changes)
 }
 
@@ -569,17 +599,18 @@ pub async fn handle_run_command(
 
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
                 let critical_edits = changes
-                    .contructs_to_update
+                    .constructs_to_update
                     .iter()
                     .filter(|c| !c.description.is_empty() && c.critical)
                     .collect::<Vec<_>>();
 
                 let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
+                let mut unexecuted = changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
 
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
 
-                if critical_edits.is_empty() && additions.is_empty() {
+                if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
                     running_context.execution_context.execution_mode =
                         RunbookExecutionMode::Ignored;
                     continue;
@@ -658,16 +689,23 @@ pub async fn handle_run_command(
 
                 let mut great_filter = descendants_of_critically_changed_commands;
                 great_filter.append(&mut added_construct_dids);
+                great_filter.append(&mut unexecuted);
 
                 for construct_did in great_filter.iter() {
-                    let Some(input_evaluations) = running_context
+                    running_context
                         .execution_context
                         .commands_inputs_evaluation_results
-                        .get_mut(construct_did)
-                    else {
-                        continue;
-                    };
-                    input_evaluations.inputs.storage.clear();
+                        .remove(construct_did);
+
+                    running_context
+                        .execution_context
+                        .commands_execution_results
+                        .remove(construct_did);
+
+                    running_context
+                        .execution_context
+                        .commands_inputs_simulation_results
+                        .remove(construct_did);
                 }
 
                 running_context
@@ -758,7 +796,7 @@ pub async fn handle_run_command(
                 );
             }
         }
-        return Ok(());
+        // return Ok(());
     }
 
     // should not be generating actions
@@ -811,6 +849,10 @@ pub async fn handle_run_command(
             println!("{} Execution aborted", red!("x"));
             for diag in diags.iter() {
                 println!("{}", red!(format!("- {}", diag)));
+            }
+
+            for running_context in runbook.running_contexts.iter_mut() {
+                running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
             }
 
             if let Some(RunbookState::File(state_file_location)) = runbook_state {

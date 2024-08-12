@@ -230,7 +230,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
-                            "unable to broadcast Stacks transaction",
+                            &format!("unable to broadcast Stacks transaction ({})", e),
                             &diagnosed_error!("{}", e),
                         ));
                         let _ = progress_tx

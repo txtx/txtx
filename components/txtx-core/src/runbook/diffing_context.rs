@@ -53,7 +53,7 @@ impl RunbookExecutionSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageSnapshot {
-    path: String,
+    path: FileLocation,
     name: String,
 }
 
@@ -79,6 +79,7 @@ pub struct CommandSnapshot {
     upstream_constructs_dids: Vec<ConstructDid>,
     inputs: IndexMap<String, CommandInputSnapshot>,
     outputs: IndexMap<String, CommandOutputSnapshot>,
+    executed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +143,19 @@ impl RunbookSnapshotContext {
                         };
                         (run, constructs_ids_to_consider)
                     }
+                    RunbookExecutionMode::FullFailed => {
+                        // Runbook was fully executed, the source of truth is the new running context
+                        let mut inputs = running_context.inputs_set.storage.clone();
+                        inputs.sort_keys();
+                        let constructs_ids_to_consider = vec![];
+                        let run = RunbookRunSnapshot {
+                            inputs,
+                            packages: IndexMap::new(),
+                            signing_commands: IndexMap::new(),
+                            commands: IndexMap::new(),
+                        };
+                        (run, constructs_ids_to_consider)
+                    }
                     RunbookExecutionMode::Partial(updated_constructs) => {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_run = previous_snapshot
@@ -174,14 +188,14 @@ impl RunbookSnapshotContext {
                 match run.packages.get_mut(&package_did) {
                     Some(package) => {
                         package.name = package_id.package_name.clone();
-                        package.path = package_id.package_location.to_string();
+                        package.path = package_id.package_location.clone();
                     }
                     None => {
                         run.packages.insert(
                             package_did,
                             PackageSnapshot {
                                 name: package_id.package_name.clone(),
-                                path: package_id.package_location.to_string(),
+                                path: package_id.package_location.clone(),
                             },
                         );
                     }
@@ -354,6 +368,11 @@ impl RunbookSnapshotContext {
                     }
                 }
 
+                let executed = running_context
+                    .execution_context
+                    .commands_execution_results
+                    .get(construct_did).is_some();
+
                 let command_to_update = match run.commands.get_mut(construct_did) {
                     Some(signing_command) => signing_command,
                     None => {
@@ -366,6 +385,7 @@ impl RunbookSnapshotContext {
                             upstream_constructs_dids,
                             inputs: IndexMap::new(),
                             outputs: IndexMap::new(),
+                            executed,
                         };
                         run.commands.insert(construct_did.clone(), new_command);
                         run.commands.get_mut(construct_did).unwrap()
@@ -432,7 +452,8 @@ impl RunbookSnapshotContext {
                             // This is a major shortcut, we should revisit this approach
                             let value = match value.as_object().map(|o| o.get(critical_output)) {
                                 Some(Some(value)) => value.clone(),
-                                _ => Value::null(),
+                                Some(None) => Value::null(),
+                                None => value.clone(),
                             };
                             let output_name = &output.name;
                             match command_to_update.outputs.get_mut(output_name) {
@@ -575,7 +596,7 @@ impl RunbookSnapshotContext {
             };
 
             // Construct name
-            plan_changes.contructs_to_update.push(evaluated_diff(
+            plan_changes.constructs_to_update.push(evaluated_diff(
                 None,
                 TextDiff::from_lines(old_run_id, new_run_id),
                 format!("Chain id updated"),
@@ -649,7 +670,7 @@ impl RunbookSnapshotContext {
                     };
 
                 // Construct name
-                plan_changes.contructs_to_update.push(evaluated_diff(
+                plan_changes.constructs_to_update.push(evaluated_diff(
                     Some(old_signing_command_id.clone()),
                     TextDiff::from_lines(
                         old_signing_command.construct_name.as_str(),
@@ -660,7 +681,7 @@ impl RunbookSnapshotContext {
                 ));
 
                 // Construct path
-                plan_changes.contructs_to_update.push(evaluated_diff(
+                plan_changes.constructs_to_update.push(evaluated_diff(
                     Some(old_signing_command_id.clone()),
                     TextDiff::from_lines(
                         &old_signing_command.construct_location.to_string(),
@@ -671,7 +692,7 @@ impl RunbookSnapshotContext {
                 ));
 
                 // Construct driver
-                plan_changes.contructs_to_update.push(evaluated_diff(
+                plan_changes.constructs_to_update.push(evaluated_diff(
                     Some(old_signing_command_id.clone()),
                     TextDiff::from_lines(
                         old_signing_command
@@ -705,8 +726,9 @@ impl RunbookSnapshotContext {
                     .old_constructs_to_rem
                     .append(&mut inner_changes.old_constructs_to_rem);
                 plan_changes
-                    .contructs_to_update
-                    .append(&mut inner_changes.contructs_to_update);
+                    .constructs_to_update
+                    .append(&mut inner_changes.constructs_to_update);
+                plan_changes.constructs_to_run.append(&mut inner_changes.constructs_to_run);
             }
             consolidated_changes
                 .plans_to_update
@@ -810,9 +832,14 @@ pub fn diff_command_snapshots(
         let old_command = old_run.commands.get(old_construct_did).unwrap().clone();
         let new_command = new_run.commands.get(new_construct_did).unwrap().clone();
 
+        if !old_command.executed {
+            consolidated_changes.constructs_to_run.push((old_construct_did.clone(), new_command.clone()));
+            continue
+        }
+
         // Construct name
         consolidated_changes
-            .contructs_to_update
+            .constructs_to_update
             .push(evaluated_diff(
                 Some(old_construct_did.clone()),
                 TextDiff::from_lines(
@@ -825,7 +852,7 @@ pub fn diff_command_snapshots(
 
         // Construct path
         consolidated_changes
-            .contructs_to_update
+            .constructs_to_update
             .push(evaluated_diff(
                 Some(old_construct_did.clone()),
                 TextDiff::from_lines(
@@ -838,7 +865,7 @@ pub fn diff_command_snapshots(
 
         // Construct driver
         consolidated_changes
-            .contructs_to_update
+            .constructs_to_update
             .push(evaluated_diff(
                 Some(old_construct_did.clone()),
                 TextDiff::from_lines(
@@ -924,7 +951,7 @@ pub fn diff_command_snapshots(
 
             // Input name
             consolidated_changes
-                .contructs_to_update
+                .constructs_to_update
                 .push(evaluated_diff(
                     Some(old_construct_did.clone()),
                     TextDiff::from_lines(old_input_name.as_str(), new_input_name.as_str()),
@@ -934,7 +961,7 @@ pub fn diff_command_snapshots(
 
             // Input value_pre_evaluation
             consolidated_changes
-                .contructs_to_update
+                .constructs_to_update
                 .push(evaluated_diff(
                     Some(old_construct_did.clone()),
                     TextDiff::from_lines(
@@ -961,7 +988,7 @@ pub fn diff_command_snapshots(
                         continue;
                     };
                     consolidated_changes
-                        .contructs_to_update
+                        .constructs_to_update
                         .push(evaluated_diff(
                             Some(old_construct_did.clone()),
                             TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
@@ -971,7 +998,7 @@ pub fn diff_command_snapshots(
                 }
             } else {
                 consolidated_changes
-                    .contructs_to_update
+                    .constructs_to_update
                     .push(evaluated_diff(
                         Some(old_construct_did.clone()),
                         TextDiff::from_lines(
@@ -1053,7 +1080,7 @@ pub fn diff_command_snapshots(
 
             // Output name
             consolidated_changes
-                .contructs_to_update
+                .constructs_to_update
                 .push(evaluated_diff(
                     Some(old_construct_did.clone()),
                     TextDiff::from_lines(old_output_name.as_str(), new_output_name.as_str()),
@@ -1063,7 +1090,7 @@ pub fn diff_command_snapshots(
 
             // Input value_pre_evaluation
             consolidated_changes
-                .contructs_to_update
+                .constructs_to_update
                 .push(evaluated_diff(
                     Some(new_construct_did.clone()),
                     TextDiff::from_lines(
@@ -1096,8 +1123,8 @@ pub fn diff_command_snapshots(
             .old_constructs_to_rem
             .append(&mut inner_changes.old_constructs_to_rem);
         consolidated_changes
-            .contructs_to_update
-            .append(&mut inner_changes.contructs_to_update);
+            .constructs_to_update
+            .append(&mut inner_changes.constructs_to_update);
     }
     consolidated_changes
 }
@@ -1113,7 +1140,8 @@ pub struct ConsolidatedChanges {
 pub struct ConsolidatedPlanChanges {
     pub old_constructs_to_rem: Vec<ConstructDid>,
     pub new_constructs_to_add: Vec<(ConstructDid, Option<CommandSnapshot>)>,
-    pub contructs_to_update: Vec<Change>,
+    pub constructs_to_update: Vec<Change>,
+    pub constructs_to_run: Vec<(ConstructDid, CommandSnapshot)>,
 }
 
 impl ConsolidatedPlanChanges {
@@ -1121,15 +1149,17 @@ impl ConsolidatedPlanChanges {
         Self {
             old_constructs_to_rem: vec![],
             new_constructs_to_add: vec![],
-            contructs_to_update: vec![],
+            constructs_to_update: vec![],
+            constructs_to_run: vec![],
         }
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum SynthesizedChange {
     Edition(Vec<String>, bool),
     Addition(ConstructDid),
+    FormerFailure(ConstructDid, String),
 }
 
 impl ConsolidatedChanges {
@@ -1148,7 +1178,7 @@ impl ConsolidatedChanges {
             IndexMap::new();
 
         for (plan_id, plan_changes) in self.plans_to_update.iter() {
-            for change in plan_changes.contructs_to_update.iter() {
+            for change in plan_changes.constructs_to_update.iter() {
                 if change.description.is_empty() {
                     continue;
                 }
@@ -1163,6 +1193,15 @@ impl ConsolidatedChanges {
             for (new_construct, _) in plan_changes.new_constructs_to_add.iter() {
                 let key = SynthesizedChange::Addition(new_construct.clone());
                 let value = (plan_id.to_string(), Some(new_construct.clone()));
+                if let Some(list) = reverse_lookup.get_mut(&key) {
+                    list.push(value)
+                } else {
+                    reverse_lookup.insert(key, vec![value]);
+                }
+            }
+            for (construct_to_run, command) in plan_changes.constructs_to_run.iter() {
+                let key = SynthesizedChange::FormerFailure(construct_to_run.clone(), command.construct_name.clone());
+                let value = (plan_id.to_string(), Some(construct_to_run.clone()));
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)
                 } else {

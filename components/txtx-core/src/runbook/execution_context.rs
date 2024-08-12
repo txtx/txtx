@@ -56,6 +56,7 @@ pub enum RunbookExecutionMode {
     Ignored,
     Partial(Vec<ConstructDid>),
     Full,
+    FullFailed,
 }
 
 impl RunbookExecutionContext {
