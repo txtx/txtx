@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use alloy::{
     dyn_abi::DynSolValue,
@@ -6,7 +6,7 @@ use alloy::{
     primitives::{Bytes, B256},
 };
 use alloy_chains::ChainKind;
-use txtx_addon_kit::indexmap;
+use txtx_addon_kit::{helpers::fs::FileLocation, indexmap};
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{
@@ -356,12 +356,34 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
 
     fn run(
         _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
+        auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let prefix = "command 'evm::get_contract_from_foundry_project'";
         let manifest_file_path = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+            Some(Value::String(manifest_path)) => {
+                let path = Path::new(manifest_path);
+                if path.is_absolute() {
+                    FileLocation::from_path(path.to_path_buf())
+                } else {
+                    let mut workspace_loc = auth_ctx
+                        .workspace_location
+                        .get_parent_location()
+                        .map_err(|e| {
+                            diagnosed_error!(
+                                "{}: unable to read workspace location: {}",
+                                prefix,
+                                e.to_string()
+                            )
+                        })?;
+                    workspace_loc
+                        .append_path(&manifest_path.to_string())
+                        .map_err(|e| {
+                            diagnosed_error!("{}: invalid foundry manifest path: {}", prefix, e)
+                        })?;
+                    workspace_loc
+                }
+            }
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
         let contract_filename = match args.get(1) {
