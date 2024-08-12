@@ -1,5 +1,3 @@
-# txtx
-
 ```diff
 $ txtx --tldr
 
