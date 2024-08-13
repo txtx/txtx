@@ -176,6 +176,10 @@ impl CommandImplementation for SignStacksTransaction {
                 Some(Value::Array(data)) => *data.clone(),
                 _ => vec![],
             };
+            let post_condition_mode = match args.get_value("post_condition_mode") {
+                Some(Value::String(v)) => Value::string(v.into()),
+                _ => Value::string("deny".into()),
+            };
 
             let transaction = match build_unsigned_transaction(
                 &signing_command_state,
@@ -184,6 +188,7 @@ impl CommandImplementation for SignStacksTransaction {
                 fee_strategy,
                 nonce,
                 post_conditions,
+                post_condition_mode,
                 &args,
                 &defaults,
             )
@@ -318,6 +323,7 @@ async fn build_unsigned_transaction(
     fee_strategy: Option<&str>,
     nonce: Option<u64>,
     post_conditions: Vec<Value>,
+    post_condition_mode: Value,
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
@@ -464,7 +470,18 @@ async fn build_unsigned_transaction(
         TransactionVersion::Testnet => 0x80000000,
         TransactionVersion::Mainnet => 0x00000001,
     };
-    unsigned_tx.post_condition_mode = TransactionPostConditionMode::Allow;
+
+    let post_condition_mode = match post_condition_mode.expect_string() {
+        "allow" => TransactionPostConditionMode::Allow,
+        "deny" => TransactionPostConditionMode::Deny,
+        _ => {
+            return Err(diagnosed_error!(
+                "Post condition mode {} unknown ('allow' or 'deny')",
+                post_condition_mode.expect_string()
+            ))
+        }
+    };
+    unsigned_tx.post_condition_mode = post_condition_mode;
     for post_condition_bytes in post_conditions.iter() {
         let post_condition = match TransactionPostCondition::consensus_deserialize(
             &mut &post_condition_bytes.expect_buffer_bytes()[..],

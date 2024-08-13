@@ -20,7 +20,8 @@ use txtx_addon_kit::{
 };
 
 use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
-use crate::typing::STACKS_POST_CONDITION;
+use crate::constants::TRANSACTION_POST_CONDITION_MODE_BYTES;
+use crate::typing::STACKS_POST_CONDITIONS;
 use crate::{
     constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
     typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL},
@@ -103,7 +104,13 @@ lazy_static! {
               },
               post_conditions: {
                 documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::addon(STACKS_POST_CONDITION)),
+                typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
+                optional: true,
+                interpolable: true
+              },
+              post_condition_mode: {
+                documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
+                typing: Type::string(),
                 optional: true,
                 interpolable: true
               }
@@ -198,6 +205,7 @@ impl CommandImplementation for SendContractCall {
         let post_conditions_values = args
             .get_expected_array("post_conditions")
             .unwrap_or(&empty_vec);
+        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_call(
             spec,
             function_name,
@@ -215,6 +223,10 @@ impl CommandImplementation for SendContractCall {
         args.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
+        );
+        args.insert(
+            TRANSACTION_POST_CONDITION_MODE_BYTES,
+            Value::string(post_condition_mode.to_string()),
         );
 
         SignStacksTransaction::check_signed_executability(
@@ -246,6 +258,7 @@ impl CommandImplementation for SendContractCall {
         let post_conditions_values = args
             .get_expected_array("post_conditions")
             .unwrap_or(&empty_vec);
+        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
 
         let bytes = encode_contract_call(
             spec,
@@ -268,6 +281,10 @@ impl CommandImplementation for SendContractCall {
         args.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
+        );
+        args.insert(
+            TRANSACTION_POST_CONDITION_MODE_BYTES,
+            Value::string(post_condition_mode.to_string()),
         );
 
         let future = async move {

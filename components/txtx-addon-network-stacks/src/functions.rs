@@ -1027,7 +1027,7 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
                     .serialize_to_vec()
             }
         };
-        Ok(StacksValue::post_condition(post_condition_bytes))
+        Ok(StacksValue::post_conditions(post_condition_bytes))
     }
 }
 
@@ -1074,7 +1074,7 @@ impl FunctionImplementation for RevertIfAccountNotSending {
                     .serialize_to_vec()
             }
         };
-        Ok(StacksValue::post_condition(post_condition_bytes))
+        Ok(StacksValue::post_conditions(post_condition_bytes))
     }
 }
 
@@ -1121,7 +1121,7 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
                     .serialize_to_vec()
             }
         };
-        Ok(StacksValue::post_condition(post_condition_bytes))
+        Ok(StacksValue::post_conditions(post_condition_bytes))
     }
 }
 
@@ -1163,7 +1163,7 @@ impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
         )?
         .serialize_to_vec();
 
-        Ok(StacksValue::post_condition(post_condition_bytes))
+        Ok(StacksValue::post_conditions(post_condition_bytes))
     }
 }
 
@@ -1205,7 +1205,7 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
         )?
         .serialize_to_vec();
 
-        Ok(StacksValue::post_condition(post_condition_bytes))
+        Ok(StacksValue::post_conditions(post_condition_bytes))
     }
 }
 

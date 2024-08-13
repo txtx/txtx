@@ -15,7 +15,8 @@ pub const STACKS_CV_LIST: &str = "stacks::cv_list";
 pub const STACKS_CV_BUFFER: &str = "stacks::cv_buffer";
 pub const STACKS_CV_GENERIC: &str = "stacks::cv_generic";
 pub const STACKS_CONTRACT_CALL: &str = "stacks::contract_call";
-pub const STACKS_POST_CONDITION: &str = "stacks::post_condition";
+pub const STACKS_POST_CONDITIONS: &str = "stacks::post_conditions";
+pub const STACKS_POST_CONDITION_MODE: &str = "stacks::post_condition_mode";
 pub const STACKS_TRANSACTION: &str = "stacks::transaction";
 pub const STACKS_SIGNATURE: &str = "stacks::signature";
 
@@ -70,8 +71,8 @@ impl StacksValue {
         Value::addon(bytes, STACKS_CV_PRINCIPAL)
     }
 
-    pub fn post_condition(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, STACKS_POST_CONDITION)
+    pub fn post_conditions(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_POST_CONDITIONS)
     }
 
     pub fn generic_clarity_value(bytes: Vec<u8>) -> Value {
