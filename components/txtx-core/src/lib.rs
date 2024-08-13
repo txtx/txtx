@@ -44,7 +44,6 @@ use kit::types::frontend::ValidateBlockData;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
-use runbook::RunningContext;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
@@ -235,14 +234,23 @@ pub async fn start_supervised_runbook_runloop(
         } = action_item_response.clone();
 
         if action_item_id == SET_ENV_ACTION.id {
-            reset_runbook_execution(
+            if let Err(diags) = reset_runbook_execution(
                 runbook,
                 &payload,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
             )
-            .await?;
+            .await {
+                let _ = block_tx.send(BlockEvent::Error(Block {
+                    uuid: Uuid::new_v4(),
+                    visible: true,
+                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
+                        &diags,
+                    )),
+                }));
+                return Err(diags)
+            };
             continue;
         }
 
