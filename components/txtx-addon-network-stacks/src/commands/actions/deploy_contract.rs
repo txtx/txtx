@@ -30,11 +30,12 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
+use crate::constants::TRANSACTION_POST_CONDITION_MODE_BYTES;
 use crate::{
     constants::{
         SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES, TRANSACTION_POST_CONDITIONS_BYTES,
     },
-    typing::STACKS_POST_CONDITION,
+    typing::STACKS_POST_CONDITIONS,
 };
 
 use super::encode_contract_deployment;
@@ -92,6 +93,18 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
+                rpc_api_url: {
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 signer: {
                     documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
@@ -118,10 +131,16 @@ lazy_static! {
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
-                    typing: Type::array(Type::addon(STACKS_POST_CONDITION)),
+                    typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
                     optional: true,
                     interpolable: true
-                },
+                  },
+                post_condition_mode: {
+                    documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                  },
                 transforms: {
                     documentation: "An array of transform operations to perform on the contract source, before being its signature.",
                     typing: Type::array(Type::object(vec![
@@ -390,10 +409,11 @@ impl CommandImplementation for StacksDeployContract {
                 Err(diag) => return Err((wallets, signing_command_state, diag)),
             };
 
-        let empty_vec = vec![];
+        let empty_vec: Vec<Value> = vec![];
         let post_conditions_values = args
             .get_expected_array("post_conditions")
             .unwrap_or(&empty_vec);
+        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_deployment(
             spec,
             &contract_source,
@@ -410,6 +430,10 @@ impl CommandImplementation for StacksDeployContract {
         args.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
+        );
+        args.insert(
+            TRANSACTION_POST_CONDITION_MODE_BYTES,
+            Value::string(post_condition_mode.to_string()),
         );
 
         SignStacksTransaction::check_signed_executability(
@@ -480,6 +504,7 @@ impl CommandImplementation for StacksDeployContract {
         let post_conditions_values = args
             .get_expected_array("post_conditions")
             .unwrap_or(&empty_vec);
+        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes =
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
                 .unwrap();
@@ -496,6 +521,10 @@ impl CommandImplementation for StacksDeployContract {
         args.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
+        );
+        args.insert(
+            TRANSACTION_POST_CONDITION_MODE_BYTES,
+            Value::string(post_condition_mode.to_string()),
         );
 
         let future = async move {

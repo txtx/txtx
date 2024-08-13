@@ -99,6 +99,8 @@ impl WalletImplementation for StacksConnect {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> WalletActionsFutureResult {
+        use crate::constants::RPC_API_AUTH_TOKEN;
+
         let checked_public_key = signing_command_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data = signing_command_state
             .get_expected_bool(REQUESTED_STARTUP_DATA)
@@ -124,6 +126,10 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
+        let rpc_api_auth_token = args
+            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
+            .ok();
+
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
@@ -198,6 +204,7 @@ impl WalletImplementation for StacksConnect {
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
+                &rpc_api_auth_token,
                 do_request_public_key,
                 do_request_balance,
                 do_request_address_check,

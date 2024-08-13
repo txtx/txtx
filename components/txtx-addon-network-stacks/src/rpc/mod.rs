@@ -6,6 +6,7 @@ use clarity_repl::codec::TransactionPayload;
 use serde_json::Value as JsonValue;
 use std::io::Cursor;
 use txtx_addon_kit::helpers::format_currency;
+use txtx_addon_kit::reqwest::header::{HeaderMap, AUTHORIZATION};
 
 use serde_json::json;
 use txtx_addon_kit::reqwest::Client;
@@ -169,10 +170,20 @@ pub struct FeeEstimation {
 }
 
 impl StacksRpc {
-    pub fn new(url: &str) -> Self {
+    pub fn new(url: &str, auth_token: Option<String>) -> Self {
+        let mut default_headers = HeaderMap::new();
+        if let Some(auth_token) = auth_token {
+            default_headers.insert(
+                AUTHORIZATION,
+                format!("Bearer {}", auth_token).parse().unwrap(),
+            );
+        }
         Self {
             url: url.into(),
-            client: Client::builder().build().unwrap(),
+            client: Client::builder()
+                .default_headers(default_headers)
+                .build()
+                .unwrap(),
         }
     }
 

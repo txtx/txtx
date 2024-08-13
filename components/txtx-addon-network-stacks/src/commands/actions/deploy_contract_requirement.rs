@@ -33,7 +33,7 @@ use crate::{
     constants::{
         SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES, TRANSACTION_POST_CONDITIONS_BYTES,
     },
-    typing::STACKS_POST_CONDITION,
+    typing::STACKS_POST_CONDITIONS,
 };
 
 use super::encode_contract_deployment;
@@ -96,7 +96,7 @@ lazy_static! {
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
-                    typing: Type::array(Type::addon(STACKS_POST_CONDITION.clone())),
+                    typing: Type::array(Type::addon(STACKS_POST_CONDITIONS.clone())),
                     optional: true,
                     interpolable: true
                 },

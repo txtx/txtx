@@ -41,13 +41,14 @@ pub async fn get_addition_actions_for_address(
     instance_name: &str,
     network_id: &str,
     rpc_api_url: &str,
+    rpc_api_auth_token: &Option<String>,
     do_request_public_key: bool,
     do_request_balance: bool,
     do_request_address_check: bool,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
-    let stacks_rpc = StacksRpc::new(&rpc_api_url);
+    let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token.clone());
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(

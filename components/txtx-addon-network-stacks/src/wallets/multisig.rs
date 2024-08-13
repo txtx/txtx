@@ -118,6 +118,8 @@ impl WalletImplementation for StacksConnect {
     ) -> WalletActionsFutureResult {
         use txtx_addon_kit::types::frontend::ReviewInputRequest;
 
+        use crate::constants::RPC_API_AUTH_TOKEN;
+
         let root_construct_did = construct_did.clone();
         let signers = get_signers(args, wallets_instances);
 
@@ -131,6 +133,9 @@ impl WalletImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
         };
+        let rpc_api_auth_token = args
+            .get_defaulting_string(RPC_API_AUTH_TOKEN, &defaults)
+            .ok();
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err((wallets, signing_command_state, diag)),
@@ -159,6 +164,7 @@ impl WalletImplementation for StacksConnect {
                 &instance_name,
                 &network_id,
                 &rpc_api_url,
+                &rpc_api_auth_token,
                 false,
                 is_balance_check_required,
                 false,
@@ -252,7 +258,7 @@ impl WalletImplementation for StacksConnect {
                 {
                     let mut actions = Actions::none();
                     if is_balance_check_required {
-                        let stacks_rpc = StacksRpc::new(&rpc_api_url);
+                        let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
                         let (status_update, value) =
                             match stacks_rpc.get_balance(&stacks_address).await {
                                 Ok(response) => (

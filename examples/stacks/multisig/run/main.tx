@@ -1,6 +1,8 @@
-action "defaults" "stacks::set_default_network" {
-  network_id = env.stacks_network_id
-  rpc_api_url = env.stacks_api_url
+runtime "addon::stacks" {
+    defaults {
+        network_id = env.stacks_network_id
+        rpc_api_url = env.stacks_api_url
+    }
 }
 
 action "get_name_price" "stacks::call_readonly_fn" {
