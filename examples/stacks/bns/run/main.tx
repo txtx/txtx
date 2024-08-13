@@ -1,6 +1,8 @@
-action "defaults" "stacks::set_default_network" {
-  network_id = env.stacks_network_id
-  rpc_api_url = env.stacks_api_url
+runtime "addon::stacks" {
+  defaults {
+      network_id = env.stacks_network_id
+      rpc_api_url = env.stacks_api_url
+  }
 }
 
 action "get_name_price" "stacks::call_readonly_fn" {
@@ -29,6 +31,7 @@ action "send_name_preorder" "stacks::call_contract" {
       ),
       stacks::cv_uint(action.get_name_price.value), 
   ]
+  post_conditions = [stacks::revert_if_account_sends_more_than("signer", action.get_name_price.value)]
   signer = wallet.alice
   confirmations = 1
 }
