@@ -183,8 +183,6 @@ pub async fn start_supervised_runbook_runloop(
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
-    let mut running_context = runbook.running_contexts.first().unwrap().clone();
-
     let mut runbook_initialized = false;
     runbook.supervision_context = RunbookSupervisionContext {
         review_input_default_values: true,
@@ -216,7 +214,6 @@ pub async fn start_supervised_runbook_runloop(
 
             let genesis_events = build_genesis_panel(
                 runbook,
-                &mut running_context,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
@@ -240,7 +237,6 @@ pub async fn start_supervised_runbook_runloop(
         if action_item_id == SET_ENV_ACTION.id {
             reset_runbook_execution(
                 runbook,
-                &mut running_context,
                 &payload,
                 &mut action_item_requests,
                 &action_item_responses,
@@ -284,6 +280,7 @@ pub async fn start_supervised_runbook_runloop(
                     {
                         match result {
                             Ok(result) => {
+                                let running_context = runbook.running_contexts.first_mut().unwrap();
                                 running_context
                                     .execution_context
                                     .commands_execution_results
@@ -321,7 +318,7 @@ pub async fn start_supervised_runbook_runloop(
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
-
+                let running_context = runbook.running_contexts.first_mut().unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -426,6 +423,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map = BTreeMap::new();
                 map.insert(wallet_construct_did, scoped_requests);
 
+                let running_context = runbook.running_contexts.first_mut().unwrap();
                 let pass_result = run_wallets_evaluation(
                     &running_context.workspace_context,
                     &mut running_context.execution_context,
@@ -463,6 +461,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_did, scoped_requests);
 
+                let running_context = runbook.running_contexts.first_mut().unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -539,7 +538,6 @@ pub fn retrieve_related_action_items_requests<'a>(
 
 pub async fn reset_runbook_execution(
     runbook: &mut Runbook,
-    running_context: &mut RunningContext,
     payload: &ActionItemResponseType,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
@@ -561,7 +559,6 @@ pub async fn reset_runbook_execution(
     let _ = progress_tx.send(BlockEvent::Clear);
     let genesis_events = build_genesis_panel(
         runbook,
-        running_context,
         action_item_requests,
         action_item_responses,
         &progress_tx,
@@ -574,8 +571,7 @@ pub async fn reset_runbook_execution(
 }
 
 pub async fn build_genesis_panel(
-    runbook: &Runbook,
-    running_context: &mut RunningContext,
+    runbook: &mut Runbook,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
@@ -620,7 +616,7 @@ pub async fn build_genesis_panel(
         );
         actions.push_sub_group(vec![action_request]);
     }
-
+    let running_context = runbook.running_contexts.first_mut().unwrap();
     let mut pass_result = run_wallets_evaluation(
         &running_context.workspace_context,
         &mut running_context.execution_context,

@@ -78,6 +78,10 @@ lazy_static! {
                 result: {
                     documentation: "The transaction result.",
                     typing: Type::buffer()
+                },
+                decoded_result: {
+                    documentation: "The transaction decoded result.",
+                    typing: Type::string()
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
@@ -239,7 +243,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                             status_update.update_status(&ProgressBarStatus::new_msg(
                                 ProgressBarStatusColor::Yellow,
                                 &format!("Pending {}", progress_symbol[progress]),
-                                "Broadcasting Transaction",
+                                &format!("Broadcasting Transaction (error {}, retry in 15s)", e.to_string()),
                             ));
                             let _ = progress_tx
                                 .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
@@ -285,7 +289,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             };
 
             let progress_tx = progress_tx.clone();
-            let mut retry_count = 4;
+            let mut retry_count = 128;
             status_update.update_status(&ProgressBarStatus::new_msg(
                 ProgressBarStatusColor::Yellow,
                 &format!("Pending {}", progress_symbol[progress]),
@@ -401,6 +405,10 @@ impl CommandImplementation for BroadcastStacksTransaction {
                                 "result".into(),
                                 StacksValue::generic_clarity_value(tx_result_bytes),
                             );
+                            result.outputs.insert(
+                                "decoded_result".into(),
+                                Value::string(tx_details.tx_result.repr),
+                            );
                             included_in_block = tx_details.block_height;
                         }
                     }
@@ -420,9 +428,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
                     }
                     TransactionStatus::AbortByPostCondition => {
                         let diag = Diagnostic::error_from_string(format!(
-                        "This transaction would have succeeded, but was rolled back by a supplied post-condition: {}",
-                        tx_details.tx_result.repr
-                      ));
+                            "This transaction would have succeeded, but was rolled back by a supplied post-condition: {}",
+                            tx_details.tx_result.repr
+                        ));
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failed",
                             &wrap_msg("Transaction rolled back"),
