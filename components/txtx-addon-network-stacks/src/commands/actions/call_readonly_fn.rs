@@ -12,7 +12,9 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_URL};
+use crate::constants::{
+    DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN, RPC_API_URL,
+};
 use crate::rpc::StacksRpc;
 use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
@@ -44,8 +46,20 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 rpc_api_url: {
-                    documentation: "The URL of the Stacks API to broadcast to.",
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
@@ -124,6 +138,9 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         }
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+        let rpc_api_auth_token = args
+            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
+            .ok();
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err(diag),
@@ -144,7 +161,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                 DEFAULT_MAINNET_BACKOFF
             };
 
-            let client = StacksRpc::new(&rpc_api_url);
+            let client = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
             let mut retry_count = 4;
             let call_result = loop {
                 // if block_height provided, retrieve and provide block hash in the subsequent request

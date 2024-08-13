@@ -93,6 +93,18 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
+                rpc_api_url: {
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 signer: {
                     documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),

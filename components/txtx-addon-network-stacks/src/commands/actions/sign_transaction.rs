@@ -331,7 +331,7 @@ async fn build_unsigned_transaction(
 
     use clarity_repl::codec::TransactionPostConditionMode;
 
-    use crate::constants::CACHED_NONCE;
+    use crate::constants::{CACHED_NONCE, RPC_API_AUTH_TOKEN};
     let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
     let transaction_payload =
         match TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes[..]) {
@@ -365,6 +365,10 @@ async fn build_unsigned_transaction(
     };
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
+    let rpc_api_auth_token = args
+        .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
+        .ok();
+
     let fee = match fee {
         Some(fee) => fee,
         None => {
@@ -374,7 +378,7 @@ async fn build_unsigned_transaction(
                 Some("high") => 2,
                 _ => 1,
             };
-            let rpc = StacksRpc::new(&rpc_api_url);
+            let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token.clone());
             let fee = rpc
                 .estimate_transaction_fee(&transaction_payload, fee_strategy, &default_payload)
                 .await
@@ -432,7 +436,7 @@ async fn build_unsigned_transaction(
             {
                 wallet_nonce + 1
             } else {
-                let rpc = StacksRpc::new(&rpc_api_url);
+                let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
                 let nonce = rpc
                     .get_nonce(&address.to_string())
                     .await

@@ -371,7 +371,8 @@ impl RunbookSnapshotContext {
                 let executed = running_context
                     .execution_context
                     .commands_execution_results
-                    .get(construct_did).is_some();
+                    .get(construct_did)
+                    .is_some();
 
                 let command_to_update = match run.commands.get_mut(construct_did) {
                     Some(signing_command) => signing_command,
@@ -728,7 +729,9 @@ impl RunbookSnapshotContext {
                 plan_changes
                     .constructs_to_update
                     .append(&mut inner_changes.constructs_to_update);
-                plan_changes.constructs_to_run.append(&mut inner_changes.constructs_to_run);
+                plan_changes
+                    .constructs_to_run
+                    .append(&mut inner_changes.constructs_to_run);
             }
             consolidated_changes
                 .plans_to_update
@@ -833,8 +836,10 @@ pub fn diff_command_snapshots(
         let new_command = new_run.commands.get(new_construct_did).unwrap().clone();
 
         if !old_command.executed {
-            consolidated_changes.constructs_to_run.push((old_construct_did.clone(), new_command.clone()));
-            continue
+            consolidated_changes
+                .constructs_to_run
+                .push((old_construct_did.clone(), new_command.clone()));
+            continue;
         }
 
         // Construct name
@@ -1200,7 +1205,10 @@ impl ConsolidatedChanges {
                 }
             }
             for (construct_to_run, command) in plan_changes.constructs_to_run.iter() {
-                let key = SynthesizedChange::FormerFailure(construct_to_run.clone(), command.construct_name.clone());
+                let key = SynthesizedChange::FormerFailure(
+                    construct_to_run.clone(),
+                    command.construct_name.clone(),
+                );
                 let value = (plan_id.to_string(), Some(construct_to_run.clone()));
                 if let Some(list) = reverse_lookup.get_mut(&key) {
                     list.push(value)

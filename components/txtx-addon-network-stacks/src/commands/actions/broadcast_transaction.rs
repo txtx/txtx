@@ -34,11 +34,23 @@ lazy_static! {
                   optional: false,
                   interpolable: true
                 },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 rpc_api_url: {
-                  documentation: "The URL of the Stacks API to broadcast to.",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
@@ -145,7 +157,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
         use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 
         use crate::{
-            constants::{DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID},
+            constants::{
+                DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN,
+            },
             rpc::TransactionStatus,
             stacks_helpers::txid_display_str,
         };
@@ -168,6 +182,10 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let transaction_bytes = args.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)?;
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
+        let rpc_api_auth_token = args
+            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
+            .ok();
+
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
         let is_supervised = supervision_context.is_supervised;
@@ -208,7 +226,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 DEFAULT_MAINNET_BACKOFF
             };
 
-            let client = StacksRpc::new(&rpc_api_url);
+            let client = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
             let mut retry_count = 4;
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();

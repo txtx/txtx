@@ -605,7 +605,11 @@ pub async fn handle_run_command(
                     .collect::<Vec<_>>();
 
                 let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
-                let mut unexecuted = changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
+                let mut unexecuted = changes
+                    .constructs_to_run
+                    .iter()
+                    .map(|(e, _)| e.clone())
+                    .collect::<Vec<_>>();
 
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
