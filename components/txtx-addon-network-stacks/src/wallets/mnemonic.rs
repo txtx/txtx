@@ -155,17 +155,20 @@ impl WalletImplementation for StacksMnemonic {
         signing_command_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if supervision_context.review_input_values {
-            actions.push_sub_group(vec![ActionItemRequest::new(
-                &None,
-                &format!("Check {} expected address", instance_name),
+            actions.push_sub_group(
                 None,
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(),
-                    value: Value::string(expected_address.to_string()),
-                }),
-                ACTION_ITEM_CHECK_ADDRESS,
-            )]);
+                vec![ActionItemRequest::new(
+                    &None,
+                    &format!("Check {} expected address", instance_name),
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "".into(),
+                        value: Value::string(expected_address.to_string()),
+                    }),
+                    ACTION_ITEM_CHECK_ADDRESS,
+                )],
+            );
         }
         let future = async move { Ok((wallets, signing_command_state, actions)) };
         Ok(Box::pin(future))
@@ -228,9 +231,6 @@ impl WalletImplementation for StacksMnemonic {
             let secret_key = Secp256k1PrivateKey::from_slice(&secret_key_value.to_bytes()).unwrap();
             tx_signer.sign_origin(&secret_key).unwrap();
             let signed_transaction = tx_signer.get_tx_incomplete();
-
-            let nonce = signed_transaction.get_origin_nonce();
-            signing_command_state.insert(CACHED_NONCE, Value::integer(nonce.into()));
 
             let mut signed_transaction_bytes = vec![];
             signed_transaction

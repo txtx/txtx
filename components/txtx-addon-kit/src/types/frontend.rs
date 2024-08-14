@@ -587,6 +587,7 @@ impl ErrorPanelData {
             groups: vec![ActionGroup {
                 title: "".into(),
                 sub_groups: vec![ActionSubGroup {
+                    title: None,
                     action_items: diag_actions,
                     allow_batch_completion: false,
                 }],
@@ -680,13 +681,19 @@ impl ActionGroup {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionSubGroup {
+    pub title: Option<String>,
     pub action_items: Vec<ActionItemRequest>,
     pub allow_batch_completion: bool,
 }
 
 impl ActionSubGroup {
-    pub fn new(action_items: Vec<ActionItemRequest>, allow_batch_completion: bool) -> Self {
+    pub fn new(
+        title: Option<String>,
+        action_items: Vec<ActionItemRequest>,
+        allow_batch_completion: bool,
+    ) -> Self {
         ActionSubGroup {
+            title,
             action_items,
             allow_batch_completion,
         }
@@ -866,6 +873,7 @@ impl Actions {
     pub fn push_group(&mut self, title: &str, action_items: Vec<ActionItemRequest>) {
         self.store.push(ActionType::AppendGroup(ActionGroup {
             sub_groups: vec![ActionSubGroup {
+                title: None,
                 action_items,
                 allow_batch_completion: false,
             }],
@@ -873,9 +881,10 @@ impl Actions {
         }));
     }
 
-    pub fn push_sub_group(&mut self, action_items: Vec<ActionItemRequest>) {
+    pub fn push_sub_group(&mut self, title: Option<String>, action_items: Vec<ActionItemRequest>) {
         if !action_items.is_empty() {
             self.store.push(ActionType::AppendSubGroup(ActionSubGroup {
+                title,
                 action_items,
                 allow_batch_completion: false,
             }));
@@ -905,6 +914,7 @@ impl Actions {
     pub fn new_group_of_items(title: &str, action_items: Vec<ActionItemRequest>) -> Actions {
         let store = vec![ActionType::AppendGroup(ActionGroup {
             sub_groups: vec![ActionSubGroup {
+                title: None,
                 action_items,
                 allow_batch_completion: false,
             }],
@@ -913,8 +923,12 @@ impl Actions {
         Actions { store }
     }
 
-    pub fn new_sub_group_of_items(action_items: Vec<ActionItemRequest>) -> Actions {
+    pub fn new_sub_group_of_items(
+        title: Option<String>,
+        action_items: Vec<ActionItemRequest>,
+    ) -> Actions {
         let store = vec![ActionType::AppendSubGroup(ActionSubGroup {
+            title,
             action_items,
             allow_batch_completion: false,
         })];
@@ -1008,6 +1022,7 @@ impl Actions {
                                     };
                                     if sub_group.action_items.is_empty() {
                                         *sub_group = ActionSubGroup {
+                                            title: None,
                                             action_items: vec![item.clone()],
                                             allow_batch_completion: true,
                                         };
@@ -1024,6 +1039,7 @@ impl Actions {
                                 current_panel_data.groups.push(ActionGroup {
                                     title: group_title.as_ref().unwrap_or(&"".into()).into(),
                                     sub_groups: vec![ActionSubGroup {
+                                        title: None,
                                         action_items: vec![item.clone()],
                                         allow_batch_completion: true,
                                     }],
@@ -1047,6 +1063,7 @@ impl Actions {
                                     };
                                     if sub_group.action_items.is_empty() {
                                         *sub_group = ActionSubGroup {
+                                            title: None,
                                             action_items: vec![item.clone()],
                                             allow_batch_completion: true,
                                         };
@@ -1054,6 +1071,7 @@ impl Actions {
                                     }
                                 }
                                 group.sub_groups.push(ActionSubGroup {
+                                    title: None,
                                     action_items: vec![item.clone()],
                                     allow_batch_completion: true,
                                 });
@@ -1065,6 +1083,7 @@ impl Actions {
                                     .push(ActionGroup {
                                         title: group_title.as_ref().unwrap_or(&"".into()).into(),
                                         sub_groups: vec![ActionSubGroup {
+                                            title: None,
                                             action_items: vec![item.clone()],
                                             allow_batch_completion: true,
                                         }],

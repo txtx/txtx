@@ -241,15 +241,14 @@ pub async fn start_supervised_runbook_runloop(
                 &action_item_responses,
                 &block_tx.clone(),
             )
-            .await {
+            .await
+            {
                 let _ = block_tx.send(BlockEvent::Error(Block {
                     uuid: Uuid::new_v4(),
                     visible: true,
-                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
-                        &diags,
-                    )),
+                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&diags)),
                 }));
-                return Err(diags)
+                return Err(diags);
             };
             continue;
         }
@@ -356,9 +355,9 @@ pub async fn start_supervised_runbook_runloop(
                     pass_results.actions.append(&mut actions);
                 } else if !pass_results.actions.store.is_empty() {
                     validated_blocks = validated_blocks + 1;
-                    pass_results
-                        .actions
-                        .push_sub_group(vec![ActionItemRequest::new(
+                    pass_results.actions.push_sub_group(
+                        None,
+                        vec![ActionItemRequest::new(
                             &None,
                             "Validate",
                             None,
@@ -367,7 +366,8 @@ pub async fn start_supervised_runbook_runloop(
                                 validated_blocks,
                             )),
                             ACTION_ITEM_VALIDATE_BLOCK,
-                        )]);
+                        )],
+                    );
                 }
 
                 if !pass_results
@@ -395,6 +395,7 @@ pub async fn start_supervised_runbook_runloop(
                     .compile_actions_to_block_events(&action_item_requests);
 
                 for event in block_events.into_iter() {
+                    println!("=> {:?}", event);
                     let _ = block_tx.send(event);
                 }
                 if runbook_completed {
@@ -622,7 +623,7 @@ pub async fn build_genesis_panel(
             }),
             ACTION_ITEM_ENV,
         );
-        actions.push_sub_group(vec![action_request]);
+        actions.push_sub_group(None, vec![action_request]);
     }
     let running_context = runbook.running_contexts.first_mut().unwrap();
     let mut pass_result = run_wallets_evaluation(
@@ -653,7 +654,7 @@ pub async fn build_genesis_panel(
         ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
         ACTION_ITEM_GENESIS,
     );
-    actions.push_sub_group(vec![validate_action]);
+    actions.push_sub_group(None, vec![validate_action]);
 
     register_action_items_from_actions(&actions, action_item_requests);
 

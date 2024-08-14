@@ -182,7 +182,8 @@ impl CommandImplementation for SignStacksTransaction {
             };
 
             let transaction = match build_unsigned_transaction(
-                &signing_command_state,
+                &construct_did,
+                &mut signing_command_state,
                 &spec,
                 fee,
                 fee_strategy,
@@ -210,42 +211,45 @@ impl CommandImplementation for SignStacksTransaction {
                 payload.clone(),
             );
             wallets.push_signing_command_state(signing_command_state);
+            let description = args
+                .get_expected_string("description")
+                .ok()
+                .and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
-                actions.push_panel("Transaction Signing", "");
-                actions.push_sub_group(vec![
-                    ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "".into(),
-                        Some(format!("Check account nonce")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::integer(transaction.get_origin_nonce() as i128),
-                        }),
-                        ACTION_ITEM_CHECK_NONCE,
-                    ),
-                    ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "µSTX".into(),
-                        Some(format!("Check transaction fee")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::integer(transaction.get_tx_fee() as i128),
-                        }),
-                        ACTION_ITEM_CHECK_FEE,
-                    ),
-                ])
+                actions.push_sub_group(
+                    description.clone(),
+                    vec![
+                        ActionItemRequest::new(
+                            &Some(construct_did.clone()),
+                            "".into(),
+                            Some(format!("Check account nonce")),
+                            ActionItemStatus::Todo,
+                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                input_name: "".into(),
+                                value: Value::integer(transaction.get_origin_nonce() as i128),
+                            }),
+                            ACTION_ITEM_CHECK_NONCE,
+                        ),
+                        ActionItemRequest::new(
+                            &Some(construct_did.clone()),
+                            "µSTX".into(),
+                            Some(format!("Check transaction fee")),
+                            ActionItemStatus::Todo,
+                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                input_name: "".into(),
+                                value: Value::integer(transaction.get_tx_fee() as i128),
+                            }),
+                            ACTION_ITEM_CHECK_FEE,
+                        ),
+                    ],
+                )
             }
 
             let signing_command_state = wallets
                 .pop_signing_command_state(&signing_construct_did)
                 .unwrap();
-            let description = args
-                .get_expected_string("description")
-                .ok()
-                .and_then(|d| Some(d.to_string()));
+
             let (wallets, signing_command_state, mut wallet_actions) =
                 (wallet.specification.check_signability)(
                     &construct_did,
@@ -317,7 +321,8 @@ impl CommandImplementation for SignStacksTransaction {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transaction(
-    signing_command_state: &ValueStore,
+    construct_did: &ConstructDid,
+    signing_command_state: &mut ValueStore,
     _spec: &CommandSpecification,
     fee: Option<u64>,
     fee_strategy: Option<&str>,
@@ -429,21 +434,24 @@ async fn build_unsigned_transaction(
 
     let nonce = match nonce {
         Some(nonce) => nonce,
-        None => {
-            if let Some(Ok(wallet_nonce)) = signing_command_state
-                .get_value(CACHED_NONCE)
-                .map(|v| v.expect_uint())
-            {
-                wallet_nonce + 1
-            } else {
+        None => match signing_command_state
+            .get_autoincremented_nonce(CACHED_NONCE, &construct_did.to_string())
+        {
+            Some(value) => value.try_into().unwrap(),
+            None => {
                 let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
                 let nonce = rpc
                     .get_nonce(&address.to_string())
                     .await
                     .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
+                signing_command_state.set_autoincrementable_nonce(
+                    CACHED_NONCE,
+                    &construct_did.to_string(),
+                    nonce.into(),
+                );
                 nonce
             }
-        }
+        },
     };
 
     let is_multisig = signing_command_state.get_expected_bool("multi_sig")?;

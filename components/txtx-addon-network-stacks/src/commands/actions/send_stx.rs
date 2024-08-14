@@ -32,30 +32,30 @@ use super::{
 lazy_static! {
     pub static ref SEND_STX_TRANSFER: PreCommandSpecification = define_command! {
         SendStxTransfer => {
-          name: "Send STX Transfer Transaction",
-          matcher: "send_stx",
-          documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-              amount: {
-                  documentation: "The amount of STX to send.",
-                  typing: Type::addon(STACKS_CV_PRINCIPAL),
-                  optional: false,
-                  interpolable: true
-              },
-              recipient: {
-                  documentation: "The recipient of the transfer.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true
-              },
-              network_id: {
-                documentation: "The network id used to validate the transaction version.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
+            name: "Send STX Transfer Transaction",
+            matcher: "send_stx",
+            documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
+            implements_signing_capability: true,
+            implements_background_task_capability: true,
+            inputs: [
+                amount: {
+                    documentation: "The amount of STX to send.",
+                    typing: Type::addon(STACKS_CV_PRINCIPAL),
+                    optional: false,
+                    interpolable: true
                 },
+                recipient: {
+                    documentation: "The recipient of the transfer.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                    },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
@@ -69,29 +69,29 @@ lazy_static! {
                     interpolable: true
                 },
                 signer: {
-                  documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true
-              },
-              confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true
-              },
-              nonce: {
-                  documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                  typing: Type::integer(),
-                  optional: true,
-                  interpolable: true
-              },
-              fee: {
-                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true
-              }
+                    documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                },
+                nonce: {
+                    documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                },
+                fee: {
+                    documentation: "The transaction fee. This value will automatically be estimated if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                }
           ],
           outputs: [
             signed_transaction_bytes: {

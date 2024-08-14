@@ -176,8 +176,9 @@ impl CommandImplementation for Input {
                 }
             }
             if supervision_context.review_input_values {
-                return Ok(Actions::new_sub_group_of_items(vec![
-                    ActionItemRequest::new(
+                return Ok(Actions::new_sub_group_of_items(
+                    None,
+                    vec![ActionItemRequest::new(
                         &Some(construct_did.clone()),
                         &title,
                         description,
@@ -187,8 +188,8 @@ impl CommandImplementation for Input {
                             value: value.clone(),
                         }),
                         "check_input",
-                    ),
-                ]));
+                    )],
+                ));
             } else {
                 return Ok(Actions::none());
             }
@@ -315,18 +316,21 @@ impl CommandImplementation for Output {
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
-        let actions = Actions::new_sub_group_of_items(vec![ActionItemRequest::new(
-            &Some(construct_did.clone()),
-            instance_name,
+        let actions = Actions::new_sub_group_of_items(
             None,
-            ActionItemStatus::Todo,
-            ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                name: instance_name.into(),
-                description: None,
-                value: value.clone(),
-            }),
-            ACTION_ITEM_CHECK_OUTPUT,
-        )]);
+            vec![ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                instance_name,
+                None,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                    name: instance_name.into(),
+                    description: None,
+                    value: value.clone(),
+                }),
+                ACTION_ITEM_CHECK_OUTPUT,
+            )],
+        );
         Ok(actions)
     }
 

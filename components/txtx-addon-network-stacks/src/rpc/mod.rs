@@ -269,27 +269,7 @@ impl StacksRpc {
     }
 
     pub async fn get_nonce(&self, address: &str) -> Result<u64, RpcError> {
-        let request_url = format!("{}/v2/accounts/{addr}", self.url, addr = address,);
-
-        let res = self
-            .client
-            .get(request_url)
-            .send()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
-
-        if !res.status().is_success() {
-            let err = match res.text().await {
-                Ok(message) => RpcError::Message(message),
-                Err(e) => RpcError::Message(e.to_string()),
-            };
-            return Err(err);
-        }
-
-        let balance: Balance = res
-            .json()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
+        let balance = self.get_balance(address).await?;
         let nonce = balance.nonce;
         Ok(nonce)
     }
