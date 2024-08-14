@@ -217,8 +217,8 @@ impl CommandImplementation for SignStacksTransaction {
                 .and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
-                actions.push_sub_group(
-                    description.clone(),
+                actions.push_group(
+                    &description.clone().unwrap_or("".into()),
                     vec![
                         ActionItemRequest::new(
                             &Some(construct_did.clone()),
