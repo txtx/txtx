@@ -177,7 +177,7 @@ impl WalletImplementation for StacksConnect {
                 Err(diag) => return Err((wallets, signing_command_state, diag)),
             }
 
-            consolidated_actions.push_sub_group(open_modal_action);
+            consolidated_actions.push_sub_group(None, open_modal_action);
             consolidated_actions.push_modal(modal);
 
             // Modal configuration
@@ -424,7 +424,7 @@ impl WalletImplementation for StacksConnect {
                 ACTION_OPEN_MODAL,
             );
             let open_modal_action = vec![action];
-            consolidated_actions.push_sub_group(open_modal_action);
+            consolidated_actions.push_sub_group(None, open_modal_action);
             consolidated_actions.push_modal(modal);
         }
 
@@ -468,9 +468,6 @@ impl WalletImplementation for StacksConnect {
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &signed_buff[..]).unwrap();
             transaction.verify().unwrap();
-
-            let nonce = transaction.get_origin_nonce();
-            signing_command_state.insert(CACHED_NONCE, Value::integer(nonce.into()));
 
             signing_command_state.insert_scoped_value(
                 &origin_uuid.value().to_string(),

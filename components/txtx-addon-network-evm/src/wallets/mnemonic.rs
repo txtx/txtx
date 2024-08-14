@@ -150,17 +150,20 @@ impl WalletImplementation for EVMMnemonic {
         // wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if supervision_context.review_input_values {
-            actions.push_sub_group(vec![ActionItemRequest::new(
-                &None,
-                &format!("Check {} expected address", instance_name),
+            actions.push_sub_group(
                 None,
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(),
-                    value: Value::string(expected_address.to_string()),
-                }),
-                ACTION_ITEM_CHECK_ADDRESS,
-            )]);
+                vec![ActionItemRequest::new(
+                    &None,
+                    &format!("Check {} expected address", instance_name),
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "".into(),
+                        value: Value::string(expected_address.to_string()),
+                    }),
+                    ACTION_ITEM_CHECK_ADDRESS,
+                )],
+            );
         }
         let future = async move { Ok((wallets, signing_command_state, actions)) };
         Ok(Box::pin(future))

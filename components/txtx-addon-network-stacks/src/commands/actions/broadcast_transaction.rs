@@ -243,7 +243,10 @@ impl CommandImplementation for BroadcastStacksTransaction {
                             status_update.update_status(&ProgressBarStatus::new_msg(
                                 ProgressBarStatusColor::Yellow,
                                 &format!("Pending {}", progress_symbol[progress]),
-                                &format!("Broadcasting Transaction (error {}, retry in 15s)", e.to_string()),
+                                &format!(
+                                    "Broadcasting Transaction (error {}, retry in 15s)",
+                                    e.to_string()
+                                ),
                             ));
                             let _ = progress_tx
                                 .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));

@@ -356,6 +356,41 @@ impl ValueStore {
         }
     }
 
+    pub fn set_autoincrementable_nonce(&mut self, scope: &str, key: &str, initial_value: u64) {
+        self.storage.insert(
+            format!("{}:autoincrement", scope),
+            Value::integer((initial_value + 1).into()),
+        );
+        self.storage.insert(
+            format!("{}:{}", scope, key),
+            Value::integer(initial_value.into()),
+        );
+    }
+
+    pub fn get_autoincremented_nonce(&mut self, scope: &str, key: &str) -> Option<i128> {
+        let value = match self.storage.get(&format!("{}:{}", scope, key)) {
+            None => match self.storage.get(&format!("{}:autoincrement", scope)) {
+                None => return None,
+                Some(Value::Integer(value)) => {
+                    let value_to_return = value.clone();
+                    self.storage.insert(
+                        format!("{}:autoincrement", scope),
+                        Value::integer(value_to_return + 1),
+                    );
+                    self.storage.insert(
+                        format!("{}:{}", scope, key),
+                        Value::integer(value_to_return.clone()),
+                    );
+                    value_to_return
+                }
+                _ => unreachable!(),
+            },
+            Some(Value::Integer(value)) => *value,
+            _ => unreachable!(),
+        };
+        Some(value)
+    }
+
     pub fn get_value(&self, key: &str) -> Option<&Value> {
         self.storage.get(key)
     }
