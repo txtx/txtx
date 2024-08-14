@@ -553,7 +553,7 @@ impl Value {
 //     }
 // }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct AddonData {
     pub bytes: Vec<u8>,
     pub id: String,
@@ -561,6 +561,16 @@ pub struct AddonData {
 impl AddonData {
     pub fn to_string(&self) -> String {
         format!("0x{}", hex::encode(&self.bytes))
+    }
+}
+
+impl fmt::Debug for AddonData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // You can customize the output format here.
+        f.debug_struct("AddonData")
+            .field("bytes", &self.to_string())
+            .field("id", &self.id)
+            .finish()
     }
 }
 

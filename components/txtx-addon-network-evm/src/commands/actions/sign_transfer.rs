@@ -209,42 +209,45 @@ impl CommandImplementation for SignEVMTransfer {
                 payload.clone(),
             );
             wallets.push_signing_command_state(signing_command_state);
+            let description = args
+                .get_expected_string("description")
+                .ok()
+                .and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
-                actions.push_sub_group(vec![
-                    ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "".into(),
-                        Some(format!("Check account nonce")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::integer(transaction.nonce().into()),
-                        }),
-                        ACTION_ITEM_CHECK_NONCE,
-                    ),
-                    ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "µSTX".into(),
-                        Some(format!("Check transaction fee")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                        }),
-                        ACTION_ITEM_CHECK_FEE,
-                    ),
-                ])
+                actions.push_sub_group(
+                    description.clone(),
+                    vec![
+                        ActionItemRequest::new(
+                            &Some(construct_did.clone()),
+                            "".into(),
+                            Some(format!("Check account nonce")),
+                            ActionItemStatus::Todo,
+                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                input_name: "".into(),
+                                value: Value::integer(transaction.nonce().into()),
+                            }),
+                            ACTION_ITEM_CHECK_NONCE,
+                        ),
+                        ActionItemRequest::new(
+                            &Some(construct_did.clone()),
+                            "µSTX".into(),
+                            Some(format!("Check transaction fee")),
+                            ActionItemStatus::Todo,
+                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                input_name: "".into(),
+                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
+                            }),
+                            ACTION_ITEM_CHECK_FEE,
+                        ),
+                    ],
+                )
             }
 
             let signing_command_state = wallets
                 .pop_signing_command_state(&signing_construct_did)
                 .unwrap();
-            let description = args
-                .get_expected_string("description")
-                .ok()
-                .and_then(|d| Some(d.to_string()));
             let (wallets, wallet_state, mut wallet_actions) =
                 (wallet.specification.check_signability)(
                     &construct_did,

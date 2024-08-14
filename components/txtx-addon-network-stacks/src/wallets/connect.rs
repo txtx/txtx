@@ -26,11 +26,10 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CACHED_NONCE, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
     CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
     REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
 };
-use crate::typing::STACKS_CV_BUFFER;
 
 use super::get_addition_actions_for_address;
 
@@ -287,15 +286,8 @@ impl WalletImplementation for StacksConnect {
         let (status, payload) = if let Some(()) = payload.as_null() {
             (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
         } else {
-            match StacksTransaction::consensus_deserialize(&mut &payload.expect_buffer_bytes()[..])
-            {
-                Ok(tx) => {
-                    let nonce = tx.get_origin_nonce();
-                    signing_command_state.insert(CACHED_NONCE, Value::integer(nonce as i128));
-                }
-                Err(_) => {}
-            }
-
+            let _ =
+                StacksTransaction::consensus_deserialize(&mut &payload.expect_buffer_bytes()[..]);
             (ActionItemStatus::Todo, payload.clone())
         };
 
