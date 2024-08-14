@@ -31,9 +31,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, CACHED_NONCE, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES,
-};
+use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::wallets::return_synchronous_actions;
 

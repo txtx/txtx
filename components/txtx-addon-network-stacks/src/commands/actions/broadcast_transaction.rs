@@ -164,7 +164,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
             constants::{
                 DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN,
             },
-            rpc::TransactionStatus,
+            rpc::{RpcError, TransactionStatus},
             stacks_helpers::txid_display_str,
         };
 
@@ -236,6 +236,12 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
+                    Err(RpcError::ContractAlreadyExists(data)) => {
+                        result
+                            .outputs
+                            .insert("contract_id".into(), Value::string(data.unwrap()));
+                        return Ok(result);
+                    }
                     Err(e) => {
                         retry_count -= 1;
                         if retry_count > 0 {

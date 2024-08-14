@@ -382,6 +382,12 @@ pub async fn run_constructs_evaluation(
             .insert(env_variable_uuid, res);
     }
 
+    for wallet_states in runbook_execution_context.signing_commands_state.iter_mut() {
+        for (_, wallet) in wallet_states.store.iter_mut() {
+            wallet.clear_autoincrementable_nonce();
+        }
+    }
+
     let mut genesis_dependency_execution_results = HashMap::new();
     let mut empty_result = CommandExecutionResult::new();
     empty_result

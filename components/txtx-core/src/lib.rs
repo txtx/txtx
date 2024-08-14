@@ -395,7 +395,6 @@ pub async fn start_supervised_runbook_runloop(
                     .compile_actions_to_block_events(&action_item_requests);
 
                 for event in block_events.into_iter() {
-                    println!("=> {:?}", event);
                     let _ = block_tx.send(event);
                 }
                 if runbook_completed {

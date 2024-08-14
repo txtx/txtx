@@ -15,6 +15,8 @@ pub mod functions;
 pub mod types;
 pub mod wallets;
 
+pub const CACHED_NONCE: &str = "cached_nonce";
+
 #[cfg(test)]
 mod tests;
 
@@ -356,29 +358,34 @@ impl ValueStore {
         }
     }
 
-    pub fn set_autoincrementable_nonce(&mut self, scope: &str, key: &str, initial_value: u64) {
+    pub fn clear_autoincrementable_nonce(&mut self) {
+        self.storage
+            .swap_remove(&format!("{}:autoincrement", CACHED_NONCE));
+    }
+
+    pub fn set_autoincrementable_nonce(&mut self, key: &str, initial_value: u64) {
         self.storage.insert(
-            format!("{}:autoincrement", scope),
+            format!("{}:autoincrement", CACHED_NONCE),
             Value::integer((initial_value + 1).into()),
         );
         self.storage.insert(
-            format!("{}:{}", scope, key),
+            format!("{}:{}", CACHED_NONCE, key),
             Value::integer(initial_value.into()),
         );
     }
 
-    pub fn get_autoincremented_nonce(&mut self, scope: &str, key: &str) -> Option<i128> {
-        let value = match self.storage.get(&format!("{}:{}", scope, key)) {
-            None => match self.storage.get(&format!("{}:autoincrement", scope)) {
+    pub fn get_autoincremented_nonce(&mut self, key: &str) -> Option<i128> {
+        let value = match self.storage.get(&format!("{}:{}", CACHED_NONCE, key)) {
+            None => match self.storage.get(&format!("{}:autoincrement", CACHED_NONCE)) {
                 None => return None,
                 Some(Value::Integer(value)) => {
                     let value_to_return = value.clone();
                     self.storage.insert(
-                        format!("{}:autoincrement", scope),
+                        format!("{}:autoincrement", CACHED_NONCE),
                         Value::integer(value_to_return + 1),
                     );
                     self.storage.insert(
-                        format!("{}:{}", scope, key),
+                        format!("{}:{}", CACHED_NONCE, key),
                         Value::integer(value_to_return.clone()),
                     );
                     value_to_return

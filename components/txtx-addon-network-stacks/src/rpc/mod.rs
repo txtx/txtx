@@ -16,12 +16,14 @@ pub enum RpcError {
     Generic,
     StatusCode(u16),
     Message(String),
+    ContractAlreadyExists(Option<String>),
 }
 
 impl std::fmt::Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             RpcError::Message(e) => write!(f, "{}", e),
+            RpcError::ContractAlreadyExists(e) => write!(f, "contract already exists {:?}", e),
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
@@ -253,9 +255,29 @@ impl StacksRpc {
             .map_err(|e| RpcError::Message(e.to_string()))?;
 
         if !res.status().is_success() {
-            let err = match res.text().await {
-                Ok(message) => RpcError::Message(message),
-                Err(e) => RpcError::Message(e.to_string()),
+            let error_ser = match res.text().await {
+                Ok(value) => value,
+                Err(e) => return Err(RpcError::Message(e.to_string())),
+            };
+            let err = if let Ok(error) =
+                serde_json::from_str::<PostTransactionResponseError>(&error_ser)
+            {
+                match error.reason {
+                    Some(r) if r.eq("ContractAlreadyExists") => {
+                        let contract_identifier = error
+                            .reason_data
+                            .map(|ref d| {
+                                d.get("contract_identifier")
+                                    .map(|c| c.as_str().unwrap().to_string())
+                            })
+                            .unwrap();
+                        RpcError::ContractAlreadyExists(contract_identifier)
+                    }
+                    Some(r) => RpcError::Message(r.clone()),
+                    None => RpcError::Message(format!("{:?}", error)),
+                }
+            } else {
+                RpcError::Message(error_ser)
             };
             return Err(err);
         }

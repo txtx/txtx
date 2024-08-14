@@ -336,7 +336,7 @@ async fn build_unsigned_transaction(
 
     use clarity_repl::codec::TransactionPostConditionMode;
 
-    use crate::constants::{CACHED_NONCE, RPC_API_AUTH_TOKEN};
+    use crate::constants::RPC_API_AUTH_TOKEN;
     let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
     let transaction_payload =
         match TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes[..]) {
@@ -434,9 +434,7 @@ async fn build_unsigned_transaction(
 
     let nonce = match nonce {
         Some(nonce) => nonce,
-        None => match signing_command_state
-            .get_autoincremented_nonce(CACHED_NONCE, &construct_did.to_string())
-        {
+        None => match signing_command_state.get_autoincremented_nonce(&construct_did.to_string()) {
             Some(value) => value.try_into().unwrap(),
             None => {
                 let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
@@ -444,11 +442,8 @@ async fn build_unsigned_transaction(
                     .get_nonce(&address.to_string())
                     .await
                     .map_err(|e| diagnosed_error!("{}", e.to_string()))?;
-                signing_command_state.set_autoincrementable_nonce(
-                    CACHED_NONCE,
-                    &construct_did.to_string(),
-                    nonce.into(),
-                );
+                signing_command_state
+                    .set_autoincrementable_nonce(&construct_did.to_string(), nonce.into());
                 nonce
             }
         },

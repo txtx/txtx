@@ -93,8 +93,10 @@ pub fn encode_contract_call(
 
     // validate contract_id against network_id
     let id_str = contract_id.to_string();
-    let mainnet_match = (id_str.starts_with("SP") || id_str.starts_with("SM")) && network_id.eq("mainnet");
-    let testnet_match = (id_str.starts_with("ST") || id_str.starts_with("SN")) && !network_id.eq("mainnet");
+    let mainnet_match =
+        (id_str.starts_with("SP") || id_str.starts_with("SM")) && network_id.eq("mainnet");
+    let testnet_match =
+        (id_str.starts_with("ST") || id_str.starts_with("SN")) && !network_id.eq("mainnet");
 
     if !mainnet_match && !testnet_match {
         return Err(diagnosed_error!(
@@ -207,8 +209,12 @@ pub fn encode_stx_transfer(
 
     // validate recipient_address against network_id
     let recipient_address_str = recipient_address.to_string();
-    let mainnet_match = (recipient_address_str.starts_with("SP") || recipient_address_str.starts_with("SM")) && network_id.eq("mainnet");
-    let testnet_match = (recipient_address_str.starts_with("ST") || recipient_address_str.starts_with("SN")) && !network_id.eq("mainnet");
+    let mainnet_match = (recipient_address_str.starts_with("SP")
+        || recipient_address_str.starts_with("SM"))
+        && network_id.eq("mainnet");
+    let testnet_match = (recipient_address_str.starts_with("ST")
+        || recipient_address_str.starts_with("SN"))
+        && !network_id.eq("mainnet");
 
     if !mainnet_match && !testnet_match {
         return Err(diagnosed_error!(
