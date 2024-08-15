@@ -7,3 +7,4 @@ components/txtx-web-ui/.parcel-cache
 components/txtx-addon-network-evm/src/tests/fixtures/foundry/out/build-info
 components/txtx-addon-network-evm/src/tests/fixtures/foundry/cache
 state.json
+components/addons/evm/src/tests/fixtures/foundry/cache/solidity-files-cache.json

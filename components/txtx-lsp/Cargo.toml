@@ -10,9 +10,9 @@ regex = "1.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 txtx-core = { path = "../txtx-core", default-features = false }
-txtx-addon-network-evm = { path = "../txtx-addon-network-evm", default-features = false }
-txtx-addon-network-stacks = { path = "../txtx-addon-network-stacks", default-features = false }
-txtx-addon-telegram = { path = "../txtx-addon-telegram" }
+txtx-addon-network-stacks = { path = "../addons/stacks" }
+txtx-addon-network-evm = { path = "../addons/evm" }
+txtx-addon-telegram ={ path = "../addons/telegram" }
 
 # WASM
 console_error_panic_hook = { version = "0.1", optional = true }

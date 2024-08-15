@@ -28,7 +28,7 @@ use crate::{
         EVM_INIT_CODE,
     },
 };
-const INFURA_API_KEY: &str = dotenv!("INFURA_API_KEY");
+const INFURA_API_KEY: &str = "";
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
