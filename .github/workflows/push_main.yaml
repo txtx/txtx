@@ -63,9 +63,9 @@ jobs:
           cd ..
 
       - name: Build-musl
-            uses: gmiam/rust-musl-action@master
-            with:
-              args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release
+        uses: gmiam/rust-musl-action@master
+        with:
+          args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release
 
 
       
