@@ -1,6 +1,7 @@
 use alloy::json_abi::JsonAbi;
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use txtx_addon_kit::helpers::fs::FileLocation;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,10 +18,10 @@ pub struct FoundryCompiledOutputJson {
 impl FoundryCompiledOutputJson {
     pub fn get_contract_source(
         &self,
-        base_path: &str,
+        mut base_path: &FileLocation,
         contract_name: &str,
     ) -> Result<String, String> {
-        let mut path = PathBuf::from_str(&base_path).unwrap();
+        let mut path = PathBuf::from(&base_path.expect_path_buf());
         path.pop();
         let Some(contract_path) = self
             .metadata
@@ -153,8 +154,9 @@ impl FoundryConfig {
         Ok(config)
     }
 
-    pub fn get_from_path(foundry_toml_path: &str) -> Result<Self, String> {
-        let bytes = std::fs::read(foundry_toml_path)
+    pub fn get_from_path(foundry_toml_path: &FileLocation) -> Result<Self, String> {
+        let bytes = foundry_toml_path
+            .read_content()
             .map_err(|e| format!("invalid foundry.toml location {}: {}", foundry_toml_path, e))?;
 
         let toml: FoundryToml = toml::from_slice(&bytes).map_err(|e| {
