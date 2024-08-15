@@ -84,6 +84,20 @@ jobs:
           ls txtx
           ls txtx-web-ui
 
+      - name: Install dependencies (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools
+
+      - name: Download prebuilt OpenSSL for MUSL
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          wget https://musl.libc.org/openssl/musl-openssl-1.1.1.tar.gz
+          tar -xzvf musl-openssl-1.1.1.tar.gz
+          sudo cp -r musl-openssl-1.1.1/include/* /usr/local/musl/include/
+          sudo cp -r musl-openssl-1.1.1/lib/* /usr/local/musl/lib/
+          
       - name: Install Rust toolchain
         run: rustup toolchain install 1.79 --profile minimal --target ${{ matrix.target }}
 
@@ -136,21 +150,6 @@ jobs:
         run: 
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
       
-      - name: Install dependencies (Linux)
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: |
-          sudo apt-get update
-          sudo apt-get install musl-tools
-
-      - name: Compile OpenSSL for MUSL
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: |
-          wget https://www.openssl.org/source/openssl-1.1.1v.tar.gz
-          tar -xzvf openssl-1.1.1v.tar.gz
-          cd openssl-1.1.1v
-          CC=musl-gcc ./Configure no-shared --prefix=/usr/local/musl no-zlib linux-x86_64
-          make
-          sudo make install
 
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
