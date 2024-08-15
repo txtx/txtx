@@ -149,11 +149,8 @@ jobs:
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          # export OPENSSL_STATIC=yes
-          # # export OPENSSL_DIR=$(pkg-config --variable=libdir openssl)
-          # export OPENSSL_DIR=/usr/lib/x86_64-linux-musl
-          # export OPENSSL_INCLUDE_DIR="/usr/include/openssl"
-          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
+          docker run --rm -v $(pwd):/home/rust/src ekidd/rust-musl-builder:latest \
+          cargo build --release --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (Linux)
