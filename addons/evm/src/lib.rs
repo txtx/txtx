@@ -13,13 +13,13 @@ mod commands;
 mod constants;
 mod functions;
 pub mod rpc;
+mod signers;
 mod typing;
-mod wallets;
 
 use txtx_addon_kit::{
     types::{
         commands::PreCommandSpecification, functions::FunctionSpecification,
-        wallets::WalletSpecification,
+        signers::SignerSpecification,
     },
     Addon,
 };
@@ -42,7 +42,7 @@ impl Addon for EVMNetworkAddon {
         txtx_addon_kit::indoc! {r#"
             The EVM `txtx` plugin enables building Runbooks that interact with Ethereum and EVM compatible blockchains. 
             The plugin provides utility functions that allow you to encode data in the proper RLP format that is required by contracts on EVM compatible blockchains.
-            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser wallet. 
+            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser signer. 
             "#}
     }
 
@@ -58,7 +58,7 @@ impl Addon for EVMNetworkAddon {
         commands::actions::ACTIONS.clone()
     }
 
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
-        wallets::WALLETS.clone()
+    fn get_signers(&self) -> Vec<SignerSpecification> {
+        signers::WALLETS.clone()
     }
 }

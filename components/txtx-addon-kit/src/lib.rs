@@ -29,7 +29,7 @@ use std::{collections::HashMap, fmt::Debug};
 use types::{
     commands::{CommandId, PreCommandSpecification},
     functions::FunctionSpecification,
-    wallets::WalletSpecification,
+    signers::SignerSpecification,
 };
 
 pub use reqwest;
@@ -48,7 +48,7 @@ lazy_static! {
     pub static ref DEFAULT_ADDON_ACTIONS_TEMPLATE: String =
         include_str!("doc/default_addon_actions_template.mdx").to_string();
     pub static ref DEFAULT_ADDON_WALLETS_TEMPLATE: String =
-        include_str!("doc/default_addon_wallets_template.mdx").to_string();
+        include_str!("doc/default_addon_signers_template.mdx").to_string();
     pub static ref DEFAULT_ADDON_OVERVIEW_TEMPLATE: String =
         include_str!("doc/default_addon_overview_template.mdx").to_string();
 }
@@ -70,7 +70,7 @@ pub trait Addon: Debug + Sync + Send {
         vec![]
     }
     ///
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
+    fn get_signers(&self) -> Vec<SignerSpecification> {
         vec![]
     }
     ///
@@ -95,14 +95,14 @@ pub trait Addon: Debug + Sync + Send {
         commands
     }
     ///
-    fn build_wallet_lookup(self: &Self) -> HashMap<String, WalletSpecification> {
-        let mut wallet_specs = HashMap::new();
+    fn build_signer_lookup(self: &Self) -> HashMap<String, SignerSpecification> {
+        let mut signer_specs = HashMap::new();
 
-        for wallet in self.get_wallets().into_iter() {
-            wallet_specs.insert(wallet.matcher.clone(), wallet);
+        for signer in self.get_signers().into_iter() {
+            signer_specs.insert(signer.matcher.clone(), signer);
         }
 
-        wallet_specs
+        signer_specs
     }
     ///
     fn get_domain_specific_commands_inputs_dependencies<'a>(

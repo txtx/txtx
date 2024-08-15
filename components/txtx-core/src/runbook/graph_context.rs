@@ -22,8 +22,8 @@ pub struct RunbookGraphContext {
     pub constructs_dag: Dag<ConstructDid, u32, u32>,
     /// Lookup: Retrieve the DAG node id of a given construct did
     pub constructs_dag_node_lookup: HashMap<ConstructDid, NodeIndex<u32>>,
-    /// Keep track of the signing commands (wallet) instantiated (ordered)
-    pub instantiated_signing_commands: VecDeque<(ConstructDid, bool)>,
+    /// Keep track of the signing commands (signer) instantiated (ordered)
+    pub instantiated_signers: VecDeque<(ConstructDid, bool)>,
     /// Keep track of the root DAGs (temporary - to be removed)
     pub graph_root: NodeIndex<u32>,
 }
@@ -41,7 +41,7 @@ impl RunbookGraphContext {
             packages_dag_node_lookup: HashMap::new(),
             constructs_dag,
             constructs_dag_node_lookup: HashMap::new(),
-            instantiated_signing_commands: VecDeque::new(),
+            instantiated_signers: VecDeque::new(),
             graph_root,
         }
     }
@@ -126,8 +126,8 @@ impl RunbookGraphContext {
                     }
                 }
             }
-            let mut wallets = VecDeque::new();
-            let mut instantiated_wallets = HashSet::new();
+            let mut signers = VecDeque::new();
+            let mut instantiated_signers = HashSet::new();
             for construct_did in package.commands_dids.iter() {
                 let command_instance = execution_context
                     .commands_instances
@@ -146,11 +146,11 @@ impl RunbookGraphContext {
                         .try_resolve_construct_reference_in_expression(package_did, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         if let Some(_) = execution_context
-                            .signing_commands_instances
+                            .signers_instances
                             .get(&resolved_construct_did)
                         {
-                            wallets.push_front((resolved_construct_did.clone(), true));
-                            instantiated_wallets.insert(resolved_construct_did.clone());
+                            signers.push_front((resolved_construct_did.clone(), true));
+                            instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
@@ -162,41 +162,41 @@ impl RunbookGraphContext {
                     }
                 }
             }
-            // todo: should we constrain to wallets depending on wallets?
-            for construct_did in package.signing_commands_dids.iter() {
-                let wallet_instance = execution_context
-                    .signing_commands_instances
+            // todo: should we constrain to signers depending on signers?
+            for construct_did in package.signers_dids.iter() {
+                let signer_instance = execution_context
+                    .signers_instances
                     .get(construct_did)
                     .unwrap();
-                for (_input, dep) in wallet_instance.collect_dependencies().iter() {
+                for (_input, dep) in signer_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
-                        if !instantiated_wallets.contains(&resolved_construct_did) {
-                            wallets.push_front((resolved_construct_did.clone(), false))
+                        if !instantiated_signers.contains(&resolved_construct_did) {
+                            signers.push_front((resolved_construct_did.clone(), false))
                         }
                         execution_context
-                            .signing_commands_state
+                            .signers_state
                             .as_mut()
                             .unwrap()
-                            .create_new_wallet(
+                            .create_new_signer(
                                 &resolved_construct_did,
                                 &resolved_construct_did.value().to_string(),
                             );
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in wallet '{}'",
+                            "unable to resolve '{}' in signer '{}'",
                             dep,
-                            wallet_instance.name,
+                            signer_instance.name,
                         ));
                     }
                 }
             }
             // this is the most idiomatic way I could find to get unique values from a hash set
-            let mut seen_wallets = HashSet::new();
-            wallets.retain(|w| seen_wallets.insert(w.clone()));
-            self.instantiated_signing_commands = wallets;
+            let mut seen_signers = HashSet::new();
+            signers.retain(|w| seen_signers.insert(w.clone()));
+            self.instantiated_signers = signers;
         }
 
         for (src, dst) in constructs_edges.iter() {
@@ -223,9 +223,9 @@ impl RunbookGraphContext {
             return Err(diags);
         }
 
-        for (construct_did, instantiated) in self.instantiated_signing_commands.iter() {
+        for (construct_did, instantiated) in self.instantiated_signers.iter() {
             execution_context
-                .order_for_signing_commands_initialization
+                .order_for_signers_initialization
                 .push(construct_did.clone());
             // For each signing command instantiated
             if *instantiated {
@@ -263,15 +263,13 @@ impl RunbookGraphContext {
                     }
                 });
 
-                execution_context
-                    .signing_commands_downstream_dependencies
-                    .push((
-                        construct_did.clone(),
-                        ordered_signed_commands
-                            .into_iter()
-                            .map(|(construct_id, _)| construct_id)
-                            .collect(),
-                    ));
+                execution_context.signers_downstream_dependencies.push((
+                    construct_did.clone(),
+                    ordered_signed_commands
+                        .into_iter()
+                        .map(|(construct_id, _)| construct_id)
+                        .collect(),
+                ));
             }
         }
 

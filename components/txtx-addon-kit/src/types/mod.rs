@@ -12,8 +12,8 @@ pub mod commands;
 pub mod diagnostics;
 pub mod frontend;
 pub mod functions;
+pub mod signers;
 pub mod types;
-pub mod wallets;
 
 pub const CACHED_NONCE: &str = "cached_nonce";
 

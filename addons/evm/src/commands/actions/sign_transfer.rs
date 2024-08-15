@@ -7,8 +7,8 @@ use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
     ReviewInputRequest,
 };
-use txtx_addon_kit::types::wallets::{
-    return_synchronous_ok, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+use txtx_addon_kit::types::signers::{
+    return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
@@ -17,7 +17,7 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{
-    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+    signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::AddonDefaults;
 
@@ -26,14 +26,14 @@ use crate::constants::{RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTI
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
 
-use super::get_signing_construct_did;
+use super::get_signer_did;
 
 lazy_static! {
     pub static ref SIGN_EVM_TRANSFER: PreCommandSpecification = define_command! {
       SignEVMTransfer => {
           name: "Sign EVM Transfer Transaction",
           matcher: "sign_transfer",
-          documentation: "The `evm::sign_transfer` action encodes an ETH transfer transaction, signs it with the provided wallet data, and broadcasts it to the network.",
+          documentation: "The `evm::sign_transfer` action encodes an ETH transfer transaction, signs it with the provided signer data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -44,7 +44,7 @@ lazy_static! {
                 interpolable: true
             },
             signer: {
-                documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
+                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
@@ -150,9 +150,9 @@ impl CommandImplementation for SignEVMTransfer {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
         use alloy::{consensus::Transaction, network::TransactionBuilder};
 
         use crate::{
@@ -161,41 +161,35 @@ impl CommandImplementation for SignEVMTransfer {
             typing::EvmValue,
         };
 
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signer_did = get_signer_did(args).unwrap();
 
-        let wallet = wallets_instances
-            .get(&signing_construct_did)
-            .unwrap()
-            .clone();
+        let signer = signers_instances.get(&signer_did).unwrap().clone();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
         let args = args.clone();
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut signing_command_state = wallets
-                .pop_signing_command_state(&signing_construct_did)
-                .unwrap();
-            if let Some(_) = signing_command_state
+            let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            if let Some(_) = signer_state
                 .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                return Ok((wallets, signing_command_state, Actions::none()));
+                return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction =
-                build_unsigned_transfer(&signing_command_state, &spec, &args, &defaults)
-                    .await
-                    .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+            let transaction = build_unsigned_transfer(&signer_state, &spec, &args, &defaults)
+                .await
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             println!("unsigned evm tx: {:?}", transaction);
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
-                    wallets.clone(),
-                    signing_command_state.clone(),
+                    signers.clone(),
+                    signer_state.clone(),
                     diagnosed_error!("command 'evm::sign_transfer': {e}"),
                 )
             })?;
@@ -203,12 +197,12 @@ impl CommandImplementation for SignEVMTransfer {
 
             let payload = EvmValue::transaction(bytes);
 
-            signing_command_state.insert_scoped_value(
+            signer_state.insert_scoped_value(
                 &construct_did.value().to_string(),
                 UNSIGNED_TRANSACTION_BYTES,
                 payload.clone(),
             );
-            wallets.push_signing_command_state(signing_command_state);
+            signers.push_signer_state(signer_state);
             let description = args
                 .get_expected_string("description")
                 .ok()
@@ -245,25 +239,23 @@ impl CommandImplementation for SignEVMTransfer {
                 )
             }
 
-            let signing_command_state = wallets
-                .pop_signing_command_state(&signing_construct_did)
-                .unwrap();
-            let (wallets, wallet_state, mut wallet_actions) =
-                (wallet.specification.check_signability)(
+            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            let (signers, signer_state, mut signer_actions) =
+                (signer.specification.check_signability)(
                     &construct_did,
                     &instance_name,
                     &description,
                     &payload,
-                    &wallet.specification,
+                    &signer.specification,
                     &args,
-                    signing_command_state,
-                    wallets,
-                    &wallets_instances,
+                    signer_state,
+                    signers,
+                    &signers_instances,
                     &defaults,
                     &supervision_context,
                 )?;
-            actions.append(&mut wallet_actions);
-            Ok((wallets, wallet_state, actions))
+            actions.append(&mut signer_actions);
+            Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -274,13 +266,11 @@ impl CommandImplementation for SignEVMTransfer {
         args: &ValueStore,
         defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerSignFutureResult {
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
@@ -288,12 +278,12 @@ impl CommandImplementation for SignEVMTransfer {
                 SIGNED_TRANSACTION_BYTES.into(),
                 signed_transaction_bytes.clone(),
             );
-            return return_synchronous_ok(wallets, signing_command_state, result);
+            return return_synchronous_ok(signers, signer_state, result);
         }
 
-        let wallet = wallets_instances.get(&signing_construct_did).unwrap();
+        let signer = signers_instances.get(&signer_did).unwrap();
 
-        let payload = signing_command_state
+        let payload = signer_state
             .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
             .unwrap()
             .clone();
@@ -302,15 +292,15 @@ impl CommandImplementation for SignEVMTransfer {
             .get_expected_string("description")
             .unwrap_or("New Transaction".into());
 
-        let res = (wallet.specification.sign)(
+        let res = (signer.specification.sign)(
             construct_did,
             title,
             &payload,
-            &wallet.specification,
+            &signer.specification,
             &args,
-            signing_command_state,
-            wallets,
-            wallets_instances,
+            signer_state,
+            signers,
+            signers_instances,
             &defaults,
         );
         res
@@ -319,7 +309,7 @@ impl CommandImplementation for SignEVMTransfer {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transfer(
-    wallet_state: &ValueStore,
+    signer_state: &ValueStore,
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
@@ -330,7 +320,7 @@ async fn build_unsigned_transfer(
         constants::{CHAIN_ID, TRANSACTION_TO, TRANSACTION_TYPE},
     };
 
-    let from = wallet_state.get_expected_value("signer_address")?;
+    let from = signer_state.get_expected_value("signer_address")?;
 
     // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;

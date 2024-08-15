@@ -21,43 +21,32 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct SigningCommandsState {
+pub struct SignersState {
     pub store: HashMap<ConstructDid, ValueStore>,
 }
 
-impl SigningCommandsState {
-    pub fn new() -> SigningCommandsState {
-        SigningCommandsState {
+impl SignersState {
+    pub fn new() -> SignersState {
+        SignersState {
             store: HashMap::new(),
         }
     }
 
-    pub fn get_signing_command_state_mut(
-        &mut self,
-        signing_construct_did: &ConstructDid,
-    ) -> Option<&mut ValueStore> {
-        self.store.get_mut(signing_construct_did)
+    pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
+        self.store.get_mut(signer_did)
     }
 
-    pub fn get_signing_command_state(
-        &self,
-        signing_construct_did: &ConstructDid,
-    ) -> Option<&ValueStore> {
-        self.store.get(signing_construct_did)
+    pub fn get_signer_state(&self, signer_did: &ConstructDid) -> Option<&ValueStore> {
+        self.store.get(signer_did)
     }
 
-    pub fn pop_signing_command_state(
-        &mut self,
-        signing_construct_did: &ConstructDid,
-    ) -> Option<ValueStore> {
-        self.store.remove(signing_construct_did)
+    pub fn pop_signer_state(&mut self, signer_did: &ConstructDid) -> Option<ValueStore> {
+        self.store.remove(signer_did)
     }
 
-    pub fn push_signing_command_state(&mut self, signing_command_state: ValueStore) {
-        self.store.insert(
-            ConstructDid(signing_command_state.uuid.clone()),
-            signing_command_state,
-        );
+    pub fn push_signer_state(&mut self, signer_state: ValueStore) {
+        self.store
+            .insert(ConstructDid(signer_state.uuid.clone()), signer_state);
     }
 
     // pub fn get_mining_spend_amount<F, G>(
@@ -76,185 +65,183 @@ impl SigningCommandsState {
     //     G: FnMut(u64, f64),
     // {
 
-    pub fn create_new_wallet(&mut self, signing_construct_did: &ConstructDid, wallet_name: &str) {
-        if !self.store.contains_key(&signing_construct_did) {
+    pub fn create_new_signer(&mut self, signer_did: &ConstructDid, signer_name: &str) {
+        if !self.store.contains_key(&signer_did) {
             self.store.insert(
-                signing_construct_did.clone(),
-                ValueStore::new(wallet_name, &signing_construct_did.value()),
+                signer_did.clone(),
+                ValueStore::new(signer_name, &signer_did.value()),
             );
         }
     }
 }
-pub type WalletActionOk = (SigningCommandsState, ValueStore, CommandExecutionResult);
-pub type WalletActionErr = (SigningCommandsState, ValueStore, Diagnostic);
-pub type WalletActivateFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
-    WalletActionErr,
+pub type SignerActionOk = (SignersState, ValueStore, CommandExecutionResult);
+pub type SignerActionErr = (SignersState, ValueStore, Diagnostic);
+pub type SignerActivateFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
 >;
 
-pub fn consolidate_wallet_activate_result(
-    res: Result<WalletActionOk, WalletActionErr>,
-) -> Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)> {
+pub fn consolidate_signer_activate_result(
+    res: Result<SignerActionOk, SignerActionErr>,
+) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
     match res {
-        Ok((mut wallets, signing_command_state, result)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Ok((wallets, result))
+        Ok((mut signers, signer_state, result)) => {
+            signers.push_signer_state(signer_state);
+            Ok((signers, result))
         }
-        Err((mut wallets, signing_command_state, diag)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Err((wallets, diag))
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag))
         }
     }
 }
-pub async fn consolidate_wallet_activate_future_result(
-    future: WalletActivateFutureResult,
+pub async fn consolidate_signer_activate_future_result(
+    future: SignerActivateFutureResult,
 ) -> Result<
-    Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)>,
-    (SigningCommandsState, Diagnostic),
+    Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)>,
+    (SignersState, Diagnostic),
 > {
     match future {
-        Ok(res) => Ok(consolidate_wallet_activate_result(res.await)),
-        Err((mut wallets, signing_command_state, diag)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Err((wallets, diag))
+        Ok(res) => Ok(consolidate_signer_activate_result(res.await)),
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag))
         }
     }
 }
 
-pub type WalletActivateClosure = Box<
+pub type SignerActivateClosure = Box<
     fn(
         &ConstructDid,
-        &WalletSpecification,
+        &SignerSpecification,
         &ValueStore,
         ValueStore,
-        SigningCommandsState,
-        &HashMap<ConstructDid, WalletInstance>,
+        SignersState,
+        &HashMap<ConstructDid, SignerInstance>,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult,
+    ) -> SignerActivateFutureResult,
 >;
 
-pub type WalletSignFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
-    WalletActionErr,
+pub type SignerSignFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
 >;
 
-pub type WalletSignClosure = Box<
+pub type SignerSignClosure = Box<
     fn(
         &ConstructDid,
         &str,
         &Value,
-        &WalletSpecification,
+        &SignerSpecification,
         &ValueStore,
         ValueStore,
-        SigningCommandsState,
-        &HashMap<ConstructDid, WalletInstance>,
+        SignersState,
+        &HashMap<ConstructDid, SignerInstance>,
         &AddonDefaults,
-    ) -> WalletSignFutureResult,
+    ) -> SignerSignFutureResult,
 >;
 
-pub type WalletCheckActivabilityClosure = fn(
+pub type SignerCheckActivabilityClosure = fn(
     &ConstructDid,
     &str,
-    &WalletSpecification,
+    &SignerSpecification,
     &ValueStore,
     ValueStore,
-    SigningCommandsState,
-    &HashMap<ConstructDid, WalletInstance>,
+    SignersState,
+    &HashMap<ConstructDid, SignerInstance>,
     &AddonDefaults,
     &RunbookSupervisionContext,
     bool,
     bool,
-) -> WalletActionsFutureResult;
+) -> SignerActionsFutureResult;
 
-pub type WalletActionsFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<CheckSignabilityOk, WalletActionErr>> + Send>>,
-    WalletActionErr,
+pub type SignerActionsFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<CheckSignabilityOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
 >;
 
-pub type WalletCheckInstantiabilityClosure =
-    fn(&WalletSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
+pub type SignerCheckInstantiabilityClosure =
+    fn(&SignerSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 
-pub type CheckSignabilityOk = (SigningCommandsState, ValueStore, Actions);
+pub type CheckSignabilityOk = (SignersState, ValueStore, Actions);
 
-pub type WalletCheckSignabilityClosure = fn(
+pub type SignerCheckSignabilityClosure = fn(
     &ConstructDid,
     &str,
     &Option<String>,
     &Value,
-    &WalletSpecification,
+    &SignerSpecification,
     &ValueStore,
     ValueStore,
-    SigningCommandsState,
-    &HashMap<ConstructDid, WalletInstance>,
+    SignersState,
+    &HashMap<ConstructDid, SignerInstance>,
     &AddonDefaults,
     &RunbookSupervisionContext,
-) -> Result<CheckSignabilityOk, WalletActionErr>;
+) -> Result<CheckSignabilityOk, SignerActionErr>;
 
-pub type WalletOperationFutureResult = Result<
-    Pin<Box<dyn Future<Output = Result<WalletActionOk, WalletActionErr>> + Send>>,
-    WalletActionErr,
+pub type SignerOperationFutureResult = Result<
+    Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
 >;
 
 pub fn return_synchronous_actions(
-    res: Result<CheckSignabilityOk, WalletActionErr>,
-) -> WalletActionsFutureResult {
+    res: Result<CheckSignabilityOk, SignerActionErr>,
+) -> SignerActionsFutureResult {
     Ok(Box::pin(future::ready(res)))
 }
 
 pub fn return_synchronous_result(
-    res: Result<WalletActionOk, WalletActionErr>,
-) -> WalletOperationFutureResult {
+    res: Result<SignerActionOk, SignerActionErr>,
+) -> SignerOperationFutureResult {
     Ok(Box::pin(future::ready(res)))
 }
 
 pub fn return_synchronous_ok(
-    wallets: SigningCommandsState,
-    signing_command_state: ValueStore,
+    signers: SignersState,
+    signer_state: ValueStore,
     res: CommandExecutionResult,
-) -> WalletOperationFutureResult {
-    return_synchronous_result(Ok((wallets, signing_command_state, res)))
+) -> SignerOperationFutureResult {
+    return_synchronous_result(Ok((signers, signer_state, res)))
 }
 
 pub fn return_synchronous_err(
-    wallets: SigningCommandsState,
-    signing_command_state: ValueStore,
+    signers: SignersState,
+    signer_state: ValueStore,
     diag: Diagnostic,
-) -> WalletOperationFutureResult {
-    return_synchronous_result(Err((wallets, signing_command_state, diag)))
+) -> SignerOperationFutureResult {
+    return_synchronous_result(Err((signers, signer_state, diag)))
 }
 
-pub fn consolidate_wallet_result(
-    res: Result<CheckSignabilityOk, WalletActionErr>,
-) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
+pub fn consolidate_signer_result(
+    res: Result<CheckSignabilityOk, SignerActionErr>,
+) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
     match res {
-        Ok((mut wallets, signing_command_state, actions)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Ok((wallets, actions))
+        Ok((mut signers, signer_state, actions)) => {
+            signers.push_signer_state(signer_state);
+            Ok((signers, actions))
         }
-        Err((mut wallets, signing_command_state, diag)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Err((wallets, diag))
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag))
         }
     }
 }
-pub async fn consolidate_wallet_future_result(
-    future: WalletActionsFutureResult,
-) -> Result<
-    Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)>,
-    (SigningCommandsState, Diagnostic),
-> {
+pub async fn consolidate_signer_future_result(
+    future: SignerActionsFutureResult,
+) -> Result<Result<(SignersState, Actions), (SignersState, Diagnostic)>, (SignersState, Diagnostic)>
+{
     match future {
-        Ok(res) => Ok(consolidate_wallet_result(res.await)),
-        Err((mut wallets, signing_command_state, diag)) => {
-            wallets.push_signing_command_state(signing_command_state);
-            Err((wallets, diag))
+        Ok(res) => Ok(consolidate_signer_result(res.await)),
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag))
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct WalletSpecification {
+pub struct SignerSpecification {
     pub name: String,
     pub matcher: String,
     pub documentation: String,
@@ -263,23 +250,23 @@ pub struct WalletSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub check_instantiability: WalletCheckInstantiabilityClosure,
-    pub check_activability: WalletCheckActivabilityClosure,
-    pub activate: WalletActivateClosure,
-    pub check_signability: WalletCheckSignabilityClosure,
-    pub sign: WalletSignClosure,
+    pub check_instantiability: SignerCheckInstantiabilityClosure,
+    pub check_activability: SignerCheckActivabilityClosure,
+    pub activate: SignerActivateClosure,
+    pub check_signability: SignerCheckSignabilityClosure,
+    pub sign: SignerSignClosure,
 }
 
 #[derive(Debug, Clone)]
-pub struct WalletInstance {
-    pub specification: WalletSpecification,
+pub struct SignerInstance {
+    pub specification: SignerSpecification,
     pub name: String,
     pub block: Block,
     pub package_id: PackageId,
     pub namespace: String,
 }
 
-impl WalletInstance {
+impl SignerInstance {
     pub fn check_inputs(&self) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
         let mut diagnostics = vec![];
         let mut has_errors = false;
@@ -408,15 +395,15 @@ impl WalletInstance {
         &self,
         construct_did: &ConstructDid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
-        mut wallets: SigningCommandsState,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut signers: SignersState,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         addon_defaults: &AddonDefaults,
         _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
-    ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
+    ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_did.value());
         for input in self.specification.inputs.iter() {
             let value = match input_evaluation_results.inputs.get_value(&input.name) {
@@ -436,22 +423,21 @@ impl WalletInstance {
                         ActionItemResponseType::ProvidePublicKey(update) => {
                             values.insert("public_key", Value::string(update.public_key.clone()));
 
-                            let signing_command_state =
-                                wallets.pop_signing_command_state(construct_did).unwrap();
+                            let signer_state = signers.pop_signer_state(construct_did).unwrap();
                             let res = ((&self.specification).check_activability)(
                                 &construct_did,
                                 &self.name,
                                 &self.specification,
                                 &values,
-                                signing_command_state,
-                                wallets,
-                                wallets_instances,
+                                signer_state,
+                                signers,
+                                signers_instances,
                                 &addon_defaults,
                                 &supervision_context,
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
-                            return consolidate_wallet_future_result(res).await?.map_err(
+                            return consolidate_signer_future_result(res).await?.map_err(
                                 |(state, diag)| (state, diag.set_span_range(self.block.span())),
                             );
                             // WIP
@@ -484,7 +470,7 @@ impl WalletInstance {
             None => {}
         }
 
-        let signing_command_state = wallets.pop_signing_command_state(construct_did).unwrap();
+        let signer_state = signers.pop_signer_state(construct_did).unwrap();
 
         let spec = &self.specification;
         let res = (spec.check_activability)(
@@ -492,16 +478,16 @@ impl WalletInstance {
             &self.name,
             &self.specification,
             &values,
-            signing_command_state,
-            wallets,
-            wallets_instances,
+            signer_state,
+            signers,
+            signers_instances,
             &addon_defaults,
             &supervision_context,
             is_balance_check_required,
             is_public_key_required,
         );
 
-        consolidate_wallet_future_result(res)
+        consolidate_signer_future_result(res)
             .await?
             .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))
     }
@@ -510,30 +496,29 @@ impl WalletInstance {
         &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        mut wallets: SigningCommandsState,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut signers: SignersState,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         addon_defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
-    ) -> Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)>
-    {
+    ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         // todo: I don't think this one needs to be a result
         let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(&key, value.clone());
         }
 
-        let signing_command_state = wallets.pop_signing_command_state(construct_did).unwrap();
+        let signer_state = signers.pop_signer_state(construct_did).unwrap();
         let future = (&self.specification.activate)(
             &construct_did,
             &self.specification,
             &values,
-            signing_command_state,
-            wallets,
-            wallets_instances,
+            signer_state,
+            signers,
+            signers_instances,
             &addon_defaults,
             progress_tx,
         );
-        let res = consolidate_wallet_activate_future_result(future)
+        let res = consolidate_signer_activate_future_result(future)
             .await?
             .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
@@ -575,38 +560,38 @@ impl WalletInstance {
     }
 }
 
-pub trait WalletImplementation {
+pub trait SignerImplementation {
     fn check_instantiability(
-        _ctx: &WalletSpecification,
+        _ctx: &SignerSpecification,
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic>;
 
     fn check_activability(
         _construct_id: &ConstructDid,
         _instance_name: &str,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        _signing_command_state: ValueStore,
-        _wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signer_state: ValueStore,
+        _signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActionsFutureResult {
+    ) -> SignerActionsFutureResult {
         unimplemented!()
     }
 
     fn activate(
         _construct_id: &ConstructDid,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        _signing_command_state: ValueStore,
-        _wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signer_state: ValueStore,
+        _signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult {
+    ) -> SignerActivateFutureResult {
         unimplemented!()
     }
 
@@ -615,14 +600,14 @@ pub trait WalletImplementation {
         _title: &str,
         _description: &Option<String>,
         _payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        _signing_command_state: ValueStore,
-        _wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signer_state: ValueStore,
+        _signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
-    ) -> Result<CheckSignabilityOk, WalletActionErr> {
+    ) -> Result<CheckSignabilityOk, SignerActionErr> {
         unimplemented!()
     }
 
@@ -630,13 +615,13 @@ pub trait WalletImplementation {
         _caller_uuid: &ConstructDid,
         _title: &str,
         _payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        _signing_command_state: ValueStore,
-        _wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        _signer_state: ValueStore,
+        _signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
-    ) -> WalletSignFutureResult {
+    ) -> SignerSignFutureResult {
         unimplemented!()
     }
 }

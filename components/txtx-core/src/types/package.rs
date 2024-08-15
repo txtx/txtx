@@ -16,8 +16,8 @@ pub struct Package {
     pub imports_did_lookup: HashMap<String, ConstructDid>,
     pub commands_dids: HashSet<ConstructDid>,
     pub addons_did_lookup: HashMap<String, ConstructDid>,
-    pub signing_commands_dids: HashSet<ConstructDid>,
-    pub signing_commands_did_lookup: HashMap<String, ConstructDid>,
+    pub signers_dids: HashSet<ConstructDid>,
+    pub signers_did_lookup: HashMap<String, ConstructDid>,
 }
 
 impl Package {
@@ -34,8 +34,8 @@ impl Package {
             imports_did_lookup: HashMap::new(),
             commands_dids: HashSet::new(),
             addons_did_lookup: HashMap::new(),
-            signing_commands_dids: HashSet::new(),
-            signing_commands_did_lookup: HashMap::new(),
+            signers_dids: HashSet::new(),
+            signers_did_lookup: HashMap::new(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use txtx_addon_kit::{
     types::{
         commands::PreCommandSpecification, functions::FunctionSpecification,
-        wallets::WalletSpecification,
+        signers::SignerSpecification,
     },
     Addon,
 };
@@ -10,8 +10,8 @@ use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
 
 pub mod commands;
 pub mod functions;
+pub mod signers;
 pub mod typing;
-pub mod wallets;
 
 #[derive(Debug)]
 pub struct StdAddon;
@@ -45,7 +45,7 @@ impl Addon for StdAddon {
         ACTIONS.clone()
     }
 
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
+    fn get_signers(&self) -> Vec<SignerSpecification> {
         vec![]
     }
 }

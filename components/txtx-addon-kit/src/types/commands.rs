@@ -28,11 +28,11 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
-    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    wallets::{
-        consolidate_wallet_activate_future_result, consolidate_wallet_future_result,
-        SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+    signers::{
+        consolidate_signer_activate_future_result, consolidate_signer_future_result,
+        SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
+    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, Did, PackageId, ValueStore,
 };
 
@@ -400,9 +400,9 @@ pub type CommandSignedExecutionClosure = Box<
         &ValueStore,
         &AddonDefaults,
         &channel::Sender<BlockEvent>,
-        &HashMap<ConstructDid, WalletInstance>,
-        SigningCommandsState,
-    ) -> WalletSignFutureResult,
+        &HashMap<ConstructDid, SignerInstance>,
+        SignersState,
+    ) -> SignerSignFutureResult,
 >;
 
 type CommandRouter =
@@ -424,9 +424,9 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &ValueStore,
     &AddonDefaults,
     &RunbookSupervisionContext,
-    &HashMap<ConstructDid, WalletInstance>,
-    SigningCommandsState,
-) -> WalletActionsFutureResult;
+    &HashMap<ConstructDid, SignerInstance>,
+    SignersState,
+) -> SignerActionsFutureResult;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -708,7 +708,7 @@ impl CommandInstance {
         construct_did: &ConstructDid,
         input_evaluation_results: &mut CommandInputsEvaluationResult,
         addon_defaults: AddonDefaults,
-        _wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
+        _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
@@ -871,13 +871,13 @@ impl CommandInstance {
         &mut self,
         construct_did: &ConstructDid,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
-        wallets: SigningCommandsState,
+        signers: SignersState,
         addon_defaults: AddonDefaults,
-        wallet_instances: &mut HashMap<ConstructDid, WalletInstance>,
+        signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         supervision_context: &RunbookSupervisionContext,
-    ) -> Result<(SigningCommandsState, Actions), (SigningCommandsState, Diagnostic)> {
+    ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
@@ -934,30 +934,29 @@ impl CommandInstance {
             &values,
             &addon_defaults,
             &supervision_context,
-            wallet_instances,
-            wallets,
+            signer_instances,
+            signers,
         );
-        let res = consolidate_wallet_future_result(future)
+        let res = consolidate_signer_future_result(future)
             .await?
             .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
-        let (signing_command_state, mut actions) = res?;
+        let (signer_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
-        Ok((signing_command_state, consolidated_actions))
+        Ok((signer_state, consolidated_actions))
     }
 
     pub async fn perform_signed_execution(
         &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        wallets: SigningCommandsState,
+        signers: SignersState,
         addon_defaults: AddonDefaults,
-        wallet_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_instances: &HashMap<ConstructDid, SignerInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
-    ) -> Result<(SigningCommandsState, CommandExecutionResult), (SigningCommandsState, Diagnostic)>
-    {
+    ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         let mut values = ValueStore::new(&self.name, &construct_did.value());
         for (key, value) in evaluated_inputs.inputs.iter() {
             values.insert(key, value.clone());
@@ -970,10 +969,10 @@ impl CommandInstance {
             &values,
             &addon_defaults,
             progress_tx,
-            wallet_instances,
-            wallets,
+            signer_instances,
+            signers,
         );
-        let res = consolidate_wallet_activate_future_result(future)
+        let res = consolidate_signer_activate_future_result(future)
             .await?
             .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
 
@@ -1131,9 +1130,9 @@ pub trait CommandImplementation {
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        _signing_commands_state: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_state: SignersState,
+    ) -> SignerActionsFutureResult {
         unimplemented!()
     }
 
@@ -1143,9 +1142,9 @@ pub trait CommandImplementation {
         _args: &ValueStore,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        _signing_commands_state: SigningCommandsState,
-    ) -> WalletSignFutureResult {
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_state: SignersState,
+    ) -> SignerSignFutureResult {
         unimplemented!()
     }
 

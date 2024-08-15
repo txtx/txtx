@@ -4,15 +4,15 @@ use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
 use kit::types::frontend::DisplayOutputRequest;
+use kit::types::signers::SignersState;
 use kit::types::types::RunbookSupervisionContext;
-use kit::types::wallets::SigningCommandsState;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
-use txtx_addon_kit::types::wallets::WalletInstance;
+use txtx_addon_kit::types::signers::SignerInstance;
 
 use crate::eval::perform_inputs_evaluation;
 use crate::eval::CommandInputEvaluationStatus;
@@ -25,10 +25,10 @@ use super::RuntimeContext;
 pub struct RunbookExecutionContext {
     /// Map of executable commands (input, output, action)
     pub commands_instances: HashMap<ConstructDid, CommandInstance>,
-    /// Map of signing commands (wallet)
-    pub signing_commands_instances: HashMap<ConstructDid, WalletInstance>,
+    /// Map of signing commands (signer)
+    pub signers_instances: HashMap<ConstructDid, SignerInstance>,
     /// State of the signing commands states (stateful)
-    pub signing_commands_state: Option<SigningCommandsState>,
+    pub signers_state: Option<SignersState>,
     /// Results of commands executions
     pub commands_execution_results: HashMap<ConstructDid, CommandExecutionResult>,
     /// Results of commands inputs evaluation
@@ -38,7 +38,7 @@ pub struct RunbookExecutionContext {
     /// Constructs depending on a given Construct.
     pub commands_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     /// Constructs depending on a given Construct performing signing.
-    pub signing_commands_downstream_dependencies: Vec<(ConstructDid, Vec<ConstructDid>)>,
+    pub signers_downstream_dependencies: Vec<(ConstructDid, Vec<ConstructDid>)>,
     /// Constructs depending on a given Construct being signed.
     pub signed_commands_upstream_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     /// Constructs depending on a given Construct being signed.
@@ -46,7 +46,7 @@ pub struct RunbookExecutionContext {
     /// Commands execution order.
     pub order_for_commands_execution: Vec<ConstructDid>,
     /// Signing commands initialization order.
-    pub order_for_signing_commands_initialization: Vec<ConstructDid>,
+    pub order_for_signers_initialization: Vec<ConstructDid>,
     /// Wether or not this running context is enabled
     pub execution_mode: RunbookExecutionMode,
 }
@@ -63,23 +63,23 @@ impl RunbookExecutionContext {
     pub fn new() -> Self {
         Self {
             commands_instances: HashMap::new(),
-            signing_commands_instances: HashMap::new(),
-            signing_commands_state: Some(SigningCommandsState::new()),
+            signers_instances: HashMap::new(),
+            signers_state: Some(SignersState::new()),
             commands_execution_results: HashMap::new(),
             commands_inputs_evaluation_results: HashMap::new(),
             commands_inputs_simulation_results: HashMap::new(),
             commands_dependencies: HashMap::new(),
-            signing_commands_downstream_dependencies: vec![],
+            signers_downstream_dependencies: vec![],
             signed_commands_upstream_dependencies: HashMap::new(),
             signed_commands: HashSet::new(),
             order_for_commands_execution: vec![],
-            order_for_signing_commands_initialization: vec![],
+            order_for_signers_initialization: vec![],
             execution_mode: RunbookExecutionMode::Ignored,
         }
     }
 
-    pub fn is_signing_command_instantiated(&self, construct_did: &ConstructDid) -> bool {
-        for (c, deps) in self.signing_commands_downstream_dependencies.iter() {
+    pub fn is_signer_instantiated(&self, construct_did: &ConstructDid) -> bool {
+        for (c, deps) in self.signers_downstream_dependencies.iter() {
             if c.eq(&construct_did) && deps.len() > 0 {
                 return true;
             }
@@ -160,7 +160,7 @@ impl RunbookExecutionContext {
         let (tx, _rx) = unbounded();
 
         for construct_did in ordered_constructs.into_iter() {
-            // Is a command being considered? (vs signing_command, env, etc)
+            // Is a command being considered? (vs signer, env, etc)
             let Some(command_instance) = self.commands_instances.get(&construct_did) else {
                 continue;
             };
@@ -271,7 +271,7 @@ impl RunbookExecutionContext {
                 &construct_did,
                 &mut evaluated_inputs,
                 addon_defaults.clone(),
-                &mut self.signing_commands_instances,
+                &mut self.signers_instances,
                 &None,
                 supervision_context,
             ) {
@@ -369,7 +369,10 @@ impl RunbookExecutionContext {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, _) => results,
+                    CommandInputEvaluationStatus::Aborted(results, diags) => {
+                        println!("{:?}", diags);
+                        results
+                    }
                 },
                 Err(_d) => {
                     continue;

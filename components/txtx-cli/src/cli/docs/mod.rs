@@ -136,12 +136,12 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
             .render_data(&mut doc_file, &doc_data)
             .expect("Failed to render template");
     }
-    // wallets
+    // signers
     {
         let mut page_path = addon_path.clone();
-        page_path.push("wallets/page.mdx");
+        page_path.push("signers/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
-        let doc_data = build_wallets_action_doc_data(&addon);
+        let doc_data = build_signers_action_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_WALLETS_TEMPLATE)
             .expect("Failed to compile template");
         template
@@ -492,7 +492,7 @@ fn build_addon_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
     data
 }
 
-fn build_wallets_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
+fn build_signers_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()
         .insert("double_open", &"{{")
         .expect("failed to encode open braces")
@@ -502,18 +502,18 @@ fn build_wallets_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
         .expect("Failed to encode name")
         .insert("addon_namespace", &addon.get_namespace())
         .expect("Failed to encode description")
-        .insert_vec("wallets", |wallets_builder| {
-            let mut wallets = wallets_builder;
-            for wallet_spec in addon.get_wallets().iter() {
-                wallets = wallets.push_map(|function| {
+        .insert_vec("signers", |signers_builder| {
+            let mut signers = signers_builder;
+            for signer_spec in addon.get_signers().iter() {
+                signers = signers.push_map(|function| {
                     function
-                        .insert_str("name", &wallet_spec.name)
-                        .insert_str("matcher", &wallet_spec.matcher)
-                        .insert_str("documentation", &wallet_spec.documentation)
-                        .insert_str("example", &wallet_spec.example)
+                        .insert_str("name", &signer_spec.name)
+                        .insert_str("matcher", &signer_spec.matcher)
+                        .insert_str("documentation", &signer_spec.documentation)
+                        .insert_str("example", &signer_spec.example)
                         .insert_vec("inputs", |inputs_builder| {
                             let mut inputs = inputs_builder;
-                            for input_spec in wallet_spec.inputs.iter() {
+                            for input_spec in signer_spec.inputs.iter() {
                                 inputs = inputs.push_map(|input| {
                                     input
                                         .insert_str("name", &input_spec.name)
@@ -524,7 +524,7 @@ fn build_wallets_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                             inputs
                         })
                         .insert_vec("outputs", |mut outputs_builder| {
-                            for output_spec in wallet_spec.outputs.iter() {
+                            for output_spec in signer_spec.outputs.iter() {
                                 outputs_builder = outputs_builder.push_map(|output_builder| {
                                     insert_outputs_from_spec(&output_spec, output_builder)
                                 });
@@ -533,7 +533,7 @@ fn build_wallets_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                         })
                 });
             }
-            wallets
+            signers
         });
     let data = doc_builder.build();
     data

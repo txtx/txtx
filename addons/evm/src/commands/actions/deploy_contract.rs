@@ -7,13 +7,13 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
-use txtx_addon_kit::types::wallets::{
-    WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+use txtx_addon_kit::types::signers::{
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{
-    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+    signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
@@ -29,7 +29,7 @@ use crate::rpc::EVMRpc;
 use crate::typing::CONTRACT_METADATA;
 
 use super::check_confirmations::CheckEVMConfirmations;
-use super::get_signing_construct_did;
+use super::get_signer_did;
 use super::sign_transaction::SignEVMTransaction;
 use super::verify_contract::VerifyEVMContract;
 
@@ -38,7 +38,7 @@ lazy_static! {
       EVMDeployContract => {
           name: "Sign EVM Contract Deployment Transaction",
           matcher: "deploy_contract",
-          documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided wallet data, and broadcasts it to the network.",
+          documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: true,
           inputs: [
@@ -55,7 +55,7 @@ lazy_static! {
               interpolable: true
             },
             signer: {
-                documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
+                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
@@ -169,14 +169,14 @@ impl CommandImplementation for EVMDeployContract {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
         use txtx_addon_kit::helpers::build_diag_context_fn;
 
         use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
 
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signer_did = get_signer_did(args).unwrap();
 
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
@@ -184,7 +184,7 @@ impl CommandImplementation for EVMDeployContract {
         let args = args.clone();
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let to_diag_with_ctx = build_diag_context_fn(
             instance_name.to_string(),
             "evm::deploy_contract".to_string(),
@@ -192,29 +192,27 @@ impl CommandImplementation for EVMDeployContract {
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut signing_command_state = wallets
-                .pop_signing_command_state(&signing_construct_did)
-                .unwrap();
-            if let Some(_) = signing_command_state
+            let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            if let Some(_) = signer_state
                 .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                return Ok((wallets, signing_command_state, Actions::none()));
+                return Ok((signers, signer_state, Actions::none()));
             }
 
             let transaction = build_unsigned_contract_deploy(
-                &mut signing_command_state,
+                &mut signer_state,
                 &spec,
                 &args,
                 &defaults,
                 &to_diag_with_ctx,
             )
             .await
-            .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
-                    wallets.clone(),
-                    signing_command_state.clone(),
+                    signers.clone(),
+                    signer_state.clone(),
                     diagnosed_error!("command 'evm::deploy_contract': {e}"),
                 )
             })?;
@@ -222,7 +220,7 @@ impl CommandImplementation for EVMDeployContract {
             let payload = EvmValue::transaction(bytes);
             let mut args = args.clone();
             args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
-            wallets.push_signing_command_state(signing_command_state);
+            signers.push_signer_state(signer_state);
 
             let future_result = SignEVMTransaction::check_signed_executability(
                 &construct_did,
@@ -231,10 +229,10 @@ impl CommandImplementation for EVMDeployContract {
                 &args,
                 &defaults,
                 &supervision_context,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut signing_actions) = match future_result {
+            let (signers, signer_state, mut signing_actions) = match future_result {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -243,7 +241,7 @@ impl CommandImplementation for EVMDeployContract {
             };
 
             actions.append(&mut signing_actions);
-            Ok((wallets, signing_command_state, actions))
+            Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -254,11 +252,11 @@ impl CommandImplementation for EVMDeployContract {
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers: SignersState,
+    ) -> SignerSignFutureResult {
         let mut args = args.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -271,10 +269,10 @@ impl CommandImplementation for EVMDeployContract {
                 &args,
                 &defaults,
                 &progress_tx,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -292,9 +290,9 @@ impl CommandImplementation for EVMDeployContract {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                    Err(diag) => return Err((signers, signer_state, diag)),
                 },
-                Err(data) => return Err((wallets, signing_command_state, data)),
+                Err(data) => return Err((signers, signer_state, data)),
             };
 
             res_signing.append(&mut res);
@@ -310,15 +308,15 @@ impl CommandImplementation for EVMDeployContract {
                 ) {
                     Ok(future) => match future.await {
                         Ok(res) => res,
-                        Err(diag) => return Err((wallets, signing_command_state, diag)),
+                        Err(diag) => return Err((signers, signer_state, diag)),
                     },
-                    Err(data) => return Err((wallets, signing_command_state, data)),
+                    Err(data) => return Err((signers, signer_state, data)),
                 };
 
                 res_signing.append(&mut res);
             }
 
-            Ok((wallets, signing_command_state, res_signing))
+            Ok((signers, signer_state, res_signing))
         };
 
         Ok(Box::pin(future))
@@ -388,7 +386,7 @@ impl CommandImplementation for EVMDeployContract {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_contract_deploy(
-    wallet_state: &mut ValueStore,
+    signer_state: &mut ValueStore,
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
@@ -400,7 +398,7 @@ async fn build_unsigned_contract_deploy(
         constants::{CHAIN_ID, NONCE, TRANSACTION_TYPE},
     };
 
-    let from = wallet_state.get_expected_value("signer_address")?.clone();
+    let from = signer_state.get_expected_value("signer_address")?.clone();
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
@@ -410,13 +408,13 @@ async fn build_unsigned_contract_deploy(
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(args).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(wallet_nonce) = wallet_state
+        if let Some(signer_nonce) = signer_state
             .get_value(NONCE)
             .map(|v| v.expect_uint())
             .transpose()
             .map_err(to_diag_with_ctx)?
         {
-            nonce = Some(wallet_nonce + 1);
+            nonce = Some(signer_nonce + 1);
         }
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;

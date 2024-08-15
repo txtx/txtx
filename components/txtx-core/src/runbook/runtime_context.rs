@@ -9,8 +9,8 @@ use kit::{
         },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
+        signers::{SignerInstance, SignerSpecification},
         types::Value,
-        wallets::{WalletInstance, WalletSpecification},
         AuthorizationContext, ConstructDid, Did, PackageDid, PackageId, RunbookId, ValueStore,
     },
     Addon, AddonDefaults,
@@ -594,7 +594,7 @@ impl AddonsContext {
         let factory = AddonConstructFactory {
             functions: addon.build_function_lookup(),
             commands: addon.build_command_lookup(),
-            signing_commands: addon.build_wallet_lookup(),
+            signers: addon.build_signer_lookup(),
         };
         self.registered_addons
             .insert(addon.get_namespace().to_string(), (addon, scope));
@@ -631,19 +631,19 @@ impl AddonsContext {
         factory.create_command_instance(&command_id, namespace, command_name, block, package_id)
     }
 
-    pub fn create_signing_command_instance(
+    pub fn create_signer_instance(
         &self,
         namespaced_action: &str,
-        wallet_name: &str,
+        signer_name: &str,
         package_id: &PackageId,
         block: &Block,
         _location: &FileLocation,
-    ) -> Result<WalletInstance, Diagnostic> {
-        let Some((namespace, wallet_id)) = namespaced_action.split_once("::") else {
+    ) -> Result<SignerInstance, Diagnostic> {
+        let Some((namespace, signer_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
         let ctx = self.get_factory(namespace, &package_id.did())?;
-        ctx.create_signing_command_instance(wallet_id, namespace, wallet_name, block, package_id)
+        ctx.create_signer_instance(signer_id, namespace, signer_name, block, package_id)
     }
 }
 
@@ -654,7 +654,7 @@ pub struct AddonConstructFactory {
     /// Commands supported by addon
     pub commands: HashMap<CommandId, PreCommandSpecification>,
     /// Signing commands supported by addon
-    pub signing_commands: HashMap<String, WalletSpecification>,
+    pub signers: HashMap<String, SignerSpecification>,
 }
 
 impl AddonConstructFactory {
@@ -693,23 +693,23 @@ impl AddonConstructFactory {
         }
     }
 
-    pub fn create_signing_command_instance(
+    pub fn create_signer_instance(
         self: &Self,
-        wallet_id: &str,
+        signer_id: &str,
         namespace: &str,
-        wallet_name: &str,
+        signer_name: &str,
         block: &Block,
         package_id: &PackageId,
-    ) -> Result<WalletInstance, Diagnostic> {
-        let Some(wallet_spec) = self.signing_commands.get(wallet_id) else {
+    ) -> Result<SignerInstance, Diagnostic> {
+        let Some(signer_spec) = self.signers.get(signer_id) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unknown wallet specification: {} ({})",
-                wallet_id, wallet_name
+                "unknown signer specification: {} ({})",
+                signer_id, signer_name
             )));
         };
-        Ok(WalletInstance {
-            name: wallet_name.to_string(),
-            specification: wallet_spec.clone(),
+        Ok(SignerInstance {
+            name: signer_name.to_string(),
+            specification: signer_spec.clone(),
             block: block.clone(),
             package_id: package_id.clone(),
             namespace: namespace.to_string(),

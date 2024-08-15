@@ -8,8 +8,8 @@ use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::Diagnostic;
+use kit::types::signers::SignerInstance;
 use kit::types::types::Value;
-use kit::types::wallets::WalletInstance;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 use kit::AddonDefaults;
 use txtx_addon_kit::hcl;
@@ -18,7 +18,7 @@ use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, Runtim
 
 pub enum ConstructInstanceType {
     Executable(CommandInstance),
-    Signing(WalletInstance),
+    Signing(SignerInstance),
     Import,
 }
 
@@ -28,7 +28,7 @@ pub struct RunbookWorkspaceContext {
     pub runbook_id: RunbookId,
     /// Map of packages. A package is either a standalone .tx file, or a directory enclosing multiple .tx files
     pub packages: HashMap<PackageId, Package>,
-    /// Map of constructs. A construct refers to root level objects (input, action, output, wallet, import, ...)
+    /// Map of constructs. A construct refers to root level objects (input, action, output, signer, import, ...)
     pub constructs: HashMap<ConstructDid, ConstructId>,
     /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
     pub environment_variables_did_lookup: BTreeMap<String, ConstructDid>,
@@ -260,30 +260,28 @@ impl RunbookWorkspaceContext {
                             }
                         };
                     }
-                    "wallet" => {
-                        let (Some(wallet_name), Some(namespaced_wallet_cmd)) =
+                    "signer" => {
+                        let (Some(signer_name), Some(namespaced_signer_cmd)) =
                             (block.labels.get(0), block.labels.get(1))
                         else {
                             diagnostics.push(
-                                Diagnostic::error_from_string("wallet syntax invalid".into())
+                                Diagnostic::error_from_string("signer syntax invalid".into())
                                     .location(&location),
                             );
                             continue;
                         };
-                        match runtime_context
-                            .addons_context
-                            .create_signing_command_instance(
-                                &namespaced_wallet_cmd.as_str(),
-                                wallet_name.as_str(),
-                                &package_id,
-                                &block,
-                                &location,
-                            ) {
-                            Ok(wallet_instance) => {
+                        match runtime_context.addons_context.create_signer_instance(
+                            &namespaced_signer_cmd.as_str(),
+                            signer_name.as_str(),
+                            &package_id,
+                            &block,
+                            &location,
+                        ) {
+                            Ok(signer_instance) => {
                                 let _ = self.index_construct(
-                                    wallet_name.to_string(),
+                                    signer_name.to_string(),
                                     location.clone(),
-                                    PreConstructData::Wallet(wallet_instance),
+                                    PreConstructData::Signer(signer_instance),
                                     &package_id,
                                     graph_context,
                                     execution_context,
@@ -433,12 +431,12 @@ impl RunbookWorkspaceContext {
                 );
                 ConstructInstanceType::Executable(command_instance)
             }
-            PreConstructData::Wallet(wallet_instance) => {
-                package.signing_commands_dids.insert(construct_did.clone());
+            PreConstructData::Signer(signer_instance) => {
+                package.signers_dids.insert(construct_did.clone());
                 package
-                    .signing_commands_did_lookup
+                    .signers_did_lookup
                     .insert(construct_name, construct_did.clone());
-                ConstructInstanceType::Signing(wallet_instance)
+                ConstructInstanceType::Signing(signer_instance)
             }
             PreConstructData::Root => unreachable!(),
         };
@@ -453,7 +451,7 @@ impl RunbookWorkspaceContext {
             }
             ConstructInstanceType::Signing(instance) => {
                 execution_context
-                    .signing_commands_instances
+                    .signers_instances
                     .insert(construct_did.clone(), instance);
             }
             ConstructInstanceType::Import => {}
@@ -579,15 +577,14 @@ impl RunbookWorkspaceContext {
                     }
                 }
 
-                // Look for wallets
-                if component.eq_ignore_ascii_case("wallet") {
+                // Look for signers
+                if component.eq_ignore_ascii_case("signer") {
                     is_root = false;
-                    let Some(wallet_name) = components.pop_front() else {
+                    let Some(signer_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_did) = current_package
-                        .signing_commands_did_lookup
-                        .get(&wallet_name)
+                    if let Some(construct_did) =
+                        current_package.signers_did_lookup.get(&signer_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }

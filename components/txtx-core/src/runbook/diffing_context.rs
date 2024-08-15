@@ -33,7 +33,7 @@ pub struct RunbookRunSnapshot {
     /// Snapshot of the packages pulled by the runbook
     pub packages: IndexMap<PackageDid, PackageSnapshot>,
     /// Snapshot of the signing commands evaluations
-    pub signing_commands: IndexMap<ConstructDid, SigningCommandSnapshot>,
+    pub signers: IndexMap<ConstructDid, SigningCommandSnapshot>,
     /// Snapshot of the commands evaluations
     pub commands: IndexMap<ConstructDid, CommandSnapshot>,
 }
@@ -138,7 +138,7 @@ impl RunbookSnapshotContext {
                         let run = RunbookRunSnapshot {
                             inputs,
                             packages: IndexMap::new(),
-                            signing_commands: IndexMap::new(),
+                            signers: IndexMap::new(),
                             commands: IndexMap::new(),
                         };
                         (run, constructs_ids_to_consider)
@@ -151,7 +151,7 @@ impl RunbookSnapshotContext {
                         let run = RunbookRunSnapshot {
                             inputs,
                             packages: IndexMap::new(),
-                            signing_commands: IndexMap::new(),
+                            signers: IndexMap::new(),
                             commands: IndexMap::new(),
                         };
                         (run, constructs_ids_to_consider)
@@ -203,21 +203,21 @@ impl RunbookSnapshotContext {
             }
 
             // Signing commands
-            for (signing_construct_did, downstream_constructs_dids) in running_context
+            for (signer_did, downstream_constructs_dids) in running_context
                 .execution_context
-                .signing_commands_downstream_dependencies
+                .signers_downstream_dependencies
                 .iter()
             {
                 let command_instance = running_context
                     .execution_context
-                    .signing_commands_instances
-                    .get(&signing_construct_did)
+                    .signers_instances
+                    .get(&signer_did)
                     .unwrap();
 
                 let signing_construct_id = running_context
                     .workspace_context
                     .constructs
-                    .get(signing_construct_did)
+                    .get(signer_did)
                     .unwrap();
 
                 let downstream_constructs_dids = downstream_constructs_dids
@@ -225,8 +225,8 @@ impl RunbookSnapshotContext {
                     .map(|c| c.clone())
                     .collect();
 
-                let command_to_update = match run.signing_commands.get_mut(signing_construct_did) {
-                    Some(signing_command) => signing_command,
+                let command_to_update = match run.signers.get_mut(signer_did) {
+                    Some(signer) => signer,
                     None => {
                         let new_command = SigningCommandSnapshot {
                             package_did: command_instance.package_id.did(),
@@ -238,9 +238,8 @@ impl RunbookSnapshotContext {
                             inputs: IndexMap::new(),
                             outputs: IndexMap::new(),
                         };
-                        run.signing_commands
-                            .insert(signing_construct_did.clone(), new_command);
-                        run.signing_commands.get_mut(signing_construct_did).unwrap()
+                        run.signers.insert(signer_did.clone(), new_command);
+                        run.signers.get_mut(signer_did).unwrap()
                     }
                 };
 
@@ -250,7 +249,7 @@ impl RunbookSnapshotContext {
                 if let Some(inputs_evaluations) = running_context
                     .execution_context
                     .commands_inputs_evaluation_results
-                    .get(signing_construct_did)
+                    .get(signer_did)
                 {
                     for input in command_instance.specification.inputs.iter() {
                         let Some(value) = inputs_evaluations.inputs.get_value(&input.name) else {
@@ -291,7 +290,7 @@ impl RunbookSnapshotContext {
                 if let Some(outputs_results) = running_context
                     .execution_context
                     .commands_execution_results
-                    .get(signing_construct_did)
+                    .get(signer_did)
                 {
                     for output in command_instance.specification.outputs.iter() {
                         let Some(value) = outputs_results.outputs.get(&output.name) else {
@@ -375,7 +374,7 @@ impl RunbookSnapshotContext {
                     .is_some();
 
                 let command_to_update = match run.commands.get_mut(construct_did) {
-                    Some(signing_command) => signing_command,
+                    Some(signer) => signer,
                     None => {
                         let new_command = CommandSnapshot {
                             package_did: command_instance.package_id.did(),
@@ -534,7 +533,7 @@ impl RunbookSnapshotContext {
             .collect::<Vec<_>>();
         let runs_ids_sequence_changes =
             capture_diff_slices(Algorithm::Myers, &old_runs_ids, &new_runs_ids);
-        // println!("Comparing \n{:?}\n{:?}", old_signing_commands_dids, new_signing_commands_dids);
+        // println!("Comparing \n{:?}\n{:?}", old_signers_dids, new_signers_dids);
 
         let mut comparable_runs_ids_list = vec![];
         // let mut runs_ids_to_add = vec![];
@@ -605,26 +604,23 @@ impl RunbookSnapshotContext {
             ));
 
             // if changes, we should recompute some temporary ids for packages and constructs
-            let old_signing_commands = old_run.signing_commands.clone();
-            let new_signing_commands = new_run.signing_commands.clone();
+            let old_signers = old_run.signers.clone();
+            let new_signers = new_run.signers.clone();
 
-            let old_signing_commands_dids = old_signing_commands
+            let old_signers_dids = old_signers
                 .iter()
                 .map(|(c, _)| c.to_string())
                 .collect::<Vec<_>>();
-            let new_signing_commands_dids = new_signing_commands
+            let new_signers_dids = new_signers
                 .iter()
                 .map(|(c, _)| c.to_string())
                 .collect::<Vec<_>>();
-            let signing_command_sequence_changes = capture_diff_slices(
-                Algorithm::Myers,
-                &old_signing_commands_dids,
-                &new_signing_commands_dids,
-            );
-            // println!("Comparing \n{:?}\n{:?}", old_signing_commands_dids, new_signing_commands_dids);
+            let signer_sequence_changes =
+                capture_diff_slices(Algorithm::Myers, &old_signers_dids, &new_signers_dids);
+            // println!("Comparing \n{:?}\n{:?}", old_signers_dids, new_signers_dids);
 
             let mut comparable_signing_constructs_list = vec![];
-            for change in signing_command_sequence_changes.iter() {
+            for change in signer_sequence_changes.iter() {
                 match change {
                     DiffOp::Equal {
                         old_index,
@@ -661,21 +657,20 @@ impl RunbookSnapshotContext {
             }
 
             for (old_index, new_index) in comparable_signing_constructs_list.into_iter() {
-                let ((old_signing_command_id, old_signing_command), (_, new_signing_command)) =
-                    match (
-                        old_signing_commands.get_index(old_index),
-                        new_signing_commands.get_index(new_index),
-                    ) {
-                        (Some(old), Some(new)) => (old, new),
-                        _ => continue,
-                    };
+                let ((old_signer_id, old_signer), (_, new_signer)) = match (
+                    old_signers.get_index(old_index),
+                    new_signers.get_index(new_index),
+                ) {
+                    (Some(old), Some(new)) => (old, new),
+                    _ => continue,
+                };
 
                 // Construct name
                 plan_changes.constructs_to_update.push(evaluated_diff(
-                    Some(old_signing_command_id.clone()),
+                    Some(old_signer_id.clone()),
                     TextDiff::from_lines(
-                        old_signing_command.construct_name.as_str(),
-                        new_signing_command.construct_name.as_str(),
+                        old_signer.construct_name.as_str(),
+                        new_signer.construct_name.as_str(),
                     ),
                     format!("Signing command's name updated"),
                     false,
@@ -683,10 +678,10 @@ impl RunbookSnapshotContext {
 
                 // Construct path
                 plan_changes.constructs_to_update.push(evaluated_diff(
-                    Some(old_signing_command_id.clone()),
+                    Some(old_signer_id.clone()),
                     TextDiff::from_lines(
-                        &old_signing_command.construct_location.to_string(),
-                        &new_signing_command.construct_location.to_string(),
+                        &old_signer.construct_location.to_string(),
+                        &new_signer.construct_location.to_string(),
                     ),
                     format!("Signing command's path updated"),
                     false,
@@ -694,16 +689,10 @@ impl RunbookSnapshotContext {
 
                 // Construct driver
                 plan_changes.constructs_to_update.push(evaluated_diff(
-                    Some(old_signing_command_id.clone()),
+                    Some(old_signer_id.clone()),
                     TextDiff::from_lines(
-                        old_signing_command
-                            .construct_addon
-                            .as_ref()
-                            .unwrap_or(&empty_string),
-                        new_signing_command
-                            .construct_addon
-                            .as_ref()
-                            .unwrap_or(&empty_string),
+                        old_signer.construct_addon.as_ref().unwrap_or(&empty_string),
+                        new_signer.construct_addon.as_ref().unwrap_or(&empty_string),
                     ),
                     format!("Signing command's driver updated"),
                     true,
@@ -714,9 +703,9 @@ impl RunbookSnapshotContext {
 
                 let mut inner_changes = diff_command_snapshots(
                     &old_run,
-                    &old_signing_command.downstream_constructs_dids,
+                    &old_signer.downstream_constructs_dids,
                     &new_run,
-                    &new_signing_command.downstream_constructs_dids,
+                    &new_signer.downstream_constructs_dids,
                     &mut visited_constructs,
                 );
 

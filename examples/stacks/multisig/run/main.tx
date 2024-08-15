@@ -31,7 +31,7 @@ action "send_name_preorder" "stacks::call_contract" {
       ),
       stacks::cv_uint(action.get_name_price.value), 
   ]
-  signer = wallet.alice_and_bob
+  signer = signer.alice_and_bob
   confirmations = 1
 }
 
@@ -45,7 +45,7 @@ action "send_name_register" "stacks::call_contract" {
       stacks::cv_buff(encode_hex(input.salt)),
       stacks::cv_buff(encode_hex(input.zonefile)),
   ]
-  signer = wallet.alice_and_bob
+  signer = signer.alice_and_bob
   confirmations = 1
   depends_on = [action.send_name_preorder.tx_id]
 }

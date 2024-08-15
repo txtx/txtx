@@ -37,7 +37,7 @@ Additionally, the [Visual Studio Code extension](https://marketplace.visualstudi
 ```console
 $ txtx ls
 Name                ID               Description
-BNS Multisig        bns-multisig     Register a BNS name using a multisig wallet
+BNS Multisig        bns-multisig     Register a BNS name using a multisig signer
 ```
 
 ### Execute an existing runbook

@@ -11,7 +11,7 @@ mod typing;
 use txtx_addon_kit::{
     types::{
         commands::PreCommandSpecification, functions::FunctionSpecification,
-        wallets::WalletSpecification,
+        signers::SignerSpecification,
     },
     Addon,
 };
@@ -46,7 +46,7 @@ impl Addon for BitcoinNetworkAddon {
         commands::actions::ACTIONS.clone()
     }
 
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
+    fn get_signers(&self) -> Vec<SignerSpecification> {
         vec![]
     }
 }

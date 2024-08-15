@@ -1,9 +1,0 @@
----
-name: Arkadiko
-id: arkadiko
-runbooks:
-- name: Set Collateral Token
-  id: set-collateral-token
-  description: This runbook calls the set-token function of the arkadiko-vaults-tokens-v1-1
-    contract.
-  location: "./run"

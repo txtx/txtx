@@ -18,11 +18,11 @@ use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
-use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, CheckSignabilityOk, SigningCommandsState, WalletActionErr,
-    WalletActionsFutureResult, WalletActivateFutureResult, WalletInstance, WalletSignFutureResult,
+use txtx_addon_kit::types::signers::{
+    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
-use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
+use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -32,8 +32,8 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
+use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::StacksValue;
@@ -42,11 +42,11 @@ use crate::typing::STACKS_TRANSACTION;
 use super::DEFAULT_DERIVATION_PATH;
 
 lazy_static! {
-    pub static ref STACKS_MNEMONIC: WalletSpecification = define_wallet! {
+    pub static ref STACKS_MNEMONIC: SignerSpecification = define_signer! {
         StacksMnemonic => {
-          name: "Mnemonic Wallet",
+          name: "Mnemonic Signer",
           matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` wallet can be used to synchronously sign a transaction."#},
+          documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
           inputs: [
             mnemonic: {
                 documentation: "The mnemonic phrase used to generate the secret key.",
@@ -84,7 +84,7 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-        wallet "bob" "stacks::mnemonic" {
+        signer "bob" "stacks::mnemonic" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
         }
@@ -94,9 +94,9 @@ lazy_static! {
 }
 
 pub struct StacksMnemonic;
-impl WalletImplementation for StacksMnemonic {
+impl SignerImplementation for StacksMnemonic {
     fn check_instantiability(
-        _ctx: &WalletSpecification,
+        _ctx: &SignerSpecification,
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -106,22 +106,22 @@ impl WalletImplementation for StacksMnemonic {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         args: &ValueStore,
-        mut signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActionsFutureResult {
+    ) -> SignerActionsFutureResult {
         use crate::constants::CHECKED_PUBLIC_KEY;
 
         let mut actions = Actions::none();
 
-        if signing_command_state.get_value(PUBLIC_KEYS).is_some() {
-            return return_synchronous_actions(Ok((wallets, signing_command_state, actions)));
+        if signer_state.get_value(PUBLIC_KEYS).is_some() {
+            return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
@@ -138,19 +138,19 @@ impl WalletImplementation for StacksMnemonic {
             "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
             _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
         };
-        signing_command_state.insert("mnemonic", mnemonic);
-        signing_command_state.insert("derivation_path", derivation_path);
-        signing_command_state.insert("is_encrypted", is_encrypted);
-        signing_command_state.insert("hash_flag", Value::integer(version.into()));
-        signing_command_state.insert("multi_sig", Value::bool(false));
+        signer_state.insert("mnemonic", mnemonic);
+        signer_state.insert("derivation_path", derivation_path);
+        signer_state.insert("is_encrypted", is_encrypted);
+        signer_state.insert("hash_flag", Value::integer(version.into()));
+        signer_state.insert("multi_sig", Value::bool(false));
 
-        let (_, public_key, expected_address) =
-            match compute_keypair(args, defaults, &signing_command_state) {
-                Ok(value) => value,
-                Err(diag) => return Err((wallets, signing_command_state, diag)),
-            };
-        signing_command_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        signing_command_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
+        let (_, public_key, expected_address) = match compute_keypair(args, defaults, &signer_state)
+        {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
+        signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -168,22 +168,22 @@ impl WalletImplementation for StacksMnemonic {
                 )],
             );
         }
-        let future = async move { Ok((wallets, signing_command_state, actions)) };
+        let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))
     }
 
     fn activate(
         _construct_id: &ConstructDid,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult {
+    ) -> SignerActivateFutureResult {
         let result = CommandExecutionResult::new();
-        return_synchronous_result(Ok((wallets, signing_command_state, result)))
+        return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
     fn check_signability(
@@ -191,34 +191,34 @@ impl WalletImplementation for StacksMnemonic {
         _title: &str,
         _description: &Option<String>,
         _payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
-    ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        Ok((wallets, signing_command_state, Actions::none()))
+    ) -> Result<CheckSignabilityOk, SignerActionErr> {
+        Ok((signers, signer_state, Actions::none()))
     }
 
     fn sign(
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         args: &ValueStore,
-        signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
-    ) -> WalletSignFutureResult {
+    ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
 
         let (secret_key_value, public_key_value, _) =
-            match compute_keypair(args, defaults, &signing_command_state) {
+            match compute_keypair(args, defaults, &signer_state) {
                 Ok(value) => value,
-                Err(diag) => return Err((wallets, signing_command_state, diag)),
+                Err(diag) => return Err((signers, signer_state, diag)),
             };
 
         let payload_buffer = payload.expect_addon_data();
@@ -258,21 +258,21 @@ impl WalletImplementation for StacksMnemonic {
                 .insert(SIGNED_MESSAGE_BYTES.into(), signature);
         }
 
-        return_synchronous_result(Ok((wallets, signing_command_state, result)))
+        return_synchronous_result(Ok((signers, signer_state, result)))
     }
 }
 
 pub fn compute_keypair(
     args: &ValueStore,
     defaults: &AddonDefaults,
-    signing_command_state: &ValueStore,
+    signer_state: &ValueStore,
 ) -> Result<(Value, Value, StacksAddress), Diagnostic> {
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
-    let mnemonic = signing_command_state.get_expected_string("mnemonic")?;
-    let derivation_path = signing_command_state
+    let mnemonic = signer_state.get_expected_string("mnemonic")?;
+    let derivation_path = signer_state
         .get_expected_string("derivation_path")
         .unwrap_or(DEFAULT_DERIVATION_PATH);
-    let is_encrypted = signing_command_state
+    let is_encrypted = signer_state
         .get_expected_bool("is_encrypted")
         .unwrap_or(false);
     if is_encrypted {

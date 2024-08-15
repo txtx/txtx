@@ -13,11 +13,11 @@ use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
-use txtx_addon_kit::types::wallets::{
-    return_synchronous_result, CheckSignabilityOk, WalletActionErr, WalletActionsFutureResult,
-    WalletActivateFutureResult, WalletInstance, WalletSignFutureResult,
+use txtx_addon_kit::types::signers::{
+    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerInstance, SignerSignFutureResult,
 };
-use txtx_addon_kit::types::wallets::{WalletImplementation, WalletSpecification};
+use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -25,24 +25,24 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{
-    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+    signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
 use crate::typing::EvmValue;
-use txtx_addon_kit::types::wallets::return_synchronous_actions;
+use txtx_addon_kit::types::signers::return_synchronous_actions;
 
 use crate::constants::PUBLIC_KEYS;
 
 use super::DEFAULT_DERIVATION_PATH;
 
 lazy_static! {
-    pub static ref EVM_MNEMONIC: WalletSpecification = define_wallet! {
+    pub static ref EVM_MNEMONIC: SignerSpecification = define_signer! {
         EVMMnemonic => {
-          name: "EVM Mnemonic Wallet",
+          name: "EVM Mnemonic Signer",
           matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` wallet can be used to synchronously sign a transaction."#},
+          documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` signer can be used to synchronously sign a transaction."#},
           inputs: [
             mnemonic: {
                 documentation: "The mnemonic phrase used to generate the secret key.",
@@ -84,7 +84,7 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-        wallet "bob" "evm::mnemonic" {
+        signer "bob" "evm::mnemonic" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
         }
@@ -94,9 +94,9 @@ lazy_static! {
 }
 
 pub struct EVMMnemonic;
-impl WalletImplementation for EVMMnemonic {
+impl SignerImplementation for EVMMnemonic {
     fn check_instantiability(
-        _ctx: &WalletSpecification,
+        _ctx: &SignerSpecification,
         _args: Vec<Type>,
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
@@ -106,20 +106,20 @@ impl WalletImplementation for EVMMnemonic {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         args: &ValueStore,
-        mut signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
-    ) -> WalletActionsFutureResult {
+    ) -> SignerActionsFutureResult {
         let mut actions = Actions::none();
 
-        if signing_command_state.get_value(PUBLIC_KEYS).is_some() {
-            return return_synchronous_actions(Ok((wallets, signing_command_state, actions)));
+        if signer_state.get_value(PUBLIC_KEYS).is_some() {
+            return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
         let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
@@ -133,21 +133,21 @@ impl WalletImplementation for EVMMnemonic {
         };
         // let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
 
-        signing_command_state.insert("mnemonic", mnemonic);
-        signing_command_state.insert("derivation_path", derivation_path);
-        signing_command_state.insert("is_encrypted", is_encrypted);
+        signer_state.insert("mnemonic", mnemonic);
+        signer_state.insert("derivation_path", derivation_path);
+        signer_state.insert("is_encrypted", is_encrypted);
 
-        let expected_wallet = match get_mnemonic_wallet(args, defaults, &signing_command_state) {
+        let expected_signer = match get_mnemonic_signer(args, defaults, &signer_state) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let expected_address: Address = expected_wallet.address();
-        signing_command_state.insert(
+        let expected_address: Address = expected_signer.address();
+        signer_state.insert(
             "signer_address",
             Value::string(expected_address.to_string()),
         );
-        // wallet_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        // wallet_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
+        // signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
+        // signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -165,26 +165,26 @@ impl WalletImplementation for EVMMnemonic {
                 )],
             );
         }
-        let future = async move { Ok((wallets, signing_command_state, actions)) };
+        let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))
     }
 
     fn activate(
         _construct_id: &ConstructDid,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
-    ) -> WalletActivateFutureResult {
+    ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
-        let address = signing_command_state
+        let address = signer_state
             .get_expected_value("signer_address")
-            .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
         result.outputs.insert("address".into(), address.clone());
-        return_synchronous_result(Ok((wallets, signing_command_state, result)))
+        return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
     fn check_signability(
@@ -192,28 +192,28 @@ impl WalletImplementation for EVMMnemonic {
         _title: &str,
         _description: &Option<String>,
         _payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         _args: &ValueStore,
-        signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
-    ) -> Result<CheckSignabilityOk, WalletActionErr> {
-        Ok((wallets, signing_command_state, Actions::none()))
+    ) -> Result<CheckSignabilityOk, SignerActionErr> {
+        Ok((signers, signer_state, Actions::none()))
     }
 
     fn sign(
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        _spec: &WalletSpecification,
+        _spec: &SignerSpecification,
         args: &ValueStore,
-        mut signing_command_state: ValueStore,
-        wallets: SigningCommandsState,
-        _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
+        mut signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
-    ) -> WalletSignFutureResult {
+    ) -> SignerSignFutureResult {
         let args = args.clone();
         let payload = payload.clone();
         let defaults = defaults.clone();
@@ -222,12 +222,11 @@ impl WalletImplementation for EVMMnemonic {
             let mut result = CommandExecutionResult::new();
 
             let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults).unwrap();
-            let mnemonic_signer =
-                match get_mnemonic_wallet(&args, &defaults, &signing_command_state) {
-                    Ok(value) => value,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
-                };
-            let eth_wallet = EthereumWallet::from(mnemonic_signer);
+            let mnemonic_signer = match get_mnemonic_signer(&args, &defaults, &signer_state) {
+                Ok(value) => value,
+                Err(diag) => return Err((signers, signer_state, diag)),
+            };
+            let eth_signer = EthereumWallet::from(mnemonic_signer);
 
             let payload_bytes = payload.expect_buffer_bytes();
 
@@ -237,18 +236,18 @@ impl WalletImplementation for EVMMnemonic {
                 tx.set_create();
             }
 
-            let tx_envelope = tx.build(&eth_wallet).await.unwrap();
+            let tx_envelope = tx.build(&eth_signer).await.unwrap();
             let tx_nonce = tx_envelope.nonce();
 
             let url = Url::try_from(rpc_api_url.as_ref()).unwrap();
             let provider = ProviderBuilder::new()
                 .with_recommended_fillers()
-                .wallet(eth_wallet)
+                .wallet(eth_signer)
                 .on_http(url);
             let pending_tx = provider.send_tx_envelope(tx_envelope).await.map_err(|e| {
                 (
-                    wallets.clone(),
-                    signing_command_state.clone(),
+                    signers.clone(),
+                    signer_state.clone(),
                     diagnosed_error!("error signing transaction: {e}"),
                 )
             })?;
@@ -256,21 +255,21 @@ impl WalletImplementation for EVMMnemonic {
             result
                 .outputs
                 .insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
-            signing_command_state.insert(NONCE, Value::integer(tx_nonce.into()));
-            Ok((wallets, signing_command_state, result))
+            signer_state.insert(NONCE, Value::integer(tx_nonce.into()));
+            Ok((signers, signer_state, result))
         };
         Ok(Box::pin(future))
     }
 }
 
 type MnemonicSigner = LocalSigner<SigningKey>;
-pub fn get_mnemonic_wallet(
+pub fn get_mnemonic_signer(
     _args: &ValueStore,
     _defaults: &AddonDefaults,
-    wallet_state: &ValueStore,
+    signer_state: &ValueStore,
 ) -> Result<MnemonicSigner, Diagnostic> {
-    let mnemonic = wallet_state.get_expected_string("mnemonic")?;
-    let derivation_path = wallet_state
+    let mnemonic = signer_state.get_expected_string("mnemonic")?;
+    let derivation_path = signer_state
         .get_expected_string("derivation_path")
         .unwrap_or(DEFAULT_DERIVATION_PATH);
 
@@ -279,9 +278,9 @@ pub fn get_mnemonic_wallet(
         .derivation_path(derivation_path)
         .unwrap();
 
-    if let Some(password) = wallet_state.get_string("password") {
+    if let Some(password) = signer_state.get_string("password") {
         mnemonic_builder = mnemonic_builder.password(password)
     }
-    let wallet = mnemonic_builder.build().unwrap();
-    Ok(wallet)
+    let signer = mnemonic_builder.build().unwrap();
+    Ok(signer)
 }

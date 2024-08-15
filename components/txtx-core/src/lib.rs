@@ -25,7 +25,7 @@ use constants::ACTION_ITEM_ENV;
 use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
-use eval::run_wallets_evaluation;
+use eval::run_signers_evaluation;
 use kit::types::block_id::BlockId;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
@@ -83,7 +83,7 @@ pub async fn start_unsupervised_runbook_runloop(
         let mut action_item_requests = BTreeMap::new();
         let action_item_responses = BTreeMap::new();
 
-        let pass_results = run_wallets_evaluation(
+        let pass_results = run_signers_evaluation(
             &running_context.workspace_context,
             &mut running_context.execution_context,
             &runbook.runtime_context,
@@ -419,7 +419,7 @@ pub async fn start_supervised_runbook_runloop(
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.
-                let Some((wallet_construct_did, scoped_requests)) =
+                let Some((signer_construct_did, scoped_requests)) =
                     retrieve_related_action_items_requests(
                         &action_item_id,
                         &mut action_item_requests,
@@ -429,10 +429,10 @@ pub async fn start_supervised_runbook_runloop(
                 };
 
                 let mut map = BTreeMap::new();
-                map.insert(wallet_construct_did, scoped_requests);
+                map.insert(signer_construct_did, scoped_requests);
 
                 let running_context = runbook.running_contexts.first_mut().unwrap();
-                let pass_result = run_wallets_evaluation(
+                let pass_result = run_signers_evaluation(
                     &running_context.workspace_context,
                     &mut running_context.execution_context,
                     &mut runbook.runtime_context,
@@ -522,7 +522,7 @@ pub fn retrieve_related_action_items_requests<'a>(
     action_item_id: &BlockId,
     action_item_requests: &'a mut BTreeMap<BlockId, ActionItemRequest>,
 ) -> Option<(ConstructDid, Vec<&'a mut ActionItemRequest>)> {
-    let Some(wallet_construct_did) = action_item_requests
+    let Some(signer_construct_did) = action_item_requests
         .get(&action_item_id)
         .and_then(|a| a.construct_did.clone())
     else {
@@ -537,11 +537,11 @@ pub fn retrieve_related_action_items_requests<'a>(
         let Some(ref construct_did) = request.construct_did else {
             continue;
         };
-        if construct_did.eq(&wallet_construct_did) {
+        if construct_did.eq(&signer_construct_did) {
             scoped_requests.push(request);
         }
     }
-    Some((wallet_construct_did, scoped_requests))
+    Some((signer_construct_did, scoped_requests))
 }
 
 pub async fn reset_runbook_execution(
@@ -625,7 +625,7 @@ pub async fn build_genesis_panel(
         actions.push_sub_group(None, vec![action_request]);
     }
     let running_context = runbook.running_contexts.first_mut().unwrap();
-    let mut pass_result = run_wallets_evaluation(
+    let mut pass_result = run_signers_evaluation(
         &running_context.workspace_context,
         &mut running_context.execution_context,
         &runbook.runtime_context,

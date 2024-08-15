@@ -5,6 +5,12 @@ runtime "addon::stacks" {
   }
 }
 
+signer "alice" "stacks::mnemonic" {
+//   expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+  mnemonic = "cycle puppy glare enroll cost improve round trend wrist mushroom scorpion tower claim oppose clever elephant dinosaur eight problem before frozen dune wagon high"
+  // 02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33
+}
+
 action "get_name_price" "stacks::call_readonly_fn" {
   description = "Preorder name"
   contract_id = "ST000000000000000000002AMW42H.bns"
@@ -32,7 +38,7 @@ action "send_name_preorder" "stacks::call_contract" {
       stacks::cv_uint(action.get_name_price.value), 
   ]
   post_conditions = [stacks::revert_if_account_sends_more_than("signer", action.get_name_price.value)]
-  signer = wallet.alice
+  signer = signer.alice
   confirmations = 1
 }
 
@@ -46,7 +52,7 @@ action "send_name_register" "stacks::call_contract" {
       stacks::cv_buff(encode_hex(input.salt)),
       stacks::cv_buff(encode_hex(input.zonefile)),
   ]
-  signer = wallet.alice
+  signer = signer.alice
   confirmations = 1
   depends_on = [action.send_name_preorder.tx_id]
 }

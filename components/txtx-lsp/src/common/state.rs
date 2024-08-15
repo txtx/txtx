@@ -207,8 +207,8 @@ lazy_static! {
         let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
-            for wallet in addon.get_wallets() {
-                let spec = wallet;
+            for signer in addon.get_signers() {
+                let spec = signer;
                 completion_items.push(lsp_types::CompletionItem {
                     // The label of this completion item. By default
                     // also the text that is inserted when selecting
@@ -221,7 +221,7 @@ lazy_static! {
                     kind: Some(CompletionItemKind::CLASS), //Option<CompletionItemKind>,
                     // A human-readable string with additional information
                     // about this item, like type or symbol information.
-                    detail: Some(format!("wallet <name> \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().map(|i| i.name.clone()).collect::<Vec<_>>().join("\n"))), //Option<String>,
+                    detail: Some(format!("signer <name> \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().map(|i| i.name.clone()).collect::<Vec<_>>().join("\n"))), //Option<String>,
                     // A human-readable string that represents a doc-comment.
                     documentation: Some(lsp_types::Documentation::MarkupContent(MarkupContent {
                         kind: MarkupKind::Markdown,
@@ -250,7 +250,7 @@ lazy_static! {
                     // `console` is provided it will only insert `sole`. Therefore it is
                     // recommended to use `textEdit` instead since it avoids additional client
                     // side interpretation.
-                    insert_text: Some(format!("wallet \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
+                    insert_text: Some(format!("signer \"${{1:name}}\" \"{}::{}\" {{\n{}\n}}", addon.get_namespace(), spec.matcher, spec.inputs.iter().enumerate().map(|(i, input)| format!("    // {}\n    {} = ${{{}:{}}}", input.documentation, input.name, i+2, input.name)).collect::<Vec<_>>().join("\n"))),
                     // The format of the insert text. The format applies to both the `insertText` property
                     // and the `newText` property of a provided `textEdit`. If omitted defaults to `InsertTextFormat.PlainText`.
                     insert_text_format: Some(InsertTextFormat::SNIPPET), // Option<InsertTextFormat>,
@@ -469,10 +469,10 @@ impl EditorState {
         // )
         let functions = FUNCTIONS.clone();
         let mut actions = ACTIONS.clone();
-        let mut wallets = WALLETS.clone();
+        let mut signers = WALLETS.clone();
         let mut completion_items = functions;
         completion_items.append(&mut actions);
-        completion_items.append(&mut wallets);
+        completion_items.append(&mut signers);
         completion_items
     }
 
