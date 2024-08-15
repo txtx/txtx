@@ -145,6 +145,8 @@ jobs:
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
+          export OPENSSL_STATIC=yes
+          export OPENSSL_DIR=$(pkg-config --variable=libdir openssl)
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
