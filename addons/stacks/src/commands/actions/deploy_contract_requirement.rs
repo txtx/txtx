@@ -451,14 +451,23 @@ impl CommandImplementation for StacksDeployContractRequirement {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use clarity::{
+        types::StacksEpochId,
+        vm::{
+            ast::ContractAST,
+            types::{QualifiedContractIdentifier, StandardPrincipalData},
+            ClarityVersion, ContractName,
+        },
+    };
+    use clarity_repl::{
+        analysis::ast_dependency_detector::ASTDependencyDetector,
+        repl::{
+            ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
+        },
+    };
     use std::collections::BTreeMap;
-    use clarity::{types::StacksEpochId, vm::{
-        ast::ContractAST, types::{QualifiedContractIdentifier, StandardPrincipalData}, ClarityVersion, ContractName
-    }};
-    use clarity_repl::{analysis::ast_dependency_detector::ASTDependencyDetector, repl::{ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings}};
 
     fn build_ast_from_src(
         sender: &StandardPrincipalData,
@@ -477,7 +486,7 @@ mod tests {
         let (ast, _, _) = interpreter.build_ast(&contract);
         ast
     }
-        
+
     #[test]
     fn it_retrieve_dependencies() {
         let contract_name: ContractName = "transient".try_into().unwrap();
@@ -485,8 +494,7 @@ mod tests {
         let contract_id = QualifiedContractIdentifier::new(sender.clone(), contract_name.clone());
         let clarity_version = ClarityVersion::latest();
 
-        let ast =
-            build_ast_from_src(&sender, "(+ 1 1)", &contract_name, clarity_version.clone());
+        let ast = build_ast_from_src(&sender, "(+ 1 1)", &contract_name, clarity_version.clone());
         let mut contracts_asts = BTreeMap::new();
         contracts_asts.insert(contract_id.clone(), (clarity_version, ast));
         let preloaded = BTreeMap::new();

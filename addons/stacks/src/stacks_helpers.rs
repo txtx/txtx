@@ -197,9 +197,7 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
 
 pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Diagnostic> {
     let dst = match src {
-        Value::Addon(addon_data) => {
-            parse_clarity_value(&addon_data.bytes, &addon_data.id)?
-        }
+        Value::Addon(addon_data) => parse_clarity_value(&addon_data.bytes, &addon_data.id)?,
         Value::Array(array) => {
             // should be encoded to list
             let mut values = vec![];
@@ -228,7 +226,7 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             } else if *int > 0 {
                 ClarityValue::UInt((*int).try_into().unwrap())
             } else {
-                return Err(diagnosed_error!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity."))
+                return Err(diagnosed_error!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity."));
             }
         }
         Value::Buffer(data) => {
@@ -237,9 +235,9 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             //     ClarityValue::consensus_deserialize(&mut &value_bytes[..])
             //         .map_err(|e| diagnosed_error!("{}", e.to_string()))?
             // } else {
-                ClarityValue::buff_from(data.clone()).map_err(|e| {
-                    diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string())
-                })?
+            ClarityValue::buff_from(data.clone()).map_err(|e| {
+                diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string())
+            })?
             // }
         }
         Value::Float(_) => {

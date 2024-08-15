@@ -633,7 +633,6 @@ impl EditorState {
     }
 }
 
-
 #[derive(Clone, Default, Debug)]
 pub struct WorkspaceState {
     runbooks: HashMap<FileLocation, RunbookState>,

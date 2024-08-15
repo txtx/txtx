@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier, SequenceData, SequencedValue, UTF8Data
+    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+    SequenceData, SequencedValue, UTF8Data,
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::{
@@ -952,12 +953,8 @@ fn encode_nft_post_condition(
     let asset_id_value = Value::parse_and_default_to_string(asset_id_str);
     let asset_id = encode_any_value_to_clarity_value(&asset_id_value)?;
 
-    let post_condition = TransactionPostCondition::Nonfungible(
-        principal_monitored,
-        asset_info,
-        asset_id,
-        condition,
-    );
+    let post_condition =
+        TransactionPostCondition::Nonfungible(principal_monitored, asset_info, asset_id, condition);
 
     Ok(post_condition)
 }

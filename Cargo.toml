@@ -4,10 +4,10 @@ members = [
     "components/txtx-core",
     "components/txtx-addon-kit",
     "components/txtx-lsp",
-    "components/addons/bitcoin",
-    "components/addons/evm",
-    "components/addons/stacks",
-    "components/addons/telegram"
+    "addons/bitcoin",
+    "addons/evm",
+    "addons/stacks",
+    "addons/telegram"
 ]
 default-members = ["components/txtx-cli"]
 resolver = "2"
