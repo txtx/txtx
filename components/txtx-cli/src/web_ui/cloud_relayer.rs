@@ -4,6 +4,7 @@ use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy_macro::dotenv;
+use native_tls::TlsConnector;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -362,97 +363,88 @@ impl RelayerWebSocketChannel {
         mut writer_rx: tokio::sync::mpsc::UnboundedReceiver<Message>,
         relayer_channel_tx: Sender<RelayerChannelEvent>,
     ) -> Result<(), String> {
+        let req = Request::builder()
+            .method("GET")
+            .uri(&self.ws_endpoint_url)
+            .header("authorization", format!("Bearer {}", &self.operator_token))
+            .header("sec-websocket-key", generate_key())
+            .header("host", RELAYER_HOST)
+            .header("upgrade", "websocket")
+            .header("connection", "upgrade")
+            .header("sec-websocket-version", 13)
+            .body(())
+            .map_err(|e| format!("failed to create relayer ws connection: {}", e))
+            .unwrap();
+
+        let (ws_stream, _) = connect_async_tls_with_config(
+            req,
+            None,
+            false,
+            Some(tokio_tungstenite::Connector::NativeTls(
+                TlsConnector::new().unwrap(),
+            )),
+        )
+        .await
+        .map_err(|e| format!("relayer ws channel failed: {}", e))
+        .unwrap();
+
+        let (write, mut read) = ws_stream.split();
+
+        let write_task = tokio::spawn(async move {
+            let mut write = write;
+            while let Some(message) = writer_rx.recv().await {
+                if let Err(e) = write.send(message.clone()).await {
+                    println!("Error sending message: {}", e);
+                }
+                if let Message::Close(_) = message {
+                    break;
+                }
+            }
+        });
+
+        let action_item_events_tx = self.action_item_events_tx.clone();
+        let read_task = tokio::spawn(async move {
+            while let Some(message) = read.next().await {
+                match message {
+                    Ok(msg) => match msg {
+                        Message::Text(text) => {
+                            println!("Operator received WS ActionItemResponse");
+                            let response = match serde_json::from_str::<ActionItemResponse>(&text) {
+                                Ok(response) => response,
+                                Err(e) => {
+                                    println!(
+                                        "error deserializing action item response: {}",
+                                        e.to_string()
+                                    );
+                                    continue;
+                                }
+                            };
+                            let _ = action_item_events_tx.try_send(response);
+                        }
+                        Message::Binary(_) => todo!(),
+                        Message::Ping(ping) => {
+                            // Respond with pong message to keep the connection alive
+                            match writer_tx.send(Message::Pong(ping)) {
+                                Err(e) => {
+                                    println!("Failed to queue pong message: {}", e);
+                                }
+                                Ok(_) => {}
+                            }
+                        }
+                        Message::Pong(_) => todo!(),
+                        Message::Close(_) => {
+                            println!("received close event from relayer");
+                            let _ = relayer_channel_tx.send(RelayerChannelEvent::DeleteChannel);
+                            break;
+                        }
+                        Message::Frame(_) => todo!(),
+                    },
+                    Err(e) => return Err(format!("error parsing ws message: {}", e)),
+                }
+            }
+            Ok(())
+        });
+        let _ = tokio::join!(write_task, read_task);
         Ok(())
     }
-
-    // pub async fn start(
-    //     &mut self,
-    //     writer_tx: tokio::sync::mpsc::UnboundedSender<Message>,
-    //     mut writer_rx: tokio::sync::mpsc::UnboundedReceiver<Message>,
-    //     relayer_channel_tx: Sender<RelayerChannelEvent>,
-    // ) -> Result<(), String> {
-    //     let req = Request::builder()
-    //         .method("GET")
-    //         .uri(&self.ws_endpoint_url)
-    //         .header("authorization", format!("Bearer {}", &self.operator_token))
-    //         .header("sec-websocket-key", generate_key())
-    //         .header("host", RELAYER_HOST)
-    //         .header("upgrade", "websocket")
-    //         .header("connection", "upgrade")
-    //         .header("sec-websocket-version", 13)
-    //         .body(())
-    //         .map_err(|e| format!("failed to create relayer ws connection: {}", e))
-    //         .unwrap();
-
-    //     let (ws_stream, _) = connect_async_tls_with_config(
-    //         req,
-    //         None,
-    //         false,
-    //         Some(tokio_tungstenite::Connector::Rustls(
-    //             tokio_tungstenite::::ClientConfig(),
-    //         )),
-    //     )
-    //     .await
-    //     .map_err(|e| format!("relayer ws channel failed: {}", e))
-    //     .unwrap();
-
-    //     let (write, mut read) = ws_stream.split();
-
-    //     let write_task = tokio::spawn(async move {
-    //         let mut write = write;
-    //         while let Some(message) = writer_rx.recv().await {
-    //             if let Err(e) = write.send(message.clone()).await {
-    //                 println!("Error sending message: {}", e);
-    //             }
-    //             if let Message::Close(_) = message {
-    //                 break;
-    //             }
-    //         }
-    //     });
-
-    //     let action_item_events_tx = self.action_item_events_tx.clone();
-    //     let read_task = tokio::spawn(async move {
-    //         while let Some(message) = read.next().await {
-    //             match message {
-    //                 Ok(msg) => match msg {
-    //                     Message::Text(text) => {
-    //                         println!("Operator received WS ActionItemResponse");
-    //                         let response = match serde_json::from_str::<ActionItemResponse>(&text) {
-    //                             Ok(response) => response,
-    //                             Err(e) => {
-    //                                 println!(
-    //                                     "error deserializing action item response: {}",
-    //                                     e.to_string()
-    //                                 );
-    //                                 continue;
-    //                             }
-    //                         };
-    //                         let _ = action_item_events_tx.try_send(response);
-    //                     }
-    //                     Message::Binary(_) => todo!(),
-    //                     Message::Ping(ping) => {
-    //                         // Respond with pong message to keep the connection alive
-    //                         match writer_tx.send(Message::Pong(ping)) {
-    //                             Err(e) => {
-    //                                 println!("Failed to queue pong message: {}", e);
-    //                             }
-    //                             Ok(_) => {}
-    //                         }
-    //                     }
-    //                     Message::Pong(_) => todo!(),
-    //                     Message::Close(_) => {
-    //                         println!("received close event from relayer");
-    //                         let _ = relayer_channel_tx.send(RelayerChannelEvent::DeleteChannel);
-    //                         break;
-    //                     }
-    //                     Message::Frame(_) => todo!(),
-    //                 },
-    //                 Err(e) => return Err(format!("error parsing ws message: {}", e)),
-    //             }
-    //         }
-    //         Ok(())
-    //     });
-    //     let _ = tokio::join!(write_task, read_task);
-    //     Ok(())
-    // }
 }
