@@ -1,15 +1,15 @@
 export const metadata = {
-    title: "Ethereum and EVM Compatible Blockchains (alpha) Wallets",
-    description: "Wallets for Ethereum and EVM Compatible Blockchains (alpha)",
+    title: "Ethereum and EVM Compatible Blockchains (alpha) Signers",
+    description: "Signers for Ethereum and EVM Compatible Blockchains (alpha)",
 };
 
-# Ethereum and EVM Compatible Blockchains (alpha) Wallets {{ id: "evm-wallets" }}
+# Ethereum and EVM Compatible Blockchains (alpha) Signers {{ id: "evm-signers" }}
 
 
 
-## mnemonic {{ tag: 'wallet' }}
+## mnemonic {{ tag: 'signer' }}
 
-The `evm::mnemonic` wallet can be used to synchronously sign a transaction.
+The `evm::mnemonic` signer can be used to synchronously sign a transaction.
 
 ### Inputs
 
@@ -65,7 +65,7 @@ When the `mnemonic` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "bob" "evm::mnemonic" {
+signer "bob" "evm::mnemonic" {
     mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
     derivation_path = "m/44'/5757'/0'/0/0"
 }

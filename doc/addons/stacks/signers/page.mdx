@@ -1,15 +1,15 @@
 export const metadata = {
-    title: "Stacks Blockchain (beta) Wallets",
-    description: "Wallets for Stacks Blockchain (beta)",
+    title: "Stacks Blockchain (beta) Signers",
+    description: "Signers for Stacks Blockchain (beta)",
 };
 
-# Stacks Blockchain (beta) Wallets {{ id: "stacks-wallets" }}
+# Stacks Blockchain (beta) Signers {{ id: "stacks-signers" }}
 
 
 
-## mnemonic {{ tag: 'wallet' }}
+## mnemonic {{ tag: 'signer' }}
 
-The `mnemonic` wallet can be used to synchronously sign a transaction.
+The `mnemonic` signer can be used to synchronously sign a transaction.
 
 ### Inputs
 
@@ -60,7 +60,7 @@ When the `mnemonic` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "bob" "stacks::mnemonic" {
+signer "bob" "stacks::mnemonic" {
     mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
     derivation_path = "m/44'/5757'/0'/0/0"
 }
@@ -81,10 +81,10 @@ wallet "bob" "stacks::mnemonic" {
 ---
 
 
-## connect {{ tag: 'wallet' }}
+## connect {{ tag: 'signer' }}
 
-The `connect` wallet will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
-This allows a Runbook operator to sign the transaction with the browser wallet of their choice.
+The `connect` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+This allows a Runbook operator to sign the transaction with the browser signer of their choice.
 
 ### Inputs
 
@@ -92,7 +92,7 @@ This allows a Runbook operator to sign the transaction with the browser wallet o
 
 
   <Property name="expected_address" type="">
-    The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this wallet.
+    The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
   </Property>
 
 
@@ -110,7 +110,7 @@ When the `connect` action is successfully executed, the following outputs are at
 
 
   <Property name="public_key">
-    The public key of the connected wallet.
+    The public key of the connected signer.
   </Property>
 
 
@@ -120,7 +120,7 @@ When the `connect` action is successfully executed, the following outputs are at
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "alice" "stacks::connect" {
+signer "alice" "stacks::connect" {
     expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
 }
 
@@ -140,10 +140,10 @@ wallet "alice" "stacks::connect" {
 ---
 
 
-## multisig {{ tag: 'wallet' }}
+## multisig {{ tag: 'signer' }}
 
-The `multisig` wallet creates an ordered, `n` of `n` multisig.
-Each of the specified signers can be any other supported wallet type, and will be prompted to sign in the appropriate order.
+The `multisig` signer creates an ordered, `n` of `n` multisig.
+Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order.
 
 ### Inputs
 
@@ -156,7 +156,7 @@ Each of the specified signers can be any other supported wallet type, and will b
 
 
   <Property name="expected_address" type="">
-    The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this wallet.
+    The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.
   </Property>
 
 
@@ -174,7 +174,7 @@ When the `multisig` action is successfully executed, the following outputs are a
 
 
   <Property name="public_key">
-    The public key of the generated multisig wallet.
+    The public key of the generated multisig signer.
   </Property>
 
 
@@ -189,16 +189,16 @@ When the `multisig` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "alice" "stacks::connect" {
+signer "alice" "stacks::connect" {
     expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 }
 
-wallet "bob" "stacks::connect" {
+signer "bob" "stacks::connect" {
     expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
 }
 
-wallet "alice_and_bob" "stacks::multisig" {
-    signers = [wallet.alice, wallet.bob]
+signer "alice_and_bob" "stacks::multisig" {
+    signers = [signer.alice, signer.bob]
 }
 
 ```

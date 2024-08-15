@@ -39,7 +39,7 @@ export const metadata = {
 
 ```hcl {{ title: 'main.tx' }}
 output "address" { 
-value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
+    value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
 }
 
 ```
@@ -149,6 +149,232 @@ output "32_bytes" {
 output "bytes" {
     value = evm::bytes(encode_hex("Hello, world!"))
 }
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## chain {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::chain` generates a default chain id and RPC API URL for a valid EVM compatible chain name.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    A EVM-compatible chain name. See https://chainlist.org for a list of supported chains.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The default chain data.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using chain">
+
+
+```hcl {{ title: 'main.tx' }}
+output "chain_id" {
+    value = evm::chain("optimism")
+}
+// > chain_id: 10
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_contract_from_foundry_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_contract_from_foundry_project">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## create_init_code {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="bytecode">
+    Coming Soon
+  </Property>
+
+
+  <Property name="constructor_args">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using create_init_code">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## create2 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="salt">
+    Coming Soon
+  </Property>
+
+
+  <Property name="init_code">
+    Coming Soon
+  </Property>
+
+
+  <Property name="create2_factory_contract_address">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using create2">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
 
 ```
 
