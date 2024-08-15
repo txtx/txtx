@@ -158,7 +158,7 @@ macro_rules! define_addon_type {
 }
 
 #[macro_export]
-macro_rules! define_wallet {
+macro_rules! define_signer {
     ($func_key:ident => {
         name: $fn_name:expr,
         matcher: $matcher:expr,
@@ -168,9 +168,9 @@ macro_rules! define_wallet {
         example: $example:expr,
     }) => {
         {
-          use txtx_addon_kit::types::wallets::{WalletSpecification, WalletSignClosure};
+          use txtx_addon_kit::types::signers::{SignerSpecification, SignerSignClosure};
           use txtx_addon_kit::types::commands::{CommandInput, CommandOutput};
-          WalletSpecification {
+          SignerSpecification {
             name: String::from($fn_name),
             matcher: String::from($matcher),
             documentation: String::from($doc),

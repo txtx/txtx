@@ -1,5 +1,0 @@
-
-output "hashed_data" {
-    value = encode_hex("hello, world")
-}
-// 68656C6C6F2C20776F726C64

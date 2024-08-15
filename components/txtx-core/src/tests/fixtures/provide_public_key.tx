@@ -1,4 +1,4 @@
-wallet "alice" "stacks::connect" {
+signer "alice" "stacks::connect" {
     expected_address = "a"
 }
 

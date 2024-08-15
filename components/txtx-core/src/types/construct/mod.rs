@@ -1,6 +1,6 @@
 use txtx_addon_kit::{
     hcl::structure::Block,
-    types::{commands::CommandInstance, wallets::WalletInstance},
+    types::{commands::CommandInstance, signers::SignerInstance},
 };
 
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub enum PreConstructData {
     Output(Block),
     Import(Block),
     Action(CommandInstance),
-    Wallet(WalletInstance),
+    Signer(SignerInstance),
     Addon(Block),
     Root,
 }
@@ -23,8 +23,8 @@ impl PreConstructData {
             PreConstructData::Output(_) => "output",
             PreConstructData::Module(_) => "module",
             PreConstructData::Action(_) => "action",
-            PreConstructData::Wallet(_) => "wallet",
-            PreConstructData::Addon(_) => "wallet",
+            PreConstructData::Signer(_) => "signer",
+            PreConstructData::Addon(_) => "signer",
             PreConstructData::Root => unreachable!(),
         }
     }

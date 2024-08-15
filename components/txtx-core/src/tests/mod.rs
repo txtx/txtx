@@ -354,11 +354,11 @@ fn test_ab_c_runbook_no_env() {
 }
 
 #[test]
-fn test_wallet_runbook_no_env() {
-    // Load Runbook wallet.tx
-    let wallet_tx = include_str!("./fixtures/wallet.tx");
+fn test_signer_runbook_no_env() {
+    // Load Runbook signer.tx
+    let signer_tx = include_str!("./fixtures/signer.tx");
 
-    let harness = setup_test("wallet.tx", wallet_tx);
+    let harness = setup_test("signer.tx", signer_tx);
 
     let action_panel_data =
         harness.expect_action_panel(None, "runbook checklist", vec![vec![3, 1]]);
@@ -517,7 +517,7 @@ fn test_wallet_runbook_no_env() {
 #[test]
 fn test_multisig_runbook_no_env() {
     let multisig_tx = include_str!("./fixtures/multisig.tx");
-    let harness = setup_test("wallet.tx", multisig_tx);
+    let harness = setup_test("signer.tx", multisig_tx);
 
     let modal_panel_data = harness.expect_modal(
         None,
@@ -772,13 +772,13 @@ fn test_multisig_runbook_no_env() {
 #[test]
 fn test_bns_runbook_no_env() {
     // Load Runbook abc.tx
-    let wallet_tx = include_str!("./fixtures/wallet.tx");
+    let signer_tx = include_str!("./fixtures/signer.tx");
 
     let mut runbook_sources = RunbookSources::new();
     runbook_sources.add_source(
         "bns.tx".into(),
         FileLocation::from_path_string(".").unwrap(),
-        wallet_tx.into(),
+        signer_tx.into(),
     );
     let runbook_inputs = RunbookInputsMap::new();
 
@@ -925,16 +925,16 @@ fn test_bns_runbook_no_env() {
 
 // sequenceDiagram
 //     frontend->>+runloop:
-//     runloop->>+wallet_evaluation: Process wallet
-//     wallet_evaluation->>+alice_wallet: Compute ActionItemRequests
-//     alice_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
-//     wallet_evaluation->>+bob_wallet: Compute ActionItemRequests
-//     bob_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs
-//     wallet_evaluation->>+multisig_wallet: Compute ActionItemRequests
-//     multisig_wallet-->>-alice_wallet: Is public key known?
-//     alice_wallet->>+multisig_wallet: Hi Alice, I can hear you!
-//     multisig_wallet-->>-bob_wallet: Is public key known?
-//     bob_wallet->>+multisig_wallet: Hi Alice, I can hear you!
-//     multisig_wallet-->>-wallet_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
-//     wallet_evaluation->>+runloop: Push collected ActionItemRequests
+//     runloop->>+signer_evaluation: Process signer
+//     signer_evaluation->>+alice_signer: Compute ActionItemRequests
+//     alice_signer-->>-signer_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
+//     signer_evaluation->>+bob_signer: Compute ActionItemRequests
+//     bob_signer-->>-signer_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs
+//     signer_evaluation->>+multisig_signer: Compute ActionItemRequests
+//     multisig_signer-->>-alice_signer: Is public key known?
+//     alice_signer->>+multisig_signer: Hi Alice, I can hear you!
+//     multisig_signer-->>-bob_signer: Is public key known?
+//     bob_signer->>+multisig_signer: Hi Alice, I can hear you!
+//     multisig_signer-->>-signer_evaluation: ProvidePublicKey, InputReview[public_key], InputReview[balance], InputReview[costs]
+//     signer_evaluation->>+runloop: Push collected ActionItemRequests
 //     runloop->>+frontend:

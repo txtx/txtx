@@ -445,7 +445,7 @@ pub async fn run_action(
     let factory = AddonConstructFactory {
         functions: addon.build_function_lookup(),
         commands: addon.build_command_lookup(),
-        signing_commands: addon.build_wallet_lookup(),
+        signers: addon.build_signer_lookup(),
     };
     let block = Block::new(Ident::new("action"));
     let construct_did = Did::zero();

@@ -1,14 +1,14 @@
 export const metadata = {
-    title: "{{ addon_name }} Wallets",
-    description: "Wallets for {{ addon_name }}",
+    title: "{{ addon_name }} Signers",
+    description: "Signers for {{ addon_name }}",
 };
 
-# {{ addon_name }} Wallets {{double_open}} id: "{{ addon_namespace }}-wallets" {{double_close}}
+# {{ addon_name }} Signers {{double_open}} id: "{{ addon_namespace }}-signers" {{double_close}}
 
 
-{{# wallets }}
+{{# signers }}
 
-## {{ matcher }} {{double_open}} tag: 'wallet' {{double_close}}
+## {{ matcher }} {{double_open}} tag: 'signer' {{double_close}}
 
 {{{ documentation }}}
 
@@ -66,4 +66,4 @@ When the `{{ matcher }}` action is successfully executed, the following outputs 
 
 ---
 
-{{/ wallets }}
+{{/ signers }}

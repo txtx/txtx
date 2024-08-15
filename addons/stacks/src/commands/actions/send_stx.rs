@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     types::{
@@ -11,8 +11,8 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::BlockEvent,
+        signers::{SignerInstance, SignerSignFutureResult, SignersState},
         types::Type,
-        wallets::{SigningCommandsState, WalletInstance, WalletSignFutureResult},
         ConstructDid, ValueStore,
     },
     AddonDefaults,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 use super::encode_stx_transfer;
-use super::get_signing_construct_did;
+use super::get_signer_did;
 use super::{
     broadcast_transaction::BroadcastStacksTransaction, sign_transaction::SignStacksTransaction,
 };
@@ -34,7 +34,7 @@ lazy_static! {
         SendStxTransfer => {
             name: "Send STX Transfer Transaction",
             matcher: "send_stx",
-            documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
+            documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -69,7 +69,7 @@ lazy_static! {
                     interpolable: true
                 },
                 signer: {
-                    documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
                     optional: false,
                     interpolable: true
@@ -113,7 +113,7 @@ lazy_static! {
                 recipient = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
                 amount = 1000000
                 memo = "0x10394390"
-                signer = wallet.alice
+                signer = signer.alice
             }            
             output "transfer_tx_id" {
                 value = action.stx_transfer.tx_id
@@ -140,33 +140,31 @@ impl CommandImplementation for SendStxTransfer {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
         let network_id: String = match args.get_defaulting_string("network_id", defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let recipient = match args.get_expected_value("recipient") {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let amount = match args.get_expected_uint("amount") {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let memo = args.get_value("memo");
 
         let bytes = match encode_stx_transfer(spec, recipient, amount, &memo, &network_id) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
-        wallets.push_signing_command_state(signing_command_state);
+        signers.push_signer_state(signer_state);
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
@@ -178,8 +176,8 @@ impl CommandImplementation for SendStxTransfer {
             &args,
             defaults,
             supervision_context,
-            wallets_instances,
-            wallets,
+            signers_instances,
+            signers,
         )
     }
 
@@ -189,9 +187,9 @@ impl CommandImplementation for SendStxTransfer {
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers: SignersState,
+    ) -> SignerSignFutureResult {
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
 
         let recipient = args.get_expected_value("recipient").unwrap();
@@ -201,7 +199,7 @@ impl CommandImplementation for SendStxTransfer {
         let bytes = encode_stx_transfer(spec, recipient, amount, &memo, &network_id).unwrap();
         let progress_tx = progress_tx.clone();
         let args = args.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -217,10 +215,10 @@ impl CommandImplementation for SendStxTransfer {
                 &args,
                 &defaults,
                 &progress_tx,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -245,14 +243,14 @@ impl CommandImplementation for SendStxTransfer {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                    Err(diag) => return Err((signers, signer_state, diag)),
                 },
-                Err(data) => return Err((wallets, signing_command_state, data)),
+                Err(data) => return Err((signers, signer_state, data)),
             };
 
             res_signing.append(&mut res);
 
-            Ok((wallets, signing_command_state, res_signing))
+            Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
     }

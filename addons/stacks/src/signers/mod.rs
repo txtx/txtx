@@ -4,8 +4,8 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
+    signers::SignerSpecification,
     types::Value,
-    wallets::WalletSpecification,
     ConstructDid,
 };
 
@@ -28,7 +28,7 @@ use crate::{
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
 
 lazy_static! {
-    pub static ref WALLETS: Vec<WalletSpecification> = vec![
+    pub static ref WALLETS: Vec<SignerSpecification> = vec![
         STACKS_MNEMONIC.clone(),
         STACKS_CONNECT.clone(),
         STACKS_MULTISIG.clone()
@@ -37,7 +37,7 @@ lazy_static! {
 
 pub async fn get_addition_actions_for_address(
     expected_address: &Option<String>,
-    signing_construct_did: &ConstructDid,
+    signer_did: &ConstructDid,
     instance_name: &str,
     network_id: &str,
     rpc_api_url: &str,
@@ -52,12 +52,12 @@ pub async fn get_addition_actions_for_address(
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
-            &Some(signing_construct_did.clone()),
-            &format!("Connect wallet {instance_name}"),
+            &Some(signer_did.clone()),
+            &format!("Connect signer {instance_name}"),
             None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
-                check_expectation_action_uuid: Some(signing_construct_did.clone()),
+                check_expectation_action_uuid: Some(signer_did.clone()),
                 message: DEFAULT_MESSAGE.to_string(),
                 network_id: network_id.into(),
                 namespace: "stacks".to_string(),
@@ -69,7 +69,7 @@ pub async fn get_addition_actions_for_address(
     if let Some(ref expected_address) = expected_address {
         if do_request_address_check {
             action_items.push(ActionItemRequest::new(
-                &Some(signing_construct_did.clone()),
+                &Some(signer_did.clone()),
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
@@ -96,8 +96,8 @@ pub async fn get_addition_actions_for_address(
                 ),
             };
             let check_balance = ActionItemRequest::new(
-                &Some(signing_construct_did.clone()),
-                "Check wallet balance",
+                &Some(signer_did.clone()),
+                "Check signer balance",
                 None,
                 action_status,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
@@ -111,8 +111,8 @@ pub async fn get_addition_actions_for_address(
     } else {
         if do_request_balance {
             let check_balance = ActionItemRequest::new(
-                &Some(signing_construct_did.clone()),
-                "Check wallet balance",
+                &Some(signer_did.clone()),
+                "Check signer balance",
                 None,
                 ActionItemStatus::Todo,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
