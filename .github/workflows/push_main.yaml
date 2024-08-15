@@ -1,4 +1,4 @@
-name: CI
+name: Build Binaries
 on:
   push:
     branches:
@@ -140,7 +140,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install musl-tools
-          
+
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
