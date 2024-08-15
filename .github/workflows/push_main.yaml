@@ -40,11 +40,12 @@ jobs:
       - name: Install dependencies (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
+          echo "HERE $(pkg-config --variable=libdir openssl)"
           sudo apt-get update
           sudo apt-get install musl-tools
           sudo apt install libssl-dev
-          ls /usr/bin
-          echo "$(pkg-config --variable=libdir openssl)"
+          echo "HERE $(pkg-config --variable=libdir openssl)"
+          ls /usr/lib
 
 
       - name: Configure git to use LF (Windows)
