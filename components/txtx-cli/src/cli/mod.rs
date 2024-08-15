@@ -48,27 +48,27 @@ struct Opts {
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
 enum Command {
-    /// Inspect deployment protocol
-    #[clap(name = "check", bin_name = "check")]
-    Check(CheckRunbook),
-    /// New Runbook
-    #[clap(name = "new", bin_name = "new")]
-    New(CreateRunbook),
-    /// List Runbooks
+    /// List runbooks present in the current direcoty
     #[clap(name = "ls", bin_name = "ls")]
     List(ListRunbooks),
-    /// Execute Runbook
+    /// Create a new Runbook
+    #[clap(name = "new", bin_name = "new")]
+    New(CreateRunbook),
+    /// Check the executability of a runbook
+    #[clap(name = "check", bin_name = "check")]
+    Check(CheckRunbook),
+    /// Run, runbook, run!
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
-    /// Execute Runbook
-    #[clap(subcommand)]
-    Snapshots(SnapshotCommand),
     /// Display Documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
-    /// Start LSP
+    /// Start Txtx Language Server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
+    /// Snapshot management (work in progress)
+    #[clap(subcommand)]
+    Snapshots(SnapshotCommand),    
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -76,7 +76,7 @@ enum SnapshotCommand {
     /// Begin new snapshot
     #[clap(name = "begin", bin_name = "begin")]
     Begin(BeginSnapshot),
-    /// New Runbook
+    /// Finalize snapshot
     #[clap(name = "end", bin_name = "end")]
     Commit(CommitSnapshot),
 }
