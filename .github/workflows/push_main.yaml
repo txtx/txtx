@@ -20,9 +20,9 @@ jobs:
         include:
           - os: ubuntu-20.04
             platform: linux
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             architecture: x64
-            libc: glibc
+            # libc: glibc
           # - os: windows-latest
           #   platform: windows
           #   target: x86_64-pc-windows-msvc
@@ -117,12 +117,12 @@ jobs:
           echo "SDKROOT=$(xcrun -sdk macosx --show-sdk-path)" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)" >> $GITHUB_ENV
 
-      - name: Configure artifact names (libc)
-        if: ${{ matrix.libc }}
-        shell: bash
-        run: |
-          echo "SHORT_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-${{ matrix.libc }}" >> $GITHUB_ENV
-          echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-${{ matrix.libc }}" >> $GITHUB_ENV
+      # - name: Configure artifact names (libc)
+      #   if: ${{ matrix.libc }}
+      #   shell: bash
+      #   run: |
+      #     echo "SHORT_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-${{ matrix.libc }}" >> $GITHUB_ENV
+      #     echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-${{ matrix.libc }}" >> $GITHUB_ENV
 
       - name: Configure artifact names (not libc)
         if: ${{ ! matrix.libc }}
@@ -131,9 +131,21 @@ jobs:
           echo "SHORT_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}" >> $GITHUB_ENV
           echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-unknown" >> $GITHUB_ENV
 
-      - name: Build - Cargo
+      - name: Build - Cargo (Not Linux)
         if: matrix.target != 'x86_64-unknown-linux-musl'
         run: 
+          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
+      
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools
+          
+      - name: Build - Cargo (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          export OPENSSL_STATIC=yes
+          export OPENSSL_DIR=$(pkg-config --variable=libdir openssl)
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
