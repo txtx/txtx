@@ -945,7 +945,7 @@ pub fn eval_expression(
         }
         // Represents an attribute or element traversal.
         Expression::Traversal(_) => {
-            let (dependency, mut components, mut subpath) = match runbook_workspace_context
+            let (dependency, mut components, _subpath) = match runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(package_id, expr)
             {
                 Ok(Some(res)) => res,

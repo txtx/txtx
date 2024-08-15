@@ -222,7 +222,15 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
         }
         Value::Bool(value) => ClarityValue::Bool(*value),
         Value::Null => ClarityValue::none(),
-        Value::Integer(int) => return Err(diagnosed_error!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity.")),
+        Value::Integer(int) => {
+            if *int < 0 {
+                ClarityValue::Int(*int)
+            } else if *int > 0 {
+                ClarityValue::UInt((*int).try_into().unwrap())
+            } else {
+                return Err(diagnosed_error!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity."))
+            }
+        }
         Value::Buffer(data) => {
             // if data.typing.eq(&CLARITY_PRINCIPAL) {
             //     let value_bytes = data.bytes.clone();

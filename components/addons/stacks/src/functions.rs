@@ -2,8 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
-    SequenceData, SequencedValue, UTF8Data,
+    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier, SequenceData, SequencedValue, UTF8Data
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::{
@@ -923,7 +922,7 @@ fn encode_ft_post_condition(
 fn encode_nft_post_condition(
     address: &str,
     contract_asset_id: &str,
-    asset_id: &str,
+    asset_id_str: &str,
     condition: NonfungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
     let principal_monitored = if address.eq("signer") {
@@ -950,10 +949,13 @@ fn encode_nft_post_condition(
         asset_name: asset_name.try_into().unwrap(),
     };
 
+    let asset_id_value = Value::parse_and_default_to_string(asset_id_str);
+    let asset_id = encode_any_value_to_clarity_value(&asset_id_value)?;
+
     let post_condition = TransactionPostCondition::Nonfungible(
         principal_monitored,
         asset_info,
-        ClarityValue::none(),
+        asset_id,
         condition,
     );
 
@@ -1337,6 +1339,7 @@ struct Contract {
     pub clarity_version: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProjectConfig {
     pub name: String,
@@ -1344,11 +1347,13 @@ pub struct ProjectConfig {
     pub requirements: Option<Vec<RequirementConfig>>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug, Clone)]
 pub struct RequirementConfig {
     pub contract_id: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug, Clone)]
 struct ClarinetManifest {
     pub project: ProjectConfig,

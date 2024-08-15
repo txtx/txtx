@@ -267,7 +267,7 @@ impl WalletImplementation for StacksConnect {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut signing_command_state: ValueStore,
+        signing_command_state: ValueStore,
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,

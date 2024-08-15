@@ -6,14 +6,13 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecification};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
-use crate::typing::{StacksValue, STACKS_TRANSACTION};
+use crate::typing::StacksValue;
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
         TransactionPublicKeyEncoding, TransactionSpendingCondition, Txid,
     },
     constants::{MESSAGE_BYTES, SIGNED_MESSAGE_BYTES},
-    typing::STACKS_SIGNATURE,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,

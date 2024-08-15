@@ -1,4 +1,4 @@
-use txtx_addon_kit::types::types::{Type, Value};
+use txtx_addon_kit::types::types::Value;
 
 pub const STD_HASH: &str = "std::hash";
 

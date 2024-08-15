@@ -201,7 +201,7 @@ pub async fn process_notification(
                 Ok(_) => {
                     editor_state.try_write(|es| {
                         es.index_workspace(manifest_location, workspace_state);
-                        if let Some(contract) = es.active_runbooks.get_mut(&runbook_location) {
+                        if let Some(_contract) = es.active_runbooks.get_mut(&runbook_location) {
                             // contract.update_definitions();
                         };
                     })?;

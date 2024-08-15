@@ -371,7 +371,7 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
                     CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
-                Err(d) => {
+                Err(_d) => {
                     continue;
                 }
             };

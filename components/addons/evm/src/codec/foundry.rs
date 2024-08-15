@@ -18,7 +18,7 @@ pub struct FoundryCompiledOutputJson {
 impl FoundryCompiledOutputJson {
     pub fn get_contract_source(
         &self,
-        mut base_path: &FileLocation,
+        base_path: &FileLocation,
         contract_name: &str,
     ) -> Result<String, String> {
         let mut path = PathBuf::from(&base_path.expect_path_buf());

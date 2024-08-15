@@ -228,7 +228,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
         Value::Bool(value) => DynSolValue::Bool(value.clone()),
         Value::Integer(value) => DynSolValue::Uint(U256::from(*value), 256),
         Value::String(value) => DynSolValue::String(value.clone()),
-        Value::Float(value) => todo!(),
+        Value::Float(_value) => todo!(),
         Value::Buffer(bytes) => DynSolValue::Bytes(bytes.clone()),
         Value::Null => {
             todo!()

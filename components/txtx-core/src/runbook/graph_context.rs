@@ -211,7 +211,7 @@ impl RunbookGraphContext {
             {
                 self.constructs_dag.remove_edge(edge_to_root);
             }
-            if let Err(e) =
+            if let Err(_e) =
                 self.constructs_dag
                     .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
             {

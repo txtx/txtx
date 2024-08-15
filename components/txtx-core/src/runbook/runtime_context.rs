@@ -349,7 +349,7 @@ impl RuntimeContext {
         inputs_sets: &Vec<ValueStore>,
         runbook_sources: &RunbookSources,
         runbook_execution_context: &RunbookExecutionContext,
-        environment_selector: &Option<String>,
+        _environment_selector: &Option<String>,
     ) -> Result<(), Vec<Diagnostic>> {
         {
             let mut diagnostics = vec![];

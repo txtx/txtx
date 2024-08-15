@@ -1,6 +1,6 @@
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, DocumentSymbol, Hover,
-    InsertTextFormat, InsertTextMode, MarkupContent, MarkupKind, MessageType, Position, Range,
+    InsertTextFormat, InsertTextMode, MarkupContent, MarkupKind, MessageType, Position,
     SignatureHelp,
 };
 use std::borrow::BorrowMut;
@@ -395,7 +395,7 @@ impl EditorState {
             }
         };
 
-        for (runbook_location, runbook_state) in workspace.runbooks.iter() {
+        for (runbook_location, _runbook_state) in workspace.runbooks.iter() {
             let relative_path = runbook_location
                 .get_relative_path_from_base(&base_location)
                 .expect("could not find relative location");
@@ -436,8 +436,8 @@ impl EditorState {
 
     pub fn get_completion_items_for_runbook(
         &self,
-        runbook_location: &FileLocation,
-        position: &Position,
+        _runbook_location: &FileLocation,
+        _position: &Position,
     ) -> Vec<lsp_types::CompletionItem> {
         // let active_runbook = match self.active_runbooks.get(runbook_location) {
         //     Some(contract) => contract,
@@ -478,15 +478,15 @@ impl EditorState {
 
     pub fn get_document_symbols_for_runbook(
         &self,
-        runbook_location: &FileLocation,
+        _runbook_location: &FileLocation,
     ) -> Vec<DocumentSymbol> {
         vec![]
     }
 
     pub fn get_definition_location(
         &self,
-        runbook_location: &FileLocation,
-        position: &Position,
+        _runbook_location: &FileLocation,
+        _position: &Position,
     ) -> Option<lsp_types::Location> {
         // let runbook = self.active_runbooks.get(runbook_location)?;
         // let _position = Position {
@@ -498,8 +498,8 @@ impl EditorState {
 
     pub fn get_hover_data(
         &self,
-        runbook_location: &FileLocation,
-        position: &lsp_types::Position,
+        _runbook_location: &FileLocation,
+        _position: &lsp_types::Position,
     ) -> Option<Hover> {
         // let runbook = self.active_runbooks.get(runbook_location)?;
         // let position = Position {
@@ -525,10 +525,10 @@ impl EditorState {
         &self,
         runbook_location: &FileLocation,
         position: &lsp_types::Position,
-        active_signature: Option<u32>,
+        _active_signature: Option<u32>,
     ) -> Option<SignatureHelp> {
-        let runbook = self.active_runbooks.get(runbook_location)?;
-        let position = Position {
+        let _runbook = self.active_runbooks.get(runbook_location)?;
+        let _position = Position {
             line: position.line + 1,
             character: position.character + 1,
         };
@@ -621,10 +621,10 @@ impl EditorState {
     pub fn update_active_contract(
         &mut self,
         runbook_location: &FileLocation,
-        source: &str,
-        with_definitions: bool,
+        _source: &str,
+        _with_definitions: bool,
     ) -> Result<(), String> {
-        let runbook = self
+        let _runbook = self
             .active_runbooks
             .get_mut(runbook_location)
             .ok_or("contract not in active_contracts")?;
@@ -633,10 +633,10 @@ impl EditorState {
     }
 }
 
+
 #[derive(Clone, Default, Debug)]
 pub struct WorkspaceState {
     runbooks: HashMap<FileLocation, RunbookState>,
-    locations_lookup: HashMap<RunbookId, FileLocation>,
 }
 
 impl WorkspaceState {
@@ -717,9 +717,9 @@ impl WorkspaceState {
 }
 
 pub async fn build_state(
-    manifest_location: &FileLocation,
-    workspace_state: &mut WorkspaceState,
-    file_accessor: Option<&dyn FileAccessor>,
+    _manifest_location: &FileLocation,
+    _workspace_state: &mut WorkspaceState,
+    _file_accessor: Option<&dyn FileAccessor>,
 ) -> Result<(), String> {
     // let manifest = match file_accessor {
     //     None => WorkspaceManifest::from_location(manifest_location)?,

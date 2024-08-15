@@ -37,7 +37,7 @@ use txtx_addon_kit::types::wallets::return_synchronous_actions;
 
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
 use crate::typing::StacksValue;
-use crate::typing::{STACKS_CV_BUFFER, STACKS_SIGNATURE, STACKS_TRANSACTION};
+use crate::typing::STACKS_TRANSACTION;
 
 use super::DEFAULT_DERIVATION_PATH;
 
@@ -208,7 +208,7 @@ impl WalletImplementation for StacksMnemonic {
         payload: &Value,
         _spec: &WalletSpecification,
         args: &ValueStore,
-        mut signing_command_state: ValueStore,
+        signing_command_state: ValueStore,
         wallets: SigningCommandsState,
         _wallets_instances: &HashMap<ConstructDid, WalletInstance>,
         defaults: &AddonDefaults,

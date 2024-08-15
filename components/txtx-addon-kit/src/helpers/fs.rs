@@ -436,10 +436,3 @@ pub fn get_txtx_files_paths(
         .collect::<Vec<_>>();
     Ok(paths)
 }
-
-fn format_err(e: std::io::Error) -> String {
-    match e.kind() {
-        std::io::ErrorKind::NotFound => "not found".into(),
-        _ => e.to_string(),
-    }
-}

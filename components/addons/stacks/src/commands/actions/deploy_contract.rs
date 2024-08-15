@@ -1,6 +1,5 @@
 use clarity::codec::StacksMessageCodec;
 use clarity::types::StacksEpochId;
-use clarity::vm::ast::ContractAST;
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{ClarityVersion, ContractName};
 use clarity_repl::analysis::ast_dependency_detector::ASTDependencyDetector;
@@ -226,6 +225,8 @@ lazy_static! {
     };
 }
 
+
+#[allow(dead_code)]
 pub enum ContractSourceTransformsApplied {
     FindAndReplace(String, String),
 }
@@ -609,6 +610,7 @@ impl CommandImplementation for StacksDeployContract {
     }
 }
 
+#[cfg(test)]
 fn build_ast_from_src(
     sender: &StandardPrincipalData,
     contract_source: &str,
