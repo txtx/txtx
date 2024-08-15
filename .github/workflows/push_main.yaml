@@ -41,14 +41,9 @@ jobs:
       - name: Install dependencies (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          echo "HERE $(pkg-config --variable=libdir openssl)"
-          ls /usr/lib/x86_64-linux-gnu
           sudo apt-get update
           sudo apt-get install musl-tools
           sudo apt install libssl-dev
-          echo "HERE $(pkg-config --variable=libdir openssl)"
-          ls /usr/lib/x86_64-linux-musl
-          ls /usr/lib/x86_64-linux-gnu
 
 
       - name: Configure git to use LF (Windows)
@@ -155,7 +150,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           export OPENSSL_STATIC=yes
-          export OPENSSL_DIR=$(pkg-config --variable=libdir openssl)
+          export OPENSSL_DIR=/usr/lib/x86_64-linux-musl
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
