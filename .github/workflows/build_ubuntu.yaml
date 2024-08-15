@@ -61,7 +61,7 @@ jobs:
       - name: Extract binary from Docker image
         run: |
           docker create --name extract txtx
-          docker cp extract:/usr/local/bin/txtx ./txtx
+          docker cp extract:txtx ./txtx
           docker rm extract
 
       - name: Package binary
