@@ -149,7 +149,7 @@ jobs:
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          docker run --rm -v $(pwd):/home/rust/src ekidd/rust-musl-builder:latest \
+          docker run --rm -v $(pwd)/txtx:/home/rust/src ekidd/rust-musl-builder:latest \
           cargo build --release --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
