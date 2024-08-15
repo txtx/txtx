@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - improve-ci
   workflow_dispatch:
 
 concurrency:
@@ -41,7 +42,6 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           echo "HERE $(pkg-config --variable=libdir openssl)"
-          ls /usr/lib/x86_64-linux-musl
           ls /usr/lib/x86_64-linux-gnu
           sudo apt-get update
           sudo apt-get install musl-tools
