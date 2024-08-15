@@ -37,6 +37,16 @@ jobs:
             architecture: arm64
 
     steps:
+      - name: Install dependencies (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install musl-tools
+          sudo apt install libssl-dev
+          ls /usr/bin
+          echo "$(pkg-config --variable=libdir openssl)"
+
+
       - name: Configure git to use LF (Windows)
         if: matrix.os == 'windows-latest'
         run: |
@@ -136,11 +146,6 @@ jobs:
         run: 
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
       
-      - name: Install dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install musl-tools
-          sudo apt install libssl-dev
 
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
