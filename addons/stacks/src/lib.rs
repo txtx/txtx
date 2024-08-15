@@ -12,10 +12,10 @@ mod commands;
 mod constants;
 mod functions;
 pub mod rpc;
+mod signers;
 mod stacks_helpers;
 pub mod typing;
 mod utils;
-mod wallets;
 
 use std::collections::HashMap;
 
@@ -24,7 +24,7 @@ use txtx_addon_kit::{
         commands::{CommandInputsEvaluationResult, CommandInstance, PreCommandSpecification},
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
-        wallets::WalletSpecification,
+        signers::SignerSpecification,
         ConstructDid,
     },
     Addon,
@@ -48,7 +48,7 @@ impl Addon for StacksNetworkAddon {
         txtx_addon_kit::indoc! {r#"
             The Stacks `txtx` plugin enables building Runbooks that interact with the Stacks blockchain. 
             The plugin provides utility functions that allow you to encode data in the proper Clarity format that is required by contracts on the Stacks blockchain.
-            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser wallet. 
+            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser signer. 
             "#}
     }
 
@@ -64,8 +64,8 @@ impl Addon for StacksNetworkAddon {
         commands::actions::ACTIONS.clone()
     }
 
-    fn get_wallets(&self) -> Vec<WalletSpecification> {
-        wallets::WALLETS.clone()
+    fn get_signers(&self) -> Vec<SignerSpecification> {
+        signers::WALLETS.clone()
     }
 
     fn get_domain_specific_commands_inputs_dependencies<'a>(
