@@ -3,6 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
+     - ci-docker
   workflow_dispatch:
 
 jobs:
@@ -63,10 +64,17 @@ jobs:
         run: |
           docker build -t txtx -f ./txtx/dockerfiles/txtx.dockerfile .
 
-      - name: Tag Docker image
+      - name: Extract binary from Docker image
         run: |
-          docker tag txtx:latest quay.io/txtx/txtx:latest
+          docker create --name extract txtx
+          docker cp extract:/usr/local/bin/txtx ./txtx
+          docker rm extract
 
-      - name: Push Docker image to Quay
-        run: |
-          docker push quay.io/txtx/txtx:latest
+      - name: Package binary
+        run: tar -czvf txtx.tar.gz txtx
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: txtx
+          path: txtx.tar.gz
