@@ -149,9 +149,10 @@ jobs:
       - name: Build - Cargo (Linux)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          alias rust-musl-builder='docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder'
-          rust-musl-builder sudo chown -R rust:rust /home/rust/.cargo/git /home/rust/.cargo/registry /home/rust/src/target
-          rust-musl-builder cargo build --release --target ${{ matrix.target }}
+          docker run --rm -v $(pwd)/txtx:/home/rust/src ekidd/rust-musl-builder:latest \
+          sudo chown -R rust:rust /home/rust/.cargo/git /home/rust/.cargo/registry /home/rust/src/target
+          docker run --rm -v $(pwd)/txtx:/home/rust/src ekidd/rust-musl-builder:latest \
+          cargo build --release --target ${{ matrix.target }}
         
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (Linux)
