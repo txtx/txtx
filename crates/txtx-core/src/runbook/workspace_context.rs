@@ -74,6 +74,8 @@ impl RunbookWorkspaceContext {
             sources.push_back((location.clone(), module_name.clone(), raw_content.clone()));
         }
 
+        let mut order = 0;
+
         while let Some((location, package_name, raw_content)) = sources.pop_front() {
             let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
                 vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
@@ -91,6 +93,7 @@ impl RunbookWorkspaceContext {
 
             let mut blocks = content.into_blocks().into_iter().collect::<VecDeque<Block>>();
             while let Some(block) = blocks.pop_front() {
+                order += 1;
                 match block.ident.value().as_str() {
                     "import" => {
                         // imports are the only constructs that we need to process in this step
@@ -164,6 +167,7 @@ impl RunbookWorkspaceContext {
                             &package_id,
                             graph_context,
                             execution_context,
+                            order,
                         );
                     }
                     "input" => {
@@ -181,6 +185,7 @@ impl RunbookWorkspaceContext {
                             &package_id,
                             graph_context,
                             execution_context,
+                            order,
                         );
                     }
                     "module" => {
@@ -198,6 +203,7 @@ impl RunbookWorkspaceContext {
                             &package_id,
                             graph_context,
                             execution_context,
+                            order,
                         );
                     }
                     "output" => {
@@ -215,6 +221,7 @@ impl RunbookWorkspaceContext {
                             &package_id,
                             graph_context,
                             execution_context,
+                            order,
                         );
                     }
                     "action" => {
@@ -249,6 +256,7 @@ impl RunbookWorkspaceContext {
                                     &package_id,
                                     graph_context,
                                     execution_context,
+                                    order,
                                 );
                             }
                             Err(diagnostic) => {
@@ -282,6 +290,7 @@ impl RunbookWorkspaceContext {
                                     &package_id,
                                     graph_context,
                                     execution_context,
+                                    order,
                                 );
                             }
                             Err(diagnostic) => {
@@ -335,6 +344,7 @@ impl RunbookWorkspaceContext {
         package_id: &PackageId,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
+        order: u32,
     ) -> ConstructId {
         let package =
             self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
@@ -419,7 +429,7 @@ impl RunbookWorkspaceContext {
         };
 
         let construct_did = construct_id.did();
-        graph_context.index_construct(&construct_did);
+        graph_context.index_construct(&construct_did, order);
         match construct_instance_type {
             ConstructInstanceType::Executable(instance) => {
                 execution_context.commands_instances.insert(construct_did.clone(), instance);
