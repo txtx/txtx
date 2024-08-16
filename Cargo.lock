@@ -6685,6 +6685,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "txtx-addon-sp1"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "txtx-addon-kit",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "txtx-addon-telegram"
 version = "0.1.0"
 dependencies = [
@@ -6736,6 +6746,7 @@ dependencies = [
  "tower-lsp",
  "txtx-addon-network-evm",
  "txtx-addon-network-stacks",
+ "txtx-addon-sp1",
  "txtx-addon-telegram",
  "txtx-core",
  "txtx-gql",

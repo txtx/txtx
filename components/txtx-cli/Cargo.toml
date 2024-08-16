@@ -11,6 +11,7 @@ path = "src/main.rs"
 txtx-core = { path = "../txtx-core" }
 txtx-addon-network-stacks = { path = "../../addons/stacks" }
 txtx-addon-network-evm = { path = "../../addons/evm" }
+txtx-addon-sp1 = { path = "../../addons/sp1" }
 txtx-addon-telegram ={ path = "../../addons/telegram" }
 txtx-gql = { path = "../txtx-gql" }
 hiro-system-kit = "0.3.1"

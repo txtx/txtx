@@ -2,6 +2,7 @@ use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
+use txtx_addon_sp1::Sp1Addon;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env,
@@ -193,6 +194,7 @@ pub async fn handle_check_command(
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
         Box::new(TelegramAddon::new()),
+        Box::new(Sp1Addon::new()),
     ];
 
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(

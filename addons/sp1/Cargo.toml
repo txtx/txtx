@@ -1,0 +1,21 @@
+[package]
+name = "txtx-addon-sp1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+txtx-addon-kit = { path = "../../components/txtx-addon-kit", default-features = false}
+lazy_static = "1.4.0"
+wasm-bindgen = { version = "=0.2.84", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+
+[features]
+default = ["txtx-addon-kit/default"]
+wasm = [
+  "txtx-addon-kit/wasm",
+  "wasm-bindgen",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
