@@ -469,7 +469,11 @@ pub async fn run_action(
         let new_value = Value::parse_and_default_to_string(&input_value);
         inputs.insert(input_name, new_value);
     }
-    let evaluated_inputs = CommandInputsEvaluationResult { inputs };
+    let unevaluated_inputs = vec![];
+    let evaluated_inputs = CommandInputsEvaluationResult {
+        inputs,
+        unevaluated_inputs,
+    };
 
     let _res = command
         .perform_execution(
@@ -658,7 +662,7 @@ pub async fn handle_run_command(
                         .map(|construct_did| {
                             let documentation = running_context
                                 .execution_context
-                                .commands_inputs_simulation_results
+                                .commands_inputs_evaluation_results
                                 .get(construct_did)
                                 .and_then(|r| r.inputs.get_string("description"))
                                 .and_then(|d| Some(d.to_string()));
@@ -677,7 +681,7 @@ pub async fn handle_run_command(
                     .map(|construct_did| {
                         let documentation = running_context
                             .execution_context
-                            .commands_inputs_simulation_results
+                            .commands_inputs_evaluation_results
                             .get(construct_did)
                             .and_then(|r| r.inputs.get_string("description"))
                             .and_then(|d| Some(d.to_string()));
@@ -704,11 +708,6 @@ pub async fn handle_run_command(
                     running_context
                         .execution_context
                         .commands_execution_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
-                        .commands_inputs_simulation_results
                         .remove(construct_did);
                 }
 

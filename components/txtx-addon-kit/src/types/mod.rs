@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use diagnostics::Diagnostic;
 use indexmap::IndexMap;
 use serde::de::Error;
@@ -570,6 +572,25 @@ impl AuthorizationContext {
     pub fn empty() -> Self {
         Self {
             workspace_location: FileLocation::working_dir(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ContractSourceTransform {
+    FindAndReplace(String, String),
+}
+
+pub struct AddonPostProcessingResult {
+    pub dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
+    pub transforms: HashMap<ConstructDid, Vec<ContractSourceTransform>>,
+}
+
+impl AddonPostProcessingResult {
+    pub fn new() -> AddonPostProcessingResult {
+        AddonPostProcessingResult {
+            dependencies: HashMap::new(),
+            transforms: HashMap::new(),
         }
     }
 }

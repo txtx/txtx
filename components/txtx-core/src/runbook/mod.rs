@@ -106,7 +106,7 @@ impl Runbook {
                 .simulate_inputs_execution(&runtime_context, &running_context.workspace_context);
             // Step 4: let addons build domain aware dependencies
             let domain_specific_dependencies = runtime_context
-                .collect_domain_specific_dependencies(&running_context.execution_context)
+                .perform_addon_processing(&mut running_context.execution_context)
                 .map_err(|e| vec![e])?;
             // Step 5: identify and index all the relationships between the constructs (edges)
             running_context.graph_context.build(

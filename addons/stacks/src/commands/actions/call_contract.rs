@@ -36,139 +36,139 @@ use super::{
 lazy_static! {
     pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
         SendContractCall => {
-          name: "Send Contract Call Transaction",
-          matcher: "call_contract",
-          documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-              description: {
-                  documentation: "Description of the transaction",
-                  typing: Type::string(),
-                  optional: true,
-                  interpolable: true
-              },
-              contract_id: {
-                  documentation: "The address and identifier of the contract to invoke.",
-                  typing: Type::addon(STACKS_CV_PRINCIPAL),
-                  optional: false,
-                  interpolable: true
-              },
-              function_name: {
-                  documentation: "The contract method to invoke.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true
-              },
-              function_args: {
-                  documentation: "The function arguments for the contract call.",
-                  typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
-                  optional: true,
-                  interpolable: true
-              },
-              network_id: {
-                documentation: "The network id used to validate the transaction version.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-              },
-            rpc_api_url: {
-                documentation: "The URL to use when making API requests.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
-            rpc_api_auth_token: {
-                documentation: "The HTTP authentication token to include in the headers when making API requests.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-            },
+            name: "Send Contract Call Transaction",
+            matcher: "call_contract",
+            documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+            implements_signing_capability: true,
+            implements_background_task_capability: true,
+            inputs: [
+                description: {
+                    documentation: "Description of the transaction",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                contract_id: {
+                    documentation: "The address and identifier of the contract to invoke.",
+                    typing: Type::addon(STACKS_CV_PRINCIPAL),
+                    optional: false,
+                    interpolable: true
+                },
+                function_name: {
+                    documentation: "The contract method to invoke.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                function_args: {
+                    documentation: "The function arguments for the contract call.",
+                    typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
+                    optional: true,
+                    interpolable: true
+                },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_url: {
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
                 signer: {
-                  documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true
-              },
-              confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true
-              },
-              nonce: {
-                  documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                  typing: Type::integer(),
-                  optional: true,
-                  interpolable: true
-              },
-              fee: {
-                documentation: "The transaction fee. This value will automatically be estimated if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true
-              },
-              fee_strategy: {
-                documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-              },
-              post_conditions: {
-                documentation: "The post conditions to include to the transaction.",
-                typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
-                optional: true,
-                interpolable: true
-              },
-              post_condition_mode: {
-                documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true
-              }
-          ],
-          outputs: [
-            signed_transaction_bytes: {
-                documentation: "The signed transaction bytes.",
-                typing: Type::string()
-            },
-            tx_id: {
-              documentation: "The transaction id.",
-              typing: Type::string()
-            },
-            value: {
-              documentation: "The transaction id.",
-              typing: Type::string()
-            },
-            result: {
-              documentation: "The transaction result.",
-              typing: Type::buffer()
-            }
-          ],
-        example: txtx_addon_kit::indoc! {r#"
-            action "my_ref" "stacks::call_contract" {
-                description = "Encodes the contract call, sign, and broadcasts the set-token function."
-                contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                function_name = "verify-and-update-price-feeds"
-                function_args = [
-                    stacks::cv_buff(output.bitcoin_price_feed),
-                    stacks::cv_tuple({
-                        "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-                        "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                        "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
-                    })
-                ]
-                signer = signer.alice
-            }            
-            output "tx_id" {
-            value = action.my_ref.tx_id
-            }
-            output "result" {
-            value = action.my_ref.result
-            }
-            // > tx_id: 0x...
-            // > result: success
-  "#},
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                },
+                nonce: {
+                    documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                },
+                fee: {
+                    documentation: "The transaction fee. This value will automatically be estimated if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                },
+                fee_strategy: {
+                    documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                post_conditions: {
+                    documentation: "The post conditions to include to the transaction.",
+                    typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
+                    optional: true,
+                    interpolable: true
+                },
+                post_condition_mode: {
+                    documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                }
+            ],
+            outputs: [
+                signed_transaction_bytes: {
+                    documentation: "The signed transaction bytes.",
+                    typing: Type::string()
+                },
+                tx_id: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                value: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                result: {
+                    documentation: "The transaction result.",
+                    typing: Type::buffer()
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                action "my_ref" "stacks::call_contract" {
+                    description = "Encodes the contract call, sign, and broadcasts the set-token function."
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                    function_name = "verify-and-update-price-feeds"
+                    function_args = [
+                        stacks::cv_buff(output.bitcoin_price_feed),
+                        stacks::cv_tuple({
+                            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
+                            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
+                        })
+                    ]
+                    signer = signer.alice
+                }            
+                output "tx_id" {
+                value = action.my_ref.tx_id
+                }
+                output "result" {
+                value = action.my_ref.result
+                }
+                // > tx_id: 0x...
+                // > result: success
+    "#},
       }
     };
 }

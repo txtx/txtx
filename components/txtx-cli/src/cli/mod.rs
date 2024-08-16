@@ -68,7 +68,7 @@ enum Command {
     Lsp,
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
-    Snapshots(SnapshotCommand),    
+    Snapshots(SnapshotCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]

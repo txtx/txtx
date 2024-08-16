@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
 use txtx_addon_kit::types::types::ObjectProperty;
+use txtx_addon_kit::types::ContractSourceTransform;
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -184,6 +185,12 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     interpolable: true
+                },
+                contract_name_update: {
+                    documentation: "The name to use for deploying the contract. Will automatically update contract dependencies.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
                 }
             ],
             outputs: [
@@ -223,11 +230,6 @@ lazy_static! {
         }
         command
     };
-}
-
-#[allow(dead_code)]
-pub enum ContractSourceTransformsApplied {
-    FindAndReplace(String, String),
 }
 
 pub struct StacksDeployContract;
@@ -335,7 +337,7 @@ impl CommandImplementation for StacksDeployContract {
                 };
 
                 contract_source = contract_source.replace(from, to);
-                transforms_applied.push(ContractSourceTransformsApplied::FindAndReplace(
+                transforms_applied.push(ContractSourceTransform::FindAndReplace(
                     from.to_string(),
                     to.to_string(),
                 ));
@@ -388,7 +390,11 @@ impl CommandImplementation for StacksDeployContract {
                             ))
                         }
                     };
-                    let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
+                    let contract_name = match args
+                        .get_value("contract_name_update")
+                        .or(value.get("contract_name"))
+                        .map(|v| v.as_string())
+                    {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
@@ -476,7 +482,12 @@ impl CommandImplementation for StacksDeployContract {
                             ))
                         }
                     };
-                    let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
+
+                    let contract_name = match args
+                        .get_value("contract_name_update")
+                        .or(value.get("contract_name"))
+                        .map(|v| v.as_string())
+                    {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
