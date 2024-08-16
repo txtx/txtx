@@ -33,8 +33,6 @@ pub struct RunbookExecutionContext {
     pub commands_execution_results: HashMap<ConstructDid, CommandExecutionResult>,
     /// Results of commands inputs evaluation
     pub commands_inputs_evaluation_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
-    /// Results of commands inputs evaluation simulation
-    pub commands_inputs_simulation_results: HashMap<ConstructDid, CommandInputsEvaluationResult>,
     /// Constructs depending on a given Construct.
     pub commands_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     /// Constructs depending on a given Construct performing signing.
@@ -67,7 +65,6 @@ impl RunbookExecutionContext {
             signers_state: Some(SignersState::new()),
             commands_execution_results: HashMap::new(),
             commands_inputs_evaluation_results: HashMap::new(),
-            commands_inputs_simulation_results: HashMap::new(),
             commands_dependencies: HashMap::new(),
             signers_downstream_dependencies: vec![],
             signed_commands_upstream_dependencies: HashMap::new(),
@@ -338,7 +335,7 @@ impl RunbookExecutionContext {
             // let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
 
             let inputs_simulation_results =
-                self.commands_inputs_simulation_results.get(&construct_did);
+                self.commands_inputs_evaluation_results.get(&construct_did);
 
             let cached_dependency_execution_results = HashMap::new();
 
@@ -369,7 +366,7 @@ impl RunbookExecutionContext {
             };
 
             // Update the evaluated inputs
-            self.commands_inputs_simulation_results.insert(construct_did.clone(), evaluated_inputs);
+            self.commands_inputs_evaluation_results.insert(construct_did.clone(), evaluated_inputs);
         }
     }
 }

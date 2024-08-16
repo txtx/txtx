@@ -68,6 +68,7 @@ impl CommandExecutionResult {
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: ValueStore,
+    pub unevaluated_inputs: Vec<String>,
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -85,7 +86,10 @@ impl Serialize for CommandInputsEvaluationResult {
 
 impl CommandInputsEvaluationResult {
     pub fn new(name: &str) -> Self {
-        Self { inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()) }
+        Self {
+            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()),
+            unevaluated_inputs: vec![],
+        }
     }
 
     pub fn insert(&mut self, key: &str, value: Value) {
