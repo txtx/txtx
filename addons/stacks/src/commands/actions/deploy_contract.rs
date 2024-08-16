@@ -291,16 +291,11 @@ impl CommandImplementation for StacksDeployContract {
         }
 
         // Dependencies muts be identified before applying the contract_source_transforms
+        evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
+        evaluated_inputs.inputs.insert("contracts_ids_dependencies", Value::array(dependencies));
         evaluated_inputs
             .inputs
-            .insert("contract_id", Value::string(contract_id.to_string()));
-        evaluated_inputs
-            .inputs
-            .insert("contracts_ids_dependencies", Value::array(dependencies));
-        evaluated_inputs.inputs.insert(
-            "contracts_ids_lazy_dependencies",
-            Value::array(lazy_dependencies),
-        );
+            .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
 
         // contract_source_transforms_handling.
         let mut transforms_applied = vec![];
@@ -342,10 +337,9 @@ impl CommandImplementation for StacksDeployContract {
             }
         }
 
-        evaluated_inputs.inputs.insert(
-            "contract_source_post_transforms",
-            Value::string(contract_source),
-        );
+        evaluated_inputs
+            .inputs
+            .insert("contract_source_post_transforms", Value::string(contract_source));
 
         Ok(evaluated_inputs)
     }
@@ -408,9 +402,8 @@ impl CommandImplementation for StacksDeployContract {
             };
 
         let empty_vec: Vec<Value> = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_deployment(
             spec,
@@ -497,9 +490,8 @@ impl CommandImplementation for StacksDeployContract {
         signers.push_signer_state(signer_state);
 
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes =
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
@@ -550,11 +542,7 @@ impl CommandImplementation for StacksDeployContract {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
 
             let mut res = match BroadcastStacksTransaction::run_execution(

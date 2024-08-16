@@ -132,9 +132,7 @@ impl SignerImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let rpc_api_auth_token = args
-            .get_defaulting_string(RPC_API_AUTH_TOKEN, &defaults)
-            .ok();
+        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, &defaults).ok();
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
@@ -371,9 +369,7 @@ impl SignerImplementation for StacksConnect {
             signer_state.insert("multi_sig", Value::bool(true));
             signer_state.insert("signers", Value::array(signers_uuids.clone()));
 
-            result
-                .outputs
-                .insert("signers".into(), Value::array(signers_uuids));
+            result.outputs.insert("signers".into(), Value::array(signers_uuids));
             result.outputs.insert("public_key".into(), public_key);
 
             Ok((signers, signer_state, result))
@@ -454,9 +450,7 @@ impl SignerImplementation for StacksConnect {
         }
 
         if all_signed {
-            let signed_buff = args
-                .get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)
-                .unwrap();
+            let signed_buff = args.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES).unwrap();
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &signed_buff[..]).unwrap();
             transaction.verify().unwrap();
@@ -506,10 +500,9 @@ impl SignerImplementation for StacksConnect {
 
         if let Some(signed_transaction_bytes) = signer_state.get_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                signed_transaction_bytes.clone(),
-            );
+            result
+                .outputs
+                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
 
             return Ok(Box::pin(future::ready(Ok((signers, signer_state, result)))));
         }
@@ -559,11 +552,7 @@ impl SignerImplementation for StacksConnect {
                     consolidate_signer_activate_result(Ok(future.await?)).unwrap();
                 signers = updated_signers;
                 let updated_message = updated_results.outputs.get(MESSAGE_BYTES).unwrap().clone();
-                let signature = updated_results
-                    .outputs
-                    .get(SIGNED_MESSAGE_BYTES)
-                    .unwrap()
-                    .clone();
+                let signature = updated_results.outputs.get(SIGNED_MESSAGE_BYTES).unwrap().clone();
 
                 match transaction.auth {
                     TransactionAuth::Standard(ref mut spending_condition) => {
@@ -591,9 +580,7 @@ impl SignerImplementation for StacksConnect {
 
             transaction.verify().unwrap();
 
-            result
-                .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), transaction_bytes);
+            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), transaction_bytes);
 
             Ok((signers, signer_state, result))
         };

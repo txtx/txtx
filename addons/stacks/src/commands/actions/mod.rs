@@ -138,11 +138,7 @@ pub fn encode_contract_deployment(
         Some(1) => Some(ClarityVersion::Clarity1),
         Some(2) => Some(ClarityVersion::Clarity2),
         Some(n) => {
-            return Err(diagnosed_error!(
-                "command {}: clarity version {} unknown",
-                spec.matcher,
-                n
-            ))
+            return Err(diagnosed_error!("command {}: clarity version {} unknown", spec.matcher, n))
         }
     };
 
@@ -155,10 +151,7 @@ pub fn encode_contract_deployment(
     })?;
 
     let payload = TransactionPayload::SmartContract(
-        TransactionSmartContract {
-            name: contract_name.into(),
-            code_body,
-        },
+        TransactionSmartContract { name: contract_name.into(), code_body },
         clarity_version,
     );
 

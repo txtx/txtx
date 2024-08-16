@@ -228,11 +228,7 @@ impl CommandImplementation for SendStxTransfer {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

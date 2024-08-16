@@ -18,7 +18,7 @@ signer "alice" "evm::mnemonic" {
 }
 action "deploy_simple_storage" "evm::deploy_contract" {
    description = "Deploy SimpleStorage"
-   contract = evm::get_contract_from_foundry_project("/Users/ludovic/Coding/txtx/components/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml", "SimpleStorage")
+   contract = evm::get_contract_from_foundry_project("/Users/ludovic/Coding/txtx/crates/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml", "SimpleStorage")
    constructor_args = [14]
    salt = "0x0000000000000000000000000000000000000000177317f7617d575e615800c6"
    confirmations = 1

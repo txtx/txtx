@@ -185,10 +185,8 @@ impl CommandImplementation for EVMDeployContract {
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-        let to_diag_with_ctx = build_diag_context_fn(
-            instance_name.to_string(),
-            "evm::deploy_contract".to_string(),
-        );
+        let to_diag_with_ctx =
+            build_diag_context_fn(instance_name.to_string(), "evm::deploy_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -427,7 +425,7 @@ async fn build_unsigned_contract_deploy(
         from: from.clone(),
         nonce,
         chain_id,
-        amount: amount,
+        amount,
         gas_limit,
         tx_type,
         input: None,
@@ -440,9 +438,7 @@ async fn build_unsigned_contract_deploy(
 }
 
 pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
-    let contract = args
-        .get_expected_object("contract")
-        .map_err(|e| e.to_string())?;
+    let contract = args.get_expected_object("contract").map_err(|e| e.to_string())?;
     let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
         let sol_args = function_args
             .expect_array()
@@ -454,9 +450,8 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
         None
     };
 
-    let Some(bytecode) = contract
-        .get("bytecode")
-        .and_then(|code| Some(code.expect_string().to_string()))
+    let Some(bytecode) =
+        contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
     else {
         return Err(format!("contract missing required bytecode"));
     };
@@ -492,10 +487,7 @@ pub fn create_init_code(
                 ));
             }
         } else {
-            constructor_args
-                .iter()
-                .flat_map(|s| s.abi_encode())
-                .collect::<Vec<u8>>()
+            constructor_args.iter().flat_map(|s| s.abi_encode()).collect::<Vec<u8>>()
         };
 
         init_code.append(&mut abi_encoded_args);

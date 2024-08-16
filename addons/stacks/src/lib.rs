@@ -100,9 +100,8 @@ impl Addon for StacksNetworkAddon {
                     continue;
                 };
 
-                let dependencies = simulated_inputs
-                    .inputs
-                    .get_expected_array("contracts_ids_dependencies")?;
+                let dependencies =
+                    simulated_inputs.inputs.get_expected_array("contracts_ids_dependencies")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
