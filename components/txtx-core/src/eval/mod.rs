@@ -1462,12 +1462,8 @@ pub fn perform_inputs_evaluation(
     }
 
     if fatal_error {
-        println!("HERE {:?}", diags);
-
         return Ok(CommandInputEvaluationStatus::Aborted(results, diags));
     }
-
-    println!("HERE");
 
     let results = command_instance
         .post_process_inputs_evaluations(results)

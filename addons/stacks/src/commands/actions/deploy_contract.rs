@@ -237,7 +237,6 @@ impl CommandImplementation for StacksDeployContract {
         mut evaluated_inputs: CommandInputsEvaluationResult,
         // ) -> InputPostProcessingFutureResult {
     ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
-        println!("post_process_evaluated_inputs");
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
         let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
@@ -347,8 +346,6 @@ impl CommandImplementation for StacksDeployContract {
             "contract_source_post_transforms",
             Value::string(contract_source),
         );
-
-        println!("=> {:?}", evaluated_inputs);
 
         Ok(evaluated_inputs)
     }
