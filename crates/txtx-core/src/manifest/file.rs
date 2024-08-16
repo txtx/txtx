@@ -20,22 +20,14 @@ pub struct WorkspaceManifestFile {
 impl WorkspaceManifestFile {
     pub fn new(name: String) -> Self {
         let id = normalize_user_input(&name);
-        WorkspaceManifestFile {
-            name,
-            id,
-            runbooks: vec![],
-            environments: IndexMap::new(),
-        }
+        WorkspaceManifestFile { name, id, runbooks: vec![], environments: IndexMap::new() }
     }
 }
 
 fn normalize_user_input(input: &str) -> String {
     let normalized = input.to_lowercase().replace(" ", "-");
     // only allow alphanumeric
-    let slug = normalized
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect::<String>();
+    let slug = normalized.chars().filter(|c| c.is_alphanumeric() || *c == '-').collect::<String>();
     slug
 }
 
@@ -60,11 +52,8 @@ pub fn read_runbooks_from_manifest(
 ) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
     let mut runbooks = IndexMap::new();
 
-    let root_path = manifest
-        .location
-        .as_ref()
-        .expect("unable to get location")
-        .get_parent_location()?;
+    let root_path =
+        manifest.location.as_ref().expect("unable to get location").get_parent_location()?;
 
     for runbook_metadata in manifest.runbooks.iter() {
         if let Some(runbooks_filter_in) = runbooks_filter_in {
@@ -82,12 +71,7 @@ pub fn read_runbooks_from_manifest(
 
         runbooks.insert(
             runbook_metadata.id.to_string(),
-            (
-                runbook,
-                sources,
-                runbook_metadata.name.to_string(),
-                runbook_metadata.state.clone(),
-            ),
+            (runbook, sources, runbook_metadata.name.to_string(), runbook_metadata.state.clone()),
         );
     }
     Ok(runbooks)
@@ -117,14 +101,6 @@ pub fn read_runbook_from_location(
         }
     }
 
-    let runbook_id = RunbookId {
-        org: None,
-        workspace: None,
-        name: runbook_name.to_string(),
-    };
-    Ok((
-        runbook_name,
-        Runbook::new(runbook_id, description.clone()),
-        runbook_sources,
-    ))
+    let runbook_id = RunbookId { org: None, workspace: None, name: runbook_name.to_string() };
+    Ok((runbook_name, Runbook::new(runbook_id, description.clone()), runbook_sources))
 }

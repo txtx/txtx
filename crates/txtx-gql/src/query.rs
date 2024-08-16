@@ -23,13 +23,7 @@ impl Query {
         block_store
             .values()
             .cloned()
-            .filter(|b| {
-                if let Panel::ActionPanel(_) = b.panel {
-                    true
-                } else {
-                    false
-                }
-            })
+            .filter(|b| if let Panel::ActionPanel(_) = b.panel { true } else { false })
             .map(GqlActionBlock::new)
             .collect()
     }
@@ -39,13 +33,7 @@ impl Query {
         block_store
             .values()
             .cloned()
-            .filter(|b| {
-                if let Panel::ModalPanel(_) = b.panel {
-                    true
-                } else {
-                    false
-                }
-            })
+            .filter(|b| if let Panel::ModalPanel(_) = b.panel { true } else { false })
             .map(GqlModalBlock::new)
             .collect()
     }
@@ -55,13 +43,7 @@ impl Query {
         block_store
             .values()
             .cloned()
-            .filter(|b| {
-                if let Panel::ErrorPanel(_) = b.panel {
-                    true
-                } else {
-                    false
-                }
-            })
+            .filter(|b| if let Panel::ErrorPanel(_) = b.panel { true } else { false })
             .map(GqlErrorBlock::new)
             .collect()
     }
@@ -71,13 +53,7 @@ impl Query {
         block_store
             .values()
             .cloned()
-            .filter(|b| {
-                if let Panel::ProgressBar(_) = b.panel {
-                    true
-                } else {
-                    false
-                }
-            })
+            .filter(|b| if let Panel::ProgressBar(_) = b.panel { true } else { false })
             .map(GqlProgressBlock::new)
             .collect()
     }

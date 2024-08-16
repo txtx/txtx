@@ -149,9 +149,7 @@ impl CommandImplementation for Input {
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let title = instance_name;
-        let description = args
-            .get_string("description")
-            .and_then(|d| Some(d.to_string()));
+        let description = args.get_string("description").and_then(|d| Some(d.to_string()));
 
         if !supervision_context.review_input_values
             && !supervision_context.review_input_default_values
@@ -227,7 +225,7 @@ impl CommandImplementation for Input {
             description,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                default_value: default_value,
+                default_value,
                 input_name: "default".into(),
                 typing,
             }),

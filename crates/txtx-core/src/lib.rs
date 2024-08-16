@@ -126,10 +126,7 @@ pub async fn start_unsupervised_runbook_runloop(
                 return Err(pass_results.with_spans_filled(&runbook.sources));
             }
 
-            if !pass_results
-                .pending_background_tasks_constructs_uuids
-                .is_empty()
-            {
+            if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
                 background_tasks_futures.append(&mut pass_results.pending_background_tasks_futures);
                 background_tasks_contructs_dids
                     .append(&mut pass_results.pending_background_tasks_constructs_uuids);
@@ -228,10 +225,7 @@ pub async fn start_supervised_runbook_runloop(
             sleep(Duration::from_millis(50));
             continue;
         };
-        let ActionItemResponse {
-            action_item_id,
-            payload,
-        } = action_item_response.clone();
+        let ActionItemResponse { action_item_id, payload } = action_item_response.clone();
 
         if action_item_id == SET_ENV_ACTION.id {
             if let Err(diags) = reset_runbook_execution(
@@ -345,9 +339,8 @@ pub async fn start_supervised_runbook_runloop(
                     && background_tasks_contructs_dids.is_empty()
                 {
                     runbook_completed = true;
-                    let grouped_actions_items = running_context
-                        .execution_context
-                        .collect_outputs_constructs_results();
+                    let grouped_actions_items =
+                        running_context.execution_context.collect_outputs_constructs_results();
                     let mut actions = Actions::new_panel("output review", "");
                     for (key, action_items) in grouped_actions_items.into_iter() {
                         actions.push_group(key.as_str(), action_items);
@@ -370,10 +363,7 @@ pub async fn start_supervised_runbook_runloop(
                     );
                 }
 
-                if !pass_results
-                    .pending_background_tasks_constructs_uuids
-                    .is_empty()
-                {
+                if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
                     background_tasks_futures
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_dids
@@ -383,16 +373,11 @@ pub async fn start_supervised_runbook_runloop(
                 let update = ActionItemRequestUpdate::from_id(&action_item_id)
                     .set_status(ActionItemStatus::Success(None));
                 pass_results.actions.push_action_item_update(update);
-                for new_request in pass_results
-                    .actions
-                    .get_new_action_item_requests()
-                    .into_iter()
-                {
+                for new_request in pass_results.actions.get_new_action_item_requests().into_iter() {
                     action_item_requests.insert(new_request.id.clone(), new_request.clone());
                 }
-                let block_events = pass_results
-                    .actions
-                    .compile_actions_to_block_events(&action_item_requests);
+                let block_events =
+                    pass_results.actions.compile_actions_to_block_events(&action_item_requests);
 
                 for event in block_events.into_iter() {
                     let _ = block_tx.send(event);
@@ -492,10 +477,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
-                if !pass_results
-                    .pending_background_tasks_constructs_uuids
-                    .is_empty()
-                {
+                if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
                     background_tasks_futures
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_dids
@@ -522,9 +504,8 @@ pub fn retrieve_related_action_items_requests<'a>(
     action_item_id: &BlockId,
     action_item_requests: &'a mut BTreeMap<BlockId, ActionItemRequest>,
 ) -> Option<(ConstructDid, Vec<&'a mut ActionItemRequest>)> {
-    let Some(signer_construct_did) = action_item_requests
-        .get(&action_item_id)
-        .and_then(|a| a.construct_did.clone())
+    let Some(signer_construct_did) =
+        action_item_requests.get(&action_item_id).and_then(|a| a.construct_did.clone())
     else {
         eprintln!("unable to retrieve {}", action_item_id);
         // todo: log error
@@ -565,13 +546,9 @@ pub async fn reset_runbook_execution(
     }
 
     let _ = progress_tx.send(BlockEvent::Clear);
-    let genesis_events = build_genesis_panel(
-        runbook,
-        action_item_requests,
-        action_item_responses,
-        &progress_tx,
-    )
-    .await?;
+    let genesis_events =
+        build_genesis_panel(runbook, action_item_requests, action_item_responses, &progress_tx)
+            .await?;
     for event in genesis_events {
         let _ = progress_tx.send(event).unwrap();
     }
@@ -591,25 +568,14 @@ pub async fn build_genesis_panel(
     if environments.len() > 0 {
         let input_options: Vec<InputOption> = environments
             .iter()
-            .map(|k| InputOption {
-                value: k.to_string(),
-                displayed_value: k.to_string(),
-            })
+            .map(|k| InputOption { value: k.to_string(), displayed_value: k.to_string() })
             .collect();
         let selected_option: InputOption = selector
             .clone()
-            .and_then(|e| {
-                Some(InputOption {
-                    value: e.clone(),
-                    displayed_value: e.clone(),
-                })
-            })
+            .and_then(|e| Some(InputOption { value: e.clone(), displayed_value: e.clone() }))
             .unwrap_or({
                 let k = environments.iter().next().unwrap();
-                InputOption {
-                    value: k.clone(),
-                    displayed_value: k.clone(),
-                }
+                InputOption { value: k.clone(), displayed_value: k.clone() }
             });
         let action_request = ActionItemRequest::new(
             &None,

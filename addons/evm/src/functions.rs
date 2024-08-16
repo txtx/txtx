@@ -311,11 +311,7 @@ impl FunctionImplementation for EncodeEVMChain {
             }
         };
         let chain = alloy_chains::Chain::from_str(&chain_name).map_err(|e| {
-            diagnosed_error!(
-                "'evm::chain' function: invalid chain name {}: {}",
-                chain_name,
-                e
-            )
+            diagnosed_error!("'evm::chain' function: invalid chain name {}: {}", chain_name, e)
         })?;
 
         let rpc_api_url = match args.get(1) {
@@ -366,21 +362,17 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
                 if path.is_absolute() {
                     FileLocation::from_path(path.to_path_buf())
                 } else {
-                    let mut workspace_loc = auth_ctx
-                        .workspace_location
-                        .get_parent_location()
-                        .map_err(|e| {
+                    let mut workspace_loc =
+                        auth_ctx.workspace_location.get_parent_location().map_err(|e| {
                             diagnosed_error!(
                                 "{}: unable to read workspace location: {}",
                                 prefix,
                                 e.to_string()
                             )
                         })?;
-                    workspace_loc
-                        .append_path(&manifest_path.to_string())
-                        .map_err(|e| {
-                            diagnosed_error!("{}: invalid foundry manifest path: {}", prefix, e)
-                        })?;
+                    workspace_loc.append_path(&manifest_path.to_string()).map_err(|e| {
+                        diagnosed_error!("{}: invalid foundry manifest path: {}", prefix, e)
+                    })?;
                     workspace_loc
                 }
             }

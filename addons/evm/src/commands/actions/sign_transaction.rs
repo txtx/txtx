@@ -135,10 +135,8 @@ impl CommandImplementation for SignEVMTransaction {
                 payload.clone(),
             );
             signers.push_signer_state(signer_state);
-            let description = args
-                .get_expected_string("description")
-                .ok()
-                .and_then(|d| Some(d.to_string()));
+            let description =
+                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
@@ -207,10 +205,9 @@ impl CommandImplementation for SignEVMTransaction {
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                signed_transaction_bytes.clone(),
-            );
+            result
+                .outputs
+                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
@@ -220,9 +217,7 @@ impl CommandImplementation for SignEVMTransaction {
             .unwrap()
             .clone();
 
-        let title = args
-            .get_expected_string("description")
-            .unwrap_or("New Transaction".into());
+        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
 
         let res = (signer.specification.sign)(
             construct_did,

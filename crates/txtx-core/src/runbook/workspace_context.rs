@@ -89,10 +89,7 @@ impl RunbookWorkspaceContext {
             self.index_package(&package_id);
             graph_context.index_package(&package_id);
 
-            let mut blocks = content
-                .into_blocks()
-                .into_iter()
-                .collect::<VecDeque<Block>>();
+            let mut blocks = content.into_blocks().into_iter().collect::<VecDeque<Block>>();
             while let Some(block) = blocks.pop_front() {
                 match block.ident.value().as_str() {
                     "import" => {
@@ -312,14 +309,10 @@ impl RunbookWorkspaceContext {
     }
 
     pub fn index_environment_variable(&mut self, key: &String, value: &Value) -> ConstructDid {
-        let construct_did = ConstructDid(Did::from_components(vec![
-            "runbook_input".as_bytes(),
-            key.as_bytes(),
-        ]));
-        self.environment_variables_values
-            .insert(construct_did.clone(), value.clone());
-        self.environment_variables_did_lookup
-            .insert(key.clone(), construct_did.clone());
+        let construct_did =
+            ConstructDid(Did::from_components(vec!["runbook_input".as_bytes(), key.as_bytes()]));
+        self.environment_variables_values.insert(construct_did.clone(), value.clone());
+        self.environment_variables_did_lookup.insert(key.clone(), construct_did.clone());
         construct_did
     }
 
@@ -343,10 +336,8 @@ impl RunbookWorkspaceContext {
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
     ) -> ConstructId {
-        let package = self
-            .packages
-            .get_mut(&package_id)
-            .expect("internal error: unable to retrieve package");
+        let package =
+            self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
         let construct_id = ConstructId {
             package_id: package_id.clone(),
             construct_type: construct_data.construct_type().into(),
@@ -354,17 +345,14 @@ impl RunbookWorkspaceContext {
             construct_name: construct_name.clone(),
         };
         let construct_did = construct_id.did();
-        self.constructs
-            .insert(construct_did.clone(), construct_id.clone());
+        self.constructs.insert(construct_did.clone(), construct_id.clone());
         let construct_instance_type = match construct_data {
             PreConstructData::Module(block) => {
                 // if construct_name.eq("runbook") && self.runbook_metadata_construct_did.is_none() {
                 //     self.runbook_metadata_construct_did = Some(construct_did.clone());
                 // }
                 package.modules_dids.insert(construct_did.clone());
-                package
-                    .modules_did_lookup
-                    .insert(construct_name.clone(), construct_did.clone());
+                package.modules_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_module_specification(),
                     name: construct_name.clone(),
@@ -376,9 +364,7 @@ impl RunbookWorkspaceContext {
             }
             PreConstructData::Input(block) => {
                 package.variables_dids.insert(construct_did.clone());
-                package
-                    .inputs_did_lookup
-                    .insert(construct_name.clone(), construct_did.clone());
+                package.inputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_input_specification(),
                     name: construct_name.clone(),
@@ -390,9 +376,7 @@ impl RunbookWorkspaceContext {
             }
             PreConstructData::Addon(block) => {
                 package.commands_dids.insert(construct_did.clone());
-                package
-                    .addons_did_lookup
-                    .insert(construct_name.clone(), construct_did.clone());
+                package.addons_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_runtime_setting(),
                     name: construct_name.clone(),
@@ -404,9 +388,7 @@ impl RunbookWorkspaceContext {
             }
             PreConstructData::Output(block) => {
                 package.outputs_dids.insert(construct_did.clone());
-                package
-                    .outputs_did_lookup
-                    .insert(construct_name.clone(), construct_did.clone());
+                package.outputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_output_specification(),
                     name: construct_name.clone(),
@@ -418,24 +400,19 @@ impl RunbookWorkspaceContext {
             }
             PreConstructData::Import(_) => {
                 package.imports_dids.insert(construct_did.clone());
-                package
-                    .imports_did_lookup
-                    .insert(construct_name.clone(), construct_did.clone());
+                package.imports_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Import
             }
             PreConstructData::Action(command_instance) => {
                 package.commands_dids.insert(construct_did.clone());
-                package.addons_did_lookup.insert(
-                    CommandId::Action(construct_name).to_string(),
-                    construct_did.clone(),
-                );
+                package
+                    .addons_did_lookup
+                    .insert(CommandId::Action(construct_name).to_string(), construct_did.clone());
                 ConstructInstanceType::Executable(command_instance)
             }
             PreConstructData::Signer(signer_instance) => {
                 package.signers_dids.insert(construct_did.clone());
-                package
-                    .signers_did_lookup
-                    .insert(construct_name, construct_did.clone());
+                package.signers_did_lookup.insert(construct_name, construct_did.clone());
                 ConstructInstanceType::Signing(signer_instance)
             }
             PreConstructData::Root => unreachable!(),
@@ -445,14 +422,10 @@ impl RunbookWorkspaceContext {
         graph_context.index_construct(&construct_did);
         match construct_instance_type {
             ConstructInstanceType::Executable(instance) => {
-                execution_context
-                    .commands_instances
-                    .insert(construct_did.clone(), instance);
+                execution_context.commands_instances.insert(construct_did.clone(), instance);
             }
             ConstructInstanceType::Signing(instance) => {
-                execution_context
-                    .signers_instances
-                    .insert(construct_did.clone(), instance);
+                execution_context.signers_instances.insert(construct_did.clone(), instance);
             }
             ConstructInstanceType::Import => {}
         }
@@ -514,9 +487,8 @@ impl RunbookWorkspaceContext {
                         continue;
                     };
 
-                    if let Some(construct_did) = self
-                        .environment_variables_did_lookup
-                        .get(&env_variable_name)
+                    if let Some(construct_did) =
+                        self.environment_variables_did_lookup.get(&env_variable_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }

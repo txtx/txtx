@@ -206,10 +206,8 @@ impl CommandImplementation for SignStacksTransaction {
                 payload.clone(),
             );
             signers.push_signer_state(signer_state);
-            let description = args
-                .get_expected_string("description")
-                .ok()
-                .and_then(|d| Some(d.to_string()));
+            let description =
+                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_group(
@@ -277,10 +275,9 @@ impl CommandImplementation for SignStacksTransaction {
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                signed_transaction_bytes.clone(),
-            );
+            result
+                .outputs
+                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
@@ -291,9 +288,7 @@ impl CommandImplementation for SignStacksTransaction {
             .unwrap()
             .clone();
 
-        let title = args
-            .get_expected_string("description")
-            .unwrap_or("New Transaction".into());
+        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
 
         let res = (signer.specification.sign)(
             construct_did,
@@ -333,10 +328,7 @@ async fn build_unsigned_transaction(
         match TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes[..]) {
             Ok(res) => res,
             Err(e) => {
-                todo!(
-                    "transaction payload invalid, return diagnostic ({})",
-                    e.to_string()
-                )
+                todo!("transaction payload invalid, return diagnostic ({})", e.to_string())
             }
         };
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
@@ -361,9 +353,7 @@ async fn build_unsigned_transaction(
     };
 
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let rpc_api_auth_token = args
-        .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
-        .ok();
+    let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
 
     let fee = match fee {
         Some(fee) => fee,
@@ -409,10 +399,7 @@ async fn build_unsigned_transaction(
         })
         .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
-    let version: u8 = signer_state
-        .get_expected_integer("hash_flag")?
-        .try_into()
-        .unwrap();
+    let version: u8 = signer_state.get_expected_integer("hash_flag")?.try_into().unwrap();
     let hash_mode = AddressHashMode::from_version(version);
 
     let address = StacksAddress::from_public_keys(

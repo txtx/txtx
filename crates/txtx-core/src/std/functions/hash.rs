@@ -78,10 +78,7 @@ impl FunctionImplementation for Ripemd160 {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "{}: expected 1 argument, got 0",
-                fn_spec.name
-            ));
+            return Err(diagnosed_error!("{}: expected 1 argument, got 0", fn_spec.name));
         };
 
         let mut hasher = LibRipemd160::new();
@@ -107,10 +104,7 @@ impl FunctionImplementation for Sha256 {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "{}: expected 1 argument, got 0",
-                fn_spec.name
-            ));
+            return Err(diagnosed_error!("{}: expected 1 argument, got 0", fn_spec.name));
         };
 
         let mut hasher = LibSha256::new();

@@ -84,9 +84,7 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
             .body(content.data.into_owned()),
         None => {
             if let Some(index_content) = Asset::get("index.html") {
-                HttpResponse::Ok()
-                    .content_type("text/html")
-                    .body(index_content.data.into_owned())
+                HttpResponse::Ok().content_type("text/html").body(index_content.data.into_owned())
             } else {
                 HttpResponse::NotFound().body("404 Not Found")
             }
@@ -104,10 +102,8 @@ async fn dist(path: web::Path<String>) -> impl Responder {
 }
 
 async fn discovery() -> impl Responder {
-    HttpResponse::Ok().json(DiscoveryResponse {
-        needs_credentials: false,
-        client_type: ClientType::Operator,
-    })
+    HttpResponse::Ok()
+        .json(DiscoveryResponse { needs_credentials: false, client_type: ClientType::Operator })
 }
 
 async fn post_graphql(

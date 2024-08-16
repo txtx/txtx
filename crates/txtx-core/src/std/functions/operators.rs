@@ -438,12 +438,8 @@ impl FunctionImplementation for BinaryAndBool {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Bool(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Bool(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Bool(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(*lhs && *rhs))
     }
 }
@@ -463,12 +459,8 @@ impl FunctionImplementation for BinaryOrBool {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Bool(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Bool(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Bool(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(*lhs || *rhs))
     }
 }
@@ -488,16 +480,10 @@ impl FunctionImplementation for BinaryDivSignedInteger {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         if rhs.eq(&0) {
-            Err(Diagnostic::error_from_string(
-                "cannot divide by zero".to_string(),
-            ))
+            Err(Diagnostic::error_from_string("cannot divide by zero".to_string()))
         } else {
             Ok(Value::integer(lhs.saturating_div(*rhs)))
         }
@@ -521,27 +507,19 @@ impl FunctionImplementation for BinaryEq {
     ) -> Result<Value, Diagnostic> {
         match args.get(0) {
             Some(Value::Integer(lhs)) => {
-                let Some(Value::Integer(rhs)) = args.get(1) else {
-                    unreachable!()
-                };
+                let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Float(lhs)) => {
-                let Some(Value::Float(rhs)) = args.get(1) else {
-                    unreachable!()
-                };
+                let Some(Value::Float(rhs)) = args.get(1) else { unreachable!() };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Bool(lhs)) => {
-                let Some(Value::Bool(rhs)) = args.get(1) else {
-                    unreachable!()
-                };
+                let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::String(lhs)) => {
-                let Some(Value::String(rhs)) = args.get(1) else {
-                    unreachable!()
-                };
+                let Some(Value::String(rhs)) = args.get(1) else { unreachable!() };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Null) => {
@@ -570,12 +548,8 @@ impl FunctionImplementation for BinaryGreater {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(lhs.gt(rhs)))
     }
 }
@@ -595,12 +569,8 @@ impl FunctionImplementation for BinaryGreaterEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(lhs.ge(rhs)))
     }
 }
@@ -620,12 +590,8 @@ impl FunctionImplementation for BinaryLess {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(lhs.lt(rhs)))
     }
 }
@@ -645,12 +611,8 @@ impl FunctionImplementation for BinaryLessEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(lhs.le(rhs)))
     }
 }
@@ -670,12 +632,8 @@ impl FunctionImplementation for BinaryNotEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::bool(!lhs.eq(rhs)))
     }
 }
@@ -695,12 +653,8 @@ impl FunctionImplementation for BinaryMinus {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::integer(lhs - rhs))
     }
 }
@@ -720,12 +674,8 @@ impl FunctionImplementation for BinaryModulo {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::integer(lhs.rem_euclid(*rhs)))
     }
 }
@@ -745,12 +695,8 @@ impl FunctionImplementation for BinaryMul {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::integer(lhs.saturating_mul(*rhs)))
     }
 }
@@ -770,12 +716,8 @@ impl FunctionImplementation for BinaryPlus {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else {
-            unreachable!()
-        };
-        let Some(Value::Integer(rhs)) = args.get(1) else {
-            unreachable!()
-        };
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
         Ok(Value::integer(lhs + rhs))
     }
 }

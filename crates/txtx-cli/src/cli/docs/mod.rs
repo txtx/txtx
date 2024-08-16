@@ -49,11 +49,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let map = vec![
             ("json", "JSON", json::JSON_FUNCTIONS.clone()),
             ("hex", "Hex", hex::FUNCTIONS.clone()),
-            (
-                "operators",
-                "Operator",
-                operators::OPERATORS_FUNCTIONS.clone(),
-            ),
+            ("operators", "Operator", operators::OPERATORS_FUNCTIONS.clone()),
             ("crypto", "Crypto", crypto::FUNCTIONS.clone()),
             ("list", "List", list::LIST_FUNCTIONS.clone()),
             ("base64", "Base64", base64::FUNCTIONS.clone()),
@@ -66,9 +62,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
             let doc_data = build_addon_function_group_doc_data(&addon, title, fns);
             let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
                 .expect("Failed to compile template");
-            template
-                .render_data(&mut doc_file, &doc_data)
-                .expect("Failed to render template");
+            template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
         }
     }
     // actions
@@ -81,9 +75,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
             let doc_data = build_addon_action_group_doc_data(&addon, title, actions);
             let template = mustache::compile_str(&DEFAULT_ADDON_ACTIONS_TEMPLATE)
                 .expect("Failed to compile template");
-            template
-                .render_data(&mut doc_file, &doc_data)
-                .expect("Failed to render template");
+            template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
         }
     }
     // an overview page for each category (functions/actions)
@@ -94,9 +86,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_addon_overview_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
     {
         let mut page_path = addon_path.clone();
@@ -105,9 +95,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_addon_overview_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
 }
 
@@ -120,9 +108,7 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_addon_function_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
     // actions
     {
@@ -132,9 +118,7 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_addon_action_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_ACTIONS_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
     // signers
     {
@@ -144,9 +128,7 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_signers_action_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_WALLETS_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
     // overview page
     {
@@ -156,9 +138,7 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let doc_data = build_addon_overview_doc_data(&addon);
         let template = mustache::compile_str(&DEFAULT_ADDON_OVERVIEW_TEMPLATE)
             .expect("Failed to compile template");
-        template
-            .render_data(&mut doc_file, &doc_data)
-            .expect("Failed to render template");
+        template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
 }
 
@@ -173,25 +153,15 @@ pub fn display_documentation(addons: &Vec<&Box<dyn Addon>>) {
         );
         println!("{}", blue!(format!("{}", "Functions\n")),);
         for function in addon.get_functions() {
-            let args = function
-                .inputs
-                .iter()
-                .map(|a| a.name.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
+            let args =
+                function.inputs.iter().map(|a| a.name.to_string()).collect::<Vec<_>>().join(", ");
             println!("{}", yellow!(format!("{}({})", function.name, args)));
             println!("{}", function.documentation);
             println!("\nInputs:");
             for input in function.inputs.iter() {
-                println!(
-                    "- {} ({:?}): {}",
-                    input.name, input.typing, input.documentation
-                );
+                println!("- {} ({:?}): {}", input.name, input.typing, input.documentation);
             }
-            println!(
-                "\nOutput ({:?}): {}",
-                function.output.typing, function.output.documentation
-            );
+            println!("\nOutput ({:?}): {}", function.output.typing, function.output.documentation);
             println!("\nExample\n{}\n\n", function.example);
         }
 
@@ -223,13 +193,8 @@ pub fn display_documentation(addons: &Vec<&Box<dyn Addon>>) {
                     println!("{}", yellow!(format!("{}", spec.name)));
                     println!("{}", spec.documentation);
                     println!("\nInputs (* required):");
-                    for input in spec
-                        .parts
-                        .first()
-                        .unwrap()
-                        .expect_atomic_specification()
-                        .inputs
-                        .iter()
+                    for input in
+                        spec.parts.first().unwrap().expect_atomic_specification().inputs.iter()
                     {
                         let required = if input.optional { "" } else { "*" };
                         println!(
@@ -239,13 +204,8 @@ pub fn display_documentation(addons: &Vec<&Box<dyn Addon>>) {
                     }
 
                     println!("\nOutputs:");
-                    for output in spec
-                        .parts
-                        .last()
-                        .unwrap()
-                        .expect_atomic_specification()
-                        .outputs
-                        .iter()
+                    for output in
+                        spec.parts.last().unwrap().expect_atomic_specification().outputs.iter()
                     {
                         println!(
                             "- {} ({:?}): {}",

@@ -219,10 +219,8 @@ impl CommandImplementation for SignEVMContractCall {
                 payload.clone(),
             );
             signers.push_signer_state(signer_state);
-            let description = args
-                .get_expected_string("description")
-                .ok()
-                .and_then(|d| Some(d.to_string()));
+            let description =
+                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
@@ -290,10 +288,9 @@ impl CommandImplementation for SignEVMContractCall {
 
         if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                signed_transaction_bytes.clone(),
-            );
+            result
+                .outputs
+                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
@@ -304,9 +301,7 @@ impl CommandImplementation for SignEVMContractCall {
             .unwrap()
             .clone();
 
-        let title = args
-            .get_expected_string("description")
-            .unwrap_or("New Transaction".into());
+        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
 
         let res = (signer.specification.sign)(
             construct_did,
@@ -382,7 +377,7 @@ async fn build_unsigned_contract_call(
         from: from.clone(),
         nonce,
         chain_id,
-        amount: amount,
+        amount,
         gas_limit,
         tx_type,
         input: Some(input),
@@ -407,10 +402,8 @@ pub fn encode_contract_call_inputs_from_selector(
                 .into(),
         );
     }
-    let encoded_args = function_args
-        .iter()
-        .flat_map(|v| v.abi_encode_params())
-        .collect::<Vec<u8>>();
+    let encoded_args =
+        function_args.iter().flat_map(|v| v.abi_encode_params()).collect::<Vec<u8>>();
     let mut data = Vec::with_capacity(encoded_args.len() + 4);
     data.extend_from_slice(&selector[..]);
     data.extend_from_slice(&encoded_args[..]);

@@ -240,9 +240,7 @@ async fn build_eth_call(
         }
     } else {
         // todo(hack): assume yul contract if no function name
-        function_args
-            .and_then(|a| Some(a.expect_buffer_bytes()))
-            .unwrap_or(vec![])
+        function_args.and_then(|a| Some(a.expect_buffer_bytes())).unwrap_or(vec![])
     };
 
     let common = CommonTransactionFields {
@@ -250,7 +248,7 @@ async fn build_eth_call(
         from: from.clone(),
         nonce,
         chain_id,
-        amount: amount,
+        amount,
         gas_limit,
         tx_type,
         input: Some(input),
@@ -260,10 +258,8 @@ async fn build_eth_call(
         .await
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
 
-    let call_result = rpc
-        .call(&tx)
-        .await
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+    let call_result =
+        rpc.call(&tx).await.map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     Ok(Value::string(call_result))
 }

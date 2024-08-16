@@ -40,15 +40,9 @@ impl EVMRpc {
     }
 
     pub async fn get_nonce(&self, address: &Address) -> Result<u64, RpcError> {
-        self.provider
-            .get_transaction_count(address.clone())
-            .await
-            .map_err(|e| {
-                RpcError::Message(format!(
-                    "error getting transaction count: {}",
-                    e.to_string()
-                ))
-            })
+        self.provider.get_transaction_count(address.clone()).await.map_err(|e| {
+            RpcError::Message(format!("error getting transaction count: {}", e.to_string()))
+        })
     }
 
     pub async fn get_gas_price(&self) -> Result<u128, RpcError> {
@@ -65,21 +59,15 @@ impl EVMRpc {
     }
 
     pub async fn estimate_eip1559_fees(&self) -> Result<Eip1559Estimation, RpcError> {
-        self.provider
-            .estimate_eip1559_fees(None)
-            .await
-            .map_err(|e| {
-                RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
-            })
+        self.provider.estimate_eip1559_fees(None).await.map_err(|e| {
+            RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
+        })
     }
 
     pub async fn get_balance(&self, address: &Address) -> Result<Uint<256, 4>, RpcError> {
-        self.provider
-            .get_balance(address.clone())
-            .await
-            .map_err(|e| {
-                RpcError::Message(format!("error getting account balance: {}", e.to_string()))
-            })
+        self.provider.get_balance(address.clone()).await.map_err(|e| {
+            RpcError::Message(format!("error getting account balance: {}", e.to_string()))
+        })
     }
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
@@ -99,16 +87,13 @@ impl EVMRpc {
     }
 
     pub async fn get_code(&self, address: &Address) -> Result<Bytes, RpcError> {
-        self.provider
-            .get_code_at(address.clone())
-            .await
-            .map_err(|e| {
-                RpcError::Message(format!(
-                    "error getting code at address {}: {}",
-                    address.to_string(),
-                    e.to_string()
-                ))
-            })
+        self.provider.get_code_at(address.clone()).await.map_err(|e| {
+            RpcError::Message(format!(
+                "error getting code at address {}: {}",
+                address.to_string(),
+                e.to_string()
+            ))
+        })
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
@@ -116,12 +101,7 @@ impl EVMRpc {
             .provider
             .debug_trace_call(tx.clone(), Latest, GethDebugTracingCallOptions::default())
             .await
-            .map_err(|e| {
-                format!(
-                    "received error result from RPC API during trace_call: {}",
-                    e
-                )
-            })?;
+            .map_err(|e| format!("received error result from RPC API during trace_call: {}", e))?;
 
         let result = serde_json::to_string(&result)
             .map_err(|e| format!("failed to serialize trace response: {}", e))?;
@@ -132,23 +112,14 @@ impl EVMRpc {
         &self,
         tx_hash: &Vec<u8>,
     ) -> Result<Option<TransactionReceipt>, RpcError> {
-        self.provider
-            .get_transaction_receipt(FixedBytes::from_slice(&tx_hash))
-            .await
-            .map_err(|e| {
-                RpcError::Message(format!(
-                    "error getting transaction receipt: {}",
-                    e.to_string()
-                ))
-            })
+        self.provider.get_transaction_receipt(FixedBytes::from_slice(&tx_hash)).await.map_err(|e| {
+            RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
+        })
     }
 
     pub async fn get_block_number(&self) -> Result<u64, RpcError> {
         self.provider.get_block_number().await.map_err(|e| {
-            RpcError::Message(format!(
-                "error getting transaction receipt: {}",
-                e.to_string()
-            ))
+            RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
         })
     }
 }

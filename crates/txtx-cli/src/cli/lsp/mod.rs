@@ -45,14 +45,8 @@ pub fn clarity_diagnostic_to_tower_lsp_type(
     let range = match &diagnostic.span {
         None => Range::default(),
         Some(span) => Range {
-            start: Position {
-                line: span.line_start - 1,
-                character: span.column_start - 1,
-            },
-            end: Position {
-                line: span.line_end - 1,
-                character: span.column_end,
-            },
+            start: Position { line: span.line_start - 1, character: span.column_start - 1 },
+            end: Position { line: span.line_end - 1, character: span.column_end },
         },
     };
     // TODO(lgalabru): add hint for contracts not found errors

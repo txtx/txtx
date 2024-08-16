@@ -13,12 +13,7 @@ pub struct DiagnosticSpan {
 }
 impl DiagnosticSpan {
     pub fn new() -> Self {
-        DiagnosticSpan {
-            line_start: 0,
-            line_end: 0,
-            column_start: 0,
-            column_end: 0,
-        }
+        DiagnosticSpan { line_start: 0, line_end: 0, column_start: 0, column_end: 0 }
     }
 }
 

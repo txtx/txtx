@@ -303,9 +303,7 @@ pub struct ActiveRunbookData {
 
 impl ActiveRunbookData {
     pub fn new(source: &str) -> Self {
-        ActiveRunbookData {
-            source: source.to_string(),
-        }
+        ActiveRunbookData { source: source.to_string() }
     }
 }
 
@@ -342,13 +340,7 @@ impl RunbookState {
             }
         }
 
-        RunbookState {
-            runbook_id,
-            errors,
-            warnings,
-            notes,
-            location,
-        }
+        RunbookState { runbook_id, errors, warnings, notes, location }
     }
 }
 
@@ -387,9 +379,7 @@ impl EditorState {
                 parent.pop();
             }
             FileLocation::Url { url } => {
-                let mut segments = url
-                    .path_segments_mut()
-                    .expect("could not find root location");
+                let mut segments = url.path_segments_mut().expect("could not find root location");
                 segments.pop();
                 segments.pop();
             }
@@ -528,10 +518,7 @@ impl EditorState {
         _active_signature: Option<u32>,
     ) -> Option<SignatureHelp> {
         let _runbook = self.active_runbooks.get(runbook_location)?;
-        let _position = Position {
-            line: position.line + 1,
-            character: position.character + 1,
-        };
+        let _position = Position { line: position.line + 1, character: position.character + 1 };
         // let signatures = get_signatures(contract, &position)?;
 
         // Some(SignatureHelp {
@@ -544,10 +531,7 @@ impl EditorState {
 
     pub fn get_aggregated_diagnostics(
         &self,
-    ) -> (
-        Vec<(FileLocation, Vec<TxtxDiagnostic>)>,
-        Option<(MessageType, String)>,
-    ) {
+    ) -> (Vec<(FileLocation, Vec<TxtxDiagnostic>)>, Option<(MessageType, String)>) {
         let mut runbooks = vec![];
         let mut erroring_files = HashSet::new();
         let mut warning_files = HashSet::new();
@@ -556,10 +540,8 @@ impl EditorState {
             for (runbook_url, state) in workspace_state.runbooks.iter() {
                 let mut diags = vec![];
 
-                let RunbookMetadata { relative_path, .. } = self
-                    .runbooks_lookup
-                    .get(runbook_url)
-                    .expect("contract not in lookup");
+                let RunbookMetadata { relative_path, .. } =
+                    self.runbooks_lookup.get(runbook_url).expect("contract not in lookup");
 
                 // Convert and collect errors
                 if !state.errors.is_empty() {

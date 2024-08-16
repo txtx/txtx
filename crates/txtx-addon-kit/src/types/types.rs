@@ -156,9 +156,7 @@ impl<'de> Deserialize<'de> for Value {
                     }
                 }
 
-                Err(de::Error::custom(
-                    "invalid Value: missing required key value",
-                ))
+                Err(de::Error::custom("invalid Value: missing required key value"))
             }
         }
 
@@ -193,10 +191,7 @@ impl Value {
     }
 
     pub fn addon(bytes: Vec<u8>, id: &str) -> Value {
-        Value::Addon(AddonData {
-            bytes,
-            id: id.to_string(),
-        })
+        Value::Addon(AddonData { bytes, id: id.to_string() })
     }
 
     pub fn expect_string(&self) -> &str {
@@ -248,8 +243,7 @@ impl Value {
         }
     }
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
-        self.try_get_buffer_bytes()
-            .expect("unable to retrieve bytes")
+        self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }
     pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
         let bytes = match &self {
@@ -262,10 +256,7 @@ impl Value {
                 };
                 bytes
             }
-            Value::Array(values) => values
-                .iter()
-                .flat_map(|v| v.expect_buffer_bytes())
-                .collect(),
+            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return None,
         };
@@ -356,16 +347,12 @@ impl Value {
         if let Some(ref object) = self.as_object() {
             match object.get(&key) {
                 Some(val) => val.get_keys_from_object(keys),
-                None => Err(Diagnostic::error_from_string(format!(
-                    "missing key '{}' from object",
-                    key
-                ))),
+                None => {
+                    Err(Diagnostic::error_from_string(format!("missing key '{}' from object", key)))
+                }
             }
         } else {
-            Err(Diagnostic::error_from_string(format!(
-                "invalid key '{}' for object",
-                key
-            )))
+            Err(Diagnostic::error_from_string(format!("invalid key '{}' for object", key)))
         }
     }
 
@@ -472,14 +459,7 @@ impl Value {
                 res
             }
             Value::Array(array) => {
-                format!(
-                    "[{}]",
-                    array
-                        .iter()
-                        .map(|e| e.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                format!("[{}]", array.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", "))
             }
             Value::Addon(addon_value) => addon_value.to_string(),
         }
@@ -567,10 +547,7 @@ impl AddonData {
 impl fmt::Debug for AddonData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // You can customize the output format here.
-        f.debug_struct("AddonData")
-            .field("bytes", &self.to_string())
-            .field("id", &self.id)
-            .finish()
+        f.debug_struct("AddonData").field("bytes", &self.to_string()).field("id", &self.id).finish()
     }
 }
 

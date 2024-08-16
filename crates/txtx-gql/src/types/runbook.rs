@@ -26,10 +26,7 @@ pub struct RunbookDescription {
 
 impl RunbookDescription {
     pub fn new(name: &String, description: &Option<String>) -> Self {
-        Self {
-            name: name.clone(),
-            description: description.clone(),
-        }
+        Self { name: name.clone(), description: description.clone() }
     }
 }
 

@@ -125,23 +125,14 @@ impl TestHarness {
             "=> response triggering panel: {:?}\n=> actual panel group: {:?}",
             response, action_panel_data.groups
         );
-        assert_eq!(
-            action_panel_data.groups.len(),
-            expected_group_lengths.len(),
-            "{}",
-            ctx
-        );
-        action_panel_data
-            .groups
-            .iter()
-            .enumerate()
-            .for_each(|(i, g)| {
-                let expected_sub_groups = &expected_group_lengths[i];
-                assert_eq!(g.sub_groups.len(), expected_sub_groups.len(), "{}", ctx);
-                g.sub_groups.iter().enumerate().for_each(|(j, s)| {
-                    assert_eq!(s.action_items.len(), expected_sub_groups[j], "{}", ctx);
-                })
-            });
+        assert_eq!(action_panel_data.groups.len(), expected_group_lengths.len(), "{}", ctx);
+        action_panel_data.groups.iter().enumerate().for_each(|(i, g)| {
+            let expected_sub_groups = &expected_group_lengths[i];
+            assert_eq!(g.sub_groups.len(), expected_sub_groups.len(), "{}", ctx);
+            g.sub_groups.iter().enumerate().for_each(|(j, s)| {
+                assert_eq!(s.action_items.len(), expected_sub_groups[j], "{}", ctx);
+            })
+        });
         action_panel_data.clone()
     }
 
@@ -170,23 +161,14 @@ impl TestHarness {
             "=> response triggering panel: {:?}\n=> actual panel group: {:?}",
             response, modal_panel_data.groups
         );
-        assert_eq!(
-            modal_panel_data.groups.len(),
-            expected_group_lengths.len(),
-            "{}",
-            ctx
-        );
-        modal_panel_data
-            .groups
-            .iter()
-            .enumerate()
-            .for_each(|(i, g)| {
-                let expected_sub_groups = &expected_group_lengths[i];
-                assert_eq!(g.sub_groups.len(), expected_sub_groups.len(), "{}", ctx);
-                g.sub_groups.iter().enumerate().for_each(|(j, s)| {
-                    assert_eq!(s.action_items.len(), expected_sub_groups[j], "{}", ctx);
-                })
-            });
+        assert_eq!(modal_panel_data.groups.len(), expected_group_lengths.len(), "{}", ctx);
+        modal_panel_data.groups.iter().enumerate().for_each(|(i, g)| {
+            let expected_sub_groups = &expected_group_lengths[i];
+            assert_eq!(g.sub_groups.len(), expected_sub_groups.len(), "{}", ctx);
+            g.sub_groups.iter().enumerate().for_each(|(j, s)| {
+                assert_eq!(s.action_items.len(), expected_sub_groups[j], "{}", ctx);
+            })
+        });
         modal_panel_data.clone()
     }
     fn expect_noop(&self) {
@@ -214,11 +196,7 @@ fn setup_test(file_name: &str, fixture: &str) -> TestHarness {
     );
     let runbook_inputs = RunbookInputsMap::new();
 
-    let runbook_id = RunbookId {
-        org: None,
-        workspace: None,
-        name: "test".into(),
-    };
+    let runbook_id = RunbookId { org: None, workspace: None, name: "test".into() };
 
     let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
     let mut runbook = Runbook::new(runbook_id, None);
@@ -419,14 +397,8 @@ fn test_signer_runbook_no_env() {
     let nonce_action = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let fee_action = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let provide_signature_action = &action_panel_data.groups[0].sub_groups[0].action_items[2];
-    assert_eq!(
-        Some("Check account nonce".to_string()),
-        nonce_action.description
-    );
-    assert_eq!(
-        Some("Check transaction fee".to_string()),
-        fee_action.description
-    );
+    assert_eq!(Some("Check account nonce".to_string()), nonce_action.description);
+    assert_eq!(Some("Check transaction fee".to_string()), fee_action.description);
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     // sign tx
     {
@@ -445,10 +417,7 @@ fn test_signer_runbook_no_env() {
                     },
                 ),
             },
-            vec![(
-                &provide_signature_action.id,
-                Some(ActionItemStatus::Success(None)),
-            )],
+            vec![(&provide_signature_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
     // validate nonce input
@@ -495,10 +464,7 @@ fn test_signer_runbook_no_env() {
             action_item_id: validate_signature.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         },
-        vec![(
-            &validate_signature.id,
-            Some(ActionItemStatus::Success(None)),
-        )],
+        vec![(&validate_signature.id, Some(ActionItemStatus::Success(None)))],
     );
 
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
@@ -538,20 +504,14 @@ fn test_multisig_runbook_no_env() {
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(
-            &get_public_key_alice.title.to_uppercase(),
-            "CONNECT WALLET ALICE"
-        );
+        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET ALICE");
 
         assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
         let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(
-            &get_public_key_bob.title.to_uppercase(),
-            "CONNECT WALLET BOB"
-        );
+        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET BOB");
     }
     println!("action panel data: {:?}", action_panel_data);
     let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
@@ -559,10 +519,7 @@ fn test_multisig_runbook_no_env() {
     let compute_multisig = &action_panel_data.groups[1].sub_groups[1].action_items[0];
     let verify_balance = &action_panel_data.groups[1].sub_groups[1].action_items[1];
     assert_eq!(compute_multisig.action_status, ActionItemStatus::Todo);
-    assert_eq!(
-        compute_multisig.title.to_uppercase(),
-        "COMPUTE MULTISIG ADDRESS"
-    );
+    assert_eq!(compute_multisig.title.to_uppercase(), "COMPUTE MULTISIG ADDRESS");
 
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
@@ -702,9 +659,7 @@ fn test_multisig_runbook_no_env() {
             (&sign_tx_bob.id, Some(ActionItemStatus::Success(None))),
             (
                 &compute_multisig.id,
-                Some(ActionItemStatus::Success(Some(
-                    "All signers participated".to_string(),
-                ))),
+                Some(ActionItemStatus::Success(Some("All signers participated".to_string()))),
             ),
         ],
     );
@@ -714,12 +669,7 @@ fn test_multisig_runbook_no_env() {
         ActionItemResponse {
             action_item_id: nonce_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: nonce_action
-                    .action_type
-                    .as_review_input()
-                    .unwrap()
-                    .input_name
-                    .clone(),
+                input_name: nonce_action.action_type.as_review_input().unwrap().input_name.clone(),
                 value_checked: true,
             }),
         },
@@ -731,12 +681,7 @@ fn test_multisig_runbook_no_env() {
         ActionItemResponse {
             action_item_id: fee_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: fee_action
-                    .action_type
-                    .as_review_input()
-                    .unwrap()
-                    .input_name
-                    .clone(),
+                input_name: fee_action.action_type.as_review_input().unwrap().input_name.clone(),
                 value_checked: true,
             }),
         },
@@ -749,10 +694,7 @@ fn test_multisig_runbook_no_env() {
             action_item_id: validate_signature.id.clone(),
             payload: ActionItemResponseType::ValidateBlock,
         },
-        vec![(
-            &validate_signature.id,
-            Some(ActionItemStatus::Success(None)),
-        )],
+        vec![(&validate_signature.id, Some(ActionItemStatus::Success(None)))],
     );
 
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
@@ -782,11 +724,7 @@ fn test_bns_runbook_no_env() {
     );
     let runbook_inputs = RunbookInputsMap::new();
 
-    let runbook_id = RunbookId {
-        org: None,
-        workspace: None,
-        name: "test".into(),
-    };
+    let runbook_id = RunbookId { org: None, workspace: None, name: "test".into() };
 
     let mut runbook = Runbook::new(runbook_id, None);
     let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StacksNetworkAddon::new())];
@@ -832,15 +770,9 @@ fn test_bns_runbook_no_env() {
     assert_eq!(action_panel_data.title.to_uppercase(), "RUNBOOK CHECKLIST");
     assert_eq!(action_panel_data.groups.len(), 2);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 1);
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        3
-    );
+    assert_eq!(action_panel_data.groups[0].sub_groups[0].action_items.len(), 3);
     assert_eq!(action_panel_data.groups[1].sub_groups.len(), 1);
-    assert_eq!(
-        action_panel_data.groups[1].sub_groups[0].action_items.len(),
-        1
-    );
+    assert_eq!(action_panel_data.groups[1].sub_groups[0].action_items.len(), 1);
 
     let get_public_key = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     assert_eq!(get_public_key.action_status, ActionItemStatus::Todo);
@@ -899,14 +831,8 @@ fn test_bns_runbook_no_env() {
     assert_eq!(action_panel_data.title, "Input Review");
     assert_eq!(action_panel_data.groups.len(), 1);
     assert_eq!(action_panel_data.groups[0].sub_groups.len(), 2);
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[0].action_items.len(),
-        4
-    );
-    assert_eq!(
-        action_panel_data.groups[0].sub_groups[1].action_items.len(),
-        1
-    );
+    assert_eq!(action_panel_data.groups[0].sub_groups[0].action_items.len(), 4);
+    assert_eq!(action_panel_data.groups[0].sub_groups[1].action_items.len(), 1);
 
     let action_item_uuid = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let _ = action_item_events_tx.send(ActionItemResponse {

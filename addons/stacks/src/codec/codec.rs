@@ -48,15 +48,13 @@ macro_rules! impl_byte_array_message_codec {
                 &self,
                 fd: &mut W,
             ) -> Result<(), clarity::codec::Error> {
-                fd.write_all(self.as_bytes())
-                    .map_err(clarity::codec::Error::WriteError)
+                fd.write_all(self.as_bytes()).map_err(clarity::codec::Error::WriteError)
             }
             fn consensus_deserialize<R: std::io::Read>(
                 fd: &mut R,
             ) -> Result<$thing, clarity::codec::Error> {
                 let mut buf = [0u8; ($len as usize)];
-                fd.read_exact(&mut buf)
-                    .map_err(clarity::codec::Error::ReadError)?;
+                fd.read_exact(&mut buf).map_err(clarity::codec::Error::ReadError)?;
                 let ret = $thing::from_bytes(&buf).expect("BUG: buffer is not the right size");
                 Ok(ret)
             }
@@ -436,13 +434,11 @@ impl MultisigSpendingCondition {
         key_encoding: TransactionPublicKeyEncoding,
         signature: MessageSignature,
     ) {
-        self.fields
-            .push(TransactionAuthField::Signature(key_encoding, signature));
+        self.fields.push(TransactionAuthField::Signature(key_encoding, signature));
     }
 
     pub fn push_public_key(&mut self, public_key: Secp256k1PublicKey) {
-        self.fields
-            .push(TransactionAuthField::PublicKey(public_key));
+        self.fields.push(TransactionAuthField::PublicKey(public_key));
     }
 
     pub fn pop_auth_field(&mut self) -> Option<TransactionAuthField> {
@@ -450,17 +446,11 @@ impl MultisigSpendingCondition {
     }
 
     pub fn address_mainnet(&self) -> StacksAddress {
-        StacksAddress {
-            version: C32_ADDRESS_VERSION_MAINNET_MULTISIG,
-            bytes: self.signer,
-        }
+        StacksAddress { version: C32_ADDRESS_VERSION_MAINNET_MULTISIG, bytes: self.signer }
     }
 
     pub fn address_testnet(&self) -> StacksAddress {
-        StacksAddress {
-            version: C32_ADDRESS_VERSION_TESTNET_MULTISIG,
-            bytes: self.signer,
-        }
+        StacksAddress { version: C32_ADDRESS_VERSION_TESTNET_MULTISIG, bytes: self.signer }
     }
 
     /// Authenticate a spending condition against an initial sighash.
@@ -508,9 +498,7 @@ impl MultisigSpendingCondition {
         }
 
         if num_sigs != self.signatures_required {
-            return Err(CodecError::SigningError(
-                "Incorrect number of signatures".to_string(),
-            ));
+            return Err(CodecError::SigningError("Incorrect number of signatures".to_string()));
         }
 
         if have_uncompressed && self.hash_mode == MultisigHashMode::P2WSH {
@@ -575,10 +563,7 @@ impl SinglesigSpendingCondition {
             SinglesigHashMode::P2PKH => C32_ADDRESS_VERSION_MAINNET_SINGLESIG,
             SinglesigHashMode::P2WPKH => C32_ADDRESS_VERSION_MAINNET_MULTISIG,
         };
-        StacksAddress {
-            version,
-            bytes: self.signer,
-        }
+        StacksAddress { version, bytes: self.signer }
     }
 
     pub fn address_testnet(&self) -> StacksAddress {
@@ -586,10 +571,7 @@ impl SinglesigSpendingCondition {
             SinglesigHashMode::P2PKH => C32_ADDRESS_VERSION_TESTNET_SINGLESIG,
             SinglesigHashMode::P2WPKH => C32_ADDRESS_VERSION_TESTNET_MULTISIG,
         };
-        StacksAddress {
-            version,
-            bytes: self.signer,
-        }
+        StacksAddress { version, bytes: self.signer }
     }
 
     /// Authenticate a spending condition against an initial sighash.
@@ -650,16 +632,14 @@ impl TransactionSpendingCondition {
         let signer_addr =
             StacksAddress::from_public_keys(0, &AddressHashMode::SerializeP2PKH, 1, &vec![pubkey])?;
 
-        Some(TransactionSpendingCondition::Singlesig(
-            SinglesigSpendingCondition {
-                signer: signer_addr.bytes,
-                nonce: 0,
-                tx_fee: 0,
-                hash_mode: SinglesigHashMode::P2PKH,
-                key_encoding,
-                signature: MessageSignature::empty(),
-            },
-        ))
+        Some(TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
+            signer: signer_addr.bytes,
+            nonce: 0,
+            tx_fee: 0,
+            hash_mode: SinglesigHashMode::P2PKH,
+            key_encoding,
+            signature: MessageSignature::empty(),
+        }))
     }
 
     pub fn new_singlesig_p2wpkh(
@@ -672,16 +652,14 @@ impl TransactionSpendingCondition {
             &vec![pubkey],
         )?;
 
-        Some(TransactionSpendingCondition::Singlesig(
-            SinglesigSpendingCondition {
-                signer: signer_addr.bytes,
-                nonce: 0,
-                tx_fee: 0,
-                hash_mode: SinglesigHashMode::P2WPKH,
-                key_encoding: TransactionPublicKeyEncoding::Compressed,
-                signature: MessageSignature::empty(),
-            },
-        ))
+        Some(TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
+            signer: signer_addr.bytes,
+            nonce: 0,
+            tx_fee: 0,
+            hash_mode: SinglesigHashMode::P2WPKH,
+            key_encoding: TransactionPublicKeyEncoding::Compressed,
+            signature: MessageSignature::empty(),
+        }))
     }
 
     pub fn new_multisig_p2sh(
@@ -695,16 +673,14 @@ impl TransactionSpendingCondition {
             &pubkeys,
         )?;
 
-        Some(TransactionSpendingCondition::Multisig(
-            MultisigSpendingCondition {
-                signer: signer_addr.bytes,
-                nonce: 0,
-                tx_fee: 0,
-                hash_mode: MultisigHashMode::P2SH,
-                fields: vec![],
-                signatures_required: num_sigs,
-            },
-        ))
+        Some(TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
+            signer: signer_addr.bytes,
+            nonce: 0,
+            tx_fee: 0,
+            hash_mode: MultisigHashMode::P2SH,
+            fields: vec![],
+            signatures_required: num_sigs,
+        }))
     }
 
     pub fn new_multisig_p2wsh(
@@ -718,16 +694,14 @@ impl TransactionSpendingCondition {
             &pubkeys,
         )?;
 
-        Some(TransactionSpendingCondition::Multisig(
-            MultisigSpendingCondition {
-                signer: signer_addr.bytes,
-                nonce: 0,
-                tx_fee: 0,
-                hash_mode: MultisigHashMode::P2WSH,
-                fields: vec![],
-                signatures_required: num_sigs,
-            },
-        ))
+        Some(TransactionSpendingCondition::Multisig(MultisigSpendingCondition {
+            signer: signer_addr.bytes,
+            nonce: 0,
+            tx_fee: 0,
+            hash_mode: MultisigHashMode::P2WSH,
+            fields: vec![],
+            signatures_required: num_sigs,
+        }))
     }
 
     /// When committing to the fact that a transaction is sponsored, the origin doesn't know
@@ -757,9 +731,9 @@ impl TransactionSpendingCondition {
                 let mut num_sigs: u16 = 0;
                 for field in data.fields.iter() {
                     if field.is_signature() {
-                        num_sigs = num_sigs
-                            .checked_add(1)
-                            .expect("Unreasonable amount of signatures"); // something is seriously wrong if this fails
+                        num_sigs =
+                            num_sigs.checked_add(1).expect("Unreasonable amount of signatures");
+                        // something is seriously wrong if this fails
                     }
                 }
                 num_sigs
@@ -1044,9 +1018,7 @@ impl TransactionAuth {
                 *ssc = sponsor_spending_cond;
                 Ok(())
             }
-            _ => Err(CodecError::GenericError(
-                "IncompatibleSpendingConditionError".into(),
-            )),
+            _ => Err(CodecError::GenericError("IncompatibleSpendingConditionError".into())),
         }
     }
 
@@ -1108,9 +1080,9 @@ impl TransactionAuth {
 
     pub fn set_sponsor_nonce(&mut self, n: u64) -> Result<(), CodecError> {
         match *self {
-            TransactionAuth::Standard(_) => Err(CodecError::GenericError(
-                "IncompatibleSpendingConditionError".into(),
-            )),
+            TransactionAuth::Standard(_) => {
+                Err(CodecError::GenericError("IncompatibleSpendingConditionError".into()))
+            }
             TransactionAuth::Sponsored(_, ref mut s) => {
                 s.set_nonce(n);
                 Ok(())
@@ -1584,18 +1556,8 @@ pub enum PostConditionPrincipalID {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TransactionPostCondition {
     STX(PostConditionPrincipal, FungibleConditionCode, u64),
-    Fungible(
-        PostConditionPrincipal,
-        AssetInfo,
-        FungibleConditionCode,
-        u64,
-    ),
-    Nonfungible(
-        PostConditionPrincipal,
-        AssetInfo,
-        Value,
-        NonfungibleConditionCode,
-    ),
+    Fungible(PostConditionPrincipal, AssetInfo, FungibleConditionCode, u64),
+    Nonfungible(PostConditionPrincipal, AssetInfo, Value, NonfungibleConditionCode),
 }
 
 /// Post-condition modes for unspecified assets
@@ -1693,8 +1655,7 @@ impl StacksTransaction {
     /// a txid of a stacks transaction is its sha512/256 hash
     pub fn txid(&self) -> Txid {
         let mut bytes = vec![];
-        self.consensus_serialize(&mut bytes)
-            .expect("BUG: failed to serialize to a vec");
+        self.consensus_serialize(&mut bytes).expect("BUG: failed to serialize to a vec");
         Txid::from_stacks_tx(&bytes)
     }
 
@@ -1782,9 +1743,7 @@ impl StacksTransaction {
                 cond.push_public_key(pubkey.clone());
                 Ok(())
             }
-            _ => Err(CodecError::SigningError(
-                "Not a multisig condition".to_string(),
-            )),
+            _ => Err(CodecError::SigningError("Not a multisig condition".to_string())),
         }
     }
 
@@ -2055,9 +2014,7 @@ impl StacksTransactionSigner {
         spending_condition: TransactionSpendingCondition,
     ) -> Result<StacksTransactionSigner, CodecError> {
         if !tx.auth.is_sponsored() {
-            return Err(CodecError::GenericError(
-                "IncompatibleSpendingConditionError".into(),
-            ));
+            return Err(CodecError::GenericError("IncompatibleSpendingConditionError".into()));
         }
         let mut new_tx = tx.clone();
         new_tx.auth.set_sponsor(spending_condition)?;
@@ -2256,13 +2213,7 @@ impl StacksMessageCodec for StacksMicroblockHeader {
         //         "Failed to parse signature".to_string(),
         //     ))?;
 
-        Ok(StacksMicroblockHeader {
-            version,
-            sequence,
-            prev_block,
-            tx_merkle_root,
-            signature,
-        })
+        Ok(StacksMicroblockHeader { version, sequence, prev_block, tx_merkle_root, signature })
     }
 }
 
@@ -2386,9 +2337,7 @@ pub fn build_contrat_call_transaction(
     };
 
     let mut unsigned_tx_bytes = vec![];
-    unsigned_tx
-        .consensus_serialize(&mut unsigned_tx_bytes)
-        .expect("FATAL: invalid transaction");
+    unsigned_tx.consensus_serialize(&mut unsigned_tx_bytes).expect("FATAL: invalid transaction");
 
     let mut tx_signer = StacksTransactionSigner::new(&unsigned_tx);
     tx_signer.sign_origin(&secret_key).unwrap();
@@ -2422,12 +2371,7 @@ impl StacksMessageCodec for TransactionContractCall {
             ));
         }
 
-        Ok(TransactionContractCall {
-            address,
-            contract_name,
-            function_name,
-            function_args,
-        })
+        Ok(TransactionContractCall { address, contract_name, function_name, function_args })
     }
 }
 
@@ -2574,11 +2518,7 @@ impl StacksMessageCodec for AssetInfo {
         let contract_address: StacksAddress = read_next(fd)?;
         let contract_name: ContractName = read_next(fd)?;
         let asset_name: ClarityName = read_next(fd)?;
-        Ok(AssetInfo {
-            contract_address,
-            contract_name,
-            asset_name,
-        })
+        Ok(AssetInfo { contract_address, contract_name, asset_name })
     }
 }
 
@@ -2841,14 +2781,7 @@ impl StacksMessageCodec for SinglesigSpendingCondition {
             return Err(CodecError::DeserializeError("Failed to parse singlesig spending condition: incomaptible hash mode and key encoding".to_string()));
         }
 
-        Ok(SinglesigSpendingCondition {
-            signer,
-            nonce,
-            tx_fee,
-            hash_mode,
-            key_encoding,
-            signature,
-        })
+        Ok(SinglesigSpendingCondition { signer, nonce, tx_fee, hash_mode, key_encoding, signature })
     }
 }
 
@@ -2889,12 +2822,10 @@ impl StacksMessageCodec for MultisigSpendingCondition {
             match *f {
                 TransactionAuthField::Signature(ref key_encoding, _) => {
                     num_sigs_given =
-                        num_sigs_given
-                            .checked_add(1)
-                            .ok_or(CodecError::DeserializeError(
-                                "Failed to parse multisig spending condition: too many signatures"
-                                    .to_string(),
-                            ))?;
+                        num_sigs_given.checked_add(1).ok_or(CodecError::DeserializeError(
+                            "Failed to parse multisig spending condition: too many signatures"
+                                .to_string(),
+                        ))?;
                     if *key_encoding == TransactionPublicKeyEncoding::Uncompressed {
                         have_uncompressed = true;
                     }

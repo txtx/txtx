@@ -91,11 +91,7 @@ pub struct Block {
 
 impl Block {
     pub fn new(uuid: &Uuid, panel: Panel) -> Self {
-        Block {
-            uuid: uuid.clone(),
-            panel,
-            visible: true,
-        }
+        Block { uuid: uuid.clone(), panel, visible: true }
     }
 
     pub fn apply_action_item_updates(&mut self, update: NormalizedActionItemRequestUpdate) -> bool {
@@ -423,10 +419,7 @@ pub struct ConstructProgressBarStatuses {
 
 impl ConstructProgressBarStatuses {
     pub fn new(construct_did: &ConstructDid) -> Self {
-        ConstructProgressBarStatuses {
-            construct_did: construct_did.clone(),
-            statuses: vec![],
-        }
+        ConstructProgressBarStatuses { construct_did: construct_did.clone(), statuses: vec![] }
     }
     pub fn push_status(&mut self, new_status: &ProgressBarStatus) {
         self.statuses.push(new_status.clone());
@@ -510,10 +503,7 @@ pub struct ProgressBarVisibilityUpdate {
 }
 impl ProgressBarVisibilityUpdate {
     pub fn new(progress_bar_uuid: &Uuid, visible: bool) -> Self {
-        ProgressBarVisibilityUpdate {
-            progress_bar_uuid: progress_bar_uuid.clone(),
-            visible,
-        }
+        ProgressBarVisibilityUpdate { progress_bar_uuid: progress_bar_uuid.clone(), visible }
     }
 }
 
@@ -605,10 +595,7 @@ pub struct ActionGroup {
 
 impl ActionGroup {
     pub fn new(title: &str, sub_groups: Vec<ActionSubGroup>) -> Self {
-        ActionGroup {
-            title: title.to_string(),
-            sub_groups: sub_groups,
-        }
+        ActionGroup { title: title.to_string(), sub_groups }
     }
     pub fn contains_validate_modal_item(&self) -> bool {
         for sub_group in self.sub_groups.iter() {
@@ -692,11 +679,7 @@ impl ActionSubGroup {
         action_items: Vec<ActionItemRequest>,
         allow_batch_completion: bool,
     ) -> Self {
-        ActionSubGroup {
-            title,
-            action_items,
-            allow_batch_completion,
-        }
+        ActionSubGroup { title, action_items, allow_batch_completion }
     }
 
     pub fn contains_validate_modal_item(&self) -> bool {
@@ -771,10 +754,7 @@ impl ActionItemRequest {
             title,
             description.clone().unwrap_or("".into()),
             internal_key,
-            construct_did
-                .as_ref()
-                .and_then(|did| Some(did.to_string()))
-                .unwrap_or("".into()),
+            construct_did.as_ref().and_then(|did| Some(did.to_string())).unwrap_or("".into()),
             action_type.get_block_id_string()
         );
         let id = BlockId::new(data.as_bytes());
@@ -996,11 +976,8 @@ impl Actions {
         action_item_requests: &BTreeMap<BlockId, ActionItemRequest>,
     ) -> Vec<BlockEvent> {
         let mut blocks = vec![];
-        let mut current_panel_data = ActionPanelData {
-            title: "".to_string(),
-            description: "".to_string(),
-            groups: vec![],
-        };
+        let mut current_panel_data =
+            ActionPanelData { title: "".to_string(), description: "".to_string(), groups: vec![] };
         let mut index = 0;
         let mut current_modal: Option<Block> = None;
         let mut updates = vec![];
@@ -1076,18 +1053,14 @@ impl Actions {
                                     allow_batch_completion: true,
                                 });
                             } else {
-                                modal
-                                    .panel
-                                    .expect_modal_panel_mut()
-                                    .groups
-                                    .push(ActionGroup {
-                                        title: group_title.as_ref().unwrap_or(&"".into()).into(),
-                                        sub_groups: vec![ActionSubGroup {
-                                            title: None,
-                                            action_items: vec![item.clone()],
-                                            allow_batch_completion: true,
-                                        }],
-                                    });
+                                modal.panel.expect_modal_panel_mut().groups.push(ActionGroup {
+                                    title: group_title.as_ref().unwrap_or(&"".into()).into(),
+                                    sub_groups: vec![ActionSubGroup {
+                                        title: None,
+                                        action_items: vec![item.clone()],
+                                        allow_batch_completion: true,
+                                    }],
+                                });
                             }
                             if let ActionItemRequestType::ValidateModal = item.action_type {
                                 blocks.push(BlockEvent::Modal(modal.clone()));
@@ -1144,14 +1117,10 @@ impl Actions {
                                 }
                                 group.sub_groups.push(data.clone());
                             } else {
-                                modal
-                                    .panel
-                                    .expect_modal_panel_mut()
-                                    .groups
-                                    .push(ActionGroup {
-                                        title: "".to_string(),
-                                        sub_groups: vec![data.clone()],
-                                    });
+                                modal.panel.expect_modal_panel_mut().groups.push(ActionGroup {
+                                    title: "".to_string(),
+                                    sub_groups: vec![data.clone()],
+                                });
                             }
                             if data.contains_validate_modal_item() {
                                 blocks.push(BlockEvent::Modal(modal.clone()));
@@ -1172,11 +1141,7 @@ impl Actions {
                             current_panel_data.groups.push(data.clone());
                         }
                         Some(ref mut modal) => {
-                            modal
-                                .panel
-                                .expect_modal_panel_mut()
-                                .groups
-                                .push(data.clone());
+                            modal.panel.expect_modal_panel_mut().groups.push(data.clone());
                             if data.contains_validate_modal_item() {
                                 blocks.push(BlockEvent::Modal(modal.clone()));
                                 current_modal = None;
@@ -1630,10 +1595,7 @@ pub struct InputOption {
 
 impl InputOption {
     pub fn default() -> Self {
-        InputOption {
-            value: String::new(),
-            displayed_value: String::new(),
-        }
+        InputOption { value: String::new(), displayed_value: String::new() }
     }
 }
 

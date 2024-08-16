@@ -175,17 +175,12 @@ impl StacksRpc {
     pub fn new(url: &str, auth_token: Option<String>) -> Self {
         let mut default_headers = HeaderMap::new();
         if let Some(auth_token) = auth_token {
-            default_headers.insert(
-                AUTHORIZATION,
-                format!("Bearer {}", auth_token).parse().unwrap(),
-            );
+            default_headers
+                .insert(AUTHORIZATION, format!("Bearer {}", auth_token).parse().unwrap());
         }
         Self {
             url: url.into(),
-            client: Client::builder()
-                .default_headers(default_headers)
-                .build()
-                .unwrap(),
+            client: Client::builder().default_headers(default_headers).build().unwrap(),
         }
     }
 
@@ -232,10 +227,8 @@ impl StacksRpc {
             return Err(err);
         }
 
-        let fee_report: FeeEstimationReport = res
-            .json()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
+        let fee_report: FeeEstimationReport =
+            res.json().await.map_err(|e| RpcError::Message(e.to_string()))?;
 
         Ok(fee_report.estimations[priority].fee)
     }
@@ -282,10 +275,7 @@ impl StacksRpc {
             return Err(err);
         }
 
-        let txid: String = res
-            .json()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
+        let txid: String = res.json().await.map_err(|e| RpcError::Message(e.to_string()))?;
         let res = PostTransactionResult { txid };
         Ok(res)
     }
@@ -297,11 +287,8 @@ impl StacksRpc {
     }
 
     pub async fn get_balance(&self, address: &str) -> Result<Balance, RpcError> {
-        let request_url = format!(
-            "{}/v2/accounts/{addr}?unanchored=true",
-            self.url,
-            addr = address,
-        );
+        let request_url =
+            format!("{}/v2/accounts/{addr}?unanchored=true", self.url, addr = address,);
 
         let mut res: Balance = self
             .client
@@ -367,10 +354,8 @@ impl StacksRpc {
         principal: &str,
         contract_name: &str,
     ) -> Result<Contract, RpcError> {
-        let request_url = format!(
-            "{}/v2/contracts/source/{}/{}",
-            self.url, principal, contract_name
-        );
+        let request_url =
+            format!("{}/v2/contracts/source/{}/{}", self.url, principal, contract_name);
 
         let res = self.client.get(request_url).send().await;
 
@@ -396,10 +381,8 @@ impl StacksRpc {
             self.url, contract_addr, contract_name, method
         );
 
-        let arguments = args
-            .iter()
-            .map(|a| bytes_to_hex(&a.serialize_to_vec()))
-            .collect::<Vec<_>>();
+        let arguments =
+            args.iter().map(|a| bytes_to_hex(&a.serialize_to_vec())).collect::<Vec<_>>();
         let res = self
             .client
             .post(path)
@@ -425,10 +408,8 @@ impl StacksRpc {
             result: String,
         }
 
-        let response: ReadOnlyCallResult = res
-            .json()
-            .await
-            .map_err(|e| RpcError::Message(e.to_string()))?;
+        let response: ReadOnlyCallResult =
+            res.json().await.map_err(|e| RpcError::Message(e.to_string()))?;
 
         if response.okay {
             // Removing the 0x prefix

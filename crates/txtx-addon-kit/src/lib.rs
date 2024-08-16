@@ -124,8 +124,6 @@ pub struct AddonDefaults {
 
 impl AddonDefaults {
     pub fn new(key: &str) -> AddonDefaults {
-        AddonDefaults {
-            store: ValueStore::new(key, &Did::zero()),
-        }
+        AddonDefaults { store: ValueStore::new(key, &Did::zero()) }
     }
 }

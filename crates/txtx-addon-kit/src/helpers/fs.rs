@@ -87,9 +87,8 @@ impl FileLocation {
 
         #[cfg(not(feature = "wasm"))]
         if url.scheme() == "file" {
-            let path = url
-                .to_file_path()
-                .map_err(|_| format!("unable to conver url {} to path", url))?;
+            let path =
+                url.to_file_path().map_err(|_| format!("unable to conver url {} to path", url))?;
             return Ok(FileLocation::FileSystem { path });
         }
 
@@ -114,9 +113,8 @@ impl FileLocation {
                 path.extend(&path_to_append);
             }
             FileLocation::Url { url } => {
-                let mut paths_segments = url
-                    .path_segments_mut()
-                    .map_err(|_| "unable to mutate url".to_string())?;
+                let mut paths_segments =
+                    url.path_segments_mut().map_err(|_| "unable to mutate url".to_string())?;
                 for component in path_to_append.components() {
                     let segment = component
                         .as_os_str()
@@ -139,11 +137,7 @@ impl FileLocation {
     pub fn read_content_as_utf8(&self) -> Result<String, String> {
         let content = self.read_content()?;
         let contract_as_utf8 = String::from_utf8(content).map_err(|e| {
-            format!(
-                "unable to read content from {} as utf8 ({})",
-                self,
-                e.to_string()
-            )
+            format!("unable to read content from {} as utf8 ({})", self, e.to_string())
         })?;
         Ok(contract_as_utf8)
     }
@@ -171,11 +165,7 @@ impl FileLocation {
         let mut parent_directory = file_path.clone();
         parent_directory.pop();
         fs::create_dir_all(&parent_directory).map_err(|e| {
-            format!(
-                "unable to create parent directory {}\n{}",
-                parent_directory.display(),
-                e
-            )
+            format!("unable to create parent directory {}\n{}", parent_directory.display(), e)
         })?;
         let mut file = File::create(file_path)
             .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
@@ -261,9 +251,8 @@ impl FileLocation {
                 path.pop();
             }
             FileLocation::Url { url } => {
-                let mut segments = url
-                    .path_segments_mut()
-                    .map_err(|_| "unable to mutate url".to_string())?;
+                let mut segments =
+                    url.path_segments_mut().map_err(|_| "unable to mutate url".to_string())?;
                 segments.pop();
             }
         }
@@ -290,9 +279,9 @@ impl FileLocation {
             FileLocation::FileSystem { path } => {
                 path.file_name().and_then(|f| Some(f.to_str()?.to_string()))
             }
-            FileLocation::Url { url } => url
-                .path_segments()
-                .and_then(|p| Some(p.last()?.to_string())),
+            FileLocation::Url { url } => {
+                url.path_segments().and_then(|p| Some(p.last()?.to_string()))
+            }
         }
     }
 }
@@ -404,30 +393,27 @@ pub fn get_txtx_files_paths(
         .filter_map(|res| res.ok())
         .map(|dir_entry| dir_entry.path())
         .filter_map(|path| {
-            if path.extension().map_or(false, |ext| {
-                ["tx", "txvars"].contains(&ext.to_str().unwrap())
-            }) {
+            if path
+                .extension()
+                .map_or(false, |ext| ["tx", "txvars"].contains(&ext.to_str().unwrap()))
+            {
                 Some(path)
             } else {
                 None
             }
         })
         .filter_map(|path| {
-            if path
-                .file_name()
-                .map(|f| f.to_str().unwrap_or(""))
-                .map_or(false, |filename| {
-                    let comps = filename.split(".").collect::<Vec<_>>();
-                    if comps.len() > 2 {
-                        let Some(env) = environment_selector else {
-                            return false;
-                        };
-                        return comps[comps.len() - 2].eq(env);
-                    } else {
-                        return true;
-                    }
-                })
-            {
+            if path.file_name().map(|f| f.to_str().unwrap_or("")).map_or(false, |filename| {
+                let comps = filename.split(".").collect::<Vec<_>>();
+                if comps.len() > 2 {
+                    let Some(env) = environment_selector else {
+                        return false;
+                    };
+                    return comps[comps.len() - 2].eq(env);
+                } else {
+                    return true;
+                }
+            }) {
                 Some(path)
             } else {
                 None

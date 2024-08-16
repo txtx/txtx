@@ -26,16 +26,10 @@ pub enum VisitorError {
 }
 
 pub fn visit_label(index: usize, name: &str, block: &Block) -> Result<String, VisitorError> {
-    let label = block
-        .labels
-        .get(index)
-        .ok_or(VisitorError::MissingField(name.to_string()))?;
+    let label = block.labels.get(index).ok_or(VisitorError::MissingField(name.to_string()))?;
     match label {
         BlockLabel::String(literal) => Ok(literal.to_string()),
-        BlockLabel::Ident(_e) => Err(VisitorError::TypeMismatch(
-            "string".into(),
-            name.to_string(),
-        )),
+        BlockLabel::Ident(_e) => Err(VisitorError::TypeMismatch("string".into(), name.to_string())),
     }
 }
 
@@ -80,11 +74,7 @@ pub fn visit_optional_untyped_attribute(
 
 pub fn get_object_expression_key(obj: &Object, key: &str) -> Option<hcl_edit::expr::ObjectValue> {
     obj.into_iter()
-        .find(|(k, _)| {
-            k.as_ident()
-                .and_then(|i| Some(i.as_str().eq(key)))
-                .unwrap_or(false)
-        })
+        .find(|(k, _)| k.as_ident().and_then(|i| Some(i.as_str().eq(key))).unwrap_or(false))
         .map(|(_, v)| v)
         .cloned()
 }

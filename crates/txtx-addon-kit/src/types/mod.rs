@@ -131,11 +131,7 @@ impl RunbookId {
     }
 
     pub fn zero() -> RunbookId {
-        RunbookId {
-            org: None,
-            workspace: None,
-            name: "".into(),
-        }
+        RunbookId { org: None, workspace: None, name: "".into() }
     }
 }
 
@@ -169,9 +165,7 @@ impl PackageId {
             self.package_name.to_string().as_bytes(),
             // todo(lgalabru): This should be done upstream.
             // Serializing is allowing us to get a canonical location.
-            serde_json::json!(self.package_location)
-                .to_string()
-                .as_bytes(),
+            serde_json::json!(self.package_location).to_string().as_bytes(),
         ]);
         PackageDid(did)
     }
@@ -222,9 +216,7 @@ impl ConstructId {
             self.construct_name.to_string().as_bytes(),
             // todo(lgalabru): This should be done upstream.
             // Serializing is allowing us to get a canonical location.
-            serde_json::json!(self.construct_location)
-                .to_string()
-                .as_bytes(),
+            serde_json::json!(self.construct_location).to_string().as_bytes(),
         ]);
         ConstructDid(did)
     }
@@ -245,11 +237,7 @@ pub struct ValueStore {
 
 impl ValueStore {
     pub fn new(name: &str, uuid: &Did) -> ValueStore {
-        ValueStore {
-            name: name.to_string(),
-            uuid: uuid.clone(),
-            storage: IndexMap::new(),
-        }
+        ValueStore { name: name.to_string(), uuid: uuid.clone(), storage: IndexMap::new() }
     }
 
     pub fn get_defaulting_string(
@@ -317,10 +305,7 @@ impl ValueStore {
         defaults: &AddonDefaults,
     ) -> Result<Option<String>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
-            let res = defaults
-                .store
-                .get_string(key)
-                .and_then(|s| Some(s.to_string()));
+            let res = defaults.store.get_string(key).and_then(|s| Some(s.to_string()));
             return Ok(res);
         };
         let Some(value) = value.as_string() else {
@@ -359,8 +344,7 @@ impl ValueStore {
     }
 
     pub fn clear_autoincrementable_nonce(&mut self) {
-        self.storage
-            .swap_remove(&format!("{}:autoincrement", CACHED_NONCE));
+        self.storage.swap_remove(&format!("{}:autoincrement", CACHED_NONCE));
     }
 
     pub fn set_autoincrementable_nonce(&mut self, key: &str, initial_value: u64) {
@@ -368,10 +352,8 @@ impl ValueStore {
             format!("{}:autoincrement", CACHED_NONCE),
             Value::integer((initial_value + 1).into()),
         );
-        self.storage.insert(
-            format!("{}:{}", CACHED_NONCE, key),
-            Value::integer(initial_value.into()),
-        );
+        self.storage
+            .insert(format!("{}:{}", CACHED_NONCE, key), Value::integer(initial_value.into()));
     }
 
     pub fn get_autoincremented_nonce(&mut self, key: &str) -> Option<i128> {
@@ -568,8 +550,6 @@ impl AuthorizationContext {
     }
 
     pub fn empty() -> Self {
-        Self {
-            workspace_location: FileLocation::working_dir(),
-        }
+        Self { workspace_location: FileLocation::working_dir() }
     }
 }

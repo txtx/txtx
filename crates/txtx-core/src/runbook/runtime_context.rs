@@ -100,9 +100,7 @@ impl RuntimeContext {
 
             let mut result = CommandExecutionResult::new();
             result.outputs.insert("value".into(), value.clone());
-            dummy_execution_context
-                .commands_execution_results
-                .insert(construct_did, result);
+            dummy_execution_context.commands_execution_results.insert(construct_did, result);
         }
 
         let mut sources = VecDeque::new();
@@ -136,10 +134,7 @@ impl RuntimeContext {
                 package_name: package_name.clone(),
             };
 
-            let mut blocks = content
-                .into_blocks()
-                .into_iter()
-                .collect::<VecDeque<Block>>();
+            let mut blocks = content.into_blocks().into_iter().collect::<VecDeque<Block>>();
             while let Some(block) = blocks.pop_front() {
                 match block.ident.value().as_str() {
                     "runtime" => {
@@ -227,26 +222,17 @@ impl RuntimeContext {
         let mut consolidated_dependencies = HashMap::new();
         let mut grouped_commands: HashMap<
             String,
-            Vec<(
-                ConstructDid,
-                &CommandInstance,
-                Option<&CommandInputsEvaluationResult>,
-            )>,
+            Vec<(ConstructDid, &CommandInstance, Option<&CommandInputsEvaluationResult>)>,
         > = HashMap::new();
         for (did, command_instance) in runbook_execution_context.commands_instances.iter() {
-            let inputs_simulation_results = runbook_execution_context
-                .commands_inputs_simulation_results
-                .get(did);
+            let inputs_simulation_results =
+                runbook_execution_context.commands_inputs_simulation_results.get(did);
             grouped_commands
                 .entry(command_instance.namespace.clone())
                 .and_modify(|e: &mut _| {
                     e.push((did.clone(), command_instance, inputs_simulation_results))
                 })
-                .or_insert(vec![(
-                    did.clone(),
-                    command_instance,
-                    inputs_simulation_results,
-                )]);
+                .or_insert(vec![(did.clone(), command_instance, inputs_simulation_results)]);
         }
         for (addon_key, commands_instances) in grouped_commands.iter() {
             let Some((addon, _)) = self.addons_context.registered_addons.get(addon_key) else {
@@ -286,16 +272,11 @@ impl RuntimeContext {
                 package_location: package_location.clone(),
                 package_name: package_name.clone(),
             };
-            self.addons_context
-                .register(&package_id.did(), Box::new(StdAddon::new()), false);
+            self.addons_context.register(&package_id.did(), Box::new(StdAddon::new()), false);
             // register stacks
             {
                 let addon_id = "stacks";
-                if self
-                    .available_addons
-                    .iter()
-                    .any(|addon| addon.get_namespace().eq(addon_id))
-                {
+                if self.available_addons.iter().any(|addon| addon.get_namespace().eq(addon_id)) {
                     let mut index = None;
                     for (i, addon) in self.available_addons.iter().enumerate() {
                         if addon.get_namespace().eq(addon_id) {
@@ -316,11 +297,7 @@ impl RuntimeContext {
             // register evm
             {
                 let addon_id = "evm";
-                if self
-                    .available_addons
-                    .iter()
-                    .any(|addon| addon.get_namespace().eq(addon_id))
-                {
+                if self.available_addons.iter().any(|addon| addon.get_namespace().eq(addon_id)) {
                     let mut index = None;
                     for (i, addon) in self.available_addons.iter().enumerate() {
                         if addon.get_namespace().eq(addon_id) {
@@ -367,8 +344,7 @@ impl RuntimeContext {
             // Register standard functions at the root level
             let std_addon = StdAddon::new();
             for function in std_addon.get_functions().iter() {
-                self.functions
-                    .insert(function.name.clone(), function.clone());
+                self.functions.insert(function.name.clone(), function.clone());
             }
 
             self.inputs_sets = inputs_sets.clone();
@@ -385,13 +361,9 @@ impl RuntimeContext {
                     package_location: package_location.clone(),
                     package_name: package_name.clone(),
                 };
-                self.addons_context
-                    .register(&package_id.did(), Box::new(StdAddon::new()), false);
+                self.addons_context.register(&package_id.did(), Box::new(StdAddon::new()), false);
 
-                let mut blocks = content
-                    .into_blocks()
-                    .into_iter()
-                    .collect::<VecDeque<Block>>();
+                let mut blocks = content.into_blocks().into_iter().collect::<VecDeque<Block>>();
                 while let Some(block) = blocks.pop_front() {
                     match block.ident.value().as_str() {
                         "runtime" => {
@@ -514,10 +486,9 @@ impl RuntimeContext {
                         };
 
                         let addon = self.available_addons.remove(index);
-                        runbook_workspace_context.addons_defaults.insert(
-                            (package_did.clone(), addon.get_namespace().into()),
-                            defaults,
-                        );
+                        runbook_workspace_context
+                            .addons_defaults
+                            .insert((package_did.clone(), addon.get_namespace().into()), defaults);
                         self.addons_context.register(&package_did, addon, true);
                     }
                     _ => {
@@ -578,10 +549,7 @@ pub struct AddonsContext {
 
 impl AddonsContext {
     pub fn new() -> Self {
-        Self {
-            registered_addons: HashMap::new(),
-            addon_construct_factories: HashMap::new(),
-        }
+        Self { registered_addons: HashMap::new(), addon_construct_factories: HashMap::new() }
     }
 
     pub fn register(&mut self, package_did: &PackageDid, addon: Box<dyn Addon>, scope: bool) {
@@ -596,10 +564,8 @@ impl AddonsContext {
             commands: addon.build_command_lookup(),
             signers: addon.build_signer_lookup(),
         };
-        self.registered_addons
-            .insert(addon.get_namespace().to_string(), (addon, scope));
-        self.addon_construct_factories
-            .insert((package_did.clone(), key.clone()), factory);
+        self.registered_addons.insert(addon.get_namespace().to_string(), (addon, scope));
+        self.addon_construct_factories.insert((package_did.clone(), key.clone()), factory);
     }
 
     fn get_factory(

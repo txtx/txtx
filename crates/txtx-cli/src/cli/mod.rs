@@ -19,10 +19,7 @@ pub struct Context {
 #[allow(dead_code)]
 impl Context {
     pub fn empty() -> Context {
-        Context {
-            logger: None,
-            tracer: false,
-        }
+        Context { logger: None, tracer: false }
     }
 
     pub fn try_log<F>(&self, closure: F)
@@ -68,7 +65,7 @@ enum Command {
     Lsp,
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
-    Snapshots(SnapshotCommand),    
+    Snapshots(SnapshotCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -200,10 +197,7 @@ fn load_stdin() -> Option<String> {
 pub fn main() {
     let logger = hiro_system_kit::log::setup_logger();
     let _guard = hiro_system_kit::log::setup_global_logger(logger.clone());
-    let ctx = Context {
-        logger: Some(logger),
-        tracer: false,
-    };
+    let ctx = Context { logger: Some(logger), tracer: false };
 
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
@@ -213,11 +207,7 @@ pub fn main() {
         }
     };
 
-    let buffer_stdin = if let Command::Lsp = opts.command {
-        None
-    } else {
-        load_stdin()
-    };
+    let buffer_stdin = if let Command::Lsp = opts.command { None } else { load_stdin() };
 
     match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx, buffer_stdin)) {
         Err(e) => {

@@ -140,10 +140,7 @@ impl WorkspaceManifest {
 fn normalize_user_input(input: &str) -> String {
     let normalized = input.to_lowercase().replace(" ", "-");
     // only allow alphanumeric
-    let slug = normalized
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '-')
-        .collect::<String>();
+    let slug = normalized.chars().filter(|c| c.is_alphanumeric() || *c == '-').collect::<String>();
     slug
 }
 
@@ -165,12 +162,6 @@ impl RunbookMetadata {
     pub fn new(action: &str, name: &str, description: Option<String>) -> Self {
         let id = normalize_user_input(name);
         let location = format!("runbooks/{}/{}.tx", action, id);
-        RunbookMetadata {
-            location,
-            name: name.to_string(),
-            description,
-            id,
-            state: None,
-        }
+        RunbookMetadata { location, name: name.to_string(), description, id, state: None }
     }
 }

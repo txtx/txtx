@@ -125,16 +125,11 @@ impl CommandImplementation for EncodeStacksContractCall {
                 if let TransactionAuth::Standard(TransactionSpendingCondition::Singlesig(auth)) =
                     tx.auth
                 {
+                    result.outputs.insert("nonce".to_string(), Value::integer(auth.nonce as i128));
                     result
                         .outputs
-                        .insert("nonce".to_string(), Value::integer(auth.nonce as i128));
-                    result.outputs.insert(
-                        "signer".to_string(),
-                        Value::string(format!("{}", auth.signer)),
-                    );
-                    result
-                        .outputs
-                        .insert("fee".to_string(), Value::integer(auth.tx_fee as i128));
+                        .insert("signer".to_string(), Value::string(format!("{}", auth.signer)));
+                    result.outputs.insert("fee".to_string(), Value::integer(auth.tx_fee as i128));
                 } else {
                     unimplemented!("unimplemented auth decoding");
                 }

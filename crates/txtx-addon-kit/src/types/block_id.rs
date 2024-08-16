@@ -36,13 +36,7 @@ mod tests {
 
     #[test]
     fn it_yields_consistent_ids() {
-        assert_eq!(
-            BlockId::new("test".as_bytes()),
-            BlockId::new("test".as_bytes())
-        );
-        assert_ne!(
-            BlockId::new("test".as_bytes()),
-            BlockId::new("tEsT".as_bytes())
-        );
+        assert_eq!(BlockId::new("test".as_bytes()), BlockId::new("test".as_bytes()));
+        assert_ne!(BlockId::new("test".as_bytes()), BlockId::new("tEsT".as_bytes()));
     }
 }

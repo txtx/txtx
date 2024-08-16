@@ -147,10 +147,7 @@ impl Runbook {
         // Ensure that the selector exists
         if let Some(ref entry) = selector {
             if !self.inputs_map.environments.contains(entry) {
-                return Err(vec![diagnosed_error!(
-                    "input '{}' unknown from inputs map",
-                    entry
-                )]);
+                return Err(vec![diagnosed_error!("input '{}' unknown from inputs map", entry)]);
             }
         }
         // Rebuild contexts
@@ -204,24 +201,16 @@ impl RunningContext {
     }
 
     pub fn is_enabled(&self) -> bool {
-        !self
-            .execution_context
-            .execution_mode
-            .eq(&RunbookExecutionMode::Ignored)
+        !self.execution_context.execution_mode.eq(&RunbookExecutionMode::Ignored)
     }
 
     pub fn index_environment_variables(&mut self, inputs_set: &ValueStore) {
         for (key, value) in inputs_set.iter() {
-            let construct_did = self
-                .workspace_context
-                .index_environment_variable(key, value);
-            self.graph_context
-                .index_environment_variable(&construct_did);
+            let construct_did = self.workspace_context.index_environment_variable(key, value);
+            self.graph_context.index_environment_variable(&construct_did);
             let mut result = CommandExecutionResult::new();
             result.outputs.insert("value".into(), value.clone());
-            self.execution_context
-                .commands_execution_results
-                .insert(construct_did, result);
+            self.execution_context.commands_execution_results.insert(construct_did, result);
         }
     }
 }
@@ -235,11 +224,7 @@ pub struct RunbookInputsMap {
 
 impl RunbookInputsMap {
     pub fn new() -> Self {
-        Self {
-            current: None,
-            environments: vec![],
-            values: HashMap::new(),
-        }
+        Self { current: None, environments: vec![], values: HashMap::new() }
     }
 
     pub fn current_inputs_set(&self) -> ValueStore {
@@ -294,9 +279,7 @@ pub struct RunbookSources {
 
 impl RunbookSources {
     pub fn new() -> Self {
-        Self {
-            tree: HashMap::new(),
-        }
+        Self { tree: HashMap::new() }
     }
 
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {

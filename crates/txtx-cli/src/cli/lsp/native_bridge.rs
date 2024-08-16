@@ -132,9 +132,7 @@ impl LanguageServer for LspNativeBridge {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        self.client
-            .log_message(MessageType::INFO, format!("Txtx Language Server shutdown"))
-            .await;
+        self.client.log_message(MessageType::INFO, format!("Txtx Language Server shutdown")).await;
         Ok(())
     }
 
@@ -144,10 +142,7 @@ impl LanguageServer for LspNativeBridge {
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         self.client
-            .log_message(
-                MessageType::INFO,
-                "Txtx Language Server - Received completion request",
-            )
+            .log_message(MessageType::INFO, "Txtx Language Server - Received completion request")
             .await;
 
         let _ = match self.request_tx.lock() {
@@ -234,10 +229,7 @@ impl LanguageServer for LspNativeBridge {
         self.client
             .log_message(
                 MessageType::INFO,
-                format!(
-                    "Txtx Language Server: File open {}",
-                    params.text_document.uri
-                ),
+                format!("Txtx Language Server: File open {}", params.text_document.uri),
             )
             .await;
 
@@ -254,17 +246,12 @@ impl LanguageServer for LspNativeBridge {
                 Err(_) => return,
             };
         } else {
-            self.client
-                .log_message(MessageType::WARNING, "Unsupported file opened")
-                .await;
+            self.client.log_message(MessageType::WARNING, "Unsupported file opened").await;
             return;
         };
 
         self.client
-            .log_message(
-                MessageType::WARNING,
-                "Command submitted to background thread",
-            )
+            .log_message(MessageType::WARNING, "Command submitted to background thread")
             .await;
         let mut aggregated_diagnostics = vec![];
         let mut notification = None;
@@ -293,10 +280,7 @@ impl LanguageServer for LspNativeBridge {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         self.client
-            .log_message(
-                MessageType::INFO,
-                "Txtx Language Server - Received save notification",
-            )
+            .log_message(MessageType::INFO, "Txtx Language Server - Received save notification")
             .await;
 
         if let Some(contract_location) = utils::get_runbook_location(&params.text_document.uri) {
@@ -343,10 +327,7 @@ impl LanguageServer for LspNativeBridge {
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         self.client
-            .log_message(
-                MessageType::INFO,
-                "Txtx Language Server - Received change notification",
-            )
+            .log_message(MessageType::INFO, "Txtx Language Server - Received change notification")
             .await;
 
         if let Some(contract_location) = utils::get_runbook_location(&params.text_document.uri) {

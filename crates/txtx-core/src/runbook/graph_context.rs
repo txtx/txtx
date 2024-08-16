@@ -63,17 +63,11 @@ impl RunbookGraphContext {
 
         for (package_did, package) in packages.iter() {
             for construct_did in package.imports_dids.iter() {
-                let construct = execution_context
-                    .commands_instances
-                    .get(construct_did)
-                    .unwrap();
+                let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for _dep in construct.collect_dependencies().iter() {} // todo
             }
             for construct_did in package.variables_dids.iter() {
-                let construct = execution_context
-                    .commands_instances
-                    .get(construct_did)
-                    .unwrap();
+                let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
@@ -89,10 +83,7 @@ impl RunbookGraphContext {
                 }
             }
             for construct_did in package.modules_dids.iter() {
-                let construct = execution_context
-                    .commands_instances
-                    .get(construct_did)
-                    .unwrap();
+                let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
@@ -108,10 +99,7 @@ impl RunbookGraphContext {
                 }
             }
             for construct_did in package.outputs_dids.iter() {
-                let construct = execution_context
-                    .commands_instances
-                    .get(construct_did)
-                    .unwrap();
+                let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
@@ -129,10 +117,8 @@ impl RunbookGraphContext {
             let mut signers = VecDeque::new();
             let mut instantiated_signers = HashSet::new();
             for construct_did in package.commands_dids.iter() {
-                let command_instance = execution_context
-                    .commands_instances
-                    .get(construct_did)
-                    .unwrap();
+                let command_instance =
+                    execution_context.commands_instances.get(construct_did).unwrap();
 
                 if let Some(dependencies) = domain_specific_dependencies.get(construct_did) {
                     for dependent_construct_did in dependencies {
@@ -145,9 +131,8 @@ impl RunbookGraphContext {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
-                        if let Some(_) = execution_context
-                            .signers_instances
-                            .get(&resolved_construct_did)
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
                         {
                             signers.push_front((resolved_construct_did.clone(), true));
                             instantiated_signers.insert(resolved_construct_did.clone());
@@ -164,10 +149,8 @@ impl RunbookGraphContext {
             }
             // todo: should we constrain to signers depending on signers?
             for construct_did in package.signers_dids.iter() {
-                let signer_instance = execution_context
-                    .signers_instances
-                    .get(construct_did)
-                    .unwrap();
+                let signer_instance =
+                    execution_context.signers_instances.get(construct_did).unwrap();
                 for (_input, dep) in signer_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_did, dep);
@@ -175,14 +158,10 @@ impl RunbookGraphContext {
                         if !instantiated_signers.contains(&resolved_construct_did) {
                             signers.push_front((resolved_construct_did.clone(), false))
                         }
-                        execution_context
-                            .signers_state
-                            .as_mut()
-                            .unwrap()
-                            .create_new_signer(
-                                &resolved_construct_did,
-                                &resolved_construct_did.value().to_string(),
-                            );
+                        execution_context.signers_state.as_mut().unwrap().create_new_signer(
+                            &resolved_construct_did,
+                            &resolved_construct_did.value().to_string(),
+                        );
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(diagnosed_error!(
@@ -205,15 +184,13 @@ impl RunbookGraphContext {
             let src_node_index = constructs_graph_nodes.get(&src).unwrap();
             let dst_node_index = constructs_graph_nodes.get(&dst).unwrap();
 
-            if let Some(edge_to_root) = self
-                .constructs_dag
-                .find_edge(self.graph_root, src_node_index.clone())
+            if let Some(edge_to_root) =
+                self.constructs_dag.find_edge(self.graph_root, src_node_index.clone())
             {
                 self.constructs_dag.remove_edge(edge_to_root);
             }
             if let Err(_e) =
-                self.constructs_dag
-                    .add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
+                self.constructs_dag.add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
             {
                 diags.push(diagnosed_error!("Cycling dependency"));
             }
@@ -224,9 +201,7 @@ impl RunbookGraphContext {
         }
 
         for (construct_did, instantiated) in self.instantiated_signers.iter() {
-            execution_context
-                .order_for_signers_initialization
-                .push(construct_did.clone());
+            execution_context.order_for_signers_initialization.push(construct_did.clone());
             // For each signing command instantiated
             if *instantiated {
                 // We retrieve the downstream dependencies (signed commands)
@@ -251,9 +226,7 @@ impl RunbookGraphContext {
                     execution_context
                         .signed_commands_upstream_dependencies
                         .insert(signed_dependency.clone(), upstream_dependencies);
-                    execution_context
-                        .signed_commands
-                        .insert(signed_dependency.clone());
+                    execution_context.signed_commands.insert(signed_dependency.clone());
                 }
                 ordered_signed_commands.sort_by(|(a_id, a_len), (b_id, b_len)| {
                     if a_len.eq(b_len) {
@@ -274,40 +247,31 @@ impl RunbookGraphContext {
         }
 
         for construct_did in self.get_sorted_constructs() {
-            execution_context
-                .order_for_commands_execution
-                .push(construct_did.clone());
+            execution_context.order_for_commands_execution.push(construct_did.clone());
         }
 
         for (construct_did, _) in execution_context.commands_instances.iter() {
             let dependencies =
                 self.get_downstream_dependencies_for_construct_did(construct_did, true);
-            execution_context
-                .commands_dependencies
-                .insert(construct_did.clone(), dependencies);
+            execution_context.commands_dependencies.insert(construct_did.clone(), dependencies);
         }
         Ok(())
     }
 
     pub fn index_package(&mut self, package_id: &PackageId) {
-        self.packages_dag
-            .add_child(self.graph_root, 0, package_id.did());
+        self.packages_dag.add_child(self.graph_root, 0, package_id.did());
     }
 
     pub fn index_construct(&mut self, construct_did: &ConstructDid) {
         let (_, node_index) =
-            self.constructs_dag
-                .add_child(self.graph_root.clone(), 100, construct_did.clone());
-        self.constructs_dag_node_lookup
-            .insert(construct_did.clone(), node_index);
+            self.constructs_dag.add_child(self.graph_root.clone(), 100, construct_did.clone());
+        self.constructs_dag_node_lookup.insert(construct_did.clone(), node_index);
     }
 
     pub fn index_environment_variable(&mut self, construct_did: &ConstructDid) {
         let (_, node_index) =
-            self.constructs_dag
-                .add_child(self.graph_root.clone(), 100, construct_did.clone());
-        self.constructs_dag_node_lookup
-            .insert(construct_did.clone(), node_index);
+            self.constructs_dag.add_child(self.graph_root.clone(), 100, construct_did.clone());
+        self.constructs_dag_node_lookup.insert(construct_did.clone(), node_index);
     }
 
     /// Gets all descendants of `node` within `graph`.
@@ -320,11 +284,7 @@ impl RunbookGraphContext {
         descendant_nodes.push_front(node);
         let mut descendants = IndexSet::new();
         while let Some(node) = descendant_nodes.pop_front() {
-            for (_, child) in self
-                .constructs_dag
-                .children(node)
-                .iter(&self.constructs_dag)
-            {
+            for (_, child) in self.constructs_dag.children(node).iter(&self.constructs_dag) {
                 if recursive {
                     descendant_nodes.push_back(child);
                 }
@@ -413,10 +373,8 @@ impl RunbookGraphContext {
     pub fn resolve_constructs_dids(&self, nodes: IndexSet<NodeIndex>) -> Vec<ConstructDid> {
         let mut construct_dids = vec![];
         for node in nodes {
-            let construct_did = self
-                .constructs_dag
-                .node_weight(node)
-                .expect("construct_did not indexed in graph");
+            let construct_did =
+                self.constructs_dag.node_weight(node).expect("construct_did not indexed in graph");
 
             construct_dids.push(construct_did.clone());
         }

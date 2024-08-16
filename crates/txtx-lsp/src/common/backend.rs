@@ -92,10 +92,7 @@ pub async fn process_notification(
                         .try_write(|es| es.index_workspace(manifest_location, protocol_state))?;
                     let (aggregated_diagnostics, notification) =
                         editor_state.try_read(|es| es.get_aggregated_diagnostics())?;
-                    Ok(LspNotificationResponse {
-                        aggregated_diagnostics,
-                        notification,
-                    })
+                    Ok(LspNotificationResponse { aggregated_diagnostics, notification })
                 }
                 Err(e) => Ok(LspNotificationResponse::error(&e)),
             }
@@ -109,18 +106,14 @@ pub async fn process_notification(
                         .try_write(|es| es.index_workspace(manifest_location, workspace_state))?;
                     let (aggregated_diagnostics, notification) =
                         editor_state.try_read(|es| es.get_aggregated_diagnostics())?;
-                    Ok(LspNotificationResponse {
-                        aggregated_diagnostics,
-                        notification,
-                    })
+                    Ok(LspNotificationResponse { aggregated_diagnostics, notification })
                 }
                 Err(e) => Ok(LspNotificationResponse::error(&e)),
             }
         }
         LspNotification::RunbookOpened(runbook_location) => {
-            let manifest_location = runbook_location
-                .get_workspace_manifest_location(file_accessor)
-                .await?;
+            let manifest_location =
+                runbook_location.get_workspace_manifest_location(file_accessor).await?;
 
             // store the contract in the active_contracts map
             if !editor_state.try_read(|es| es.active_runbooks.contains_key(&runbook_location))? {
@@ -175,10 +168,7 @@ pub async fn process_notification(
                         .try_write(|es| es.index_workspace(manifest_location, protocol_state))?;
                     let (aggregated_diagnostics, notification) =
                         editor_state.try_read(|es| es.get_aggregated_diagnostics())?;
-                    Ok(LspNotificationResponse {
-                        aggregated_diagnostics,
-                        notification,
-                    })
+                    Ok(LspNotificationResponse { aggregated_diagnostics, notification })
                 }
                 Err(e) => Ok(LspNotificationResponse::error(&e)),
             }
@@ -188,11 +178,7 @@ pub async fn process_notification(
                 .try_write(|es| es.clear_workspace_associated_with_runbook(&runbook_location))?
             {
                 Some(manifest_location) => manifest_location,
-                None => {
-                    runbook_location
-                        .get_workspace_manifest_location(file_accessor)
-                        .await?
-                }
+                None => runbook_location.get_workspace_manifest_location(file_accessor).await?,
             };
 
             // TODO(): introduce partial analysis #604
@@ -208,10 +194,7 @@ pub async fn process_notification(
 
                     let (aggregated_diagnostics, notification) =
                         editor_state.try_read(|es| es.get_aggregated_diagnostics())?;
-                    Ok(LspNotificationResponse {
-                        aggregated_diagnostics,
-                        notification,
-                    })
+                    Ok(LspNotificationResponse { aggregated_diagnostics, notification })
                 }
                 Err(e) => Ok(LspNotificationResponse::error(&e)),
             }
@@ -363,9 +346,6 @@ pub fn process_mutating_request(
                 Err(err) => Err(err),
             }
         }
-        _ => Err(format!(
-            "Unexpected command: {:?}, should not not mutate state",
-            &command
-        )),
+        _ => Err(format!("Unexpected command: {:?}, should not not mutate state", &command)),
     }
 }

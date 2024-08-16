@@ -33,15 +33,13 @@ impl InitializationOptions {
 
 pub fn get_capabilities(initialization_options: &InitializationOptions) -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Options(
-            TextDocumentSyncOptions {
-                open_close: Some(true),
-                change: Some(TextDocumentSyncKind::FULL),
-                will_save: Some(false),
-                will_save_wait_until: Some(false),
-                save: Some(TextDocumentSyncSaveOptions::Supported(true)),
-            },
-        )),
+        text_document_sync: Some(TextDocumentSyncCapability::Options(TextDocumentSyncOptions {
+            open_close: Some(true),
+            change: Some(TextDocumentSyncKind::FULL),
+            will_save: Some(false),
+            will_save_wait_until: Some(false),
+            save: Some(TextDocumentSyncSaveOptions::Supported(true)),
+        })),
         completion_provider: match initialization_options.completion {
             true => Some(CompletionOptions::default()),
             false => None,

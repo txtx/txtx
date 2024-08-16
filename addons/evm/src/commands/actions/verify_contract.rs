@@ -268,9 +268,7 @@ impl CommandImplementation for VerifyEVMContract {
                             }
                         }
 
-                        result
-                            .outputs
-                            .insert("result".into(), Value::string(err_msg.clone()));
+                        result.outputs.insert("result".into(), Value::string(err_msg.clone()));
 
                         let diag = diagnosed_error!("command 'evm::verify_contract': failed to verify contract with block explorer: {}", err_msg);
                         status_update.update_status(&ProgressBarStatus::new_err(
@@ -361,9 +359,7 @@ impl CommandImplementation for VerifyEVMContract {
                 };
 
                 if res.message.eq("NOTOK") {
-                    result
-                        .outputs
-                        .insert("result".into(), Value::string(res.result.clone()));
+                    result.outputs.insert("result".into(), Value::string(res.result.clone()));
 
                     if res.result.eq("Already Verified") {
                         status_update.update_status(&ProgressBarStatus::new_msg(
@@ -394,9 +390,7 @@ impl CommandImplementation for VerifyEVMContract {
                 let contract_verified = res.result;
 
                 if contract_verified.eq("Pass - Verified") {
-                    result
-                        .outputs
-                        .insert("result".into(), Value::string(contract_verified));
+                    result.outputs.insert("result".into(), Value::string(contract_verified));
 
                     status_update.update_status(&ProgressBarStatus::new_msg(
                         ProgressBarStatusColor::Green,
@@ -464,8 +458,7 @@ pub fn get_expected_uint_from_map(
             "command 'evm::verify_contract': contract deployment artifacts missing {key}"
         ));
     };
-    val.expect_uint()
-        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
+    val.expect_uint().map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
 }
 pub fn get_expected_bool_from_map(
     map: &IndexMap<String, Value>,

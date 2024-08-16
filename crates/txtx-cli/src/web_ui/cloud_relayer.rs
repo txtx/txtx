@@ -65,10 +65,10 @@ impl ChannelData {
         // );
         ChannelData {
             operator_token,
-            totp: totp,
+            totp,
             http_endpoint_url: open_channel_response.http_endpoint_url,
             ws_endpoint_url: open_channel_response.ws_endpoint_url,
-            slug: slug,
+            slug,
             // ws_channel_handle,
         }
     }
@@ -113,20 +113,17 @@ pub async fn open_channel(
         .await
         .map_err(ErrorInternalServerError)?;
 
-    let body = res
-        .json::<OpenChannelResponse>()
-        .await
-        .map_err(ErrorInternalServerError)?;
+    let body = res.json::<OpenChannelResponse>().await.map_err(ErrorInternalServerError)?;
 
-    let _ = relayer_context
-        .relayer_channel_tx
-        .send(RelayerChannelEvent::OpenChannel(ChannelData::new(
+    let _ = relayer_context.relayer_channel_tx.send(RelayerChannelEvent::OpenChannel(
+        ChannelData::new(
             token.to_string(),
             totp.clone(),
             slug.clone(),
             body.clone(),
             // &graph_context.action_item_events_tx,
-        )));
+        ),
+    ));
 
     let response = OpenChannelResponseBrowser {
         totp: totp.clone(),
@@ -161,9 +158,7 @@ pub async fn delete_channel(
     };
 
     let token = cookie.value();
-    send_delete_channel(token, payload)
-        .await
-        .map_err(ErrorInternalServerError)?;
+    send_delete_channel(token, payload).await.map_err(ErrorInternalServerError)?;
     Ok(HttpResponseBuilder::new(StatusCode::OK).finish())
 }
 
@@ -218,13 +213,7 @@ where
     let mut attempts = 0;
     let client = reqwest::Client::new();
     loop {
-        match client
-            .post(path)
-            .bearer_auth(&auth_token)
-            .json(payload)
-            .send()
-            .await
-        {
+        match client.post(path).bearer_auth(&auth_token).json(payload).send().await {
             Ok(req) => match req.error_for_status() {
                 Ok(_) => return Ok(()),
                 Err(e) => {
@@ -380,9 +369,7 @@ impl RelayerWebSocketChannel {
             req,
             None,
             false,
-            Some(tokio_tungstenite::Connector::NativeTls(
-                TlsConnector::new().unwrap(),
-            )),
+            Some(tokio_tungstenite::Connector::NativeTls(TlsConnector::new().unwrap())),
         )
         .await
         .map_err(|e| format!("relayer ws channel failed: {}", e))

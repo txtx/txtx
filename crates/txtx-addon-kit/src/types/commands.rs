@@ -55,9 +55,7 @@ impl Serialize for CommandExecutionResult {
 }
 impl CommandExecutionResult {
     pub fn new() -> Self {
-        Self {
-            outputs: HashMap::new(),
-        }
+        Self { outputs: HashMap::new() }
     }
 
     pub fn append(&mut self, other: &mut CommandExecutionResult) {
@@ -87,9 +85,7 @@ impl Serialize for CommandInputsEvaluationResult {
 
 impl CommandInputsEvaluationResult {
     pub fn new(name: &str) -> Self {
-        Self {
-            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()),
-        }
+        Self { inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()) }
     }
 
     pub fn insert(&mut self, key: &str, value: Value) {
@@ -719,62 +715,64 @@ impl CommandInstance {
 
         let mut consolidated_actions = Actions::none();
         match action_item_response {
-            Some(responses) => responses.into_iter().for_each(
-                |ActionItemResponse {
-                     action_item_id,
-                     payload,
-                 }| match payload {
-                    ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                        input_name,
-                        value_checked,
-                    }) => {
-                        for input in self.specification.inputs.iter_mut() {
-                            if &input.name == input_name {
-                                input.check_performed = value_checked.clone();
-                                break;
+            Some(responses) => {
+                responses.into_iter().for_each(|ActionItemResponse { action_item_id, payload }| {
+                    match payload {
+                        ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                            input_name,
+                            value_checked,
+                        }) => {
+                            for input in self.specification.inputs.iter_mut() {
+                                if &input.name == input_name {
+                                    input.check_performed = value_checked.clone();
+                                    break;
+                                }
                             }
                         }
-                    }
-                    ActionItemResponseType::ProvideInput(ProvidedInputResponse {
-                        input_name,
-                        updated_value,
-                    }) => {
-                        input_evaluation_results
-                            .inputs
-                            .insert(&input_name, updated_value.clone());
+                        ActionItemResponseType::ProvideInput(ProvidedInputResponse {
+                            input_name,
+                            updated_value,
+                        }) => {
+                            input_evaluation_results
+                                .inputs
+                                .insert(&input_name, updated_value.clone());
 
-                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
-                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                                default_value: Some(updated_value.clone()),
-                                input_name: input_name.clone(),
-                                typing: updated_value.get_type(),
-                            }))
-                            .set_status(ActionItemStatus::Success(None));
-                        consolidated_actions.push_action_item_update(action_item_update);
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_type(ActionItemRequestType::ProvideInput(
+                                        ProvideInputRequest {
+                                            default_value: Some(updated_value.clone()),
+                                            input_name: input_name.clone(),
+                                            typing: updated_value.get_type(),
+                                        },
+                                    ))
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
 
-                        for input in self.specification.inputs.iter_mut() {
-                            if &input.name == input_name {
-                                input.check_performed = true;
-                                break;
+                            for input in self.specification.inputs.iter_mut() {
+                                if &input.name == input_name {
+                                    input.check_performed = true;
+                                    break;
+                                }
                             }
                         }
+                        ActionItemResponseType::ProvideSignedTransaction(bytes) => {
+                            // TODO
+                            values.insert(
+                                "signed_transaction_bytes",
+                                Value::string(bytes.signed_transaction_bytes.clone()),
+                            );
+                        }
+                        ActionItemResponseType::ProvideSignedMessage(response) => {
+                            values.insert(
+                                "signed_message_bytes",
+                                Value::string(response.signed_message_bytes.clone()),
+                            );
+                        }
+                        _ => {}
                     }
-                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                        // TODO
-                        values.insert(
-                            "signed_transaction_bytes",
-                            Value::string(bytes.signed_transaction_bytes.clone()),
-                        );
-                    }
-                    ActionItemResponseType::ProvideSignedMessage(response) => {
-                        values.insert(
-                            "signed_message_bytes",
-                            Value::string(response.signed_message_bytes.clone()),
-                        );
-                    }
-                    _ => {}
-                },
-            ),
+                })
+            }
             None => {}
         }
 
@@ -886,43 +884,47 @@ impl CommandInstance {
         // TODO
         let mut consolidated_actions = Actions::none();
         match action_item_response {
-            Some(responses) => responses.into_iter().for_each(
-                |ActionItemResponse {
-                     action_item_id,
-                     payload,
-                 }| match payload {
-                    ActionItemResponseType::ReviewInput(update) => {
-                        // This is a shortcut and should be mutated somewhere else
-                        for input in self.specification.inputs.iter_mut() {
-                            if input.name == update.input_name {
-                                input.check_performed = true;
-                                break;
+            Some(responses) => {
+                responses.into_iter().for_each(|ActionItemResponse { action_item_id, payload }| {
+                    match payload {
+                        ActionItemResponseType::ReviewInput(update) => {
+                            // This is a shortcut and should be mutated somewhere else
+                            for input in self.specification.inputs.iter_mut() {
+                                if input.name == update.input_name {
+                                    input.check_performed = true;
+                                    break;
+                                }
                             }
                         }
+                        ActionItemResponseType::ProvideInput(update) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_type(ActionItemRequestType::ProvideInput(
+                                        ProvideInputRequest {
+                                            default_value: Some(update.updated_value.clone()),
+                                            input_name: update.input_name.clone(),
+                                            typing: update.updated_value.get_type(),
+                                        },
+                                    ))
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
+                        ActionItemResponseType::ProvideSignedTransaction(_) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
+                        ActionItemResponseType::ProvideSignedMessage(_response) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
+                        _ => {}
                     }
-                    ActionItemResponseType::ProvideInput(update) => {
-                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
-                            .set_type(ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                                default_value: Some(update.updated_value.clone()),
-                                input_name: update.input_name.clone(),
-                                typing: update.updated_value.get_type(),
-                            }))
-                            .set_status(ActionItemStatus::Success(None));
-                        consolidated_actions.push_action_item_update(action_item_update);
-                    }
-                    ActionItemResponseType::ProvideSignedTransaction(_) => {
-                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
-                            .set_status(ActionItemStatus::Success(None));
-                        consolidated_actions.push_action_item_update(action_item_update);
-                    }
-                    ActionItemResponseType::ProvideSignedMessage(_response) => {
-                        let action_item_update = ActionItemRequestUpdate::from_id(&action_item_id)
-                            .set_status(ActionItemStatus::Success(None));
-                        consolidated_actions.push_action_item_update(action_item_update);
-                    }
-                    _ => {}
-                },
-            ),
+                })
+            }
             None => {}
         }
 
@@ -1044,12 +1046,7 @@ impl CommandInstance {
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
 
-        for input in self
-            .specification
-            .inputs
-            .iter()
-            .chain(&self.specification.default_inputs)
-        {
+        for input in self.specification.inputs.iter().chain(&self.specification.default_inputs) {
             match input.typing {
                 Type::Object(ref props) => {
                     if let Some(attr) = self.block.body.get_attribute(&input.name) {

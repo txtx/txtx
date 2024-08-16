@@ -121,9 +121,8 @@ impl CommandImplementation for SendHttpRequest {
             let value = args.get_string("method").unwrap_or("GET");
             Method::try_from(value).unwrap()
         };
-        let request_headers = args
-            .get_value("request_headers")
-            .and_then(|value| Some(value.expect_object().clone()));
+        let request_headers =
+            args.get_value("request_headers").and_then(|value| Some(value.expect_object().clone()));
 
         #[cfg(not(feature = "wasm"))]
         let future = async move {
@@ -155,14 +154,11 @@ impl CommandImplementation for SendHttpRequest {
                 ))
             })?;
 
-            result.outputs.insert(
-                format!("status_code"),
-                Value::integer(status_code.as_u16().into()),
-            );
-
             result
                 .outputs
-                .insert(format!("response_body"), Value::string(response_body));
+                .insert(format!("status_code"), Value::integer(status_code.as_u16().into()));
+
+            result.outputs.insert(format!("response_body"), Value::string(response_body));
 
             Ok(result)
         };

@@ -330,19 +330,14 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let signer_did = get_signer_did(&args).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         // insert pre-calculated contract address into outputs to be used by verify contract bg task
-        let contract_address = signer_state
-            .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
-            .unwrap(); // insert pre-calculated contract addr
-        result
-            .outputs
-            .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+        let contract_address =
+            signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap(); // insert pre-calculated contract addr
+        result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
 
         let already_deployed = signer_state
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
-        result
-            .outputs
-            .insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
+        result.outputs.insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
         let future = async move {
             // if this contract has already been deployed, we'll skip signing and confirming
             let (signers, signer_state) = if !already_deployed {
@@ -519,9 +514,7 @@ async fn build_unsigned_create2_deployment(
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let contract_address = args
-        .get_value(CREATE2_FACTORY_ADDRESS)
-        .and_then(|v| Some(v.clone()));
+    let contract_address = args.get_value(CREATE2_FACTORY_ADDRESS).and_then(|v| Some(v.clone()));
     let init_code = get_contract_init_code(args).map_err(to_diag_with_ctx)?;
     let expected_contract_address = args.get_string(EXPECTED_CONTRACT_ADDRESS);
 
@@ -588,9 +581,7 @@ async fn build_unsigned_create2_deployment(
         .map_err(|e| to_diag_with_ctx(e.to_string()))?;
 
     if !code_at_address.is_empty() {
-        return Ok(Create2DeploymentResult::AlreadyDeployed(
-            calculated_deployed_contract_address,
-        ));
+        return Ok(Create2DeploymentResult::AlreadyDeployed(calculated_deployed_contract_address));
     }
 
     let common = CommonTransactionFields {
@@ -598,16 +589,15 @@ async fn build_unsigned_create2_deployment(
         from: from.clone(),
         nonce,
         chain_id,
-        amount: amount,
+        amount,
         gas_limit,
         tx_type,
         input: Some(input),
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc.clone(), args, common)
-        .await
-        .map_err(to_diag_with_ctx)?;
+    let tx =
+        build_unsigned_transaction(rpc.clone(), args, common).await.map_err(to_diag_with_ctx)?;
 
     let actual_contract_address = rpc
         .call(&tx)

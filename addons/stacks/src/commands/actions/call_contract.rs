@@ -212,9 +212,8 @@ impl CommandImplementation for SendContractCall {
             Err(diag) => return Err((signers, signer_state, diag)),
         };
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_call(
             spec,
@@ -265,9 +264,8 @@ impl CommandImplementation for SendContractCall {
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
 
         let bytes = encode_contract_call(
@@ -317,11 +315,7 @@ impl CommandImplementation for SendContractCall {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

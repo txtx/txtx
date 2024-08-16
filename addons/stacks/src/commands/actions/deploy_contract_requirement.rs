@@ -205,16 +205,11 @@ impl CommandImplementation for StacksDeployContractRequirement {
             }
         }
 
+        evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
+        evaluated_inputs.inputs.insert("contracts_ids_dependencies", Value::array(dependencies));
         evaluated_inputs
             .inputs
-            .insert("contract_id", Value::string(contract_id.to_string()));
-        evaluated_inputs
-            .inputs
-            .insert("contracts_ids_dependencies", Value::array(dependencies));
-        evaluated_inputs.inputs.insert(
-            "contracts_ids_lazy_dependencies",
-            Value::array(lazy_dependencies),
-        );
+            .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
 
         Ok(evaluated_inputs)
         // Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
@@ -275,9 +270,8 @@ impl CommandImplementation for StacksDeployContractRequirement {
         };
 
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let bytes = match encode_contract_deployment(
             spec,
             &contract_source,
@@ -356,9 +350,8 @@ impl CommandImplementation for StacksDeployContractRequirement {
         signers.push_signer_state(signer_state);
 
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let bytes =
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
                 .unwrap();
@@ -397,11 +390,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

@@ -187,10 +187,9 @@ impl GqlProgressBlock {
 
     pub fn panel(&self) -> Vec<GqlConstructProgressBarStatuses> {
         match self.block.panel.clone() {
-            Panel::ProgressBar(panel_data) => panel_data
-                .into_iter()
-                .map(GqlConstructProgressBarStatuses::new)
-                .collect(),
+            Panel::ProgressBar(panel_data) => {
+                panel_data.into_iter().map(GqlConstructProgressBarStatuses::new).collect()
+            }
             _ => unreachable!(),
         }
     }
@@ -215,12 +214,7 @@ impl GqlActionPanelData {
     }
 
     pub fn groups(&self) -> Vec<GqlActionGroup> {
-        self.data
-            .groups
-            .clone()
-            .into_iter()
-            .map(GqlActionGroup::new)
-            .collect()
+        self.data.groups.clone().into_iter().map(GqlActionGroup::new).collect()
     }
 }
 
@@ -243,12 +237,7 @@ impl GqlModalPanelData {
     }
 
     pub fn groups(&self) -> Vec<GqlActionGroup> {
-        self.data
-            .groups
-            .clone()
-            .into_iter()
-            .map(GqlActionGroup::new)
-            .collect()
+        self.data.groups.clone().into_iter().map(GqlActionGroup::new).collect()
     }
 }
 
@@ -271,12 +260,7 @@ impl GqlErrorPanelData {
     }
 
     pub fn groups(&self) -> Vec<GqlActionGroup> {
-        self.data
-            .groups
-            .clone()
-            .into_iter()
-            .map(GqlActionGroup::new)
-            .collect()
+        self.data.groups.clone().into_iter().map(GqlActionGroup::new).collect()
     }
 }
 pub struct GqlConstructProgressBarStatuses {
@@ -293,12 +277,7 @@ impl GqlConstructProgressBarStatuses {
         self.data.construct_did.to_string()
     }
     pub fn statuses(&self) -> Vec<GqlProgressBarStatus> {
-        self.data
-            .statuses
-            .clone()
-            .into_iter()
-            .map(GqlProgressBarStatus::new)
-            .collect()
+        self.data.statuses.clone().into_iter().map(GqlProgressBarStatus::new).collect()
     }
 }
 
@@ -387,12 +366,7 @@ impl GqlActionGroup {
     }
 
     pub fn sub_groups(&self) -> Vec<GqlActionSubGroup> {
-        self.group
-            .sub_groups
-            .clone()
-            .into_iter()
-            .map(GqlActionSubGroup::new)
-            .collect()
+        self.group.sub_groups.clone().into_iter().map(GqlActionSubGroup::new).collect()
     }
 }
 
@@ -412,12 +386,7 @@ impl GqlActionSubGroup {
     }
 
     pub fn action_items(&self) -> Vec<GqlActionItemRequest> {
-        self.sub_group
-            .action_items
-            .clone()
-            .into_iter()
-            .map(GqlActionItemRequest::new)
-            .collect()
+        self.sub_group.action_items.clone().into_iter().map(GqlActionItemRequest::new).collect()
     }
 }
 

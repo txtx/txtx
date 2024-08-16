@@ -28,11 +28,8 @@ use crate::{
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
 
 lazy_static! {
-    pub static ref WALLETS: Vec<SignerSpecification> = vec![
-        STACKS_MNEMONIC.clone(),
-        STACKS_CONNECT.clone(),
-        STACKS_MULTISIG.clone()
-    ];
+    pub static ref WALLETS: Vec<SignerSpecification> =
+        vec![STACKS_MNEMONIC.clone(), STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
 }
 
 pub async fn get_addition_actions_for_address(
@@ -82,10 +79,9 @@ pub async fn get_addition_actions_for_address(
         }
         if do_request_balance {
             let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
-                Ok(response) => (
-                    ActionItemStatus::Todo,
-                    Value::string(response.get_formatted_balance()),
-                ),
+                Ok(response) => {
+                    (ActionItemStatus::Todo, Value::string(response.get_formatted_balance()))
+                }
                 Err(err) => (
                     ActionItemStatus::Error(diagnosed_error!(
                         "unable to retrieve balance {}: {}",
@@ -102,7 +98,7 @@ pub async fn get_addition_actions_for_address(
                 action_status,
                 ActionItemRequestType::ReviewInput(ReviewInputRequest {
                     input_name: "".into(), // todo
-                    value: value,
+                    value,
                 }),
                 ACTION_ITEM_CHECK_BALANCE,
             );

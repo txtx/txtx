@@ -27,9 +27,7 @@ pub struct SignersState {
 
 impl SignersState {
     pub fn new() -> SignersState {
-        SignersState {
-            store: HashMap::new(),
-        }
+        SignersState { store: HashMap::new() }
     }
 
     pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
@@ -45,8 +43,7 @@ impl SignersState {
     }
 
     pub fn push_signer_state(&mut self, signer_state: ValueStore) {
-        self.store
-            .insert(ConstructDid(signer_state.uuid.clone()), signer_state);
+        self.store.insert(ConstructDid(signer_state.uuid.clone()), signer_state);
     }
 
     // pub fn get_mining_spend_amount<F, G>(
@@ -67,10 +64,8 @@ impl SignersState {
 
     pub fn create_new_signer(&mut self, signer_did: &ConstructDid, signer_name: &str) {
         if !self.store.contains_key(&signer_did) {
-            self.store.insert(
-                signer_did.clone(),
-                ValueStore::new(signer_name, &signer_did.value()),
-            );
+            self.store
+                .insert(signer_did.clone(), ValueStore::new(signer_name, &signer_did.value()));
         }
     }
 }

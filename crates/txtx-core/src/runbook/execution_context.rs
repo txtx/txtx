@@ -96,12 +96,7 @@ impl RunbookExecutionContext {
                 continue;
             };
 
-            if command_instance
-                .specification
-                .name
-                .to_lowercase()
-                .eq("output")
-            {
+            if command_instance.specification.name.to_lowercase().eq("output") {
                 let Some(execution_result) = self.commands_execution_results.get(&construct_did)
                 else {
                     return action_items;
@@ -112,19 +107,15 @@ impl RunbookExecutionContext {
                     return action_items;
                 };
 
-                let Some(value) = execution_result.outputs.get("value") else {
-                    unreachable!()
-                };
+                let Some(value) = execution_result.outputs.get("value") else { unreachable!() };
 
                 let description = input_evaluations
                     .inputs
                     .get_string("description")
                     .and_then(|d| Some(d.to_string()));
 
-                action_items
-                    .entry(command_instance.get_group())
-                    .or_insert_with(Vec::new)
-                    .push(ActionItemRequest::new(
+                action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
+                    ActionItemRequest::new(
                         &Some(construct_did.clone()),
                         &command_instance.name,
                         None,
@@ -135,7 +126,8 @@ impl RunbookExecutionContext {
                             value: value.clone(),
                         }),
                         "output".into(),
-                    ));
+                    ),
+                );
             }
         }
         action_items
@@ -172,10 +164,8 @@ impl RunbookExecutionContext {
 
             let construct_id = workspace_context.expect_construct_id(&construct_did);
 
-            let addon_context_key = (
-                command_instance.package_id.did(),
-                command_instance.namespace.clone(),
-            );
+            let addon_context_key =
+                (command_instance.package_id.did(), command_instance.namespace.clone());
             let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
 
             let input_evaluation_results =
@@ -185,9 +175,8 @@ impl RunbookExecutionContext {
 
             // Retrieve the construct_did of the inputs
             // Collect the outputs
-            let references_expressions = command_instance
-                .get_expressions_referencing_commands_from_inputs()
-                .unwrap();
+            let references_expressions =
+                command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
 
             // For each input referencing another construct_did, we'll resolve the reference
             // and make sure we have the evaluation results, and seed a temporary, lighter map.
@@ -380,8 +369,7 @@ impl RunbookExecutionContext {
             };
 
             // Update the evaluated inputs
-            self.commands_inputs_simulation_results
-                .insert(construct_did.clone(), evaluated_inputs);
+            self.commands_inputs_simulation_results.insert(construct_did.clone(), evaluated_inputs);
         }
     }
 }

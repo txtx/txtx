@@ -110,10 +110,7 @@ pub fn display_snapshot_diffing(
     let synthesized_changes = consolidated_changes.get_synthesized_changes();
 
     if synthesized_changes.is_empty() && consolidated_changes.new_plans_to_add.is_empty() {
-        println!(
-            "{} Latest snapshot in sync with latest runbook updates",
-            green!("✓")
-        );
+        println!("{} Latest snapshot in sync with latest runbook updates", green!("✓"));
         return None;
     }
 
@@ -137,13 +134,7 @@ pub fn display_snapshot_diffing(
                 SynthesizedChange::Edition(change, _) => {
                     let formatted_change = change
                         .iter()
-                        .map(|c| {
-                            if c.starts_with("-") {
-                                red!(c)
-                            } else {
-                                green!(c)
-                            }
-                        })
+                        .map(|c| if c.starts_with("-") { red!(c) } else { green!(c) })
                         .join("");
                     println!("{}. The following edits:\n-------------------------\n{}\n-------------------------", i + 1, formatted_change);
                     println!("will introduce breaking changes.\n\n");
@@ -239,10 +230,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
     let manifest_res = WorkspaceManifest::from_location(&manifest_location);
 
-    let theme = ColorfulTheme {
-        values_style: Style::new().green(),
-        ..ColorfulTheme::default()
-    };
+    let theme = ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
 
     let mut manifest = match manifest_res {
         Ok(manifest) => manifest,
@@ -296,11 +284,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let runbook = RunbookMetadata::new(
         &action,
         &runbook_name,
-        if runbook_description.eq("") {
-            None
-        } else {
-            Some(runbook_description)
-        },
+        if runbook_description.eq("") { None } else { Some(runbook_description) },
     );
     let runbook_id = &runbook.id.clone();
     manifest.runbooks.push(runbook);
@@ -336,11 +320,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         true => {}
         false => {
             fs::create_dir_all(&runbook_file_path).map_err(|e| {
-                format!(
-                    "unable to create parent directory {}\n{}",
-                    runbook_file_path.display(),
-                    e
-                )
+                format!("unable to create parent directory {}\n{}", runbook_file_path.display(), e)
             })?;
             println!("{} runbooks", green!("Created directory"));
         }
@@ -368,19 +348,13 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         true => {}
         false => {
             fs::create_dir_all(&runbook_file_path.clone()).map_err(|e| {
-                format!(
-                    "unable to create parent directory {}\n{}",
-                    runbook_file_path.display(),
-                    e
-                )
+                format!("unable to create parent directory {}\n{}", runbook_file_path.display(), e)
             })?;
             let runbook_location = FileLocation::from_path(runbook_file_path.clone());
             println!(
                 "{} {}",
                 green!("Created directory"),
-                runbook_location
-                    .get_relative_path_from_base(&root_location)
-                    .unwrap()
+                runbook_location.get_relative_path_from_base(&root_location).unwrap()
             );
         }
     }
@@ -408,9 +382,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
             println!(
                 "{} {}",
                 green!("Created runbook"),
-                runbook_location
-                    .get_relative_path_from_base(&root_location)
-                    .unwrap()
+                runbook_location.get_relative_path_from_base(&root_location).unwrap()
             );
         }
     }
@@ -579,10 +551,8 @@ pub async fn handle_run_command(
                 return Ok(());
             };
 
-            let theme = ColorfulTheme {
-                values_style: Style::new().green(),
-                ..ColorfulTheme::default()
-            };
+            let theme =
+                ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
 
             let mut actions_to_re_execute = IndexMap::new();
             let mut actions_to_execute = IndexMap::new();
@@ -591,9 +561,8 @@ pub async fn handle_run_command(
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
                 running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
-                let pristine_execution_context = execution_context_backups
-                    .remove(running_context_key)
-                    .unwrap();
+                let pristine_execution_context =
+                    execution_context_backups.remove(running_context_key).unwrap();
                 running_context.execution_context = pristine_execution_context;
             }
 
@@ -605,11 +574,8 @@ pub async fn handle_run_command(
                     .collect::<Vec<_>>();
 
                 let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
-                let mut unexecuted = changes
-                    .constructs_to_run
-                    .iter()
-                    .map(|(e, _)| e.clone())
-                    .collect::<Vec<_>>();
+                let mut unexecuted =
+                    changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
 
                 let running_context =
                     runbook.find_expected_running_context_mut(&running_context_key);
@@ -623,10 +589,8 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(vec![]);
 
-                let mut added_construct_dids: Vec<ConstructDid> = additions
-                    .into_iter()
-                    .map(|(construct_did, _)| construct_did.clone())
-                    .collect();
+                let mut added_construct_dids: Vec<ConstructDid> =
+                    additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
 
                 let descendants_of_critically_changed_commands = critical_edits
                     .iter()
@@ -712,9 +676,7 @@ pub async fn handle_run_command(
                         .remove(construct_did);
                 }
 
-                running_context
-                    .execution_context
-                    .order_for_commands_execution = running_context
+                running_context.execution_context.order_for_commands_execution = running_context
                     .execution_context
                     .order_for_commands_execution
                     .clone()
@@ -723,10 +685,8 @@ pub async fn handle_run_command(
                     .collect();
             }
 
-            let has_actions = actions_to_re_execute
-                .iter()
-                .filter(|(_, actions)| !actions.is_empty())
-                .count();
+            let has_actions =
+                actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
             if has_actions > 0 {
                 println!("The following actions will be re-executed:");
                 for (context, actions) in actions_to_re_execute.iter() {
@@ -743,10 +703,8 @@ pub async fn handle_run_command(
                 println!("\n");
             }
 
-            let has_actions = actions_to_execute
-                .iter()
-                .filter(|(_, actions)| !actions.is_empty())
-                .count();
+            let has_actions =
+                actions_to_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
             if has_actions > 0 {
                 println!("The following actions have been added and will be executed for the first time:");
                 for (context, actions) in actions_to_execute.iter() {
@@ -785,19 +743,14 @@ pub async fn handle_run_command(
         }
         for running_context in runbook.running_contexts.iter_mut() {
             // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
-            let sorted_commands = &running_context
-                .execution_context
-                .order_for_commands_execution;
+            let sorted_commands = &running_context.execution_context.order_for_commands_execution;
             for c in sorted_commands.iter() {
                 let Some(command_instance) =
                     running_context.execution_context.commands_instances.get(c)
                 else {
                     continue;
                 };
-                println!(
-                    "{}::{}",
-                    command_instance.specification.matcher, command_instance.name
-                );
+                println!("{}::{}", command_instance.specification.matcher, command_instance.name);
             }
         }
         // return Ok(());
@@ -888,9 +841,8 @@ pub async fn handle_run_command(
             IndexMap::new();
         for running_context in runbook.running_contexts.iter() {
             let mut running_context_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
-            let grouped_actions_items = running_context
-                .execution_context
-                .collect_outputs_constructs_results();
+            let grouped_actions_items =
+                running_context.execution_context.collect_outputs_constructs_results();
 
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
@@ -915,10 +867,8 @@ pub async fn handle_run_command(
                     }
                 }
             }
-            collected_outputs.insert(
-                running_context.inputs_set.name.clone(),
-                running_context_outputs,
-            );
+            collected_outputs
+                .insert(running_context.inputs_set.name.clone(), running_context_outputs);
         }
 
         if !collected_outputs.is_empty() {
@@ -960,11 +910,7 @@ pub async fn handle_run_command(
                 let _ = std::fs::remove_file(&lock_file.to_string());
             }
 
-            println!(
-                "{} Saving execution state to {}",
-                green!("✓"),
-                state_file_location
-            );
+            println!("{} Saving execution state to {}", green!("✓"), state_file_location);
             let diff = RunbookSnapshotContext::new();
             let snapshot = diff
                 .snapshot_runbook_execution(
@@ -1027,10 +973,8 @@ pub async fn handle_run_command(
             channel_data: channel_data.clone(),
         };
 
-        let network_binding = format!(
-            "{}:{}",
-            cmd.network_binding_ip_address, cmd.network_binding_port
-        );
+        let network_binding =
+            format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
         println!(
             "\n{} Starting the supervisor web console\n{}",
             purple!("→"),
@@ -1120,9 +1064,8 @@ pub async fn handle_run_command(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
-                    let _ = moved_relayer_channel_tx.send(
-                        RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()),
-                    );
+                    let _ = moved_relayer_channel_tx
+                        .send(RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()));
                 }
             }
 
@@ -1164,10 +1107,7 @@ pub async fn load_runbooks_from_manifest(
     manifest_path: &str,
     environment_selector: &Option<String>,
 ) -> Result<
-    (
-        WorkspaceManifest,
-        IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>,
-    ),
+    (WorkspaceManifest, IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>),
     String,
 > {
     let manifest_location = FileLocation::from_path_string(manifest_path)?;
@@ -1211,10 +1151,7 @@ pub async fn load_runbook_from_manifest(
             return Ok((manifest, runbook_name, runbook, runbook_state));
         }
     }
-    Err(format!(
-        "unable to retrieve runbook '{}' in manifest",
-        desired_runbook_name
-    ))
+    Err(format!("unable to retrieve runbook '{}' in manifest", desired_runbook_name))
 }
 
 pub async fn load_runbook_from_file_path(
