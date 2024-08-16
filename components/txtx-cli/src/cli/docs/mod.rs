@@ -62,7 +62,7 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         for (path, title, fns) in map.into_iter() {
             let mut page_path = addon_path.clone();
             page_path.push(format!("functions/{}/page.mdx", path));
-            let mut doc_file = File::create(page_path).expect("creation failed");
+            let mut doc_file = File::create(page_path).expect("creation failed {}");
             let doc_data = build_addon_function_group_doc_data(&addon, title, fns);
             let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
                 .expect("Failed to compile template");
@@ -112,6 +112,8 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
 }
 
 pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
+    println!("Generating doc mdx for {}", addon.get_name());
+
     // functions
     {
         let mut page_path = addon_path.clone();
