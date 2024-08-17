@@ -6,15 +6,18 @@ runbooks:
     id: prover
     description: Generate Fibonacci Proof
     location: runbooks/usage/prover.tx
+    state:
+      file: prover.tx-state.json
 environments:
   devnet:
     stacks_network_id: devnet
     stacks_api_url: http://localhost:3999
     stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
     sp1_private_key: ""
-    fibonacci_salt: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+    fibonacci_salt: "0x0000000000000000000000000000000000000000d3af2663da51c10215000000"
     mnemonic: "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
-    sp1_verifier_address: "0x3B6041173B80E77f038f3F2C0f9744f04837185e"
+    sp1_verifier_address:      "0x3B6041173B80E77f038f3F2C0f9744f04837185e"
+    verifier_contract_address: "0x8924fca692fd8028dedf62c674b727602e55c093"
   testnet:
     stacks_network_id: testnet
     stacks_api_url: https://api.testnet.hiro.so
