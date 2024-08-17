@@ -7,7 +7,7 @@ edition = "2021"
 sha2 = "0.10.8"
 txtx-addon-kit = { path = "../../crates/txtx-addon-kit", default-features = false}
 lazy_static = "1.4.0"
-wasm-bindgen = { version = "=0.2.84", optional = true }
+wasm-bindgen = { version = "=0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 hmac = "0.12.0"
 pbkdf2 = { version = "0.12.2", features = ["simple"], default-features = false }
