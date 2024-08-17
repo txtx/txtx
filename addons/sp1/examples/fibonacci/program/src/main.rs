@@ -50,4 +50,3 @@ pub fn main() {
     // bytes that were committed to.
     sp1_zkvm::io::commit_slice(&bytes);
 }
-

@@ -12,7 +12,7 @@ input "n" {
 }
 
 action "fibonacci_proof" "sp1::create_proof" {
-    program = sp1::get_elf_from_sp1_project("elf/riscv32im-succinct-zkvm-elf")
+    program = sp1::get_elf_from_sp1_project("program/elf/riscv32im-succinct-zkvm-elf")
     inputs = [
         input.n
     ]
