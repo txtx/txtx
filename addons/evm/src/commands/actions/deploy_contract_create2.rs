@@ -495,11 +495,11 @@ async fn build_unsigned_create2_deployment(
             TransactionType,
         },
         commands::actions::{
-            deploy_contract::get_contract_init_code,
-            get_common_tx_params_from_args,
-            sign_contract_call::{
+            call_contract::{
                 encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
             },
+            deploy_contract::get_contract_init_code,
+            get_common_tx_params_from_args,
         },
         constants::{
             CHAIN_ID, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS, CREATE2_FUNCTION_NAME,
