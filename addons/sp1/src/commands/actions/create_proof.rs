@@ -112,7 +112,7 @@ impl CommandImplementation for CreateProof {
         _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        use sp1_sdk::{HashableKey, NetworkProver, ProverClient, SP1Stdin};
+        use sp1_sdk::{HashableKey, MockProver, NetworkProver, ProverClient, SP1Stdin};
         use txtx_addon_kit::hex;
 
         use crate::typing::Sp1Value;
@@ -134,7 +134,8 @@ impl CommandImplementation for CreateProof {
                 let network_prover = NetworkProver::new_from_key(&sp1_private_key);
                 ProverClient { prover: Box::new(network_prover) }
             } else {
-                ProverClient::new()
+                let mock_prover = MockProver::new();
+                ProverClient { prover: Box::new(mock_prover) }
             };
 
             let mut stdin = SP1Stdin::new();

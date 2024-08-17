@@ -36,7 +36,7 @@ action "fibonacci_proof" "sp1::create_proof" {
         input.n
     ]
     verify = true
-    sp1_private_key = env.sp1_private_key
+    // sp1_private_key = env.sp1_private_key
 }
 
 action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
@@ -65,7 +65,7 @@ action "verify_fibonacci_execution" "evm::call_contract" {
 
 output "verification_result" {
     description = "On chain verification result"
-    value = action.call
+    value = action.fibonacci_proof.verification_key
 }
 
 output "public_values" {
