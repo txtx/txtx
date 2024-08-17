@@ -36,8 +36,8 @@ lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
       SignEVMContractCall => {
           name: "Sign EVM Contract Call Transaction",
-          matcher: "sign_contract_call",
-          documentation: "The `evm::sign_contract_call` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
+          matcher: "call_contract",
+          documentation: "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -139,7 +139,7 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-            action "call_some_contract" "evm::sign_contract_call" {
+            action "call_some_contract" "evm::call_contract" {
                 contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
                 function_name = "myFunction"
                 function_args = [evm::bytes("0x1234")]
@@ -350,26 +350,26 @@ async fn build_unsigned_contract_call(
                 .iter()
                 .map(|v| {
                     value_to_sol_value(&v)
-                        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))
+                        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))
                 })
                 .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
         })
         .unwrap_or(Ok(vec![]))?;
 
     let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
 
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {}", e))?;
+        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
         encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
+            .map_err(|e| diagnosed_error!("command 'call_contract': {e}"))?
     } else {
         encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'sign_contract_call': {e}"))?
+            .map_err(|e| diagnosed_error!("command 'call_contract': {e}"))?
     };
 
     let common = CommonTransactionFields {
@@ -386,7 +386,7 @@ async fn build_unsigned_contract_call(
 
     let tx = build_unsigned_transaction(rpc, args, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::sign_contract_call': {e}"))?;
+        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {e}"))?;
     Ok(tx)
 }
 
