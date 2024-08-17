@@ -224,7 +224,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
             } else if addon.id == EVM_BYTES || addon.id == EVM_INIT_CODE {
                 DynSolValue::Bytes(addon.bytes.clone())
             } else {
-                todo!()
+                return Err(format!("unsupported addon type for encoding sol value: {}", addon.id));
             }
         }
     };
