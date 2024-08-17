@@ -1,11 +1,18 @@
+pub mod commands;
+pub mod functions;
+pub mod typing;
+
 #[macro_use]
 extern crate lazy_static;
 
 #[macro_use]
 extern crate txtx_addon_kit;
 
-use txtx_addon_kit::{types::commands::PreCommandSpecification, Addon};
-
+use sp1_sdk::action;
+use txtx_addon_kit::{
+    types::{commands::PreCommandSpecification, functions::FunctionSpecification},
+    Addon,
+};
 
 #[derive(Debug)]
 pub struct Sp1Addon;
@@ -31,7 +38,11 @@ impl Addon for Sp1Addon {
         "sp1"
     }
 
+    fn get_functions(&self) -> Vec<FunctionSpecification> {
+        functions::FUNCTIONS.clone()
+    }
+
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        vec![]
+        commands::actions::ACTIONS.clone()
     }
 }
