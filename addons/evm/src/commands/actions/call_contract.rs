@@ -50,7 +50,7 @@ lazy_static! {
             rpc_api_url: {
               documentation: "The URL of the EVM API used to broadcast the transaction.",
               typing: Type::string(),
-              optional: false,
+              optional: true,
               interpolable: true
             },
             signer: {
@@ -330,7 +330,7 @@ async fn build_unsigned_contract_call(
         commands::actions::get_common_tx_params_from_args,
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, NONCE, TRANSACTION_TYPE,
         },
     };
 
@@ -356,8 +356,18 @@ async fn build_unsigned_contract_call(
         })
         .unwrap_or(Ok(vec![]))?;
 
-    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+    let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(args)
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
+    if nonce.is_none() {
+        if let Some(signer_nonce) = signer_state
+            .get_value(NONCE)
+            .map(|v| v.expect_uint())
+            .transpose()
+            .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?
+        {
+            nonce = Some(signer_nonce + 1);
+        }
+    }
 
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
 
