@@ -1,0 +1,30 @@
+// Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
+// to understand the syntax and discover the powerful features of txtx.
+
+runtime "addon::sp1" {
+  defaults {
+  }
+}
+
+input "n" {
+    description = "Number of Fibonacci round to execute"
+    value = "10"
+}
+
+action "fibonacci_proof" "sp1::create_proof" {
+    program = sp1::get_elf_from_sp1_project("elf/riscv32im-succinct-zkvm-elf")
+    inputs = [
+        input.n
+    ]
+    verify = true
+}
+
+output "proof_public_values" {
+    description = "Proof public values"
+    value = action.fibonacci_proof.public_values
+}
+
+output "verification_key" {
+    description = "Verification key"
+    value = action.fibonacci_proof.verification_key
+}

@@ -7884,6 +7884,7 @@ version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e3d66fd2b5874bb5b7bce7be8a84c9d496ea5546b3b85a754ac6a9ab9927d5"
 dependencies = [
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "axum",

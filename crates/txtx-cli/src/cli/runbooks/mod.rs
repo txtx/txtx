@@ -471,6 +471,7 @@ pub async fn handle_run_command(
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
         Box::new(TelegramAddon::new()),
+        Box::new(Sp1Addon::new()),
     ];
 
     if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
@@ -1172,6 +1173,7 @@ pub async fn load_runbook_from_file_path(
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
         Box::new(TelegramAddon::new()),
+        Box::new(Sp1Addon::new()),
     ];
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook.build_contexts_from_sources(

@@ -7,3 +7,4 @@ crates/txtx-web-ui/.parcel-cache
 addons/evm/src/tests/fixtures/foundry/out/build-info
 addons/evm/src/tests/fixtures/foundry/cache
 state.json
+addons/sp1/examples/fibonacci-target/program/target
