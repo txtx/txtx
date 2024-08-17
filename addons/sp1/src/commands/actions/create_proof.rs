@@ -1,7 +1,5 @@
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
-use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::ValueStore;
@@ -39,7 +37,13 @@ lazy_static! {
                     typing: Type::bool(),
                     optional: false,
                     interpolable: true
-                } 
+                },
+                sp1_private_key: {
+                    documentation: "Verify proof locally.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                }
             ],
             outputs: [
                 verification_key: {
@@ -118,13 +122,17 @@ impl CommandImplementation for CreateProof {
             .iter()
             .map(|input| input.expect_string().to_string())
             .collect::<Vec<String>>();
+        let sp1_private_key =
+            inputs.get_string("sp1_private_key").and_then(|k| Some(k.to_string()));
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
-            let network_prover = NetworkProver::new_from_key("<SP1_PRIVATE_KEY>");
-            let client = ProverClient {
-                prover: Box::new(network_prover)
+            let client = if let Some(sp1_private_key) = sp1_private_key {
+                let network_prover = NetworkProver::new_from_key(&sp1_private_key);
+                ProverClient { prover: Box::new(network_prover) }
+            } else {
+                ProverClient::new()
             };
 
             let mut stdin = SP1Stdin::new();
@@ -135,18 +143,24 @@ impl CommandImplementation for CreateProof {
             let (pk, vk) = client.setup(&elf);
 
             let proof = client.prove(&pk, stdin).plonk().run().map_err(|e| {
-                diagnosed_error!("command 'sp1::create_proof': failed to generate proof")
+                diagnosed_error!("command 'sp1::create_proof': failed to generate proof: {e}")
             })?;
 
             client.verify(&proof, &vk).map_err(|e| {
-                diagnosed_error!("command 'sp1::create_proof': failed to verify proof")
+                diagnosed_error!("command 'sp1::create_proof': failed to verify proof: {e}")
             })?;
-            
-            result.outputs.insert("verification_key".into(), Sp1Value::verification_key(vk.bytes32().into_bytes()));
+
+            result.outputs.insert(
+                "verification_key".into(),
+                Sp1Value::verification_key(vk.bytes32().into_bytes()),
+            );
 
             result.outputs.insert("proof".into(), Sp1Value::proof(proof.bytes()));
 
-            result.outputs.insert("public_values".into(), Sp1Value::public_values(proof.public_values.to_vec()));
+            result.outputs.insert(
+                "public_values".into(),
+                Sp1Value::public_values(proof.public_values.to_vec()),
+            );
 
             Ok(result)
         };
