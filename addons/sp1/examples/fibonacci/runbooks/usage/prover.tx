@@ -1,14 +1,30 @@
-// Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
-// to understand the syntax and discover the powerful features of txtx.
+runtime "batch" {
+    inputs = [
+        { 
+            evm_defaults: evm::chain("sepolia", "http://localhost:8545")
+        }
+    ]
+}
+runtime "addon::sp1" { defaults {} }
+runtime "addon::evm" {
+    defaults {
+        chain_id = env.evm_defaults.chain_id
+        rpc_api_url = env.evm_defaults.rpc_api_url
+    }
+}
 
-runtime "addon::sp1" {
-  defaults {
-  }
+signer "deployer" "evm::mnemonic" {
+    mnemonic = env.mnemonic
 }
 
 input "n" {
     description = "Number of Fibonacci round to execute"
     value = "10"
+}
+
+input "fibonacci_contract" {
+    description = "The fibonacci contrat artifacts"
+    value = evm::get_contract_from_foundry_project("contracts/foundry.toml", "Fibonacci")
 }
 
 action "fibonacci_proof" "sp1::create_proof" {
@@ -17,14 +33,26 @@ action "fibonacci_proof" "sp1::create_proof" {
         input.n
     ]
     verify = true
+    sp1_private_key = env.sp1_private_key
 }
 
-output "proof_public_values" {
-    description = "Proof public values"
-    value = action.fibonacci_proof.public_values
+action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
+    description = "Deploy the Fibonacci verifier contract"
+    contract = input.fibonacci_contract
+    constructor_args = [env.sp1_verifier_address, action.fibonacci_proof.verification_key]
+    salt = env.fibonacci_salt
+    signer = signer.deployer
 }
 
-output "verification_key" {
-    description = "Verification key"
-    value = action.fibonacci_proof.verification_key
+action "verify_fibonacci_execution" "evm::call_contract" {
+    description = "Call the Fibonacci verifier contract with the proof results"
+    contract_address = action.fibonacci_verifier_contract.contract_address
+    contract_abi = input.fibonacci_contract.abi
+    function_name = "verifyFibonacciProof"
+    function_args = [action.fibonacci_proof.public_values, action.fibonacci_proof.proof]
+}
+
+output "verification_result" {
+    description = "On chain verification result"
+    value = action.verify_fibonacci_execution
 }
