@@ -237,8 +237,15 @@ impl FunctionImplementation for EncodeEVMBytes32 {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+        let bytes = match args.get(0) {
+            Some(Value::String(val)) => B256::from_hex(&val).map_err(|e| {
+                diagnosed_error!("'evm::bytes32' function: failed to parse string: {:?}", e)
+            })?,
+            Some(Value::Addon(addon_value)) => {
+                B256::try_from(&addon_value.bytes[..]).map_err(|e| {
+                    diagnosed_error!("'evm::bytes32' function: failed to parse bytes: {}", e)
+                })?
+            }
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes32' function: expected string, got {:?}",
@@ -246,9 +253,6 @@ impl FunctionImplementation for EncodeEVMBytes32 {
                 ))
             }
         };
-        let bytes = B256::from_hex(&entry).map_err(|e| {
-            diagnosed_error!("'evm::bytes32' function: failed to parse string: {:?}", e)
-        })?;
         Ok(EvmValue::bytes32(bytes.to_vec()))
     }
 }
@@ -269,8 +273,11 @@ impl FunctionImplementation for EncodeEVMBytes {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+        let bytes = match args.get(0) {
+            Some(Value::String(val)) => Bytes::from_hex(&val).map_err(|e| {
+                diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
+            })?,
+            Some(Value::Addon(addon_value)) => Bytes::copy_from_slice(&addon_value.bytes[..]),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes' function: expected string, got {:?}",
@@ -278,9 +285,6 @@ impl FunctionImplementation for EncodeEVMBytes {
                 ))
             }
         };
-        let bytes = Bytes::from_hex(&entry).map_err(|e| {
-            diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
-        })?;
         Ok(EvmValue::bytes(bytes.to_vec()))
     }
 }
