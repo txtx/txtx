@@ -103,16 +103,17 @@ impl CommandImplementation for CreateProof {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        defaults: &AddonDefaults,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _defaults: &AddonDefaults,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         use sp1_sdk::{HashableKey, NetworkProver, ProverClient, SP1Stdin};
+        use txtx_addon_kit::hex;
 
         use crate::typing::Sp1Value;
 
@@ -124,6 +125,7 @@ impl CommandImplementation for CreateProof {
             .collect::<Vec<String>>();
         let sp1_private_key =
             inputs.get_string("sp1_private_key").and_then(|k| Some(k.to_string()));
+        let do_verify_proof = inputs.get_bool("verify").unwrap_or(false);
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
@@ -146,14 +148,21 @@ impl CommandImplementation for CreateProof {
                 diagnosed_error!("command 'sp1::create_proof': failed to generate proof: {e}")
             })?;
 
-            client.verify(&proof, &vk).map_err(|e| {
-                diagnosed_error!("command 'sp1::create_proof': failed to verify proof: {e}")
+            if do_verify_proof {
+                client.verify(&proof, &vk).map_err(|e| {
+                    diagnosed_error!("command 'sp1::create_proof': failed to verify proof: {e}")
+                })?;
+            }
+
+            let v_key_bytes = hex::decode(vk.bytes32().replace("0x", "")).map_err(|e| {
+                diagnosed_error!(
+                    "command 'sp1::create_proof': failed to decode verification key: {e}"
+                )
             })?;
 
-            result.outputs.insert(
-                "verification_key".into(),
-                Sp1Value::verification_key(vk.bytes32().into_bytes()),
-            );
+            result
+                .outputs
+                .insert("verification_key".into(), Sp1Value::verification_key(v_key_bytes));
 
             result.outputs.insert("proof".into(), Sp1Value::proof(proof.bytes()));
 
