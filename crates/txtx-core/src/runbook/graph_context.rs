@@ -262,9 +262,9 @@ impl RunbookGraphContext {
         self.packages_dag.add_child(self.graph_root, 0, package_id.did());
     }
 
-    pub fn index_construct(&mut self, construct_did: &ConstructDid, order: u32) {
+    pub fn index_construct(&mut self, construct_did: &ConstructDid) {
         let (_, node_index) =
-            self.constructs_dag.add_child(self.graph_root.clone(), order, construct_did.clone());
+            self.constructs_dag.add_child(self.graph_root.clone(), 100, construct_did.clone());
         self.constructs_dag_node_lookup.insert(construct_did.clone(), node_index);
     }
 
