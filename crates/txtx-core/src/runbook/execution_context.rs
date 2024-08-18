@@ -366,8 +366,7 @@ impl RunbookExecutionContext {
             };
 
             // Update the evaluated inputs
-            self.commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs);
+            self.commands_inputs_evaluation_results.insert(construct_did.clone(), evaluated_inputs);
         }
     }
 }

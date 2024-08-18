@@ -1404,9 +1404,7 @@ pub fn perform_inputs_evaluation(
     }
 
     let results = if simulation {
-        command_instance
-            .post_process_inputs_evaluations(results)
-            .map_err(|d| vec![d])?
+        command_instance.post_process_inputs_evaluations(results).map_err(|d| vec![d])?
     } else {
         results
     };

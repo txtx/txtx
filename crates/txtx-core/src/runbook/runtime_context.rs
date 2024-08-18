@@ -226,9 +226,8 @@ impl RuntimeContext {
             Vec<(ConstructDid, &CommandInstance, Option<&CommandInputsEvaluationResult>)>,
         > = HashMap::new();
         for (did, command_instance) in runbook_execution_context.commands_instances.iter() {
-            let inputs_simulation_results = runbook_execution_context
-                .commands_inputs_evaluation_results
-                .get(did);
+            let inputs_simulation_results =
+                runbook_execution_context.commands_inputs_evaluation_results.get(did);
             grouped_commands
                 .entry(command_instance.namespace.clone())
                 .and_modify(|e: &mut _| {
@@ -264,9 +263,7 @@ impl RuntimeContext {
                             let mut contract_source = match inputs_evaluation_results
                                 .inputs
                                 .get_string("contract_source_post_transforms")
-                                .or(inputs_evaluation_results
-                                    .inputs
-                                    .get_string("contract_source"))
+                                .or(inputs_evaluation_results.inputs.get_string("contract_source"))
                             {
                                 Some(value) => value.to_string(),
                                 _ => {

@@ -442,10 +442,7 @@ pub async fn run_action(
         inputs.insert(input_name, new_value);
     }
     let unevaluated_inputs = vec![];
-    let evaluated_inputs = CommandInputsEvaluationResult {
-        inputs,
-        unevaluated_inputs,
-    };
+    let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
         .perform_execution(
