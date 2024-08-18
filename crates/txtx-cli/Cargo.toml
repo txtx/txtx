@@ -56,7 +56,6 @@ tower-lsp = { version = "0.20.0" }
 [features]
 default = ["cli"]
 cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
-web_ui = []
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
 
