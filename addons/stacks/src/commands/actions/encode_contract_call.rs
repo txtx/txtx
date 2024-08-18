@@ -131,9 +131,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         )?;
 
         result.outputs.insert("bytes".to_string(), bytes);
-        result
-            .outputs
-            .insert("network_id".to_string(), Value::string(network_id));
+        result.outputs.insert("network_id".to_string(), Value::string(network_id));
         return_synchronous_ok(result)
     }
 }

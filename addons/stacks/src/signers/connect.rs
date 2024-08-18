@@ -101,10 +101,8 @@ impl SignerImplementation for StacksConnect {
         use crate::constants::RPC_API_AUTH_TOKEN;
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let _requested_startup_data = signer_state
-            .get_expected_bool(REQUESTED_STARTUP_DATA)
-            .ok()
-            .unwrap_or(false);
+        let _requested_startup_data =
+            signer_state.get_expected_bool(REQUESTED_STARTUP_DATA).ok().unwrap_or(false);
         let _checked_address = signer_state.get_expected_string(CHECKED_ADDRESS);
         let _checked_cost_provision = signer_state.get_expected_integer(CHECKED_COST_PROVISION);
         let _fetched_nonce = signer_state.get_expected_integer(FETCHED_NONCE);
@@ -124,9 +122,7 @@ impl SignerImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let rpc_api_auth_token = args
-            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
-            .ok();
+        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
 
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
@@ -326,9 +322,7 @@ impl SignerImplementation for StacksConnect {
             .get_expected_value(&key)
             // .map_err(|e| (signers, e))?;
             .unwrap();
-        result
-            .outputs
-            .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
 
         return_synchronous_result(Ok((signers, signer_state, result)))
     }

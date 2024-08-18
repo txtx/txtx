@@ -36,11 +36,7 @@ impl FoundryCompiledOutputJson {
         path.push(&contract_path);
 
         let source = std::fs::read_to_string(&path).map_err(|e| {
-            format!(
-                "invalid contract location {}: {}",
-                path.to_str().unwrap_or(""),
-                e
-            )
+            format!("invalid contract location {}: {}", path.to_str().unwrap_or(""), e)
         })?;
         Ok(source)
     }
@@ -126,9 +122,7 @@ impl FoundryConfig {
     ) -> Result<FoundryCompiledOutputJson, String> {
         let profile_name = profile_name.unwrap_or("default");
         let Some(profile) = self.toml.profile.get(profile_name) else {
-            return Err(format!(
-                "foundry.toml does not include profile {profile_name}",
-            ));
+            return Err(format!("foundry.toml does not include profile {profile_name}",));
         };
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
@@ -137,19 +131,11 @@ impl FoundryConfig {
         path.push(&format!("{}.json", contract_name));
 
         let bytes = std::fs::read(&path).map_err(|e| {
-            format!(
-                "invalid compiled output location {}: {}",
-                &path.to_str().unwrap_or(""),
-                e
-            )
+            format!("invalid compiled output location {}: {}", &path.to_str().unwrap_or(""), e)
         })?;
 
         let config: FoundryCompiledOutputJson = serde_json::from_slice(&bytes).map_err(|e| {
-            format!(
-                "invalid foundry.toml at location {}: {}",
-                &path.to_str().unwrap_or(""),
-                e
-            )
+            format!("invalid foundry.toml at location {}: {}", &path.to_str().unwrap_or(""), e)
         })?;
         Ok(config)
     }
@@ -160,16 +146,10 @@ impl FoundryConfig {
             .map_err(|e| format!("invalid foundry.toml location {}: {}", foundry_toml_path, e))?;
 
         let toml: FoundryToml = toml::from_slice(&bytes).map_err(|e| {
-            format!(
-                "invalid foundry.toml at location {}: {}",
-                foundry_toml_path, e
-            )
+            format!("invalid foundry.toml at location {}: {}", foundry_toml_path, e)
         })?;
 
-        let config = FoundryConfig {
-            toml,
-            toml_path: foundry_toml_path.to_string(),
-        };
+        let config = FoundryConfig { toml, toml_path: foundry_toml_path.to_string() };
         Ok(config)
     }
 }

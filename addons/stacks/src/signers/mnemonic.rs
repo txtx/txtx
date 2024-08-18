@@ -231,9 +231,7 @@ impl SignerImplementation for StacksMnemonic {
             let signed_transaction = tx_signer.get_tx_incomplete();
 
             let mut signed_transaction_bytes = vec![];
-            signed_transaction
-                .consensus_serialize(&mut signed_transaction_bytes)
-                .unwrap(); // todo
+            signed_transaction.consensus_serialize(&mut signed_transaction_bytes).unwrap(); // todo
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 StacksValue::transaction(signed_transaction_bytes),
@@ -253,9 +251,7 @@ impl SignerImplementation for StacksMnemonic {
             let message = StacksValue::signature(next_sighash.to_bytes().to_vec());
             let signature = StacksValue::signature(signature.to_bytes().to_vec());
             result.outputs.insert(MESSAGE_BYTES.into(), message);
-            result
-                .outputs
-                .insert(SIGNED_MESSAGE_BYTES.into(), signature);
+            result.outputs.insert(SIGNED_MESSAGE_BYTES.into(), signature);
         }
 
         return_synchronous_result(Ok((signers, signer_state, result)))
@@ -269,12 +265,9 @@ pub fn compute_keypair(
 ) -> Result<(Value, Value, StacksAddress), Diagnostic> {
     let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let mnemonic = signer_state.get_expected_string("mnemonic")?;
-    let derivation_path = signer_state
-        .get_expected_string("derivation_path")
-        .unwrap_or(DEFAULT_DERIVATION_PATH);
-    let is_encrypted = signer_state
-        .get_expected_bool("is_encrypted")
-        .unwrap_or(false);
+    let derivation_path =
+        signer_state.get_expected_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
+    let is_encrypted = signer_state.get_expected_bool("is_encrypted").unwrap_or(false);
     if is_encrypted {
         unimplemented!()
     }
@@ -319,12 +312,7 @@ pub fn get_bip39_seed_from_mnemonic(mnemonic: &str, password: &str) -> Result<Ve
     let salt = format!("mnemonic{}", password);
     let mut seed = vec![0u8; PBKDF2_BYTES];
 
-    pbkdf2::<Hmac<Sha512>>(
-        mnemonic.as_bytes(),
-        salt.as_bytes(),
-        PBKDF2_ROUNDS,
-        &mut seed,
-    )
-    .map_err(|e| e.to_string())?;
+    pbkdf2::<Hmac<Sha512>>(mnemonic.as_bytes(), salt.as_bytes(), PBKDF2_ROUNDS, &mut seed)
+        .map_err(|e| e.to_string())?;
     Ok(seed)
 }

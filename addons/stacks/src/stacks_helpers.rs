@@ -116,15 +116,9 @@ pub fn value_to_tuple(value: &Value) -> TupleData {
                 data_map.insert(clarity_name.clone(), clarity_value);
             }
 
-            TupleData {
-                type_signature: TupleTypeSignature::try_from(type_map).unwrap(),
-                data_map: data_map,
-            }
+            TupleData { type_signature: TupleTypeSignature::try_from(type_map).unwrap(), data_map }
         }
-        v => unimplemented!(
-            "tuple extraction is only supported for object types, got {:?}",
-            v
-        ),
+        v => unimplemented!("tuple extraction is only supported for object types, got {:?}", v),
     }
 }
 
@@ -250,11 +244,7 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             for (key, value) in object.iter() {
                 let tuple_value = encode_any_value_to_clarity_value(&value.clone())?;
                 let tuple_key = ClarityName::try_from(key.as_str()).map_err(|e| {
-                    diagnosed_error!(
-                        "unable to encode key {} to clarity ({})",
-                        key,
-                        e.to_string()
-                    )
+                    diagnosed_error!("unable to encode key {} to clarity ({})", key, e.to_string())
                 })?;
                 data.push((tuple_key, tuple_value));
             }
@@ -267,9 +257,5 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
 }
 
 pub fn txid_display_str(txid: &str) -> String {
-    format!(
-        "{first_six}...{last_six}",
-        first_six = &txid[0..6],
-        last_six = &txid[txid.len() - 6..],
-    )
+    format!("{first_six}...{last_six}", first_six = &txid[0..6], last_six = &txid[txid.len() - 6..],)
 }

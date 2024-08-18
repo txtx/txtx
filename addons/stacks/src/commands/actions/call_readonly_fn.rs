@@ -138,9 +138,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         }
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-        let rpc_api_auth_token = args
-            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
-            .ok();
+        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
         let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
             Ok(value) => value,
             Err(diag) => return Err(diag),
@@ -193,11 +191,8 @@ impl CommandImplementation for CallReadonlyStacksFunction {
 
             if let Value::Response(ref response) = call_result {
                 if !response.committed {
-                    let args = function_args
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                    let args =
+                        function_args.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ");
                     return Err(diagnosed_error!(
                         "Contract-call {}::{}({}) failed with error {}.",
                         contract_id,

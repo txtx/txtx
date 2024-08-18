@@ -142,10 +142,7 @@ impl SignerImplementation for EVMMnemonic {
             Err(diag) => return Err((signers, signer_state, diag)),
         };
         let expected_address: Address = expected_signer.address();
-        signer_state.insert(
-            "signer_address",
-            Value::string(expected_address.to_string()),
-        );
+        signer_state.insert("signer_address", Value::string(expected_address.to_string()));
         // signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         // signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
@@ -240,10 +237,8 @@ impl SignerImplementation for EVMMnemonic {
             let tx_nonce = tx_envelope.nonce();
 
             let url = Url::try_from(rpc_api_url.as_ref()).unwrap();
-            let provider = ProviderBuilder::new()
-                .with_recommended_fillers()
-                .wallet(eth_signer)
-                .on_http(url);
+            let provider =
+                ProviderBuilder::new().with_recommended_fillers().wallet(eth_signer).on_http(url);
             let pending_tx = provider.send_tx_envelope(tx_envelope).await.map_err(|e| {
                 (
                     signers.clone(),
@@ -252,9 +247,7 @@ impl SignerImplementation for EVMMnemonic {
                 )
             })?;
             let tx_hash = pending_tx.tx_hash().0;
-            result
-                .outputs
-                .insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
+            result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
             signer_state.insert(NONCE, Value::integer(tx_nonce.into()));
             Ok((signers, signer_state, result))
         };
@@ -269,9 +262,8 @@ pub fn get_mnemonic_signer(
     signer_state: &ValueStore,
 ) -> Result<MnemonicSigner, Diagnostic> {
     let mnemonic = signer_state.get_expected_string("mnemonic")?;
-    let derivation_path = signer_state
-        .get_expected_string("derivation_path")
-        .unwrap_or(DEFAULT_DERIVATION_PATH);
+    let derivation_path =
+        signer_state.get_expected_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
 
     let mut mnemonic_builder = MnemonicBuilder::<English>::default()
         .phrase(mnemonic)

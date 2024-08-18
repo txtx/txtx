@@ -76,9 +76,8 @@ impl CommandImplementation for TelegramSetupChat {
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
 
-        let telegram_bot_api_token = args
-            .get_expected_string("telegram_bot_api_token")?
-            .to_string();
+        let telegram_bot_api_token =
+            args.get_expected_string("telegram_bot_api_token")?.to_string();
 
         let future = async move {
             let result = CommandExecutionResult::new();

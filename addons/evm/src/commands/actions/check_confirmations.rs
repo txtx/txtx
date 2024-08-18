@@ -150,9 +150,7 @@ impl CommandImplementation for CheckEVMConfirmations {
         if skip_confirmations {
             let mut result = CommandExecutionResult::new();
             if let Some(contract_address) = contract_address {
-                result
-                    .outputs
-                    .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+                result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
             }
 
             let status_update = ProgressBarStatusUpdate::new(
@@ -299,11 +297,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                 &format!(
                     "Confirmed {} {} for Tx 0x{} on Chain {}",
                     &confirmations_required,
-                    if confirmations_required.eq(&1) {
-                        "block"
-                    } else {
-                        "blocks"
-                    },
+                    if confirmations_required.eq(&1) { "block" } else { "blocks" },
                     tx_hash,
                     chain_name
                 ),
