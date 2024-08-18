@@ -568,9 +568,6 @@ pub struct AddonPostProcessingResult {
 
 impl AddonPostProcessingResult {
     pub fn new() -> AddonPostProcessingResult {
-        AddonPostProcessingResult {
-            dependencies: HashMap::new(),
-            transforms: HashMap::new(),
-        }
+        AddonPostProcessingResult { dependencies: HashMap::new(), transforms: HashMap::new() }
     }
 }

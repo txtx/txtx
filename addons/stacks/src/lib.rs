@@ -145,10 +145,8 @@ impl Addon for StacksNetworkAddon {
                 let Some(contract_id) = simulated_inputs.inputs.get_string("contract_id") else {
                     continue;
                 };
-                let from = QualifiedContractIdentifier::parse(contract_id)
-                    .unwrap()
-                    .name
-                    .to_string();
+                let from =
+                    QualifiedContractIdentifier::parse(contract_id).unwrap().name.to_string();
                 let Some(to) = simulated_inputs.inputs.get_string("contract_name_update") else {
                     continue;
                 };
