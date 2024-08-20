@@ -557,9 +557,29 @@ async fn build_unsigned_create2_deployment(
 
     let rpc = EVMRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
-    let contract_address = contract_address
-        .and_then(|a| Some(a.clone()))
-        .unwrap_or(Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()));
+    let contract_address = match contract_address {
+        Some(contract_address) => {
+            let Some(factory_address) = contract_address.try_get_buffer_bytes() else {
+                unimplemented!()
+            };
+            let factory_address = Address::from_slice(&factory_address[..]);
+            let factory_code = rpc.get_code(&factory_address).await.map_err(|e| {
+                to_diag_with_ctx(format!(
+                    "failed to validate create2 contract factory address: {}",
+                    e.to_string()
+                ))
+            })?;
+            if factory_code.is_empty() {
+                return Err(to_diag_with_ctx(format!(
+                    "invalid create2 contract factory: address {} is not a contract on chain {}",
+                    factory_address.to_string(),
+                    chain_id
+                )));
+            }
+            contract_address
+        }
+        None => Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()),
+    };
 
     let calculated_deployed_contract_address =
         generate_create2_address(&contract_address, salt, &init_code).map_err(to_diag_with_ctx)?;
