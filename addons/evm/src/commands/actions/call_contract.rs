@@ -12,7 +12,7 @@ use txtx_addon_kit::types::frontend::{
     ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
-    return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
@@ -26,7 +26,11 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::CommonTransactionFields;
-use crate::constants::{RPC_API_URL, SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES};
+use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
+use crate::commands::actions::sign_transaction::SignEVMTransaction;
+use crate::constants::{
+    RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH, UNSIGNED_TRANSACTION_BYTES,
+};
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
 
@@ -174,13 +178,15 @@ impl CommandImplementation for SignEVMContractCall {
 
         use crate::{
             codec::get_typed_transaction_bytes,
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+            commands::actions::sign_transaction::SignEVMTransaction,
+            constants::{
+                ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_PAYLOAD_BYTES,
+            },
             typing::EvmValue,
         };
 
         let signer_did = get_signer_did(args).unwrap();
 
-        let signer = signers_instances.get(&signer_did).unwrap().clone();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
@@ -197,7 +203,6 @@ impl CommandImplementation for SignEVMContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-
             let transaction = build_unsigned_contract_call(&signer_state, &spec, &args, &defaults)
                 .await
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
@@ -206,13 +211,17 @@ impl CommandImplementation for SignEVMContractCall {
                 (
                     signers.clone(),
                     signer_state.clone(),
-                    diagnosed_error!("command 'evm::sign_transfer': {e}"),
+                    diagnosed_error!("command 'evm::call_contract': {e}"),
                 )
             })?;
             let transaction = transaction.build_unsigned().unwrap();
 
             let payload = EvmValue::transaction(bytes);
 
+            let mut args = args.clone();
+            args.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
+
+            // todo: is this necessary? not happening in deploy_contract
             signer_state.insert_scoped_value(
                 &construct_did.value().to_string(),
                 UNSIGNED_TRANSACTION_BYTES,
@@ -253,22 +262,24 @@ impl CommandImplementation for SignEVMContractCall {
                 )
             }
 
-            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            let (signers, signer_state, mut signer_actions) =
-                (signer.specification.check_signability)(
-                    &construct_did,
-                    &instance_name,
-                    &description,
-                    &payload,
-                    &signer.specification,
-                    &args,
-                    signer_state,
-                    signers,
-                    &signers_instances,
-                    &defaults,
-                    &supervision_context,
-                )?;
-            actions.append(&mut signer_actions);
+            let future_result = SignEVMTransaction::check_signed_executability(
+                &construct_did,
+                &instance_name,
+                &spec,
+                &args,
+                &defaults,
+                &supervision_context,
+                &signers_instances,
+                signers,
+            );
+            let (signers, signer_state, mut signing_actions) = match future_result {
+                Ok(future) => match future.await {
+                    Ok(res) => res,
+                    Err(err) => return Err(err),
+                },
+                Err(err) => return Err(err),
+            };
+            actions.append(&mut signing_actions);
             Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
@@ -276,45 +287,65 @@ impl CommandImplementation for SignEVMContractCall {
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        _spec: &CommandSpecification,
+        spec: &CommandSpecification,
         args: &ValueStore,
         defaults: &AddonDefaults,
-        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        mut signers: SignersState,
+        signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
-        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+        let mut args = args.clone();
+        let signers_instances = signers_instances.clone();
+        let defaults = defaults.clone();
+        let construct_did = construct_did.clone();
+        let spec = spec.clone();
+        let progress_tx = progress_tx.clone();
+        let mut signers = signers.clone();
 
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
-            let mut result = CommandExecutionResult::new();
-            result
-                .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
-            return return_synchronous_ok(signers, signer_state, result);
-        }
+        let mut result: CommandExecutionResult = CommandExecutionResult::new();
+        let signer_did = get_signer_did(&args).unwrap();
+        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+        let future = async move {
+            // if this contract has already been deployed, we'll skip signing and confirming
+            signers.push_signer_state(signer_state);
+            let run_signing_future = SignEVMTransaction::run_signed_execution(
+                &construct_did,
+                &spec,
+                &args,
+                &defaults,
+                &progress_tx,
+                &signers_instances,
+                signers,
+            );
+            let (signers, signer_state, mut res_signing) = match run_signing_future {
+                Ok(future) => match future.await {
+                    Ok(res) => res,
+                    Err(err) => return Err(err),
+                },
+                Err(err) => return Err(err),
+            };
+            result.append(&mut res_signing);
+            args.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
 
-        let signer = signers_instances.get(&signer_did).unwrap();
+            let mut res = match CheckEVMConfirmations::run_execution(
+                &construct_did,
+                &spec,
+                &args,
+                &defaults,
+                &progress_tx,
+            ) {
+                Ok(future) => match future.await {
+                    Ok(res) => res,
+                    Err(diag) => return Err((signers, signer_state, diag)),
+                },
+                Err(data) => return Err((signers, signer_state, data)),
+            };
+            result.append(&mut res);
 
-        let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
-            .unwrap()
-            .clone();
+            Ok((signers, signer_state, result))
+        };
 
-        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
-
-        let res = (signer.specification.sign)(
-            construct_did,
-            title,
-            &payload,
-            &signer.specification,
-            &args,
-            signer_state,
-            signers,
-            signers_instances,
-            &defaults,
-        );
-        res
+        Ok(Box::pin(future))
     }
 }
 
