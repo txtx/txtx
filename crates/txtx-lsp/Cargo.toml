@@ -13,10 +13,10 @@ lsp-types = "0.94.0"
 regex = "1.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
-txtx-core = { path = "../txtx-core", default-features = false }
-txtx-addon-network-stacks = { path = "../../addons/stacks" }
-txtx-addon-network-evm = { path = "../../addons/evm" }
-txtx-addon-telegram ={ path = "../../addons/telegram" }
+txtx-core = { workspace = true, default-features = false }
+txtx-addon-network-stacks = { workspace = true }
+txtx-addon-network-evm = { workspace = true }
+txtx-addon-telegram = { workspace = true }
 
 # WASM
 console_error_panic_hook = { version = "0.1", optional = true }

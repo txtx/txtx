@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-txtx-addon-kit = { path = "../../crates/txtx-addon-kit", default-features = false}
+txtx-addon-kit = { workspace = true, default-features = false}
 lazy_static = "1.4.0"
 wasm-bindgen = { version = "=0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
