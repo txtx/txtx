@@ -25,12 +25,25 @@ lazy_static! {
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
-                block_explorer_api_key: {
-                    documentation: "The URL of the block explorer used to verify the contract.",
-                    typing: Type::string(),
-                    optional: false,
-                    tainting: true,
-                    internal: false
+                block_explorer_opts: {
+                  documentation: "The URL of the block explorer used to verify the contract.",
+                  typing: define_object_type!{
+                    key: {
+                        documentation: "The block explorer API key.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    },
+                    url: {
+                        documentation: "The block explorer contract verification URL (default Etherscan).",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    }
+                  },
+                  optional: false,
+                  tainting: true,
+                  internal: false
                 },
                 contract_address: {
                     documentation: "The contract address to verify.",
