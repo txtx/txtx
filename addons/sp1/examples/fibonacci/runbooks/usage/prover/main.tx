@@ -1,7 +1,8 @@
 runtime "batch" {
     inputs = [
         { 
-            evm_defaults: evm::chain("sepolia", "http://localhost:8545")
+            evm_defaults: evm::chain("sepolia", "http://localhost:8545"),
+            evm_defaults: evm::chain("arbitrum", "http://localhost:8545")
         }
     ]
 }
@@ -20,23 +21,10 @@ signer "deployer" "evm::mnemonic" {
     mnemonic = env.mnemonic
 }
 
-input "n" {
-    description = "Number of Fibonacci round to execute"
-    value = "10"
-}
-
-input "fibonacci_contract" {
-    description = "The fibonacci contrat artifacts"
-    value = evm::get_contract_from_foundry_project("contracts/foundry.toml", "Fibonacci")
-}
-
 action "fibonacci_proof" "sp1::create_proof" {
     program = sp1::get_elf_from_sp1_project("program/elf/riscv32im-succinct-zkvm-elf")
-    inputs = [
-        input.n
-    ]
-    verify = true
-    // sp1_private_key = env.sp1_private_key
+    inputs = [input.n]
+    sp1_private_key = env.sp1_private_key
 }
 
 action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
@@ -46,6 +34,8 @@ action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
         evm::address(env.sp1_verifier_address), 
         evm::bytes32(action.fibonacci_proof.verification_key)
     ]
+
+    expected_contract_address = env.verifier_contract_address
     salt = env.fibonacci_salt
     signer = signer.deployer
 }
@@ -55,23 +45,9 @@ action "verify_fibonacci_execution" "evm::call_contract" {
     contract_address = env.verifier_contract_address
     contract_abi = input.fibonacci_contract.abi
     function_name = "verifyFibonacciProof"
-    gas_limit = 500000
     function_args = [
-        evm::bytes(action.fibonacci_proof.public_values), 
+        evm::bytes(action.fibonacci_proof.public_values),
         evm::bytes(action.fibonacci_proof.proof)
     ]
     signer = signer.deployer
-}
-
-output "verification_result" {
-    description = "On chain verification result"
-    value = action.fibonacci_proof.verification_key
-}
-
-output "public_values" {
-    value = action.fibonacci_proof.public_values
-}
-
-output "proof" {
-    value = action.fibonacci_proof.proof
 }
