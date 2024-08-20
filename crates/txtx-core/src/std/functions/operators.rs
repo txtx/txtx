@@ -507,19 +507,19 @@ impl FunctionImplementation for BinaryEq {
     ) -> Result<Value, Diagnostic> {
         match args.get(0) {
             Some(Value::Integer(lhs)) => {
-                let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
+                let Some(Value::Integer(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Float(lhs)) => {
-                let Some(Value::Float(rhs)) = args.get(1) else { unreachable!() };
+                let Some(Value::Float(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Bool(lhs)) => {
-                let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
+                let Some(Value::Bool(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::String(lhs)) => {
-                let Some(Value::String(rhs)) = args.get(1) else { unreachable!() };
+                let Some(Value::String(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
                 Ok(Value::bool(lhs.eq(rhs)))
             }
             Some(Value::Null) => {
@@ -528,7 +528,7 @@ impl FunctionImplementation for BinaryEq {
                 };
                 Ok(Value::bool(true))
             }
-            _ => unreachable!(),
+            _ => return Ok(Value::bool(false)),
         }
     }
 }
