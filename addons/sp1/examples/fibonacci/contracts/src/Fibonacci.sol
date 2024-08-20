@@ -24,6 +24,8 @@ contract Fibonacci {
     /// @notice The verification key for the fibonacci program.
     bytes32 public fibonacciProgramVKey;
 
+    event ProofVerified();
+
     constructor(address _verifier, bytes32 _fibonacciProgramVKey) {
         verifier = _verifier;
         fibonacciProgramVKey = _fibonacciProgramVKey;
@@ -34,10 +36,10 @@ contract Fibonacci {
     /// @param _publicValues The encoded public values.
     function verifyFibonacciProof(bytes calldata _publicValues, bytes calldata _proofBytes)
         public
-        view
         returns (uint32, uint32, uint32)
     {
         ISP1Verifier(verifier).verifyProof(fibonacciProgramVKey, _publicValues, _proofBytes);
+        emit ProofVerified();
         PublicValuesStruct memory publicValues = abi.decode(_publicValues, (PublicValuesStruct));
         return (publicValues.n, publicValues.a, publicValues.b);
     }
