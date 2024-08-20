@@ -35,7 +35,7 @@ lazy_static! {
                 verify: {
                     documentation: "Verify proof locally.",
                     typing: Type::bool(),
-                    optional: false,
+                    optional: true,
                     interpolable: true
                 },
                 sp1_private_key: {
@@ -103,17 +103,26 @@ impl CommandImplementation for CreateProof {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        _construct_did: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
         _defaults: &AddonDefaults,
-        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
+        use std::{
+            sync::{Arc, Mutex},
+            thread,
+            time::Duration,
+        };
+
         use sp1_sdk::{HashableKey, MockProver, NetworkProver, ProverClient, SP1Stdin};
-        use txtx_addon_kit::hex;
+        use txtx_addon_kit::{
+            hex,
+            types::frontend::{ProgressBarStatus, ProgressBarStatusColor, ProgressBarStatusUpdate},
+        };
 
         use crate::typing::Sp1Value;
 
@@ -126,6 +135,10 @@ impl CommandImplementation for CreateProof {
         let sp1_private_key =
             inputs.get_string("sp1_private_key").and_then(|k| Some(k.to_string()));
         let do_verify_proof = inputs.get_bool("verify").unwrap_or(false);
+
+        let construct_did = construct_did.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
@@ -145,15 +158,87 @@ impl CommandImplementation for CreateProof {
 
             let (pk, vk) = client.setup(&elf);
 
-            let proof = client.prove(&pk, stdin).plonk().run().map_err(|e| {
-                diagnosed_error!("command 'sp1::create_proof': failed to generate proof: {e}")
-            })?;
+            let proof = Arc::new(Mutex::new(None));
+            let is_done_clone = Arc::clone(&proof);
 
-            if do_verify_proof {
-                client.verify(&proof, &vk).map_err(|e| {
-                    diagnosed_error!("command 'sp1::create_proof': failed to verify proof: {e}")
-                })?;
+            let vk_clone = vk.clone();
+            // Run the long-running task in a separate thread
+            let handle = thread::spawn(move || {
+                let proof = match client.prove(&pk, stdin).plonk().run() {
+                    Ok(proof) => proof,
+                    Err(e) => {
+                        let mut done = is_done_clone.lock().unwrap();
+                        *done = Some(Err(diagnosed_error!(
+                            "command 'sp1::create_proof': failed to generate proof: {e}"
+                        )));
+                        return;
+                    }
+                };
+                if do_verify_proof {
+                    client
+                        .verify(&proof, &vk_clone)
+                        .map_err(|e| {
+                            diagnosed_error!(
+                                "command 'sp1::create_proof': failed to verify proof: {e}"
+                            )
+                        })
+                        .unwrap();
+                }
+                let mut done = is_done_clone.lock().unwrap();
+                *done = Some(Ok(proof));
+            });
+
+            let msg = format!("Creating proof");
+            let progress_tx = progress_tx.clone();
+            let mut progress = 0;
+            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+            let mut status_update = ProgressBarStatusUpdate::new(
+                &background_tasks_uuid,
+                &construct_did,
+                &ProgressBarStatus {
+                    status_color: ProgressBarStatusColor::Yellow,
+                    status: format!("Pending {}", progress_symbol[progress]),
+                    message: msg.clone(),
+                    diagnostic: None,
+                },
+            );
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            // Polling loop to update the user
+            while proof.lock().unwrap().is_none() {
+                progress = (progress + 1) % progress_symbol.len();
+                status_update.update_status(&ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &msg,
+                ));
+                let _ =
+                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                thread::sleep(Duration::from_millis(500));
             }
+            let Some(ref proof) = *proof.lock().unwrap() else { unimplemented!() };
+            let proof = match proof {
+                Ok(proof) => proof,
+                Err(e) => {
+                    status_update.update_status(&ProgressBarStatus::new_err(
+                        "Failed",
+                        "Failed to generate proof",
+                        &e,
+                    ));
+                    let _ = progress_tx
+                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    return Err(e.clone());
+                }
+            };
+
+            status_update.update_status(&ProgressBarStatus::new_msg(
+                ProgressBarStatusColor::Green,
+                &format!("Proof Created"),
+                "",
+            ));
+            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+            // Ensure the long-running task completes
+            handle.join().unwrap();
 
             let v_key_bytes = hex::decode(vk.bytes32().replace("0x", "")).map_err(|e| {
                 diagnosed_error!(
