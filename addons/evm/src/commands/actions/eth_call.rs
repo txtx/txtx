@@ -35,7 +35,7 @@ lazy_static! {
             rpc_api_url: {
               documentation: "The URL of the EVM API used to send the RPC request.",
               typing: Type::string(),
-              optional: false,
+              optional: true,
               interpolable: true
             },
             contract_address: {
