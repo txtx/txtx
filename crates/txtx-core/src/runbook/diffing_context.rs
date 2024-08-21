@@ -207,23 +207,18 @@ impl RunbookSnapshotContext {
                 let downstream_constructs_dids =
                     downstream_constructs_dids.iter().map(|c| c.clone()).collect();
 
-                let command_to_update = match run.signers.get_mut(signer_did) {
-                    Some(signer) => signer,
-                    None => {
-                        let new_command = SigningCommandSnapshot {
-                            package_did: command_instance.package_id.did(),
-                            construct_type: signing_construct_id.construct_type.clone(),
-                            construct_name: signing_construct_id.construct_name.clone(),
-                            construct_location: signing_construct_id.construct_location.clone(),
-                            construct_addon: None,
-                            downstream_constructs_dids,
-                            inputs: IndexMap::new(),
-                            outputs: IndexMap::new(),
-                        };
-                        run.signers.insert(signer_did.clone(), new_command);
-                        run.signers.get_mut(signer_did).unwrap()
-                    }
+                let new_command = SigningCommandSnapshot {
+                    package_did: command_instance.package_id.did(),
+                    construct_type: signing_construct_id.construct_type.clone(),
+                    construct_name: signing_construct_id.construct_name.clone(),
+                    construct_location: signing_construct_id.construct_location.clone(),
+                    construct_addon: None,
+                    downstream_constructs_dids,
+                    inputs: IndexMap::new(),
+                    outputs: IndexMap::new(),
                 };
+                run.signers.insert(signer_did.clone(), new_command);
+                let command_to_update = run.signers.get_mut(signer_did).unwrap();
 
                 // Check if construct is sensitive
                 let is_construct_sensitive = false;
