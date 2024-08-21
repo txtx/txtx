@@ -24,7 +24,7 @@ impl PreConstructData {
             PreConstructData::Module(_) => "module",
             PreConstructData::Action(_) => "action",
             PreConstructData::Signer(_) => "signer",
-            PreConstructData::Addon(_) => "signer",
+            PreConstructData::Addon(_) => "addon",
             PreConstructData::Root => unreachable!(),
         }
     }

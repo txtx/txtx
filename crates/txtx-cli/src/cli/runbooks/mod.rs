@@ -306,7 +306,6 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let root_location_path: PathBuf = env::current_dir().expect("Failed to get current directory");
     let root_location = FileLocation::from_path(root_location_path.clone());
 
-
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
 
@@ -601,9 +600,6 @@ pub async fn handle_run_command(
                     continue;
                 }
 
-                running_context.execution_context.execution_mode =
-                    RunbookExecutionMode::Partial(vec![]);
-
                 let mut added_construct_dids: Vec<ConstructDid> =
                     additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
 
@@ -677,11 +673,6 @@ pub async fn handle_run_command(
                 for construct_did in great_filter.iter() {
                     running_context
                         .execution_context
-                        .commands_inputs_evaluation_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
                         .commands_execution_results
                         .remove(construct_did);
                 }
@@ -693,6 +684,9 @@ pub async fn handle_run_command(
                     .into_iter()
                     .filter(|c| great_filter.contains(&c))
                     .collect();
+
+                running_context.execution_context.execution_mode =
+                    RunbookExecutionMode::Partial(great_filter);
             }
 
             let has_actions =

@@ -260,21 +260,21 @@ impl RuntimeContext {
                 for transform in transforms.iter() {
                     match transform {
                         ContractSourceTransform::FindAndReplace(from, to) => {
-                            let mut contract_source = match inputs_evaluation_results
-                                .inputs
-                                .get_string("contract_source_post_transforms")
-                                .or(inputs_evaluation_results.inputs.get_string("contract_source"))
-                            {
-                                Some(value) => value.to_string(),
-                                _ => {
-                                    continue;
-                                }
+                            let Ok(mut contract) =
+                                inputs_evaluation_results.inputs.get_expected_object("contract")
+                            else {
+                                continue;
+                            };
+                            let mut contract_source = match contract.get_mut("contract_source") {
+                                Some(Value::String(source)) => source.to_string(),
+                                _ => continue,
                             };
                             contract_source = contract_source.replace(from, to);
-                            inputs_evaluation_results.inputs.insert(
-                                "contract_source_post_transforms",
-                                Value::string(contract_source),
-                            );
+                            contract
+                                .insert("contract_source".into(), Value::string(contract_source));
+                            inputs_evaluation_results
+                                .inputs
+                                .insert("contract", Value::object(contract));
                         }
                     }
                 }

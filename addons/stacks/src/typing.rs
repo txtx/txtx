@@ -14,10 +14,10 @@ pub const STACKS_CV_SOME: &str = "stacks::cv_some";
 pub const STACKS_CV_LIST: &str = "stacks::cv_list";
 pub const STACKS_CV_BUFFER: &str = "stacks::cv_buffer";
 pub const STACKS_CV_GENERIC: &str = "stacks::cv_generic";
-pub const STACKS_CONTRACT_CALL: &str = "stacks::contract_call";
 pub const STACKS_POST_CONDITIONS: &str = "stacks::post_conditions";
 pub const STACKS_POST_CONDITION_MODE: &str = "stacks::post_condition_mode";
 pub const STACKS_TRANSACTION: &str = "stacks::transaction";
+pub const STACKS_TRANSACTION_PAYLOAD: &str = "stacks::transaction_payload";
 pub const STACKS_SIGNATURE: &str = "stacks::signature";
 
 pub struct StacksValue {}
@@ -79,8 +79,8 @@ impl StacksValue {
         Value::addon(bytes, STACKS_CV_GENERIC)
     }
 
-    pub fn contract_call(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, STACKS_CONTRACT_CALL)
+    pub fn transaction_payload(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, STACKS_TRANSACTION_PAYLOAD)
     }
 
     pub fn transaction(bytes: Vec<u8>) -> Value {

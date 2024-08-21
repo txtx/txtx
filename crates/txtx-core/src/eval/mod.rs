@@ -410,16 +410,9 @@ pub async fn run_constructs_evaluation(
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
         let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
 
-        // in general we want to ignore previous input evaluation results when evaluating for outputs.
-        // we want to recompute the whole graph in case anything has changed since our last traversal.
-        // however, if there was a start_node provided, this evaluation was initiated from a user interaction
-        // that is stored in the input evaluation results, and we want to keep that data to evaluate that
-        // commands dependents
-        let input_evaluation_results = if supervision_context.review_input_default_values {
-            None
-        } else {
-            runbook_execution_context.commands_inputs_evaluation_results.get(&construct_did.clone())
-        };
+        let input_evaluation_results = runbook_execution_context
+            .commands_inputs_evaluation_results
+            .get(&construct_did.clone());
 
         let mut cached_dependency_execution_results: HashMap<
             ConstructDid,
