@@ -186,7 +186,7 @@ lazy_static! {
                     optional: true,
                     interpolable: true
                 },
-                contract_name_update: {
+                contract_instance_name: {
                     documentation: "The name to use for deploying the contract. Will automatically update contract dependencies.",
                     typing: Type::string(),
                     optional: true,
@@ -226,7 +226,7 @@ lazy_static! {
             }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("source".to_string());
+            spec.create_critical_output = Some("contract_id".to_string());
         }
         command
     };
@@ -339,9 +339,16 @@ impl CommandImplementation for StacksDeployContract {
             }
         }
 
-        evaluated_inputs
-            .inputs
-            .insert("contract_source_post_transforms", Value::string(contract_source));
+        if evaluated_inputs.inputs.get_string("contract_instance_name").is_none() {
+            evaluated_inputs
+                .inputs
+                .storage
+                .insert("contract_instance_name".into(), Value::string(contract_name.to_string()));
+        }
+
+        if let Some(Value::Object(obj)) = evaluated_inputs.inputs.storage.get_mut("contract") {
+            obj.insert("contract_source".into(), Value::string(contract_source));
+        }
 
         Ok(evaluated_inputs)
     }
@@ -367,28 +374,22 @@ impl CommandImplementation for StacksDeployContract {
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) =
-            match args.get_expected_object("contract") {
-                Ok(value) => {
-                    let contract_source = match args
-                        .get_value("contract_source_post_transforms")
-                        .or(value.get("contract_source"))
-                        .map(|v| v.as_string())
-                    {
-                        Some(Some(value)) => value.to_string(),
-                        _ => {
-                            return Err((
-                                signers,
-                                signer_state,
-                                diagnosed_error!("unable to retrieve 'contract_source'"),
-                            ))
-                        }
-                    };
-                    let contract_name = match args
-                        .get_value("contract_name_update")
-                        .or(value.get("contract_name"))
-                        .map(|v| v.as_string())
-                    {
+        let (contract_source, contract_name, clarity_version) = match args
+            .get_expected_object("contract")
+        {
+            Ok(value) => {
+                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
+                    Some(Some(value)) => value.to_string(),
+                    _ => {
+                        return Err((
+                            signers,
+                            signer_state,
+                            diagnosed_error!("unable to retrieve 'contract_source'"),
+                        ))
+                    }
+                };
+                let contract_name =
+                    match args.get_value("contract_instance_name").map(|v| v.as_string()) {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
@@ -398,14 +399,14 @@ impl CommandImplementation for StacksDeployContract {
                             ))
                         }
                     };
-                    let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                        Some(Some(Ok(value))) => Some(value),
-                        _ => None,
-                    };
-                    (contract_source, contract_name, clarity_version)
-                }
-                Err(diag) => return Err((signers, signer_state, diag)),
-            };
+                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
+                    Some(Some(Ok(value))) => Some(value),
+                    _ => None,
+                };
+                (contract_source, contract_name, clarity_version)
+            }
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
 
         let empty_vec: Vec<Value> = vec![];
         let post_conditions_values =
@@ -458,29 +459,23 @@ impl CommandImplementation for StacksDeployContract {
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) =
-            match args.get_expected_object("contract") {
-                Ok(value) => {
-                    let contract_source = match args
-                        .get_value("contract_source_post_transforms")
-                        .or(value.get("contract_source"))
-                        .map(|v| v.as_string())
-                    {
-                        Some(Some(value)) => value.to_string(),
-                        _ => {
-                            return Err((
-                                signers,
-                                signer_state,
-                                diagnosed_error!("unable to retrieve 'contract_source'"),
-                            ))
-                        }
-                    };
+        let (contract_source, contract_name, clarity_version) = match args
+            .get_expected_object("contract")
+        {
+            Ok(value) => {
+                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
+                    Some(Some(value)) => value.to_string(),
+                    _ => {
+                        return Err((
+                            signers,
+                            signer_state,
+                            diagnosed_error!("unable to retrieve 'contract_source'"),
+                        ))
+                    }
+                };
 
-                    let contract_name = match args
-                        .get_value("contract_name_update")
-                        .or(value.get("contract_name"))
-                        .map(|v| v.as_string())
-                    {
+                let contract_name =
+                    match args.get_value("contract_instance_name").map(|v| v.as_string()) {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
@@ -490,14 +485,14 @@ impl CommandImplementation for StacksDeployContract {
                             ))
                         }
                     };
-                    let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                        Some(Some(Ok(value))) => Some(value),
-                        _ => None,
-                    };
-                    (contract_source, contract_name, clarity_version)
-                }
-                Err(diag) => return Err((signers, signer_state, diag)),
-            };
+                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
+                    Some(Some(Ok(value))) => Some(value),
+                    _ => None,
+                };
+                (contract_source, contract_name, clarity_version)
+            }
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         signers.push_signer_state(signer_state);
 
         let empty_vec = vec![];

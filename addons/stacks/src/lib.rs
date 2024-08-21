@@ -147,7 +147,7 @@ impl Addon for StacksNetworkAddon {
                 };
                 let from =
                     QualifiedContractIdentifier::parse(contract_id).unwrap().name.to_string();
-                let Some(to) = simulated_inputs.inputs.get_string("contract_name_update") else {
+                let Some(to) = simulated_inputs.inputs.get_string("contract_instance_name") else {
                     continue;
                 };
                 for (contract, dependencies) in overrides.iter() {
@@ -156,8 +156,8 @@ impl Addon for StacksNetworkAddon {
                             .entry(contract.clone())
                             .or_insert_with(Vec::new)
                             .push(ContractSourceTransform::FindAndReplace(
-                                from.to_string(),
-                                to.to_string(),
+                                format!(".{}", from),
+                                format!(".{}", to),
                             ));
                     }
                 }
