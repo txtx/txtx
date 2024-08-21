@@ -230,14 +230,27 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
     let manifest_res = WorkspaceManifest::from_location(&manifest_location);
 
-    let theme = ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
+    let theme = ColorfulTheme {
+        values_style: Style::new().green(),
+        hint_style: Style::new().cyan(),
+        ..ColorfulTheme::default()
+    };
 
     let mut manifest = match manifest_res {
         Ok(manifest) => manifest,
         Err(_) => {
+            let current_dir = env::current_dir()
+                .ok()
+                .and_then(|d| d.file_name().map(|f| f.to_string_lossy().to_string()));
+            let default = match current_dir {
+                Some(dir) => dir,
+                _ => "".to_string(),
+            };
+
             // Ask for the name of the workspace
-            let name: String = Input::new()
+            let name: String = Input::with_theme(&theme)
                 .with_prompt("Enter the name of this workspace")
+                .default(default)
                 .interact_text()
                 .unwrap();
             WorkspaceManifest::new(name)
@@ -292,6 +305,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     // Initialize root location
     let root_location_path: PathBuf = env::current_dir().expect("Failed to get current directory");
     let root_location = FileLocation::from_path(root_location_path.clone());
+
 
     let mut runbook_file_path = root_location_path.clone();
     runbook_file_path.push("runbooks");
