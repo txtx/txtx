@@ -21,9 +21,9 @@ default-members = ["crates/txtx-cli"]
 resolver = "2"
 
 [workspace.dependencies]
-txtx-core = { path = "crates/txtx-core" }
+txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
+txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-gql = { path = "crates/txtx-gql" }
-txtx-addon-kit = { path = "crates/txtx-addon-kit" }
 txtx-addon-network-evm = { path = "addons/evm" }
 txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
 txtx-addon-network-stacks = { path = "addons/stacks" }
