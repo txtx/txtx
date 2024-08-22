@@ -427,8 +427,6 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
 
-        // insert pre-calculated contract address into outputs to be used by verify contract bg task
-
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
@@ -451,6 +449,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
 
+                // insert pre-calculated contract address into outputs to be used by verify contract bg task
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
