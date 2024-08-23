@@ -571,6 +571,32 @@ impl Value {
 //     }
 // }
 
+pub struct ObjectType {
+    map: IndexMap<String, Value>,
+}
+impl ObjectType {
+    pub fn new() -> Self {
+        ObjectType { map: IndexMap::new() }
+    }
+
+    pub fn from(default: Vec<(&str, Value)>) -> Self {
+        let mut map = IndexMap::new();
+        for (key, value) in default {
+            map.insert(key.to_string(), value);
+        }
+        ObjectType { map }
+    }
+
+    pub fn insert(&mut self, key: &str, value: Value) -> &mut Self {
+        self.map.insert(key.to_string(), value);
+        self
+    }
+
+    pub fn inner(&self) -> IndexMap<String, Value> {
+        self.map.clone()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct AddonData {
     pub bytes: Vec<u8>,
