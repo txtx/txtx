@@ -470,6 +470,59 @@ impl ProgressBarStatusColor {
     }
 }
 
+const PROGRESS_SYMBOLS: [&str; 8] = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+#[derive(Clone, Debug)]
+pub struct ProgressSymbol {
+    current: usize,
+}
+impl ProgressSymbol {
+    pub fn new() -> Self {
+        ProgressSymbol { current: 0 }
+    }
+    pub fn next(&mut self) -> &str {
+        self.current = (self.current + 1) % PROGRESS_SYMBOLS.len();
+        PROGRESS_SYMBOLS[self.current]
+    }
+    pub fn pending(&mut self) -> String {
+        format!("Pending {}", self.next())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusUpdater {
+    status_update: ProgressBarStatusUpdate,
+    tx: channel::Sender<BlockEvent>,
+    progress: ProgressSymbol,
+}
+impl StatusUpdater {
+    pub fn new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+    ) -> Self {
+        let mut progress = ProgressSymbol::new();
+        let initial_status = ProgressBarStatusUpdate::new(
+            &background_tasks_uuid,
+            &construct_did,
+            &&ProgressBarStatus::new_msg(ProgressBarStatusColor::Yellow, &progress.pending(), ""),
+        );
+        StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
+    }
+    pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Yellow,
+            &self.progress.pending(),
+            new_status_msg,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_status(&mut self, new_status: ProgressBarStatus) {
+        self.status_update.update_status(&new_status);
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressBarStatusUpdate {
