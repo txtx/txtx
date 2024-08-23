@@ -293,9 +293,23 @@ async fn verify_etherscan_type_provider(
         .await
         .map_err(|e| format!("{}: failed to prepare verification request: {}", err_prefix, e))?;
 
+    // hack: foundry will overwrite our etherscan url (but not the etherscan api url that's used for verifying)
+    // with a different url. in case the user provided a different url (i.e. blockscout), we want to keep our
+    // blockscout url when linking to the confirmed contract. so we are stripping the path from the url to get
+    // the explorer's base protocol://host
+    let verifier_base_url = verify_args
+        .verifier
+        .verifier_url
+        .and_then(|url| {
+            Url::from_str(&url).ok().and_then(|mut url| {
+                url.set_path("");
+                Some(url.as_str().to_string())
+            })
+        })
+        .unwrap_or(etherscan.etherscan_url().as_str().to_string());
     let submitting_msg = submitting_msg(&contract_address_str);
     let checking_msg = checking_msg(&contract_address_str);
-    let address_url = etherscan.address_url(contract_address);
+    let address_url = format!("{}address/{}", verifier_base_url, contract_address_str);
     let already_verified = already_verified_status(&address_url);
     let successfully_verified = verify_success_status(&address_url);
 
