@@ -459,6 +459,7 @@ pub enum ProgressBarStatusColor {
     Green,
     Yellow,
     Red,
+    Purple,
 }
 impl ProgressBarStatusColor {
     pub fn to_string(&self) -> String {
@@ -466,6 +467,7 @@ impl ProgressBarStatusColor {
             ProgressBarStatusColor::Green => "Green".into(),
             ProgressBarStatusColor::Yellow => "Yellow".into(),
             ProgressBarStatusColor::Red => "Red".into(),
+            ProgressBarStatusColor::Purple => "Purple".into(),
         }
     }
 }

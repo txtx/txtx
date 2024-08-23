@@ -810,6 +810,14 @@ pub async fn handle_run_command(
                                     update.new_status.message,
                                 );
                             }
+                            ProgressBarStatusColor::Purple => {
+                                print!(
+                                    "\r{} {} {:<150}\n",
+                                    purple!("→"),
+                                    purple!(format!("{}", update.new_status.status)),
+                                    update.new_status.message,
+                                );
+                            }
                         };
                         std::io::stdout().flush().unwrap();
                     }
