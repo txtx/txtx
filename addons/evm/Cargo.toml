@@ -22,7 +22,9 @@ alloy-signer-local = { version = "0.1.4", features = ["mnemonic"] }
 thiserror = "1.0.62"
 toml = "0.5"
 foundry-block-explorers = "0.5.0"
-alloy-chains = "0.1.23"
+alloy-chains = "0.1.27"
+foundry-config = "0.2.0"
+forge-verify = { version = "0.2.0", path = "../../../foundry/crates/verify" }
 
 [features]
 default = ["txtx-addon-kit/default"]

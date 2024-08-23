@@ -6,7 +6,7 @@ use alloy::{
     primitives::{Bytes, B256},
 };
 use alloy_chains::ChainKind;
-use txtx_addon_kit::{helpers::fs::FileLocation, indexmap};
+use txtx_addon_kit::{helpers::fs::FileLocation, types::types::ObjectType};
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{
@@ -19,7 +19,7 @@ use txtx_addon_kit::{
 
 use crate::{
     codec::{
-        foundry::FoundryConfig, generate_create2_address, string_to_address, value_to_sol_value,
+        foundry::FoundryToml, generate_create2_address, string_to_address, value_to_sol_value,
     },
     commands::actions::deploy_contract::create_init_code,
     constants::DEFAULT_CREATE2_FACTORY_ADDRESS,
@@ -388,6 +388,7 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             }
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
+
         let contract_filename = match args.get(1) {
             Some(Value::String(val)) => val.clone(),
             other => return Err(format_fn_error(&prefix, 2, "string", other)),
@@ -400,51 +401,72 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
         };
 
         let foundry_profile = match args.get(3) {
-            Some(Value::String(val)) => val.clone(),
-            None => "default".into(),
-            other => return Err(format_fn_error(&prefix, 4, "string", other)),
+            Some(val) => val.as_string(),
+            None => None,
         };
 
-        let foundry_config = FoundryConfig::get_from_path(&manifest_file_path)
+        let foundry_toml = FoundryToml::new(&manifest_file_path)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
 
-        let compiled_output = foundry_config
-            .get_compiled_output(&contract_filename, &contract_name, Some(&foundry_profile))
+        let config = foundry_toml
+            .get_foundry_config(foundry_profile)
+            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
+
+        let compiled_output = foundry_toml
+            .get_compiled_output(&contract_filename, &contract_name, foundry_profile)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
 
         let abi_string = serde_json::to_string(&compiled_output.abi)
             .map_err(|e| diagnosed_error!("{}: failed to serialize abi: {}", prefix, e))?;
 
         let source = compiled_output
-            .get_contract_source(&manifest_file_path, &contract_filename)
+            .get_contract_source(&manifest_file_path, &contract_name)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
 
+        let target_path = compiled_output
+            .get_contract_path(&manifest_file_path, &contract_name)
+            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))
+            .map(|path| FileLocation::from_path(path))?
+            .get_absolute_path()
+            .map_err(|e| {
+                diagnosed_error!("{}: could not find compilation target path: {}", prefix, e)
+            })?;
+        let target_path = target_path.to_str().ok_or(diagnosed_error!(
+            "{}: invalid compilation target path for contract {}",
+            prefix,
+            contract_name
+        ))?;
+        let bytecode = Value::string(compiled_output.bytecode.object);
         let abi = Value::string(abi_string);
-        let bytecode = Value::string(compiled_output.bytecode.object.clone());
         let source = Value::string(source);
-        let compiler_version =
-            Value::string(format!("v{}", compiled_output.metadata.compiler.version));
-        let contract_name = Value::string(contract_name.to_string());
+        let compiler_version = Value::string(compiled_output.metadata.compiler.version);
+        let contract_name = Value::string(contract_name);
+        let contract_target_path = Value::string(target_path.to_string());
         let optimizer_enabled = Value::bool(compiled_output.metadata.settings.optimizer.enabled);
         let optimizer_runs =
             Value::integer(compiled_output.metadata.settings.optimizer.runs as i128);
         let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
+        let project_root = Value::string(manifest_file_path.to_string());
+        let foundry_config = Value::buffer(serde_json::to_vec(&config).unwrap());
 
-        let mut obj_props = indexmap::indexmap! {
-            "abi".to_string() => abi,
-            "bytecode".to_string() => bytecode,
-            "source".to_string() => source,
-            "compiler_version".to_string() => compiler_version,
-            "contract_name".to_string() => contract_name,
-            "optimizer_enabled".to_string() => optimizer_enabled,
-            "optimizer_runs".to_string() => optimizer_runs,
-            "evm_version".to_string() => evm_version,
-        };
+        let mut obj_props = ObjectType::from(vec![
+            ("bytecode", bytecode),
+            ("abi", abi),
+            ("source", source),
+            ("compiler_version", compiler_version),
+            ("contract_name", contract_name),
+            ("contract_target_path", contract_target_path),
+            ("optimizer_enabled", optimizer_enabled),
+            ("optimizer_runs", optimizer_runs),
+            ("evm_version", evm_version),
+            ("project_root", project_root),
+            ("foundry_config", foundry_config),
+        ]);
         if let Some(via_ir) = compiled_output.metadata.settings.via_ir {
-            let via_ir = Value::bool(via_ir);
-            obj_props.insert("via_ir".to_string(), via_ir);
+            obj_props.insert("via_ir", Value::bool(via_ir));
         }
-        Ok(Value::object(obj_props))
+
+        Ok(Value::object(obj_props.inner()))
     }
 }
 
