@@ -17,7 +17,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::get_typed_transaction_bytes;
+use crate::codec::{get_typed_transaction_bytes, verify::DeploymentArtifacts};
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
@@ -440,7 +440,9 @@ async fn build_unsigned_contract_deploy(
 }
 
 pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
-    let contract = args.get_expected_object("contract").map_err(|e| e.to_string())?;
+    let artifacts = DeploymentArtifacts::from_value(
+        args.get_expected_value("contract").map_err(|e| e.to_string())?,
+    )?;
     let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
         let sol_args = function_args
             .expect_array()
@@ -452,16 +454,12 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
         None
     };
 
-    let Some(bytecode) =
-        contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
-    else {
-        return Err(format!("contract missing required bytecode"));
-    };
+    let bytecode = artifacts.bytecode;
 
     // if we have an abi available in the contract, parse it out
-    let json_abi: Option<JsonAbi> = match contract.get("abi") {
+    let json_abi: Option<JsonAbi> = match artifacts.abi {
         Some(abi_string) => {
-            let abi = serde_json::from_str(&abi_string.expect_string())
+            let abi = serde_json::from_str(&abi_string)
                 .map_err(|e| format!("failed to decode contract abi: {e}"))?;
             Some(abi)
         }
