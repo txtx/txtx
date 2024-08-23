@@ -21,8 +21,8 @@ use crate::codec::{get_typed_transaction_bytes, verify::DeploymentArtifacts};
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
-    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
-    TX_HASH,
+    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT,
+    EXPLORER_VERIFICATION_OPTS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
 use crate::typing::CONTRACT_METADATA;
@@ -147,13 +147,26 @@ lazy_static! {
                 tainting: true,
                 internal: false
             },
-            block_explorer_api_key: {
+            explorer_verification_opts: {
                 documentation: "The URL of the block explorer used to verify the contract.",
-                typing: Type::string(),
+                typing: Type::array(define_object_type!{
+                    key: {
+                        documentation: "The block explorer API key.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    },
+                    url: {
+                        documentation: "The block explorer contract verification URL (default Etherscan).",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    }
+                }),
                 optional: true,
-                tainting: false,
+                tainting: true,
                 internal: false
-            }
+            },
           ],
           outputs: [
               tx_hash: {
@@ -359,10 +372,15 @@ impl CommandImplementation for EVMDeployContract {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
+            let do_verify = inputs
+                .get_bool(DO_VERIFY_CONTRACT)
+                .unwrap_or(inputs.get_array(EXPLORER_VERIFICATION_OPTS).is_some());
             if do_verify {
                 let contract_artifacts = inputs.get_expected_value("contract")?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
+                if let Some(opts) = inputs.get_value(EXPLORER_VERIFICATION_OPTS) {
+                    inputs.insert(EXPLORER_VERIFICATION_OPTS, opts.clone());
+                }
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }

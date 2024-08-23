@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use alloy::primitives::Address;
 use forge_verify::provider::VerificationContext;
 use forge_verify::sourcify::SourcifyVerificationProvider;
 use forge_verify::{EtherscanVerificationProvider, VerifyArgs};
+use txtx_addon_kit::reqwest::Url;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
@@ -27,9 +30,9 @@ lazy_static! {
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
-                block_explorer_opts: {
+                explorer_verification_opts: {
                   documentation: "The URL of the block explorer used to verify the contract.",
-                  typing: define_object_type!{
+                  typing: Type::array(define_object_type!{
                     key: {
                         documentation: "The block explorer API key.",
                         typing: Type::string(),
@@ -146,29 +149,43 @@ impl CommandImplementation for VerifyEVMContract {
     ) -> CommandExecutionFutureResult {
         use alloy::{dyn_abi::DynSolValue, hex};
         use alloy_chains::Chain;
-        use forge_verify::provider::{VerificationProvider, VerificationProviderType};
-        use txtx_addon_kit::types::frontend::StatusUpdater;
+        use forge_verify::provider::VerificationProviderType;
+        use txtx_addon_kit::types::{commands::return_synchronous_ok, frontend::StatusUpdater};
 
         use crate::{
             codec::{value_to_sol_value, verify::DeploymentArtifacts},
             commands::actions::get_expected_address,
-            constants::{ARTIFACTS, CHAIN_ID, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS},
+            constants::{
+                ARTIFACTS, CHAIN_ID, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS,
+                EXPLORER_VERIFICATION_OPTS,
+            },
         };
 
         let inputs = inputs.clone();
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
+        let mut status_updater =
+            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
         let chain_id = inputs.get_expected_uint(CHAIN_ID)?;
 
         let contract_address = inputs.get_expected_value(CONTRACT_ADDRESS)?;
-        let explorer_opts = inputs.get_expected_object("block_explorer_opts")?;
-        let (explorer_key, explorer_url) = match (explorer_opts.get("key"), explorer_opts.get("url")) {
-            (None, None) => return Err(diagnosed_error!("command 'evm::verify_contract': block explorer options must include block explorer API key or URL.")),
-            (Some(key), Some(url)) => (key.as_string().and_then(|k| Some(k.to_string())),  url.as_string().and_then(|u| Some(u.to_string()))),
-            (Some(key), None) => (key.as_string().and_then(|k| Some(k.to_string())),  None),
-            (None, Some(url)) => (None,  url.as_string().and_then(|u| Some(u.to_string()))),
+        let contract_address = get_expected_address(&contract_address).map_err(|e| {
+            diagnosed_error!("command 'evm::verify_contract' failed to parse contract address: {e}")
+        })?;
+        let contract_address_str = contract_address.to_string();
+        let Some(explorer_opts) = inputs.get_array(EXPLORER_VERIFICATION_OPTS) else {
+            status_updater.propagate_status(ProgressBarStatus::new_msg(
+                ProgressBarStatusColor::Purple,
+                "Verification Skipped",
+                &format!(
+                    "Skipping verification for contract {}; no block explorer opts provided",
+                    contract_address_str
+                ),
+            ));
+            return return_synchronous_ok(CommandExecutionResult::new());
         };
+        let explorer_opts = explorer_opts.iter().map(|opts| opts.as_object().and_then(|opts| Some(opts.clone())).ok_or(diagnosed_error!("command 'evm::verify_contract': expected explorer_verification_opts entry to be an array of objects"))).collect::<Result<Vec<_>, Diagnostic>>()?;
 
         let artifacts: DeploymentArtifacts =
             DeploymentArtifacts::from_value(inputs.get_expected_value(ARTIFACTS)?)
@@ -192,61 +209,62 @@ impl CommandImplementation for VerifyEVMContract {
                 None
             };
 
-        let contract_address = get_expected_address(&contract_address).map_err(|e| {
-            diagnosed_error!("command 'evm::verify_contract' failed to parse contract address: {e}")
-        })?;
-
-        let mut status_updater =
-            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
-
         let future = async move {
             let result = CommandExecutionResult::new();
 
-            status_updater.propagate_pending_status(&submitting_msg(&contract_address.to_string()));
+            status_updater.propagate_pending_status(&submitting_msg(&contract_address_str));
 
             let chain = Chain::from(chain_id);
 
-            let verify_args = artifacts
-                .to_verify_args(
-                    contract_address,
-                    constructor_args,
-                    chain,
-                    explorer_key,
-                    explorer_url,
-                )
-                .unwrap();
+            for explorer_opt in explorer_opts {
+                let (explorer_key, explorer_url) = match (explorer_opt.get("key"), explorer_opt.get("url")) {
+                    (None, None) => return Err(diagnosed_error!("command 'evm::verify_contract': block explorer options must include block explorer API key or URL.")),
+                    (Some(key), Some(url)) => (key.as_string().and_then(|k| Some(k.to_string())),  url.as_string().and_then(|u| Some(u.to_string()))),
+                    (Some(key), None) => (key.as_string().and_then(|k| Some(k.to_string())),  None),
+                    (None, Some(url)) => (None,  url.as_string().and_then(|u| Some(u.to_string()))),
+                };
+                let verify_args = artifacts
+                    .to_verify_args(
+                        contract_address,
+                        constructor_args.clone(),
+                        chain,
+                        explorer_key,
+                        explorer_url,
+                    )
+                    .unwrap();
 
-            let verification_context = artifacts.to_verification_context().unwrap();
+                let verification_context = artifacts.to_verification_context().unwrap();
 
-            let verifier_type = &verify_args.verifier.verifier;
-            let is_etherscan_provider = verifier_type == &VerificationProviderType::Etherscan
-                || verifier_type == &VerificationProviderType::Blockscout
-                || verifier_type == &VerificationProviderType::Oklink;
+                let verifier_type = &verify_args.verifier.verifier;
+                let is_etherscan_provider = verifier_type == &VerificationProviderType::Etherscan
+                    || verifier_type == &VerificationProviderType::Blockscout
+                    || verifier_type == &VerificationProviderType::Oklink;
 
-            let verify_result = if is_etherscan_provider {
-                verify_etherscan_type_provider(
-                    verify_args,
-                    verification_context,
-                    &mut status_updater,
-                    contract_address,
-                )
-                .await
-                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
-            } else {
-                verify_sourcify_type_provider(
-                    verify_args,
-                    verification_context,
-                    &mut status_updater,
-                    contract_address,
-                )
-                .await
-                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
-            };
+                let verify_result = if is_etherscan_provider {
+                    verify_etherscan_type_provider(
+                        verify_args,
+                        verification_context,
+                        &mut status_updater,
+                        contract_address,
+                    )
+                    .await
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
+                } else {
+                    verify_sourcify_type_provider(
+                        verify_args,
+                        verification_context,
+                        &mut status_updater,
+                        contract_address,
+                    )
+                    .await
+                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
+                };
 
-            if let Err(diag) = verify_result {
-                status_updater
-                    .propagate_status(verify_failed_status(&contract_address.to_string(), &diag));
-                return Err(diag);
+                if let Err(diag) = verify_result {
+                    status_updater
+                        .propagate_status(verify_failed_status(&contract_address_str, &diag));
+                    return Err(diag);
+                }
             }
 
             Ok(result)
