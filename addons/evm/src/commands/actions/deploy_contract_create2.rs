@@ -192,13 +192,26 @@ lazy_static! {
                 tainting: true,
                 internal: false
             },
-            block_explorer_api_key: {
+            block_explorer_opts: {
                 documentation: "The URL of the block explorer used to verify the contract.",
-                typing: Type::string(),
+                typing: define_object_type!{
+                  key: {
+                      documentation: "The block explorer API key.",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: true
+                  },
+                  url: {
+                      documentation: "The block explorer contract verification URL (default Etherscan).",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: true
+                  }
+                },
                 optional: true,
-                tainting: false,
+                tainting: true,
                 internal: false
-            }
+              },
           ],
           outputs: [
               tx_hash: {
@@ -458,6 +471,10 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             if do_verify {
                 let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
+                inputs.insert(
+                    "block_explorer_opts",
+                    inputs.get_expected_value("block_explorer_opts").unwrap().clone(),
+                );
 
                 // insert pre-calculated contract address into outputs to be used by verify contract bg task
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {

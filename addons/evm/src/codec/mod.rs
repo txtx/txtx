@@ -1,5 +1,6 @@
 pub mod crypto;
 pub mod foundry;
+pub mod verify;
 
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
@@ -246,6 +247,7 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Array(_) => todo!(),
         DynSolValue::FixedArray(_) => todo!(),
         DynSolValue::Tuple(_) => todo!(),
+        DynSolValue::CustomStruct { .. } => todo!(),
     };
     Ok(value)
 }
