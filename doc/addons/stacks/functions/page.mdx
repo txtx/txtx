@@ -534,7 +534,7 @@ output "my_tuple" {
 
 ```hcl {{ title: 'main.tx' }}
 output "my_buffer" { 
-  value = stacks::cv_buff("0x010203")
+  value = stacks::cv_buff("0x010203") 
 }
 // > my_buffer: 0x0200000003010203
 
@@ -671,7 +671,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -704,7 +704,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+    post_condition = [stacks::revert_if_account_sends_more_than("signer", 100)]
 }
 
 ```
@@ -738,7 +738,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -771,7 +771,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+    post_condition = [stacks::revert_if_account_not_sending_exactly("signer", 100)]
 }
 
 ```
@@ -805,7 +805,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -838,7 +838,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+    post_condition = [stacks::revert_if_account_not_sending_at_least("signer", 100)]
 }
 
 ```
@@ -877,7 +877,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check ({{principal}}.{{contract_name}}::{{non_fungible_storage}}).
+    The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).
   </Property>
 
 
@@ -950,7 +950,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check ({{principal}}.{{contract_name}}::{{non_fungible_storage}}).
+    The NFT Contract Asset Id to check (<principal>.<contract_name>::<non_fungible_storage>).
   </Property>
 
 
@@ -1033,6 +1033,62 @@ action "my_tx" "stacks::call_contract" {
 
 
 <CodeGroup title="Example using decode_ok">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon 
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_contract_from_clarinet_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::get_contract_from_clarinet_project` retrieves the source of a contract present in a Clarinet manifest.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="clarinet_manifest_path">
+    The path of the Clarinet toml file.
+  </Property>
+
+
+  <Property name="contract_name">
+    Contract name of the contract source to fetch.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The source code of the contract
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_contract_from_clarinet_project">
 
 
 ```hcl {{ title: 'main.tx' }}

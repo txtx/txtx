@@ -5,12 +5,12 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-txtx-addon-kit = { path = "../../components/txtx-addon-kit", default-features = false}
+txtx-addon-kit = { path = "../../crates/txtx-addon-kit", default-features = false}
 lazy_static = "1.4.0"
 clarity-repl = { version = "2.0.0", default-features = false }
 clarity-vm = { version = "=2.1.1", default-features = false }
 clarinet-deployments = { version = "1.0.3", default-features = false }
-wasm-bindgen = { version = "=0.2.84", optional = true }
+wasm-bindgen = { version = "=0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 hmac = "0.12.0"
 pbkdf2 = { version = "0.12.2", features = ["simple"], default-features = false }

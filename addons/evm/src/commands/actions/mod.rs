@@ -67,8 +67,8 @@ pub fn get_common_tx_params_from_args(
     Ok((amount, gas_limit, nonce))
 }
 
-fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
+fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
     let signer = args.get_expected_string(SIGNER)?;
-    let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
-    Ok(signing_construct_did)
+    let signer_did = ConstructDid(Did::from_hex_string(signer));
+    Ok(signer_did)
 }

@@ -186,9 +186,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         let transaction_bytes = args.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)?;
 
         let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-        let rpc_api_auth_token = args
-            .get_defaulting_string(RPC_API_AUTH_TOKEN, defaults)
-            .ok();
+        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
@@ -214,11 +212,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
             let mut s = String::from("0x");
             s.write_str(
-                &transaction_bytes
-                    .clone()
-                    .iter()
-                    .map(|b| format!("{:02X}", b))
-                    .collect::<String>(),
+                &transaction_bytes.clone().iter().map(|b| format!("{:02X}", b)).collect::<String>(),
             )
             .map_err(|e| {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
@@ -237,9 +231,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
                     Err(RpcError::ContractAlreadyExists(data)) => {
-                        result
-                            .outputs
-                            .insert("contract_id".into(), Value::string(data.unwrap()));
+                        result.outputs.insert("contract_id".into(), Value::string(data.unwrap()));
                         return Ok(result);
                     }
                     Err(e) => {
@@ -276,12 +268,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
             };
 
             let txid = tx_result.txid;
-            result
-                .outputs
-                .insert(format!("tx_id"), Value::string(txid.clone()));
-            result
-                .outputs
-                .insert(format!("value"), Value::string(txid.clone()));
+            result.outputs.insert(format!("tx_id"), Value::string(txid.clone()));
+            result.outputs.insert(format!("value"), Value::string(txid.clone()));
 
             let moved_txid = txid.clone();
             let moved_network_id = network_id.clone();
@@ -325,11 +313,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         &wrap_msg(&format!(
                             "Confirmed {} {}",
                             &confirmations_required,
-                            if confirmations_required.eq(&1) {
-                                "block"
-                            } else {
-                                "blocks"
-                            }
+                            if confirmations_required.eq(&1) { "block" } else { "blocks" }
                         )),
                     ));
 

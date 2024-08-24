@@ -89,13 +89,10 @@ impl CommandImplementation for TelegramSendMessage {
     ) -> CommandExecutionFutureResult {
         let args = args.clone();
 
-        let telegram_chat_id: i64 = args
-            .get_expected_integer("telegram_chat_id")?
-            .try_into()
-            .unwrap();
-        let telegram_bot_api_token = args
-            .get_expected_string("telegram_bot_api_token")?
-            .to_string();
+        let telegram_chat_id: i64 =
+            args.get_expected_integer("telegram_chat_id")?.try_into().unwrap();
+        let telegram_bot_api_token =
+            args.get_expected_string("telegram_bot_api_token")?.to_string();
         let message = args.get_expected_string("message")?.to_string();
 
         let future = async move {

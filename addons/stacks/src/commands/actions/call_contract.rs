@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::types::Value;
-use txtx_addon_kit::types::wallets::WalletActionsFutureResult;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::{
     types::{
@@ -12,8 +12,8 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::BlockEvent,
+        signers::{SignerInstance, SignerSignFutureResult, SignersState},
         types::Type,
-        wallets::{SigningCommandsState, WalletInstance, WalletSignFutureResult},
         ConstructDid, ValueStore,
     },
     AddonDefaults,
@@ -27,7 +27,7 @@ use crate::{
     typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL},
 };
 
-use super::get_signing_construct_did;
+use super::get_signer_did;
 use super::{
     broadcast_transaction::BroadcastStacksTransaction, encode_contract_call,
     sign_transaction::SignStacksTransaction,
@@ -38,7 +38,7 @@ lazy_static! {
         SendContractCall => {
           name: "Send Contract Call Transaction",
           matcher: "call_contract",
-          documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser wallet, and broadcasts the signed transaction to the network.",
+          documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
           implements_signing_capability: true,
           implements_background_task_capability: true,
           inputs: [
@@ -85,7 +85,7 @@ lazy_static! {
                 interpolable: true
             },
                 signer: {
-                  documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
+                  documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                   typing: Type::string(),
                   optional: false,
                   interpolable: true
@@ -158,7 +158,7 @@ lazy_static! {
                         "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
                     })
                 ]
-                signer = wallet.alice
+                signer = signer.alice
             }            
             output "tx_id" {
             value = action.my_ref.tx_id
@@ -189,34 +189,31 @@ impl CommandImplementation for SendContractCall {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
         let network_id: String = match args.get_defaulting_string("network_id", defaults) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let contract_id_value = match args.get_expected_value("contract_id") {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let function_name = match args.get_expected_string("function_name") {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let function_args_values = match args.get_expected_array("function_args") {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_call(
             spec,
@@ -226,9 +223,9 @@ impl CommandImplementation for SendContractCall {
             contract_id_value,
         ) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
-        wallets.push_signing_command_state(signing_command_state);
+        signers.push_signer_state(signer_state);
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
@@ -248,8 +245,8 @@ impl CommandImplementation for SendContractCall {
             &args,
             defaults,
             supervision_context,
-            wallets_instances,
-            wallets,
+            signers_instances,
+            signers,
         )
     }
 
@@ -259,17 +256,16 @@ impl CommandImplementation for SendContractCall {
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers: SignersState,
+    ) -> SignerSignFutureResult {
         let empty_vec = vec![];
         let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
 
         let bytes = encode_contract_call(
@@ -282,7 +278,7 @@ impl CommandImplementation for SendContractCall {
         .unwrap();
         let progress_tx = progress_tx.clone();
         let args = args.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -306,10 +302,10 @@ impl CommandImplementation for SendContractCall {
                 &args,
                 &defaults,
                 &progress_tx,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -319,11 +315,7 @@ impl CommandImplementation for SendContractCall {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,
@@ -334,14 +326,14 @@ impl CommandImplementation for SendContractCall {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                    Err(diag) => return Err((signers, signer_state, diag)),
                 },
-                Err(data) => return Err((wallets, signing_command_state, data)),
+                Err(data) => return Err((signers, signer_state, data)),
             };
 
             res_signing.append(&mut res);
 
-            Ok((wallets, signing_command_state, res_signing))
+            Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
     }

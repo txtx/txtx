@@ -1,4 +1,4 @@
-// Wallet attached storage keys
+// Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
 pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";
 pub const CHECKED_ADDRESS: &str = "checked_address";
@@ -7,7 +7,7 @@ pub const CHECKED_COST_PROVISION: &str = "checked_costs";
 pub const FETCHED_BALANCE: &str = "fetched_balance";
 pub const FETCHED_NONCE: &str = "fetched_nonce";
 
-// Wallets
+// Signers
 pub const PUBLIC_KEYS: &str = "public_keys";
 pub const SIGNED_TRANSACTION_BYTES: &str = "signed_transaction_bytes";
 pub const UNSIGNED_TRANSACTION_BYTES: &str = "unsigned_transaction_bytes";

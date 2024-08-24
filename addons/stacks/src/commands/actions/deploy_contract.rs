@@ -19,10 +19,10 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         frontend::BlockEvent,
-        types::{RunbookSupervisionContext, Type, Value},
-        wallets::{
-            SigningCommandsState, WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+        signers::{
+            SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
         },
+        types::{RunbookSupervisionContext, Type, Value},
         ConstructDid, ValueStore,
     },
     uuid::Uuid,
@@ -39,7 +39,7 @@ use crate::{
 
 use super::encode_contract_deployment;
 use super::{
-    broadcast_transaction::BroadcastStacksTransaction, get_signing_construct_did,
+    broadcast_transaction::BroadcastStacksTransaction, get_signer_did,
     sign_transaction::SignStacksTransaction,
 };
 
@@ -49,7 +49,7 @@ lazy_static! {
         StacksDeployContract => {
             name: "Stacks Contract Deployment",
             matcher: "deploy_contract",
-            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a wallet, and broadcasts the signed transaction to the network.",
+            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -105,7 +105,7 @@ lazy_static! {
                     interpolable: true
                 },
                 signer: {
-                    documentation: "A reference to a wallet construct, which will be used to sign the transaction payload.",
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
                     optional: false,
                     interpolable: true
@@ -203,19 +203,19 @@ lazy_static! {
                     documentation: "The transaction result.",
                     typing: Type::buffer()
                 }
-                ],
-                example: txtx_addon_kit::indoc! {r#"
-                        action "counter_deployment" "stacks::deploy_contract" {
-                            description = "Deploy counter contract."
-                            source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                            contract_name = "verify-and-update-price-feeds"
-                            signer = wallet.alice
-                        }
-                        output "contract_tx_id" {
-                        value = action.counter_deployment.tx_id
-                        }
-                        // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
-                    "#},
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                    action "counter_deployment" "stacks::deploy_contract" {
+                        description = "Deploy counter contract."
+                        source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                        contract_name = "verify-and-update-price-feeds"
+                        signer = signer.alice
+                    }
+                    output "contract_tx_id" {
+                    value = action.counter_deployment.tx_id
+                    }
+                    // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
+                "#},
             }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
@@ -291,16 +291,11 @@ impl CommandImplementation for StacksDeployContract {
         }
 
         // Dependencies muts be identified before applying the contract_source_transforms
+        evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
+        evaluated_inputs.inputs.insert("contracts_ids_dependencies", Value::array(dependencies));
         evaluated_inputs
             .inputs
-            .insert("contract_id", Value::string(contract_id.to_string()));
-        evaluated_inputs
-            .inputs
-            .insert("contracts_ids_dependencies", Value::array(dependencies));
-        evaluated_inputs.inputs.insert(
-            "contracts_ids_lazy_dependencies",
-            Value::array(lazy_dependencies),
-        );
+            .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
 
         // contract_source_transforms_handling.
         let mut transforms_applied = vec![];
@@ -342,10 +337,9 @@ impl CommandImplementation for StacksDeployContract {
             }
         }
 
-        evaluated_inputs.inputs.insert(
-            "contract_source_post_transforms",
-            Value::string(contract_source),
-        );
+        evaluated_inputs
+            .inputs
+            .insert("contract_source_post_transforms", Value::string(contract_source));
 
         Ok(evaluated_inputs)
     }
@@ -364,13 +358,11 @@ impl CommandImplementation for StacksDeployContract {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
         let (contract_source, contract_name, clarity_version) =
@@ -384,8 +376,8 @@ impl CommandImplementation for StacksDeployContract {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
-                                wallets,
-                                signing_command_state,
+                                signers,
+                                signer_state,
                                 diagnosed_error!("unable to retrieve 'contract_source'"),
                             ))
                         }
@@ -394,8 +386,8 @@ impl CommandImplementation for StacksDeployContract {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
-                                wallets,
-                                signing_command_state,
+                                signers,
+                                signer_state,
                                 diagnosed_error!("unable to retrieve 'contract_name'"),
                             ))
                         }
@@ -406,13 +398,12 @@ impl CommandImplementation for StacksDeployContract {
                     };
                     (contract_source, contract_name, clarity_version)
                 }
-                Err(diag) => return Err((wallets, signing_command_state, diag)),
+                Err(diag) => return Err((signers, signer_state, diag)),
             };
 
         let empty_vec: Vec<Value> = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_deployment(
             spec,
@@ -421,9 +412,9 @@ impl CommandImplementation for StacksDeployContract {
             clarity_version,
         ) {
             Ok(value) => value,
-            Err(diag) => return Err((wallets, signing_command_state, diag)),
+            Err(diag) => return Err((signers, signer_state, diag)),
         };
-        wallets.push_signing_command_state(signing_command_state);
+        signers.push_signer_state(signer_state);
 
         let mut args = args.clone();
         args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
@@ -443,8 +434,8 @@ impl CommandImplementation for StacksDeployContract {
             &args,
             defaults,
             supervision_context,
-            wallets_instances,
-            wallets,
+            signers_instances,
+            signers,
         )
     }
 
@@ -454,13 +445,11 @@ impl CommandImplementation for StacksDeployContract {
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
-        let signing_command_state = wallets
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerSignFutureResult {
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
         let (contract_source, contract_name, clarity_version) =
@@ -474,8 +463,8 @@ impl CommandImplementation for StacksDeployContract {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
-                                wallets,
-                                signing_command_state,
+                                signers,
+                                signer_state,
                                 diagnosed_error!("unable to retrieve 'contract_source'"),
                             ))
                         }
@@ -484,8 +473,8 @@ impl CommandImplementation for StacksDeployContract {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
-                                wallets,
-                                signing_command_state,
+                                signers,
+                                signer_state,
                                 diagnosed_error!("unable to retrieve 'contract_name'"),
                             ))
                         }
@@ -496,21 +485,20 @@ impl CommandImplementation for StacksDeployContract {
                     };
                     (contract_source, contract_name, clarity_version)
                 }
-                Err(diag) => return Err((wallets, signing_command_state, diag)),
+                Err(diag) => return Err((signers, signer_state, diag)),
             };
-        wallets.push_signing_command_state(signing_command_state);
+        signers.push_signer_state(signer_state);
 
         let empty_vec = vec![];
-        let post_conditions_values = args
-            .get_expected_array("post_conditions")
-            .unwrap_or(&empty_vec);
+        let post_conditions_values =
+            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
         let bytes =
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
                 .unwrap();
 
         let args = args.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -534,10 +522,10 @@ impl CommandImplementation for StacksDeployContract {
                 &args,
                 &defaults,
                 &progress_tx,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -554,11 +542,7 @@ impl CommandImplementation for StacksDeployContract {
 
             args.insert(
                 SIGNED_TRANSACTION_BYTES,
-                res_signing
-                    .outputs
-                    .get(SIGNED_TRANSACTION_BYTES)
-                    .unwrap()
-                    .clone(),
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
 
             let mut res = match BroadcastStacksTransaction::run_execution(
@@ -570,9 +554,9 @@ impl CommandImplementation for StacksDeployContract {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                    Err(diag) => return Err((signers, signer_state, diag)),
                 },
-                Err(data) => return Err((wallets, signing_command_state, data)),
+                Err(data) => return Err((signers, signer_state, data)),
             };
             res.outputs.insert(
                 "contract_id".into(),
@@ -581,7 +565,7 @@ impl CommandImplementation for StacksDeployContract {
 
             res_signing.append(&mut res);
 
-            Ok((wallets, signing_command_state, res_signing))
+            Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
     }

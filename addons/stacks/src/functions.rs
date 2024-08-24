@@ -407,7 +407,7 @@ lazy_static! {
                         typing: vec![Type::string()]
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).",
+                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
                         typing: vec![Type::string()]
                     },
                     asset_id: {
@@ -444,7 +444,7 @@ lazy_static! {
                         typing: vec![Type::string()]
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check ({principal}.{contract_nam}::{non_fungible_storage}).",
+                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_name>::<non_fungible_storage>).",
                         typing: vec![Type::string()]
                     },
                     asset_id: {
@@ -601,9 +601,7 @@ impl FunctionImplementation for EncodeClarityValueNone {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         if !args.is_empty() {
-            return Err(diagnosed_error!(
-                "`cv_none` function: expected no arguments"
-            ));
+            return Err(diagnosed_error!("`cv_none` function: expected no arguments"));
         }
         let clarity_value = ClarityValue::Optional(OptionalData { data: None });
         let bytes = clarity_value.serialize_to_vec();
@@ -629,16 +627,9 @@ impl FunctionImplementation for EncodeClarityValueBool {
         let entry = match args.get(0) {
             Some(Value::Bool(val)) => val.clone(),
             Some(any) => {
-                return Err(diagnosed_error!(
-                    "'cv_bool' function: expected bool, got {:?}",
-                    any
-                ))
+                return Err(diagnosed_error!("'cv_bool' function: expected bool, got {:?}", any))
             }
-            None => {
-                return Err(diagnosed_error!(
-                    "'cv_bool' function: expected bool, got none :("
-                ))
-            }
+            None => return Err(diagnosed_error!("'cv_bool' function: expected bool, got none :(")),
         };
         let clarity_value = ClarityValue::Bool(entry);
         let bytes = clarity_value.serialize_to_vec();
@@ -671,16 +662,9 @@ impl FunctionImplementation for EncodeClarityValueUint {
                 as_u128
             }
             Some(any) => {
-                return Err(diagnosed_error!(
-                    "'cv_uint' function: expected uint, got {:?}",
-                    any
-                ))
+                return Err(diagnosed_error!("'cv_uint' function: expected uint, got {:?}", any))
             }
-            None => {
-                return Err(diagnosed_error!(
-                    "'cv_uint' function: expected uint, got none :("
-                ))
-            }
+            None => return Err(diagnosed_error!("'cv_uint' function: expected uint, got none :(")),
         };
         let clarity_value = ClarityValue::UInt(u128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
@@ -713,16 +697,9 @@ impl FunctionImplementation for EncodeClarityValueInt {
                 as_i128
             }
             Some(any) => {
-                return Err(diagnosed_error!(
-                    "'cv_int' function: expected uint, got {:?}",
-                    any
-                ))
+                return Err(diagnosed_error!("'cv_int' function: expected uint, got {:?}", any))
             }
-            None => {
-                return Err(diagnosed_error!(
-                    "'cv_int' function: expected uint, got none :("
-                ))
-            }
+            None => return Err(diagnosed_error!("'cv_int' function: expected uint, got none :(")),
         };
         let clarity_value = ClarityValue::Int(i128::from(entry));
         let bytes = clarity_value.serialize_to_vec();
@@ -893,11 +870,8 @@ fn encode_ft_post_condition(
     token_id: &str,
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
-    let principal_monitored = if address.eq("signer") {
-        PostConditionPrincipal::Origin
-    } else {
-        unimplemented!()
-    };
+    let principal_monitored =
+        if address.eq("signer") { PostConditionPrincipal::Origin } else { unimplemented!() };
 
     let Some((contract_id_specified, asset_name)) = token_id.split_once("::") else {
         unimplemented!()
@@ -1246,17 +1220,9 @@ impl FunctionImplementation for DecodeClarityValueOk {
                 }
             }
             Some(_v) => {
-                return Err(diagnosed_error!(
-                    "function '{}': argument type error",
-                    &fn_spec.name
-                ))
+                return Err(diagnosed_error!("function '{}': argument type error", &fn_spec.name))
             }
-            None => {
-                return Err(diagnosed_error!(
-                    "function '{}': argument missing",
-                    &fn_spec.name
-                ))
-            }
+            None => return Err(diagnosed_error!("function '{}': argument missing", &fn_spec.name)),
         };
 
         let inner_bytes: Vec<u8> = value.serialize_to_vec();

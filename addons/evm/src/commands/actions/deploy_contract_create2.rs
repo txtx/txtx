@@ -6,8 +6,8 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
-use txtx_addon_kit::types::wallets::{
-    WalletActionsFutureResult, WalletInstance, WalletSignFutureResult,
+use txtx_addon_kit::types::signers::{
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
@@ -16,7 +16,7 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::types::{
-    types::RunbookSupervisionContext, wallets::SigningCommandsState, ConstructDid,
+    signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
@@ -32,7 +32,7 @@ use crate::rpc::EVMRpc;
 use crate::typing::{CONTRACT_METADATA, EVM_ADDRESS};
 
 use super::check_confirmations::CheckEVMConfirmations;
-use super::get_signing_construct_did;
+use super::get_signer_did;
 use super::sign_transaction::SignEVMTransaction;
 use super::verify_contract::VerifyEVMContract;
 
@@ -58,7 +58,7 @@ lazy_static! {
               interpolable: true
             },
             signer: {
-                documentation: "A reference to a wallet construct, which will be used to sign the transaction.",
+                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
                 interpolable: true
@@ -212,14 +212,14 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         args: &ValueStore,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        mut wallets: SigningCommandsState,
-    ) -> WalletActionsFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
         use txtx_addon_kit::helpers::build_diag_context_fn;
 
         use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
 
-        let signing_construct_did = get_signing_construct_did(args).unwrap();
+        let signer_did = get_signer_did(args).unwrap();
 
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
@@ -227,7 +227,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let args = args.clone();
         let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
 
         let to_diag_with_ctx = build_diag_context_fn(
             instance_name.to_string(),
@@ -236,41 +236,39 @@ impl CommandImplementation for EVMDeployContractCreate2 {
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut signing_command_state = wallets
-                .pop_signing_command_state(&signing_construct_did)
-                .unwrap();
-            if let Some(_) = signing_command_state
+            let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            if let Some(_) = signer_state
                 .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
             {
-                return Ok((wallets, signing_command_state, Actions::none()));
+                return Ok((signers, signer_state, Actions::none()));
             }
 
             let res = build_unsigned_create2_deployment(
-                &mut signing_command_state,
+                &mut signer_state,
                 &spec,
                 &args,
                 &defaults,
                 &to_diag_with_ctx,
             )
             .await
-            .map_err(|diag| (wallets.clone(), signing_command_state.clone(), diag))?;
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let transaction = match res {
                 Create2DeploymentResult::AlreadyDeployed(contract_address) => {
-                    signing_command_state.insert_scoped_value(
+                    signer_state.insert_scoped_value(
                         &construct_did.to_string(),
                         ALREADY_DEPLOYED,
                         Value::bool(true),
                     );
-                    signing_command_state.insert_scoped_value(
+                    signer_state.insert_scoped_value(
                         &construct_did.to_string(),
                         CONTRACT_ADDRESS,
                         EvmValue::address(contract_address.0 .0.to_vec()),
                     );
-                    return Ok((wallets, signing_command_state, actions));
+                    return Ok((signers, signer_state, actions));
                 }
                 Create2DeploymentResult::NotDeployed((tx, contract_address)) => {
-                    signing_command_state.insert_scoped_value(
+                    signer_state.insert_scoped_value(
                         &construct_did.to_string(),
                         CONTRACT_ADDRESS,
                         EvmValue::address(contract_address.0 .0.to_vec()),
@@ -279,18 +277,13 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 }
             };
 
-            let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
-                (
-                    wallets.clone(),
-                    signing_command_state.clone(),
-                    to_diag_with_ctx(e),
-                )
-            })?;
+            let bytes = get_typed_transaction_bytes(&transaction)
+                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
 
             let payload = EvmValue::transaction(bytes);
             let mut args = args.clone();
             args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
-            wallets.push_signing_command_state(signing_command_state);
+            signers.push_signer_state(signer_state);
 
             let future_result = SignEVMTransaction::check_signed_executability(
                 &construct_did,
@@ -299,10 +292,10 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 &args,
                 &defaults,
                 &supervision_context,
-                &wallets_instances,
-                wallets,
+                &signers_instances,
+                signers,
             );
-            let (wallets, signing_command_state, mut signing_actions) = match future_result {
+            let (signers, signer_state, mut signing_actions) = match future_result {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -311,7 +304,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             };
 
             actions.append(&mut signing_actions);
-            Ok((wallets, signing_command_state, actions))
+            Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
     }
@@ -322,51 +315,43 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         args: &ValueStore,
         defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        wallets_instances: &HashMap<ConstructDid, WalletInstance>,
-        wallets: SigningCommandsState,
-    ) -> WalletSignFutureResult {
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers: SignersState,
+    ) -> SignerSignFutureResult {
         let mut args = args.clone();
-        let wallets_instances = wallets_instances.clone();
+        let signers_instances = signers_instances.clone();
         let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
-        let mut wallets = wallets.clone();
+        let mut signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
-        let signing_construct_did = get_signing_construct_did(&args).unwrap();
-        let signing_command_state = wallets
-            .clone()
-            .pop_signing_command_state(&signing_construct_did)
-            .unwrap();
+        let signer_did = get_signer_did(&args).unwrap();
+        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         // insert pre-calculated contract address into outputs to be used by verify contract bg task
-        let contract_address = signing_command_state
-            .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
-            .unwrap(); // insert pre-calculated contract addr
-        result
-            .outputs
-            .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+        let contract_address =
+            signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap(); // insert pre-calculated contract addr
+        result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
 
-        let already_deployed = signing_command_state
+        let already_deployed = signer_state
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
-        result
-            .outputs
-            .insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
+        result.outputs.insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
         let future = async move {
             // if this contract has already been deployed, we'll skip signing and confirming
-            let (wallets, signing_command_state) = if !already_deployed {
-                wallets.push_signing_command_state(signing_command_state);
+            let (signers, signer_state) = if !already_deployed {
+                signers.push_signer_state(signer_state);
                 let run_signing_future = SignEVMTransaction::run_signed_execution(
                     &construct_did,
                     &spec,
                     &args,
                     &defaults,
                     &progress_tx,
-                    &wallets_instances,
-                    wallets,
+                    &signers_instances,
+                    signers,
                 );
-                let (wallets, signing_command_state, mut res_signing) = match run_signing_future {
+                let (signers, signer_state, mut res_signing) = match run_signing_future {
                     Ok(future) => match future.await {
                         Ok(res) => res,
                         Err(err) => return Err(err),
@@ -377,9 +362,9 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 result.append(&mut res_signing);
                 args.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
 
-                (wallets, signing_command_state)
+                (signers, signer_state)
             } else {
-                (wallets.clone(), signing_command_state.clone())
+                (signers.clone(), signer_state.clone())
             };
 
             args.insert(ALREADY_DEPLOYED, Value::bool(already_deployed));
@@ -392,9 +377,9 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,
-                    Err(diag) => return Err((wallets, signing_command_state, diag)),
+                    Err(diag) => return Err((signers, signer_state, diag)),
                 },
-                Err(data) => return Err((wallets, signing_command_state, data)),
+                Err(data) => return Err((signers, signer_state, data)),
             };
             result.append(&mut res);
 
@@ -409,15 +394,15 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 ) {
                     Ok(future) => match future.await {
                         Ok(res) => res,
-                        Err(diag) => return Err((wallets, signing_command_state, diag)),
+                        Err(diag) => return Err((signers, signer_state, diag)),
                     },
-                    Err(data) => return Err((wallets, signing_command_state, data)),
+                    Err(data) => return Err((signers, signer_state, data)),
                 };
 
                 result.append(&mut res);
             }
 
-            Ok((wallets, signing_command_state, result))
+            Ok((signers, signer_state, result))
         };
 
         Ok(Box::pin(future))
@@ -442,8 +427,6 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
 
-        // insert pre-calculated contract address into outputs to be used by verify contract bg task
-
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
@@ -466,6 +449,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                 let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
 
+                // insert pre-calculated contract address into outputs to be used by verify contract bg task
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
@@ -496,7 +480,7 @@ enum Create2DeploymentResult {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_create2_deployment(
-    wallet_state: &ValueStore,
+    signer_state: &ValueStore,
     _spec: &CommandSpecification,
     args: &ValueStore,
     defaults: &AddonDefaults,
@@ -523,28 +507,26 @@ async fn build_unsigned_create2_deployment(
         },
     };
 
-    let from = wallet_state.get_expected_value("signer_address")?;
+    let from = signer_state.get_expected_value("signer_address")?;
 
     // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
     let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
     let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
 
-    let contract_address = args
-        .get_value(CREATE2_FACTORY_ADDRESS)
-        .and_then(|v| Some(v.clone()));
+    let contract_address = args.get_value(CREATE2_FACTORY_ADDRESS).and_then(|v| Some(v.clone()));
     let init_code = get_contract_init_code(args).map_err(to_diag_with_ctx)?;
     let expected_contract_address = args.get_string(EXPECTED_CONTRACT_ADDRESS);
 
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(args).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(wallet_nonce) = wallet_state
+        if let Some(signer_nonce) = signer_state
             .get_value(NONCE)
             .map(|v| v.expect_uint())
             .transpose()
             .map_err(to_diag_with_ctx)?
         {
-            nonce = Some(wallet_nonce + 1);
+            nonce = Some(signer_nonce + 1);
         }
     }
     let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
@@ -574,9 +556,29 @@ async fn build_unsigned_create2_deployment(
 
     let rpc = EVMRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
-    let contract_address = contract_address
-        .and_then(|a| Some(a.clone()))
-        .unwrap_or(Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()));
+    let contract_address = match contract_address {
+        Some(contract_address) => {
+            let Some(factory_address) = contract_address.try_get_buffer_bytes() else {
+                unimplemented!()
+            };
+            let factory_address = Address::from_slice(&factory_address[..]);
+            let factory_code = rpc.get_code(&factory_address).await.map_err(|e| {
+                to_diag_with_ctx(format!(
+                    "failed to validate create2 contract factory address: {}",
+                    e.to_string()
+                ))
+            })?;
+            if factory_code.is_empty() {
+                return Err(to_diag_with_ctx(format!(
+                    "invalid create2 contract factory: address {} is not a contract on chain {}",
+                    factory_address.to_string(),
+                    chain_id
+                )));
+            }
+            contract_address
+        }
+        None => Value::string(DEFAULT_CREATE2_FACTORY_ADDRESS.to_string()),
+    };
 
     let calculated_deployed_contract_address =
         generate_create2_address(&contract_address, salt, &init_code).map_err(to_diag_with_ctx)?;
@@ -598,9 +600,7 @@ async fn build_unsigned_create2_deployment(
         .map_err(|e| to_diag_with_ctx(e.to_string()))?;
 
     if !code_at_address.is_empty() {
-        return Ok(Create2DeploymentResult::AlreadyDeployed(
-            calculated_deployed_contract_address,
-        ));
+        return Ok(Create2DeploymentResult::AlreadyDeployed(calculated_deployed_contract_address));
     }
 
     let common = CommonTransactionFields {
@@ -608,16 +608,15 @@ async fn build_unsigned_create2_deployment(
         from: from.clone(),
         nonce,
         chain_id,
-        amount: amount,
+        amount,
         gas_limit,
         tx_type,
         input: Some(input),
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc.clone(), args, common)
-        .await
-        .map_err(to_diag_with_ctx)?;
+    let tx =
+        build_unsigned_transaction(rpc.clone(), args, common).await.map_err(to_diag_with_ctx)?;
 
     let actual_contract_address = rpc
         .call(&tx)

@@ -138,11 +138,7 @@ pub fn encode_contract_deployment(
         Some(1) => Some(ClarityVersion::Clarity1),
         Some(2) => Some(ClarityVersion::Clarity2),
         Some(n) => {
-            return Err(diagnosed_error!(
-                "command {}: clarity version {} unknown",
-                spec.matcher,
-                n
-            ))
+            return Err(diagnosed_error!("command {}: clarity version {} unknown", spec.matcher, n))
         }
     };
 
@@ -155,10 +151,7 @@ pub fn encode_contract_deployment(
     })?;
 
     let payload = TransactionPayload::SmartContract(
-        TransactionSmartContract {
-            name: contract_name.into(),
-            code_body,
-        },
+        TransactionSmartContract { name: contract_name.into(), code_body },
         clarity_version,
     );
 
@@ -246,8 +239,8 @@ pub fn encode_stx_transfer(
     Ok(value)
 }
 
-fn get_signing_construct_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
+fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
     let signer = args.get_expected_string("signer")?;
-    let signing_construct_did = ConstructDid(Did::from_hex_string(signer));
-    Ok(signing_construct_did)
+    let signer_did = ConstructDid(Did::from_hex_string(signer));
+    Ok(signer_did)
 }

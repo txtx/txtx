@@ -34,9 +34,6 @@ impl Addon for TelegramAddon {
     }
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        vec![
-            send_message::TELEGRAM_SEND_MESSAGE.clone(),
-            setup_chat::TELEGRAM_SETUP_CHAT.clone(),
-        ]
+        vec![send_message::TELEGRAM_SEND_MESSAGE.clone(), setup_chat::TELEGRAM_SETUP_CHAT.clone()]
     }
 }

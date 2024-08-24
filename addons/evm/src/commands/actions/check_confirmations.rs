@@ -146,13 +146,11 @@ impl CommandImplementation for CheckEVMConfirmations {
         let progress_tx = progress_tx.clone();
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
-        let contract_address = inputs.get_value(CONTRACT_ADDRESS);
+        let contract_address = inputs.get_value(CONTRACT_ADDRESS).cloned();
         if skip_confirmations {
             let mut result = CommandExecutionResult::new();
-            if let Some(contract_address) = contract_address {
-                result
-                    .outputs
-                    .insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+            if let Some(contract_address) = contract_address.clone() {
+                result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
             }
 
             let status_update = ProgressBarStatusUpdate::new(
@@ -268,6 +266,10 @@ impl CommandImplementation for CheckEVMConfirmations {
                         CONTRACT_ADDRESS.to_string(),
                         Value::string(contract_address.to_string()),
                     );
+                }
+                // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
+                else if let Some(contract_address) = contract_address.clone() {
+                    result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
                 };
 
                 if latest_block >= included_block + confirmations_required as u64 {
@@ -299,11 +301,7 @@ impl CommandImplementation for CheckEVMConfirmations {
                 &format!(
                     "Confirmed {} {} for Tx 0x{} on Chain {}",
                     &confirmations_required,
-                    if confirmations_required.eq(&1) {
-                        "block"
-                    } else {
-                        "blocks"
-                    },
+                    if confirmations_required.eq(&1) { "block" } else { "blocks" },
                     tx_hash,
                     chain_name
                 ),

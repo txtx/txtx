@@ -1,13 +1,21 @@
+[workspace.package]
+version = "0.1.1"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/txtx/txtx"
+keywords = ["txtx", "smart-contracts", "devops", "secops", "blockchains"]
+categories = ["cryptography"]
+
 [workspace]
 members = [
-    "components/txtx-cli",
-    "components/txtx-core",
-    "components/txtx-addon-kit",
-    "components/txtx-lsp",
+    "crates/txtx-cli",
+    "crates/txtx-core",
+    "crates/txtx-addon-kit",
+    "crates/txtx-lsp",
     "addons/bitcoin",
     "addons/evm",
     "addons/stacks",
     "addons/telegram"
 ]
-default-members = ["components/txtx-cli"]
+default-members = ["crates/txtx-cli"]
 resolver = "2"

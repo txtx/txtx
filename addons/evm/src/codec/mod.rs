@@ -33,10 +33,7 @@ impl TransactionType {
             "eip2930" => Ok(TransactionType::EIP2930),
             "eip1559" => Ok(TransactionType::EIP1559),
             "eip4844" => Ok(TransactionType::EIP4844),
-            other => Err(diagnosed_error!(
-                "invalid Ethereum Transaction type: {}",
-                other
-            )),
+            other => Err(diagnosed_error!("invalid Ethereum Transaction type: {}", other)),
         }
     }
 }
@@ -120,10 +117,7 @@ async fn build_unsigned_legacy_transaction(
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
-    let gas_price = args
-        .get_value(GAS_PRICE)
-        .map(|v| v.expect_uint())
-        .transpose()?;
+    let gas_price = args.get_value(GAS_PRICE).map(|v| v.expect_uint()).transpose()?;
 
     let gas_price = match gas_price {
         Some(gas_price) => gas_price as u128,
@@ -153,35 +147,22 @@ async fn build_unsigned_eip1559_transaction(
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
-    let max_fee_per_gas = args
-        .get_value(MAX_FEE_PER_GAS)
-        .map(|v| v.expect_uint())
-        .transpose()?;
-    let max_priority_fee_per_gas = args
-        .get_value(MAX_PRIORITY_FEE_PER_GAS)
-        .map(|v| v.expect_uint())
-        .transpose()?;
+    let max_fee_per_gas = args.get_value(MAX_FEE_PER_GAS).map(|v| v.expect_uint()).transpose()?;
+    let max_priority_fee_per_gas =
+        args.get_value(MAX_PRIORITY_FEE_PER_GAS).map(|v| v.expect_uint()).transpose()?;
 
     let (max_fee_per_gas, max_priority_fee_per_gas) =
         if max_fee_per_gas.is_none() || max_priority_fee_per_gas.is_none() {
-            let fees = rpc
-                .estimate_eip1559_fees()
-                .await
-                .map_err(|e| e.to_string())?;
+            let fees = rpc.estimate_eip1559_fees().await.map_err(|e| e.to_string())?;
 
             (
-                max_fee_per_gas
-                    .and_then(|f| Some(f as u128))
-                    .unwrap_or(fees.max_fee_per_gas),
+                max_fee_per_gas.and_then(|f| Some(f as u128)).unwrap_or(fees.max_fee_per_gas),
                 max_priority_fee_per_gas
                     .and_then(|f| Some(f as u128))
                     .unwrap_or(fees.max_priority_fee_per_gas),
             )
         } else {
-            (
-                max_fee_per_gas.unwrap() as u128,
-                max_priority_fee_per_gas.unwrap() as u128,
-            )
+            (max_fee_per_gas.unwrap() as u128, max_priority_fee_per_gas.unwrap() as u128)
         };
 
     let mut tx = TransactionRequest::default()
