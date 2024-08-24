@@ -879,8 +879,12 @@ pub fn eval_expression(
             match res.outputs.get(&attribute).or(res.outputs.get("value")) {
                 Some(output) => {
                     if let Some(_) = output.as_object() {
-                        components.push_front(attribute);
-                        output.get_keys_from_object(components)?
+                        if attribute.eq("value") {
+                            output.clone()
+                        } else {
+                            components.push_front(attribute);
+                            output.get_keys_from_object(components)?
+                        }
                     } else {
                         output.clone()
                     }
