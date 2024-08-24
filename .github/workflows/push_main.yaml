@@ -11,6 +11,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+ get_release_info:
+    name: Get Release Info
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.new_release_tag.outputs.TAG }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest release
+        if: startsWith(github.ref, 'refs/heads/main')
+        id: release
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          repository: ${{ github.repository }}
+          excludes: prerelease, draft
+
+      - name: Determine if release build
+        if: startsWith(github.ref, 'refs/heads/main')
+        id: new_release_tag
+        env:
+          LATEST_RELEASE: ${{ steps.release.outputs.release }}
+        run: |
+          CARGO_VERSION=v$(grep "version" components/txtx-cli/Cargo.toml | head -n 1 | cut -d\" -f2)
+          if [[ "${CARGO_VERSION}" != "${LATEST_RELEASE}" ]]; then
+            echo "::set-output name=TAG::${CARGO_VERSION}"
+            echo "::warning::Will create release for version: ${CARGO_VERSION}"
+          else
+            echo "::warning::Will not create a release"
+          fi
+
   dist_txtx:
     name: Build Txtx Distributions
     runs-on: ${{ matrix.os }}
@@ -186,3 +217,53 @@ jobs:
       - name: Show URL (Windows)
         if: matrix.os == 'windows-latest'
         run: echo '${{ steps.upload_windows.outputs.file-url }}'
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
+    needs:
+      - dist_txtx
+      - get_release_info
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download pre-built dists
+        uses: actions/download-artifact@v3
+
+      - name: Tag and Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "**/*.tar.gz,**/*.msi"
+          tag: ${{ needs.get_release_info.outputs.tag }}
+          commit: ${{ env.GITHUB_SHA }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone the tap repository
+        run: |
+          git clone https://github.com/txtx/homebrew-txtx.git
+          cd homebrew-txtx
+
+      - name: Update the formula
+        run: |
+          ls
+          cd homebrew-txtx
+          sed -i.bak "s/url \".*\"/url \"https:\/\/github.com\/txtx\/txtx\/releases\/download\/${{ needs.get_release_info.outputs.tag }}\/txtx-${{ needs.get_release_info.outputs.tag }}.tar.gz\"/" Formula/txtx.rb
+          ls
+          sed -i.bak "s/sha256 \".*\"/sha256 \"$(sha256sum path/to/new/release/binary.tar.gz | awk '{ print $1 }')\"/" Formula/txtx.rb
+          rm Formula/txtx.rb.bak
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-txtx
+          git add Formula/txtx.rb
+          git commit -m "Update to version ${{ needs.get_release_info.outputs.tag }}"
+          git push https://txtx:${{ secrets.GITHUB_TOKEN }}@github.com/txtx/homebrew-txtx.git
