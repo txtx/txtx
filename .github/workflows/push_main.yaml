@@ -275,4 +275,4 @@ jobs:
           cd homebrew-txtx
           git add Formula/txtx.rb
           git commit -m "Update to version ${{ needs.get_release_info.outputs.tag }}"
-          git push https://txtx:${{ secrets.GITHUB_TOKEN }}@github.com/txtx/homebrew-txtx.git
+          git push https://txtx:${{ secrets.TXTX_ACCESS_TOKEN }}@github.com/txtx/homebrew-txtx.git
