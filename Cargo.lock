@@ -4145,6 +4145,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "openssl-src"
+version = "300.3.1+3.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7259953d42a81bf137fbbd73bd30a8e1914d6dce43c2b90ed575783a22608b91"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4152,6 +4161,7 @@ checksum = "c597637d56fbc83893a35eb0dd04b2b8e7a50c91e64e9493e398b5df4fb45fa2"
 dependencies = [
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -6613,7 +6623,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crossbeam-channel",
  "dotenvy_macro",
@@ -6716,7 +6726,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -6740,6 +6750,8 @@ dependencies = [
  "mustache",
  "native-tls",
  "npm_rs",
+ "openssl",
+ "openssl-sys",
  "ratatui",
  "rusqlite",
  "rust-embed",
@@ -6764,7 +6776,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -6789,7 +6801,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-stream",
  "futures",
@@ -6803,7 +6815,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",

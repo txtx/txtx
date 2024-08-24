@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(result.web_console, false);
         assert_eq!(result.term_console, false);
         assert_eq!(result.network_binding_port, 8488);
-        assert_eq!(result.network_binding_ip_address, "0.0.0.0");
+        assert_eq!(result.network_binding_ip_address, "localhost");
         assert_eq!(result.environment, None);
         assert!(result.inputs.is_empty());
     }

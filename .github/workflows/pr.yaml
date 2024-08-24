@@ -23,6 +23,7 @@ jobs:
           touch .env
           echo RELAYER_BASE_URL="https://txtx.link" >> .env
           echo RELAYER_HOST="txtx.link" >> .env
+          echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
           cat .env
 
       - name: Install Rust toolchain
@@ -47,3 +48,6 @@ jobs:
 
       - name: Build WASM for txtx-addon-network-stacks
         run: cargo build --package txtx-addon-network-stacks --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
+
+      - name: Run Tests
+        run: cargo test --all
