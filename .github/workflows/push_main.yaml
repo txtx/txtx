@@ -242,6 +242,15 @@ jobs:
           tag: ${{ needs.get_release_info.outputs.tag }}
           commit: ${{ env.GITHUB_SHA }}
 
+      - name: Download the binary
+        run: |
+          curl -L -o txtx.tar.gz https://github.com/txtx/txtx/releases/download/${{ needs.get_release_info.outputs.tag }}/txtx-darwin-arm64.tar.gz
+
+      - name: Calculate SHA256 checksum
+        run: |
+          SHA256=$(sha256sum txtx.tar.gz | awk '{ print $1 }')
+          echo "SHA256=$SHA256" >> $GITHUB_ENV
+
       - name: Set up Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -258,7 +267,7 @@ jobs:
           cd homebrew-txtx
           sed -i.bak "s/url \".*\"/url \"https:\/\/github.com\/txtx\/txtx\/releases\/download\/${{ needs.get_release_info.outputs.tag }}\/txtx-${{ needs.get_release_info.outputs.tag }}.tar.gz\"/" Formula/txtx.rb
           ls
-          sed -i.bak "s/sha256 \".*\"/sha256 \"$(sha256sum path/to/new/release/binary.tar.gz | awk '{ print $1 }')\"/" Formula/txtx.rb
+          sed -i.bak "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/txtx.rb
           rm Formula/txtx.rb.bak
 
       - name: Commit and push changes
