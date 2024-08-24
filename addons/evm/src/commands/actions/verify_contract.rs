@@ -175,14 +175,7 @@ impl CommandImplementation for VerifyEVMContract {
         })?;
         let contract_address_str = contract_address.to_string();
         let Some(explorer_opts) = inputs.get_array(EXPLORER_VERIFICATION_OPTS) else {
-            status_updater.propagate_status(ProgressBarStatus::new_msg(
-                ProgressBarStatusColor::Purple,
-                "Verification Skipped",
-                &format!(
-                    "Skipping verification for contract {}; no block explorer opts provided",
-                    contract_address_str
-                ),
-            ));
+            status_updater.propagate_status(verify_skipped_status(&contract_address_str));
             return return_synchronous_ok(CommandExecutionResult::new());
         };
         let explorer_opts = explorer_opts.iter().map(|opts| opts.as_object().and_then(|opts| Some(opts.clone())).ok_or(diagnosed_error!("command 'evm::verify_contract': expected explorer_verification_opts entry to be an array of objects"))).collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -223,6 +216,8 @@ impl CommandImplementation for VerifyEVMContract {
                     (Some(key), None) => (key.as_string().and_then(|k| Some(k.to_string())),  None),
                     (None, Some(url)) => (None,  url.as_string().and_then(|u| Some(u.to_string()))),
                 };
+                let verification_required =
+                    explorer_opt.get("required").and_then(|r| r.as_bool()).unwrap_or(false);
                 let verify_args = artifacts
                     .to_verify_args(
                         contract_address,
@@ -248,7 +243,6 @@ impl CommandImplementation for VerifyEVMContract {
                         contract_address,
                     )
                     .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
                 } else {
                     verify_sourcify_type_provider(
                         verify_args,
@@ -257,13 +251,18 @@ impl CommandImplementation for VerifyEVMContract {
                         contract_address,
                     )
                     .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {}", e))
                 };
 
-                if let Err(diag) = verify_result {
-                    status_updater
-                        .propagate_status(verify_failed_status(&contract_address_str, &diag));
-                    return Err(diag);
+                if let Err(e) = verify_result {
+                    if verification_required {
+                        let diag = diagnosed_error!("command 'evm::verify_contract': {}", e);
+                        status_updater
+                            .propagate_status(verify_failed_status(&contract_address_str, &diag));
+                        return Err(diag);
+                    } else {
+                        status_updater.propagate_status(verify_failed_warn_status(&e));
+                        continue;
+                    }
                 }
             }
 
@@ -307,6 +306,10 @@ async fn verify_etherscan_type_provider(
             })
         })
         .unwrap_or(etherscan.etherscan_url().as_str().to_string());
+    let err_prefix = format!(
+        "failed to verify contract {} with verifier {}",
+        contract_address_str, verifier_base_url
+    );
     let submitting_msg = submitting_msg(&contract_address_str);
     let checking_msg = checking_msg(&contract_address_str);
     let address_url = format!("{}address/{}", verifier_base_url, contract_address_str);
@@ -341,7 +344,7 @@ async fn verify_etherscan_type_provider(
 
     if verify_args.watch {
         let mut attempts = 0;
-        let max_attempts = 10;
+        let max_attempts = 30;
         loop {
             status_updater.propagate_pending_status(&checking_msg);
             let resp = etherscan.check_contract_verification_status(&guid).await.unwrap();
@@ -352,9 +355,6 @@ async fn verify_etherscan_type_provider(
             } else if resp.result == "Already Verified" {
                 status_updater.propagate_status(already_verified);
                 return Ok(());
-            } else if resp.result == "Pending in queue" {
-                sleep_ms(500);
-                continue;
             } else if resp.status == "0" {
                 return Err(format!("{}: {}", err_prefix, resp.result));
             } else {
@@ -379,7 +379,11 @@ async fn verify_sourcify_type_provider(
     contract_address: Address,
 ) -> Result<(), String> {
     let contract_address_str = contract_address.to_string();
-    let err_prefix = format!("failed to verify contract {}", contract_address_str);
+    let sourcify_url = verify_args.verifier.verifier_url.as_deref().unwrap();
+    let err_prefix = format!(
+        "failed to verify contract {} with verifier {}",
+        contract_address_str, sourcify_url
+    );
 
     let verification_provider = SourcifyVerificationProvider::default();
     let sourcify_req =
@@ -388,8 +392,6 @@ async fn verify_sourcify_type_provider(
         )?;
 
     let client = txtx_addon_kit::reqwest::Client::new();
-
-    let sourcify_url = verify_args.verifier.verifier_url.as_deref().unwrap();
 
     let submitting_msg = submitting_msg(&contract_address_str);
     let address_url = format!("{}/address/{}", sourcify_url, contract_address_str);
@@ -413,7 +415,6 @@ async fn verify_sourcify_type_provider(
 
         status_updater.propagate_pending_status(&submitting_msg);
         let status = response.status();
-        println!("\nresponse: {:?}\nstatus:{:?}", response, status);
         if !status.is_success() {
             let error: serde_json::Value = response
                 .json()
@@ -434,7 +435,6 @@ async fn verify_sourcify_type_provider(
         let text =
             response.text().await.map_err(|e| format!("failed to parse sourcify response: {e}"))?;
         status_updater.propagate_pending_status(&submitting_msg);
-        println!("\nsourcify resp: {}", text);
         let res = serde_json::from_str::<SourcifyVerificationResponse>(&text)
             .map_err(|e| format!("unexpected sourcify response: {e}"))?;
 
@@ -474,10 +474,20 @@ async fn verify_sourcify_type_provider(
     }
 }
 
+fn verify_skipped_status(address: &str) -> ProgressBarStatus {
+    ProgressBarStatus::new_msg(
+        ProgressBarStatusColor::Yellow,
+        "Verification Skipped",
+        &format!("Skipping verification for contract {}; no block explorer opts provided", address),
+    )
+}
+fn verify_failed_warn_status(err: &str) -> ProgressBarStatus {
+    ProgressBarStatus::new_msg(ProgressBarStatusColor::Yellow, "Verification Failed", err)
+}
 fn verify_failed_status(address: &str, diag: &Diagnostic) -> ProgressBarStatus {
     ProgressBarStatus::new_err(
-        "Failed",
-        &format!("Contract Verification Failed for Contract {}", address),
+        "Verification Failed",
+        &format!("Verification failed for contract {}", address),
         diag,
     )
 }
@@ -485,21 +495,21 @@ fn verify_success_status(url: &str) -> ProgressBarStatus {
     ProgressBarStatus::new_msg(
         ProgressBarStatusColor::Green,
         "Verified",
-        &format!("Contract Successfully Verified at {}", url),
+        &format!("Contract successfully verified at {}", url),
     )
 }
 fn already_verified_status(url: &str) -> ProgressBarStatus {
     ProgressBarStatus::new_msg(
         ProgressBarStatusColor::Green,
         "Verified",
-        &format!("Contract Already Verified at {}", url),
+        &format!("Contract already verified at {}", url),
     )
 }
 fn submitting_msg(address: &str) -> String {
-    format!("Submitting Contract {} to Explorer for Verification", address)
+    format!("Submitting contract {} to explorer for verification", address)
 }
 fn checking_msg(address: &str) -> String {
-    format!("Checking Verification Status for Contract {}", address)
+    format!("Checking verification status for contract {}", address)
 }
 
 // Copied from foundry crate. The status field should be Optional, but foundry had it as required
