@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
- get_release_info:
+  get_release_info:
     name: Get Release Info
     runs-on: ubuntu-latest
     outputs:
