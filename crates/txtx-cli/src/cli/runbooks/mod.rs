@@ -788,10 +788,15 @@ pub async fn handle_run_command(
                         match update.new_status.status_color {
                             ProgressBarStatusColor::Yellow => {
                                 print!(
-                                    "\r{} {} {:<150}",
+                                    "\r{} {} {:<150}{}",
                                     yellow!("→"),
                                     yellow!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.status.starts_with("Pending") {
+                                        ""
+                                    } else {
+                                        "\n"
+                                    }
                                 );
                             }
                             ProgressBarStatusColor::Green => {
