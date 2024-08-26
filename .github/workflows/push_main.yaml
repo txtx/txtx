@@ -156,14 +156,12 @@ jobs:
           echo "SDKROOT=$(xcrun -sdk macosx --show-sdk-path)" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)" >> $GITHUB_ENV
 
-      - name: Configure artifact names (not linux-musl)
-        if: matrix.os != 'ubuntu-20.04'
+      - name: Configure artifact names
         shell: bash
         run: |
           echo "SHORT_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}" >> $GITHUB_ENV
           echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-unknown" >> $GITHUB_ENV
         
-
       - name: Build - Cargo (not linux-musl)
         if: matrix.os != 'ubuntu-20.04'
         run: 
