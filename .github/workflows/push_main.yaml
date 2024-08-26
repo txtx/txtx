@@ -45,7 +45,10 @@ jobs:
   dist_txtx:
     name: Build Txtx Distributions
     runs-on: ${{ matrix.os }}
-
+    outputs:
+      LINUX_X64_SHA: ${{ steps.linux_x64_sha.outputs.LINUX_X64_SHA }}
+      MACOS_X64_SHA: ${{ steps.macos_x64_sha.outputs.MACOS_X64_SHA }}
+      MACOS_ARM64_SHA: ${{ steps.macos_arm64_sha.outputs.MACOS_ARM64_SHA }}
     strategy:
       fail-fast: false
       matrix:
@@ -172,6 +175,24 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: tar -C txtx/target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
 
+      - name: Store SHA256 Hash of Tar (Linux x64)
+        if: matrix.os == 'ubuntu-20.04'
+        id: linux_x64_sha
+        run: |
+          echo "LINUX_X64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Store SHA256 Hash of Tar (Mac x64)
+        if: matrix.os == 'macos-latest' && matrix.architecture == 'x64'
+        id: macos_x64_sha
+        run: |
+          echo "MACOS_X64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
+          
+      - name: Store SHA256 Hash of Tar (Mac arm64)
+        if: matrix.os == 'macos-latest' && matrix.architecture == 'arm64'
+        id: macos_arm64_sha
+        run: |
+          echo "MACOS_ARM64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
+
       # Separate uploads to prevent paths from being preserved
       - name: Upload cargo artifacts (not windows)
         if: matrix.os != 'windows-latest'
@@ -240,15 +261,6 @@ jobs:
           tag: ${{ needs.get_release_info.outputs.tag }}
           commit: ${{ env.GITHUB_SHA }}
 
-      - name: Download the binary
-        run: |
-          curl -L -o txtx.tar.gz https://github.com/txtx/txtx/releases/download/${{ needs.get_release_info.outputs.tag }}/txtx-darwin-arm64.tar.gz
-
-      - name: Calculate SHA256 checksum
-        run: |
-          SHA256=$(sha256sum txtx.tar.gz | awk '{ print $1 }')
-          echo "SHA256=$SHA256" >> $GITHUB_ENV
-
       - name: Set up Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -259,14 +271,26 @@ jobs:
           git clone https://github.com/txtx/homebrew-txtx.git
           cd homebrew-txtx
 
-      - name: Update the formula
+      - name: Update the formula with new version and SHA256 values
         run: |
-          ls
           cd homebrew-txtx
-          sed -i.bak "s/url \".*\"/url \"https:\/\/github.com\/txtx\/txtx\/releases\/download\/${{ needs.get_release_info.outputs.tag }}\/txtx-${{ needs.get_release_info.outputs.tag }}.tar.gz\"/" Formula/txtx.rb
-          ls
-          sed -i.bak "s|sha256 \".*\"|sha256 \"$SHA256\"|" Formula/txtx.rb
-          rm Formula/txtx.rb.bak
+          # Define the new version
+          NEW_VERSION="${{ needs.get_release_info.outputs.tag }}"
+          
+          # Update the version in all url fields, matching on any valid semver version
+          sed -i.bak "s/v[0-9]\+\.[0-9]\+\.[0-9]\+\(-[a-zA-Z0-9\.-]\+\)\?\(\+[a-zA-Z0-9\.-]\+\)\?/$(echo $NEW_VERSION)/g" Formula/txtx.rb
+
+          # Update macOS x64 SHA256
+          sed -i.bak '/# sha for macos_x64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.MACOS_X64_SHA }}'"' Formula/txtx.rb
+          # Update macOS arm64 SHA256
+          sed -i.bak '/# sha for macos_arm64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.MACOS_ARM64_SHA }}'"' Formula/txtx.rb
+          # Update Linux x64 SHA256
+          sed -i.bak '/# sha for linux_x64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.LINUX_X64_SHA }}'"' Formula/txtx.rb
+          # Uncomment and update Linux ARM SHA256 when needed
+          # sed -i.bak '/# sha for linux_arm64/!b;n;c\        sha256 "'$SHA256_LINUX_ARM'"' Formula/txtx.rb
+
+    # Remove backup file
+    rm Formula/txtx.rb.bak
 
       - name: Commit and push changes
         run: |
