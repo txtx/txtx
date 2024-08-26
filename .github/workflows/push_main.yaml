@@ -289,8 +289,8 @@ jobs:
           # Uncomment and update Linux ARM SHA256 when needed
           # sed -i.bak '/# sha for linux_arm64/!b;n;c\        sha256 "'$SHA256_LINUX_ARM'"' Formula/txtx.rb
 
-    # Remove backup file
-    rm Formula/txtx.rb.bak
+          # Remove backup file
+          rm Formula/txtx.rb.bak
 
       - name: Commit and push changes
         run: |
