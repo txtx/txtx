@@ -185,13 +185,13 @@ jobs:
         if: matrix.os == 'macos-latest' && matrix.architecture == 'x64'
         id: macos_x64_sha
         run: |
-          echo "MACOS_X64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
+          echo "MACOS_X64_SHA=$(shasum -a 256 txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
           
       - name: Store SHA256 Hash of Tar (Mac arm64)
         if: matrix.os == 'macos-latest' && matrix.architecture == 'arm64'
         id: macos_arm64_sha
         run: |
-          echo "MACOS_ARM64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
+          echo "MACOS_ARM64_SHA=$(shasum -a 256 txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
 
       # Separate uploads to prevent paths from being preserved
       - name: Upload cargo artifacts (not windows)
