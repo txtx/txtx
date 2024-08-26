@@ -281,13 +281,13 @@ jobs:
           sed -i.bak "s/v[0-9]\+\.[0-9]\+\.[0-9]\+\(-[a-zA-Z0-9\.-]\+\)\?\(\+[a-zA-Z0-9\.-]\+\)\?/$(echo $NEW_VERSION)/g" Formula/txtx.rb
 
           # Update macOS x64 SHA256
-          sed -i.bak '/# sha for macos_x64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.MACOS_X64_SHA }}'"' Formula/txtx.rb
+          sed -i.bak '/# sha for macos_x64/!b;n;c\            sha256 "'${{ needs.dist_txtx.outputs.MACOS_X64_SHA }}'"' Formula/txtx.rb
           # Update macOS arm64 SHA256
-          sed -i.bak '/# sha for macos_arm64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.MACOS_ARM64_SHA }}'"' Formula/txtx.rb
+          sed -i.bak '/# sha for macos_arm64/!b;n;c\            sha256 "'${{ needs.dist_txtx.outputs.MACOS_ARM64_SHA }}'"' Formula/txtx.rb
           # Update Linux x64 SHA256
-          sed -i.bak '/# sha for linux_x64/!b;n;c\        sha256 "'${{ needs.dist_txtx.outputs.LINUX_X64_SHA }}'"' Formula/txtx.rb
+          sed -i.bak '/# sha for linux_x64/!b;n;c\            sha256 "'${{ needs.dist_txtx.outputs.LINUX_X64_SHA }}'"' Formula/txtx.rb
           # Uncomment and update Linux ARM SHA256 when needed
-          # sed -i.bak '/# sha for linux_arm64/!b;n;c\        sha256 "'$SHA256_LINUX_ARM'"' Formula/txtx.rb
+          # sed -i.bak '/# sha for linux_arm64/!b;n;c\            sha256 "'$SHA256_LINUX_ARM'"' Formula/txtx.rb
 
           # Remove backup file
           rm Formula/txtx.rb.bak
