@@ -12,11 +12,11 @@ name = "txtx"
 path = "src/main.rs"
 
 [dependencies]
-txtx-core = { path = "../txtx-core" }
-txtx-addon-network-stacks = { path = "../../addons/stacks" }
-txtx-addon-network-evm = { path = "../../addons/evm" }
-txtx-addon-telegram ={ path = "../../addons/telegram" }
-txtx-gql = { path = "../txtx-gql" }
+txtx-core = { workspace = true }
+txtx-addon-network-stacks = { workspace = true }
+txtx-addon-network-evm = { workspace = true }
+txtx-addon-telegram ={ workspace = true }
+txtx-gql = { workspace = true }
 hiro-system-kit = "0.3.1"
 clap = { version = "4.4.6", features = ["derive"], optional = true }
 clap_generate = { version = "3.0.3", optional = true }

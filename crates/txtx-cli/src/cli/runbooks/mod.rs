@@ -230,14 +230,27 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
     let manifest_res = WorkspaceManifest::from_location(&manifest_location);
 
-    let theme = ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
+    let theme = ColorfulTheme {
+        values_style: Style::new().green(),
+        hint_style: Style::new().cyan(),
+        ..ColorfulTheme::default()
+    };
 
     let mut manifest = match manifest_res {
         Ok(manifest) => manifest,
         Err(_) => {
+            let current_dir = env::current_dir()
+                .ok()
+                .and_then(|d| d.file_name().map(|f| f.to_string_lossy().to_string()));
+            let default = match current_dir {
+                Some(dir) => dir,
+                _ => "".to_string(),
+            };
+
             // Ask for the name of the workspace
-            let name: String = Input::new()
+            let name: String = Input::with_theme(&theme)
                 .with_prompt("Enter the name of this workspace")
+                .default(default)
                 .interact_text()
                 .unwrap();
             WorkspaceManifest::new(name)
@@ -441,7 +454,8 @@ pub async fn run_action(
         let new_value = Value::parse_and_default_to_string(&input_value);
         inputs.insert(input_name, new_value);
     }
-    let evaluated_inputs = CommandInputsEvaluationResult { inputs };
+    let unevaluated_inputs = vec![];
+    let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
         .perform_execution(
@@ -586,9 +600,6 @@ pub async fn handle_run_command(
                     continue;
                 }
 
-                running_context.execution_context.execution_mode =
-                    RunbookExecutionMode::Partial(vec![]);
-
                 let mut added_construct_dids: Vec<ConstructDid> =
                     additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
 
@@ -622,7 +633,7 @@ pub async fn handle_run_command(
                         .map(|construct_did| {
                             let documentation = running_context
                                 .execution_context
-                                .commands_inputs_simulation_results
+                                .commands_inputs_evaluation_results
                                 .get(construct_did)
                                 .and_then(|r| r.inputs.get_string("description"))
                                 .and_then(|d| Some(d.to_string()));
@@ -641,7 +652,7 @@ pub async fn handle_run_command(
                     .map(|construct_did| {
                         let documentation = running_context
                             .execution_context
-                            .commands_inputs_simulation_results
+                            .commands_inputs_evaluation_results
                             .get(construct_did)
                             .and_then(|r| r.inputs.get_string("description"))
                             .and_then(|d| Some(d.to_string()));
@@ -662,17 +673,7 @@ pub async fn handle_run_command(
                 for construct_did in great_filter.iter() {
                     running_context
                         .execution_context
-                        .commands_inputs_evaluation_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
                         .commands_execution_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
-                        .commands_inputs_simulation_results
                         .remove(construct_did);
                 }
 
@@ -683,6 +684,9 @@ pub async fn handle_run_command(
                     .into_iter()
                     .filter(|c| great_filter.contains(&c))
                     .collect();
+
+                running_context.execution_context.execution_mode =
+                    RunbookExecutionMode::Partial(great_filter);
             }
 
             let has_actions =
