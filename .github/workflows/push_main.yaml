@@ -267,6 +267,21 @@ jobs:
           bucket-root: /
           public: true
 
+  
+  homebrew:
+    name: Update Homebrew
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/main') && needs.get_release_info.outputs.tag != ''
+    needs:
+      - dist_txtx
+      - get_release_info
+      - release
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v2
 
       - name: Set up Git
         run: |
@@ -280,7 +295,6 @@ jobs:
 
       - name: Update the formula with new version and SHA256 values
         run: |
-          cd homebrew-txtx
           # Define the new version
           NEW_VERSION="${{ needs.get_release_info.outputs.tag }}"
           
@@ -301,7 +315,6 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          cd homebrew-txtx
           git add Formula/txtx.rb
           git commit -m "Update to version ${{ needs.get_release_info.outputs.tag }}"
           git push https://txtx:${{ secrets.TXTX_ACCESS_TOKEN }}@github.com/txtx/homebrew-txtx.git
