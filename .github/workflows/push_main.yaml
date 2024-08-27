@@ -201,42 +201,6 @@ jobs:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
-      - name: Upload to S3 (not windows)
-        if: matrix.os != 'windows-latest'
-        uses: hkusu/s3-upload-action@v2
-        id: upload_linux
-        with:
-          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: 'us-east-2'
-          aws-bucket: txtx-public
-          file-path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
-          output-file-url: 'true' 
-          destination-dir: /releases
-          bucket-root: /
-          public: true
-      - name: Show URL (Linux)
-        if: matrix.os != 'windows-latest'
-        run: echo '${{ steps.upload_linux.outputs.file-url }}' 
-
-      - name: Upload to S3 (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: hkusu/s3-upload-action@v2
-        id: upload_windows
-        with:
-          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: 'us-east-2'
-          aws-bucket: txtx-public
-          file-path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
-          output-file-url: 'true' 
-          destination-dir: /releases
-          bucket-root: /
-          public: true
-      - name: Show URL (Windows)
-        if: matrix.os == 'windows-latest'
-        run: echo '${{ steps.upload_windows.outputs.file-url }}'
-
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -259,7 +223,50 @@ jobs:
         with:
           artifacts: "**/*.tar.gz,**/*.msi"
           tag: ${{ needs.get_release_info.outputs.tag }}
-          commit: ${{ env.GITHUB_SHA }}
+          commit: ${{ env.GITHUB_SHA }}      
+      
+      - name: Upload to S3 (Darwin x64)
+        uses: hkusu/s3-upload-action@v2
+        id: upload_linux
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: 'us-east-2'
+          aws-bucket: txtx-public
+          file-path: txtx-darwin-x64.tar.gz
+          output-file-url: 'true' 
+          destination-dir: /releases
+          bucket-root: /
+          public: true      
+          
+      - name: Upload to S3 (Darwin arm64)
+        uses: hkusu/s3-upload-action@v2
+        id: upload_linux
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: 'us-east-2'
+          aws-bucket: txtx-public
+          file-path: txtx-darwin-arm64.tar.gz
+          output-file-url: 'true' 
+          destination-dir: /releases
+          bucket-root: /
+          public: true
+          
+      - name: Upload to S3 (Linux x64)
+        uses: hkusu/s3-upload-action@v2
+        id: upload_linux
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: 'us-east-2'
+          aws-bucket: txtx-public
+          file-path: txtx-linux-x64.tar.gz
+          output-file-url: 'true' 
+          destination-dir: /releases
+          bucket-root: /
+          public: true
+
 
       - name: Set up Git
         run: |
