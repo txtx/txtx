@@ -1,0 +1,889 @@
+export const metadata = {
+    title: "Standard Library Operator Functions",
+    description: "Functions for Standard Library Operator",
+};
+
+# Standard Library Operator Functions {{ id: "std-functions" }}
+
+
+## and_bool {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`and_bool` returns the binary AND of the left- and right-hand-side arguments.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    A `boolean` value.
+  </Property>
+
+
+  <Property name="rhs">
+    A `boolean` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of a binary AND between the two arguments.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using and_bool">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_bool" { 
+  value = false && true
+}
+// > my_bool: false
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## or_bool {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`or_bool` returns the binary OR of the left- and right-hand-side arguments.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    A `boolean` value.
+  </Property>
+
+
+  <Property name="rhs">
+    A `boolean` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of a binary OR between the two arguments.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using or_bool">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_bool" { 
+  value = false || true
+}
+// > my_bool: true
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## div {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`div` returns the integer division of the left-hand-side argument by the right-hand-side argument, rounding any remainder down to the nearest integer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    The `int` dividend.
+  </Property>
+
+
+  <Property name="rhs">
+    The `int` divisor.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of dividing the dividend by the divisor.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using div">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_int" { 
+  value = 11 / -3
+}
+// > my_int: -3
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## eq {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`eq` returns `true` if the left- and right-hand-side arguments are equal and `false` if they are not.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of an equality check between the two inputs.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using eq">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_eq" { 
+  value = "arg" == "arg"
+}
+// > is_eq: true
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## gt {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`gt` returns `true` if the left-hand-side argument is greater than the right-hand-side argument and `false` if it is not.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of checking if the left-hand-side argument is greater than the right-hand-side argument
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using gt">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_gt" { 
+  value = 2 > 1
+}
+// > is_gt: true
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## gte {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`gte` returns `true` if the left-hand-side argument is greater than or equal to the right-hand-side argument and `false` if it is not.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of checking if the left-hand-side argument is greater than or equal to the right-hand-side argument
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using gte">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_gte" { 
+  value = 2 >= 2
+}
+// > is_gte: true
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## lt {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`lt` returns `true` if the left-hand-side argument is less than the right-hand-side argument and `false` if it is not.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of checking if the left-hand-side argument is less than the right-hand-side argument
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using lt">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_lt" { 
+  value = 2 < 1
+}
+// > is_lt: false
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## lte {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`lte` returns `true` if the left-hand-side argument is less than or equal to the right-hand-side argument and `false` if it is not.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of checking if the left-hand-side argument is less than or equal to the right-hand-side argument
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using lte">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_lte" { 
+  value = 2 <= 2
+}
+// > is_lte: true
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## neq {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`enq` returns `true` if the left- and right-hand-side arguments are not equal and `false` otherwise.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+  <Property name="rhs">
+    An `integer`, `float`, `string`, `boolean` or `null` value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of a negated equality check between the two inputs.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using neq">
+
+
+```hcl {{ title: 'main.tx' }}
+output "is_neq" { 
+  value = "arg" != "arg"
+}
+// > is_neq: false
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## minus {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`minus` returns the result of subtracting the right-hand-side `integer` argument from the left-hand-side `integer` argument.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    The `integer` minuend.
+  </Property>
+
+
+  <Property name="rhs">
+    The `integer` subtrahend.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of the subtraction operation.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using minus">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_integer" { 
+  value = 10 - 6
+}
+// > my_integer: 4
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## modulo {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`modulo` returns the remainder of dividing the left-hand-side `integer` argument by the right-hand-side `integer` argument.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    The `integer` dividend.
+  </Property>
+
+
+  <Property name="rhs">
+    The `integer` divisor.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The remainder of the division operation.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using modulo">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_mod" { 
+    value = 10 % 3
+}
+// > my_mod: 1
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## multiply {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`multiply` returns the product of the left-hand-side `integer` argument and the right-hand-side `integer` argument.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    The first `integer` operand.
+  </Property>
+
+
+  <Property name="rhs">
+    The second `integer` operand.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of the multiplication operation.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using multiply">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_product" { 
+    value = 10 * 5
+}
+// > my_product: 50
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## add {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`add` returns the sum of the left-hand-side `integer` argument and the right-hand-side `integer` argument.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lhs">
+    The first `integer` operand.
+  </Property>
+
+
+  <Property name="rhs">
+    The second `integer` operand.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The result of the addition operation.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using add">
+
+
+```hcl {{ title: 'main.tx' }}
+output "my_sum" { 
+    value = 10 + 5
+}
+// > my_sum: 15
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## neg_integer {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Returns the negation of the given integer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value">
+    An integer value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The negated integer value.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using neg_integer">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## not_bool {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Returns the logical negation of the given boolean value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value">
+    A boolean value.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The logical negation of the input boolean value.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using not_bool">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

@@ -1,0 +1,69 @@
+export const metadata = {
+    title: "{{ addon_name }} Actions",
+    description: "Actions for {{ addon_name }}",
+};
+
+# {{ addon_name }} Actions {{double_open}} id: "{{ addon_namespace }}-actions" {{double_close}}
+
+
+{{# actions }}
+
+## {{ matcher }} {{double_open}} tag: 'action' {{double_close}}
+
+{{{ documentation }}}
+
+### Inputs
+
+<Properties>
+
+{{# inputs }}
+
+  <Property name="{{ name }}" type="{{ requirementStatus }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ inputs }}
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `{{ matcher }}` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+{{# outputs }}
+
+  <Property name="{{ name }}">
+    {{{ documentation }}}
+  </Property>
+
+{{/ outputs }}
+
+</Properties>
+
+<CodeGroup title="Example using {{ matcher }}">
+
+
+```hcl {{double_open}} title: 'main.tx' {{double_close}}
+{{{ example }}}
+```
+
+
+```json {{double_open}} title: 'main.json' {{double_close}}
+// Coming soon
+```
+
+```yaml {{double_open}} title: 'main.yaml' {{double_close}}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+{{/ actions }}

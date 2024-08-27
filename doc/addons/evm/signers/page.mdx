@@ -1,0 +1,87 @@
+export const metadata = {
+    title: "Ethereum and EVM Compatible Blockchains (alpha) Signers",
+    description: "Signers for Ethereum and EVM Compatible Blockchains (alpha)",
+};
+
+# Ethereum and EVM Compatible Blockchains (alpha) Signers {{ id: "evm-signers" }}
+
+
+
+## mnemonic {{ tag: 'signer' }}
+
+The `evm::mnemonic` signer can be used to synchronously sign a transaction.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="mnemonic" type="">
+    The mnemonic phrase used to generate the secret key.
+  </Property>
+
+
+  <Property name="derivation_path" type="">
+    The derivation path used to generate the secret key.
+  </Property>
+
+
+  <Property name="is_encrypted" type="">
+    Coming soon
+  </Property>
+
+
+  <Property name="password" type="">
+    Coming soon
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `mnemonic` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="public_key">
+    The public key of the account generated from the secret key.
+  </Property>
+
+
+  <Property name="address">
+    The address generated from the secret key.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using mnemonic">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "bob" "evm::mnemonic" {
+    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+    derivation_path = "m/44'/5757'/0'/0/0"
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+

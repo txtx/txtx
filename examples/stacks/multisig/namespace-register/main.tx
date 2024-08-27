@@ -1,9 +1,11 @@
-runtime "stacks::defaults" {
-    network_id = env.stacks_network_id
-    rpc_api_url = env.stacks_api_url
+runtime "addon::stacks" {
+    defaults {
+        network_id = env.stacks_network_id
+        rpc_api_url = env.stacks_api_url
+    }
 }
 
-action "send_namespace_preorder" "stacks::send_contract_call" {
+action "send_namespace_preorder" "stacks::call_contract" {
   description = "Send Namespace Preorder transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-preorder"
@@ -18,12 +20,12 @@ action "send_namespace_preorder" "stacks::send_contract_call" {
       ),
       stacks::cv_uint(input.cost_namespace), 
   ]
-  signer = wallet.alice
+  signer = signer.alice
   post_conditions = [stacks::revert_if_account_sends_more_than("signer", input.cost_namespace)]
-  confirmations = 0
+  confirmations = 1
 }
 
-action "send_namespace_reveal" "stacks::send_contract_call" {
+action "send_namespace_reveal" "stacks::call_contract" {
   description = "Send Namespace Reveal ${input.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-reveal"
@@ -53,19 +55,19 @@ action "send_namespace_reveal" "stacks::send_contract_call" {
       stacks::cv_uint(10000),
       stacks::cv_principal("ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC")
   ]
-  signer = wallet.alice
-  confirmations = 0
+  signer = signer.alice
+  confirmations = 1
   depends_on = [action.send_namespace_preorder.tx_id]
 }
 
-action "send_namespace_ready" "stacks::send_contract_call" {
+action "send_namespace_ready" "stacks::call_contract" {
   description = "Send Namespace Ready ${input.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-ready"
   function_args = [
       stacks::cv_buff(encode_hex(input.namespace))
   ]
-  signer = wallet.alice
-  confirmations = 0
+  signer = signer.alice
+  confirmations = 1
   depends_on = [action.send_namespace_reveal.tx_id]
 }

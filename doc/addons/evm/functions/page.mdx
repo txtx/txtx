@@ -1,0 +1,395 @@
+export const metadata = {
+    title: "Ethereum and EVM Compatible Blockchains (alpha) Functions",
+    description: "Functions for Ethereum and EVM Compatible Blockchains (alpha)",
+};
+
+# Ethereum and EVM Compatible Blockchains (alpha) Functions {{ id: "evm-functions" }}
+
+
+## address {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::address` creates a valid Ethereum address from the input string.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="address_string">
+    An Ethereum address string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string as an Ethereum address.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using address">
+
+
+```hcl {{ title: 'main.tx' }}
+output "address" { 
+    value = evm::address("0x627306090abaB3A6e1400e9345bC60c78a8BEf57")
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## bytes32 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::bytes32` encodes a hex string as a 32-byte buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    A 32-byte hexadecimal string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    A 32-byte buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using bytes32">
+
+
+```hcl {{ title: 'main.tx' }}
+output "32_bytes" {
+    value = evm::bytes32("0123456789012345678901234567890123456789012345678901234567890123")
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## bytes {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::bytes` encodes a hex string as a variable length buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    The hex string to encode.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string encoded as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using bytes">
+
+
+```hcl {{ title: 'main.tx' }}
+output "bytes" {
+    value = evm::bytes(encode_hex("Hello, world!"))
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## chain {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::chain` generates a default chain id and RPC API URL for a valid EVM compatible chain name.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    A EVM-compatible chain name. See https://chainlist.org for a list of supported chains.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The default chain data.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using chain">
+
+
+```hcl {{ title: 'main.tx' }}
+output "chain_id" {
+    value = evm::chain("optimism")
+}
+// > chain_id: 10
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_contract_from_foundry_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_contract_from_foundry_project">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## create_init_code {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="bytecode">
+    Coming Soon
+  </Property>
+
+
+  <Property name="constructor_args">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using create_init_code">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## create2 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="salt">
+    Coming Soon
+  </Property>
+
+
+  <Property name="init_code">
+    Coming Soon
+  </Property>
+
+
+  <Property name="create2_factory_contract_address">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using create2">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

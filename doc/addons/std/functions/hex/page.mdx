@@ -1,0 +1,62 @@
+export const metadata = {
+    title: "Standard Library Hex Functions",
+    description: "Functions for Standard Library Hex",
+};
+
+# Standard Library Hex Functions {{ id: "std-functions" }}
+
+
+## encode_hex {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`encode_hex` encodes a string as a hexadecimal string.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value">
+    Any input string.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The input string in its hexadecimal representation.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using encode_hex">
+
+
+```hcl {{ title: 'main.tx' }}
+output "encoded_hex" {
+    value = encode_hex("hello, world")
+}
+// > encoded_hex: 68656C6C6F2C20776F726C64
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

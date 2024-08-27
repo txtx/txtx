@@ -1,0 +1,39 @@
+// Signer attached storage keys
+pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
+pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";
+pub const CHECKED_ADDRESS: &str = "checked_address";
+pub const EXPECTED_ADDRESS: &str = "expected_address";
+pub const CHECKED_COST_PROVISION: &str = "checked_costs";
+pub const FETCHED_BALANCE: &str = "fetched_balance";
+pub const FETCHED_NONCE: &str = "fetched_nonce";
+
+// Signers
+pub const PUBLIC_KEYS: &str = "public_keys";
+pub const SIGNED_TRANSACTION_BYTES: &str = "signed_transaction_bytes";
+pub const UNSIGNED_TRANSACTION_BYTES: &str = "unsigned_transaction_bytes";
+pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
+pub const TRANSACTION_POST_CONDITIONS_BYTES: &str = "transaction_post_conditions_bytes";
+pub const TRANSACTION_POST_CONDITION_MODE_BYTES: &str = "transaction_post_condition_mode_bytes";
+pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
+pub const MESSAGE_BYTES: &str = "message_bytes";
+pub const REQUIRED_SIGNATURE_COUNT: &str = "required_signer_count";
+
+// Defaults keys
+pub const NETWORK_ID: &str = "network_id";
+pub const RPC_API_URL: &str = "rpc_api_url";
+pub const RPC_API_AUTH_TOKEN: &str = "rpc_api_auth_token";
+
+pub const DEFAULT_DEVNET_BACKOFF: u64 = 500;
+pub const DEFAULT_MAINNET_BACKOFF: u64 = 15000;
+pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
+pub const DEFAULT_MESSAGE: &str =
+    "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
+
+// Actions items keys
+pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
+pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
+pub const ACTION_ITEM_CHECK_NONCE: &str = "check_nonce";
+pub const ACTION_ITEM_CHECK_FEE: &str = "check_fee";
+pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
+pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
+pub const ACTION_OPEN_MODAL: &str = "open_modal";

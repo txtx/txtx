@@ -1,5 +1,0 @@
-[alias]
-txtx-install = "install --path components/txtx-cli --locked --force"
-
-[build]
-rustflags = ["--cfg", "tokio_unstable"]

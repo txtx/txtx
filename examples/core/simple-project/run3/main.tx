@@ -4,7 +4,7 @@ input "fruit" {
     type = "string"
 }
 
-prompt "vote_transaction" "stacks::send_contract_call" {
+prompt "vote_transaction" "stacks::call_contract" {
     description = "Invokes contract call of the method specified in contract_method."
     network_id = "testnet" 
     contract_id = "ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract"
