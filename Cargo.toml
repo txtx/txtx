@@ -14,6 +14,7 @@ members = [
     "crates/txtx-lsp",
     "addons/bitcoin",
     "addons/evm",
+    "addons/sp1",
     "addons/stacks",
     "addons/telegram"
 ]

@@ -35,7 +35,7 @@ lazy_static! {
             rpc_api_url: {
               documentation: "The URL of the EVM API used to send the RPC request.",
               typing: Type::string(),
-              optional: false,
+              optional: true,
               interpolable: true
             },
             contract_address: {
@@ -190,10 +190,10 @@ async fn build_eth_call(
             TransactionType,
         },
         commands::actions::{
-            get_common_tx_params_from_args,
-            sign_contract_call::{
+            call_contract::{
                 encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
             },
+            get_common_tx_params_from_args,
         },
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,

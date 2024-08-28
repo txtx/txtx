@@ -5,5 +5,9 @@ crates/txtx-web-ui/node_modules
 crates/txtx-web-ui/.parcel-cache
 .env
 addons/evm/src/tests/fixtures/foundry/out/build-info
-addons/evm/src/tests/fixtures/foundry/cache
+addons/sp1/examples/fibonacci/contracts/lib
+addons/sp1/examples/fibonacci/contracts/cache
+# addons/sp1/examples/fibonacci/contracts/out
 state.json
+addons/sp1/examples/fibonacci-target/program/target
+addons/sp1/examples/fibonacci/program/target

@@ -1,0 +1,23 @@
+---
+name: fibonacci
+id: fibonacci
+runbooks:
+  - name: prover
+    id: prover
+    description: Generate Fibonacci Proof
+    location: runbooks/usage/prover
+    # state:
+    #   file: prover.tx-state.json
+environments:
+  devnet:
+    stacks_network_id: devnet
+    infura_key: "14e311a57f994d89a83883926cf95c7c"
+    stacks_api_url: http://localhost:3999
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    sp1_private_key: "0xbf23a0fcd770b43d4925c9848a7128d177df9b2c67808a31260d763c27150000"
+    fibonacci_salt: "0x0000000000000000000000000000000000000000d3af2663da51c10215000001"
+    mnemonic: "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
+    sp1_verifier_address:      "0x3B6041173B80E77f038f3F2C0f9744f04837185e"
+    verifier_contract_address: "0xB4b09549e87762dF23c7210FDBae6077C3B947E0"
+  testnet:
+  mainnet:
