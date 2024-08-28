@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/txtx/txtx/feat/name-update/doc/assets/dark-theme.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/txtx/txtx/feat/name-update/doc/assets/light-theme.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/txtx/txtx/main/doc/assets/dark-theme.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/txtx/txtx/main/doc/assets/light-theme.png">
   <img alt="Txtx" width="266" height="128" style="max-width: 100%;">
 </picture>
 

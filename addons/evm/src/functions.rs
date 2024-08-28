@@ -237,8 +237,15 @@ impl FunctionImplementation for EncodeEVMBytes32 {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+        let bytes = match args.get(0) {
+            Some(Value::String(val)) => B256::from_hex(&val).map_err(|e| {
+                diagnosed_error!("'evm::bytes32' function: failed to parse string: {:?}", e)
+            })?,
+            Some(Value::Addon(addon_value)) => {
+                B256::try_from(&addon_value.bytes[..]).map_err(|e| {
+                    diagnosed_error!("'evm::bytes32' function: failed to parse bytes: {}", e)
+                })?
+            }
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes32' function: expected string, got {:?}",
@@ -246,9 +253,6 @@ impl FunctionImplementation for EncodeEVMBytes32 {
                 ))
             }
         };
-        let bytes = B256::from_hex(&entry).map_err(|e| {
-            diagnosed_error!("'evm::bytes32' function: failed to parse string: {:?}", e)
-        })?;
         Ok(EvmValue::bytes32(bytes.to_vec()))
     }
 }
@@ -269,8 +273,11 @@ impl FunctionImplementation for EncodeEVMBytes {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+        let bytes = match args.get(0) {
+            Some(Value::String(val)) => Bytes::from_hex(&val).map_err(|e| {
+                diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
+            })?,
+            Some(Value::Addon(addon_value)) => Bytes::copy_from_slice(&addon_value.bytes[..]),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::bytes' function: expected string, got {:?}",
@@ -278,9 +285,6 @@ impl FunctionImplementation for EncodeEVMBytes {
                 ))
             }
         };
-        let bytes = Bytes::from_hex(&entry).map_err(|e| {
-            diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
-        })?;
         Ok(EvmValue::bytes(bytes.to_vec()))
     }
 }
@@ -301,22 +305,17 @@ impl FunctionImplementation for EncodeEVMChain {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let chain_name = match args.get(0) {
-            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
-            other => {
-                return Err(diagnosed_error!(
-                    "'evm::chain' function: expected string, got {:?}",
-                    other
-                ))
+        let chain = match args.get(0) {
+            Some(Value::String(chain_name)) => {
+                alloy_chains::Chain::from_str(&chain_name.to_ascii_lowercase()).map_err(|e| {
+                    diagnosed_error!(
+                        "'evm::chain' function: invalid chain name {}: {}",
+                        chain_name,
+                        e
+                    )
+                })?
             }
-        };
-        let chain = alloy_chains::Chain::from_str(&chain_name).map_err(|e| {
-            diagnosed_error!("'evm::chain' function: invalid chain name {}: {}", chain_name, e)
-        })?;
-
-        let rpc_api_url = match args.get(1) {
-            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
-            None => format!("https://{}.infura.io/v3/{}", &chain_name, INFURA_API_KEY),
+            Some(Value::Integer(chain_id)) => alloy_chains::Chain::from_id(*chain_id as u64),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::chain' function: expected string, got {:?}",
@@ -328,6 +327,17 @@ impl FunctionImplementation for EncodeEVMChain {
         let chain_alias = match chain.into_kind() {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
+        };
+
+        let rpc_api_url = match args.get(1) {
+            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
+            None => format!("https://{}.infura.io/v3/{}", &chain_alias, INFURA_API_KEY),
+            other => {
+                return Err(diagnosed_error!(
+                    "'evm::chain' function: expected string, got {:?}",
+                    other
+                ))
+            }
         };
 
         let obj_props = IndexMap::from([
