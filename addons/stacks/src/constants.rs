@@ -17,6 +17,7 @@ pub const TRANSACTION_POST_CONDITION_MODE_BYTES: &str = "transaction_post_condit
 pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";
 pub const REQUIRED_SIGNATURE_COUNT: &str = "required_signer_count";
+pub const SIGNER: &str = "signer";
 
 // Defaults keys
 pub const NETWORK_ID: &str = "network_id";

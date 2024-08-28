@@ -19,13 +19,14 @@ mod utils;
 
 use std::collections::HashMap;
 
+use clarity::vm::types::QualifiedContractIdentifier;
 use txtx_addon_kit::{
     types::{
         commands::{CommandInputsEvaluationResult, CommandInstance, PreCommandSpecification},
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
         signers::SignerSpecification,
-        ConstructDid,
+        AddonPostProcessingResult, ConstructDid, ContractSourceTransform,
     },
     Addon,
 };
@@ -75,12 +76,14 @@ impl Addon for StacksNetworkAddon {
             &'a CommandInstance,
             Option<&'a CommandInputsEvaluationResult>,
         )>,
-    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
+    ) -> Result<AddonPostProcessingResult, Diagnostic> {
         // Isolate all the contract deployments
         // - Loop 1: For each construct did, compute the contract address, create a lookup: address -> (construct_did, action.name)
         // - Loop 2: For each construct that has some contract_ids_dependencies (lazy or not),
         //      Lookup
         //      Augment `depends_on` with action.name
+        let mut additional_transforms = HashMap::new();
+
         let mut overrides = HashMap::new();
         let mut contracts_lookup = HashMap::new();
         for (construct_did, command_instance, inputs_simulation) in commands_instances.into_iter() {
@@ -131,6 +134,39 @@ impl Addon for StacksNetworkAddon {
             }
             overrides.insert(construct_did.clone(), consolidated_dependencies);
         }
-        Ok(overrides)
+
+        // we should handle call-contract dependencies (only if litteral)?
+
+        for (construct_did, command_instance, inputs_simulation) in commands_instances.iter() {
+            if command_instance.specification.matcher.eq("deploy_contract") {
+                let Some(simulated_inputs) = inputs_simulation else {
+                    continue;
+                };
+                let Some(contract_id) = simulated_inputs.inputs.get_string("contract_id") else {
+                    continue;
+                };
+                let from =
+                    QualifiedContractIdentifier::parse(contract_id).unwrap().name.to_string();
+                let Some(to) = simulated_inputs.inputs.get_string("contract_instance_name") else {
+                    continue;
+                };
+                for (contract, dependencies) in overrides.iter() {
+                    if dependencies.contains(construct_did) {
+                        additional_transforms
+                            .entry(contract.clone())
+                            .or_insert_with(Vec::new)
+                            .push(ContractSourceTransform::FindAndReplace(
+                                format!(".{}", from),
+                                format!(".{}", to),
+                            ));
+                    }
+                }
+            }
+        }
+        let res = AddonPostProcessingResult {
+            dependencies: overrides,
+            transforms: additional_transforms,
+        };
+        Ok(res)
     }
 }

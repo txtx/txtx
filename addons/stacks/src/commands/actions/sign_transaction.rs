@@ -1,18 +1,14 @@
+use crate::codec::codec::{
+    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
+    StacksMessageCodec, StacksTransaction, TransactionAuth, TransactionContractCall,
+    TransactionPayload, TransactionPostCondition, TransactionPostConditionMode,
+    TransactionPublicKeyEncoding, TransactionSpendingCondition, TransactionVersion,
+};
 use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
 use clarity::types::Address;
 use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
-use clarity_repl::codec::{
-    MultisigHashMode, MultisigSpendingCondition, SinglesigHashMode, SinglesigSpendingCondition,
-    TransactionContractCall, TransactionPostCondition, TransactionPublicKeyEncoding,
-};
-use clarity_repl::{
-    clarity::{address::AddressHashMode, codec::StacksMessageCodec},
-    codec::{
-        StacksTransaction, TransactionAuth, TransactionPayload, TransactionSpendingCondition,
-        TransactionVersion,
-    },
-};
+use clarity_repl::clarity::address::AddressHashMode;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
@@ -318,10 +314,7 @@ async fn build_unsigned_transaction(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
-    // Extract and decode transaction_payload_bytes
-
     use crate::constants::REQUIRED_SIGNATURE_COUNT;
-    use clarity_repl::codec::TransactionPostConditionMode;
 
     use crate::constants::RPC_API_AUTH_TOKEN;
     let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;

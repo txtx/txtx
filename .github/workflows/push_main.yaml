@@ -120,7 +120,7 @@ jobs:
         if: matrix.os == 'ubuntu-20.04'
         uses: gmiam/rust-musl-action@master
         with:
-          args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release
+          args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release --features web_ui
 
 
       # set up rust for non linux-musl
@@ -168,7 +168,7 @@ jobs:
       - name: Build - Cargo (not linux-musl)
         if: matrix.os != 'ubuntu-20.04'
         run: 
-          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
+          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features web_ui
 
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (not windows)

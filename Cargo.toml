@@ -15,7 +15,18 @@ members = [
     "addons/bitcoin",
     "addons/evm",
     "addons/stacks",
-    "addons/telegram"
+    "addons/telegram",
+    "addons/sp1", 
 ]
 default-members = ["crates/txtx-cli"]
 resolver = "2"
+
+[workspace.dependencies]
+txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
+txtx-core = { path = "crates/txtx-core", default-features = false }
+txtx-gql = { path = "crates/txtx-gql" }
+txtx-addon-network-evm = { path = "addons/evm" }
+txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
+txtx-addon-network-stacks = { path = "addons/stacks" }
+txtx-addon-telegram = { path = "addons/telegram" }
+txtx-addon-sp1 = { path = "addons/sp1" }

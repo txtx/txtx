@@ -1,0 +1,14 @@
+output "verification_result" {
+    description = "On chain verification tx hash"
+    value = action.verify_fibonacci_execution.tx_hash
+}
+
+output "public_values" {
+    description = "Proof public values"
+    value = action.fibonacci_proof.public_values
+}
+
+output "proof" {
+    description = "Proof"
+    value = action.fibonacci_proof.proof
+}

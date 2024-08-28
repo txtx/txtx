@@ -410,16 +410,9 @@ pub async fn run_constructs_evaluation(
         let addon_context_key = (package_id.did(), command_instance.namespace.clone());
         let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
 
-        // in general we want to ignore previous input evaluation results when evaluating for outputs.
-        // we want to recompute the whole graph in case anything has changed since our last traversal.
-        // however, if there was a start_node provided, this evaluation was initiated from a user interaction
-        // that is stored in the input evaluation results, and we want to keep that data to evaluate that
-        // commands dependents
-        let input_evaluation_results = if supervision_context.review_input_default_values {
-            None
-        } else {
-            runbook_execution_context.commands_inputs_evaluation_results.get(&construct_did.clone())
-        };
+        let input_evaluation_results = runbook_execution_context
+            .commands_inputs_evaluation_results
+            .get(&construct_did.clone());
 
         let mut cached_dependency_execution_results: HashMap<
             ConstructDid,
@@ -1120,7 +1113,10 @@ pub fn perform_inputs_evaluation(
     runtime_context: &RuntimeContext,
     simulation: bool,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
-    let mut results = CommandInputsEvaluationResult::new(&command_instance.name);
+    let mut results = match *input_evaluation_results {
+        Some(evaluated_inputs) => evaluated_inputs.clone(),
+        None => CommandInputsEvaluationResult::new(&command_instance.name),
+    };
     let mut require_user_interaction = false;
     let mut diags = vec![];
     let inputs = command_instance.specification.inputs.clone();
@@ -1156,15 +1152,16 @@ pub fn perform_inputs_evaluation(
     }
 
     for input in inputs.into_iter() {
-        if simulation && input.name.eq("signer") {
-            continue;
-        }
-        let previously_evaluated_input = match input_evaluation_results {
-            Some(input_evaluation_results) => {
-                input_evaluation_results.inputs.get_value(&input.name)
+        if simulation {
+            if input.name.eq("signer") {
+                results.unevaluated_inputs.push("signer".into());
+                continue;
             }
-            None => None,
-        };
+        } else {
+            if !results.unevaluated_inputs.contains(&input.name) {
+                continue;
+            }
+        }
         if let Some(object_props) = input.as_object() {
             // get this object expression to check if it's a traversal. if the expected
             // object type is a traversal, we should parse it as a regular field rather than
@@ -1187,6 +1184,7 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
@@ -1194,10 +1192,12 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                 };
@@ -1220,6 +1220,7 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
@@ -1227,10 +1228,12 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                 };
@@ -1239,19 +1242,6 @@ pub fn perform_inputs_evaluation(
             }
             let mut object_values = IndexMap::new();
             for prop in object_props.iter() {
-                if let Some(value) = previously_evaluated_input {
-                    match value.clone() {
-                        Value::Object(obj) => {
-                            for (k, v) in obj.into_iter() {
-                                object_values.insert(k, v);
-                            }
-                        }
-                        v => {
-                            object_values.insert(prop.name.to_string(), v);
-                        }
-                    };
-                }
-
                 let Some(expr) =
                     command_instance.get_expression_from_object_property(&input, &prop)?
                 else {
@@ -1272,6 +1262,7 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
@@ -1279,10 +1270,12 @@ pub fn perform_inputs_evaluation(
                             fatal_error = true;
                         }
                         diags.push(e);
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
+                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                 };
@@ -1304,17 +1297,6 @@ pub fn perform_inputs_evaluation(
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
-            if let Some(value) = previously_evaluated_input {
-                match value.clone() {
-                    Value::Array(entries) => {
-                        array_values.extend::<Vec<Value>>(entries.into_iter().collect());
-                    }
-                    _ => {
-                        unreachable!()
-                    }
-                }
-            }
-
             let Some(expr) = command_instance.get_expression_from_input(&input)? else {
                 continue;
             };
@@ -1342,6 +1324,7 @@ pub fn perform_inputs_evaluation(
                         fatal_error = true;
                     }
                     diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
@@ -1349,87 +1332,87 @@ pub fn perform_inputs_evaluation(
                         fatal_error = true;
                     }
                     diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
+                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
             };
 
             results.insert(&input.name, value);
         } else if let Some(_) = input.as_action() {
-            let value = if let Some(value) = previously_evaluated_input {
-                value.clone()
-            } else {
-                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                continue;
+            };
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                runtime_context,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
-                };
-                match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
+                }
+                Err(e) => {
+                    if e.is_error() {
+                        fatal_error = true;
                     }
-                    Err(e) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        require_user_interaction = true;
-                        continue;
-                    }
+                    diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
+                    continue;
+                }
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    require_user_interaction = true;
+                    results.unevaluated_inputs.push(input.name.clone());
+                    continue;
                 }
             };
 
             results.insert(&input.name, value);
         } else {
-            let value = if let Some(value) = previously_evaluated_input {
-                value.clone()
-            } else {
-                let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+                continue;
+            };
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                runtime_context,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                    if e.is_error() {
+                        fatal_error = true;
+                    }
+                    diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
-                };
-                match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
+                }
+                Err(e) => {
+                    if e.is_error() {
+                        fatal_error = true;
                     }
-                    Err(e) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        require_user_interaction = true;
-                        continue;
-                    }
+                    diags.push(e);
+                    results.unevaluated_inputs.push(input.name.clone());
+                    continue;
+                }
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    require_user_interaction = true;
+                    results.unevaluated_inputs.push(input.name.clone());
+                    continue;
                 }
             };
             results.insert(&input.name, value);
@@ -1440,7 +1423,11 @@ pub fn perform_inputs_evaluation(
         return Ok(CommandInputEvaluationStatus::Aborted(results, diags));
     }
 
-    let results = command_instance.post_process_inputs_evaluations(results).map_err(|d| vec![d])?;
+    let results = if simulation {
+        command_instance.post_process_inputs_evaluations(results).map_err(|d| vec![d])?
+    } else {
+        results
+    };
 
     let status = match (fatal_error, require_user_interaction) {
         (false, false) => CommandInputEvaluationStatus::Complete(results),

@@ -13,6 +13,8 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{
     kit::{
@@ -44,6 +46,7 @@ use txtx_core::{
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     web_ui::{
@@ -57,7 +60,15 @@ use web_ui::cloud_relayer::RelayerContext;
 pub const DEFAULT_BINDING_PORT: &str = "8488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
+    vec![
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EVMNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
+        #[cfg(feature = "sp1")]
+        Box::new(Sp1Addon::new()),
+    ]
+}
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
     let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
@@ -180,12 +191,7 @@ pub async fn handle_check_command(
     buffer_stdin: Option<String>,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-    ];
-
+    let available_addons = get_available_addons();
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
@@ -230,14 +236,27 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
     let manifest_res = WorkspaceManifest::from_location(&manifest_location);
 
-    let theme = ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
+    let theme = ColorfulTheme {
+        values_style: Style::new().green(),
+        hint_style: Style::new().cyan(),
+        ..ColorfulTheme::default()
+    };
 
     let mut manifest = match manifest_res {
         Ok(manifest) => manifest,
         Err(_) => {
+            let current_dir = env::current_dir()
+                .ok()
+                .and_then(|d| d.file_name().map(|f| f.to_string_lossy().to_string()));
+            let default = match current_dir {
+                Some(dir) => dir,
+                _ => "".to_string(),
+            };
+
             // Ask for the name of the workspace
-            let name: String = Input::new()
+            let name: String = Input::with_theme(&theme)
                 .with_prompt("Enter the name of this workspace")
+                .default(default)
                 .interact_text()
                 .unwrap();
             WorkspaceManifest::new(name)
@@ -441,7 +460,8 @@ pub async fn run_action(
         let new_value = Value::parse_and_default_to_string(&input_value);
         inputs.insert(input_name, new_value);
     }
-    let evaluated_inputs = CommandInputsEvaluationResult { inputs };
+    let unevaluated_inputs = vec![];
+    let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
         .perform_execution(
@@ -465,12 +485,7 @@ pub async fn handle_run_command(
     let do_use_term_console = cmd.term_console;
     let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
 
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-    ];
-
+    let available_addons = get_available_addons();
     if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
         for addon in available_addons.iter() {
             if namespace.starts_with(&format!("{}", addon.get_namespace())) {
@@ -586,9 +601,6 @@ pub async fn handle_run_command(
                     continue;
                 }
 
-                running_context.execution_context.execution_mode =
-                    RunbookExecutionMode::Partial(vec![]);
-
                 let mut added_construct_dids: Vec<ConstructDid> =
                     additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
 
@@ -622,7 +634,7 @@ pub async fn handle_run_command(
                         .map(|construct_did| {
                             let documentation = running_context
                                 .execution_context
-                                .commands_inputs_simulation_results
+                                .commands_inputs_evaluation_results
                                 .get(construct_did)
                                 .and_then(|r| r.inputs.get_string("description"))
                                 .and_then(|d| Some(d.to_string()));
@@ -641,7 +653,7 @@ pub async fn handle_run_command(
                     .map(|construct_did| {
                         let documentation = running_context
                             .execution_context
-                            .commands_inputs_simulation_results
+                            .commands_inputs_evaluation_results
                             .get(construct_did)
                             .and_then(|r| r.inputs.get_string("description"))
                             .and_then(|d| Some(d.to_string()));
@@ -662,17 +674,7 @@ pub async fn handle_run_command(
                 for construct_did in great_filter.iter() {
                     running_context
                         .execution_context
-                        .commands_inputs_evaluation_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
                         .commands_execution_results
-                        .remove(construct_did);
-
-                    running_context
-                        .execution_context
-                        .commands_inputs_simulation_results
                         .remove(construct_did);
                 }
 
@@ -683,6 +685,9 @@ pub async fn handle_run_command(
                     .into_iter()
                     .filter(|c| great_filter.contains(&c))
                     .collect();
+
+                running_context.execution_context.execution_mode =
+                    RunbookExecutionMode::Partial(great_filter);
             }
 
             let has_actions =
@@ -1166,11 +1171,7 @@ pub async fn load_runbook_from_file_path(
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-    ];
+    let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook.build_contexts_from_sources(
         runbook_sources,

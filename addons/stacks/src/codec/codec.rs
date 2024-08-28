@@ -2399,6 +2399,7 @@ fn clarity_version_consensus_serialize<W: Write>(
     match *version {
         ClarityVersion::Clarity1 => write_next(fd, &1u8)?,
         ClarityVersion::Clarity2 => write_next(fd, &2u8)?,
+        ClarityVersion::Clarity3 => write_next(fd, &3u8)?,
     }
     Ok(())
 }

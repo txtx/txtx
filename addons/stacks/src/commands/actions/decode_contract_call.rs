@@ -1,5 +1,7 @@
-use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
-use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
+use crate::codec::codec::{
+    StacksTransaction, TransactionAuth, TransactionPayload, TransactionSpendingCondition,
+};
+use clarity_repl::clarity::codec::StacksMessageCodec;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
     PreCommandSpecification,
@@ -14,6 +16,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
+use crate::constants::SIGNER;
 use crate::stacks_helpers::clarity_value_to_value;
 
 lazy_static! {
@@ -128,7 +131,7 @@ impl CommandImplementation for EncodeStacksContractCall {
                     result.outputs.insert("nonce".to_string(), Value::integer(auth.nonce as i128));
                     result
                         .outputs
-                        .insert("signer".to_string(), Value::string(format!("{}", auth.signer)));
+                        .insert(SIGNER.to_string(), Value::string(format!("{}", auth.signer)));
                     result.outputs.insert("fee".to_string(), Value::integer(auth.tx_fee as i128));
                 } else {
                     unimplemented!("unimplemented auth decoding");

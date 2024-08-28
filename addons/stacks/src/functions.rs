@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::stacks_helpers::encode_any_value_to_clarity_value;
+use crate::{constants::SIGNER, stacks_helpers::encode_any_value_to_clarity_value};
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
     SequenceData, SequencedValue, UTF8Data,
@@ -522,7 +522,9 @@ impl FunctionImplementation for EncodeClarityValueOk {
         let value = encode_any_value_to_clarity_value(arg)?;
         let clarity_value = ClarityValue::okay(value)
             .map_err(|e| diagnosed_error!("unable of run 'cv_ok' function ({})", e.to_string()))?;
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::ok(bytes))
     }
 }
@@ -550,7 +552,9 @@ impl FunctionImplementation for EncodeClarityValueErr {
         let value = encode_any_value_to_clarity_value(arg)?;
         let clarity_value = ClarityValue::okay(value)
             .map_err(|e| diagnosed_error!("unable of run 'cv_err' function ({})", e.to_string()))?;
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::err(bytes))
     }
 }
@@ -580,7 +584,9 @@ impl FunctionImplementation for EncodeClarityValueSome {
         let clarity_value = ClarityValue::okay(value).map_err(|e| {
             diagnosed_error!("unable of run 'cv_some' function ({})", e.to_string())
         })?;
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::some(bytes))
     }
 }
@@ -604,7 +610,9 @@ impl FunctionImplementation for EncodeClarityValueNone {
             return Err(diagnosed_error!("`cv_none` function: expected no arguments"));
         }
         let clarity_value = ClarityValue::Optional(OptionalData { data: None });
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::none(bytes))
     }
 }
@@ -632,7 +640,9 @@ impl FunctionImplementation for EncodeClarityValueBool {
             None => return Err(diagnosed_error!("'cv_bool' function: expected bool, got none :(")),
         };
         let clarity_value = ClarityValue::Bool(entry);
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::bool(bytes))
     }
 }
@@ -667,7 +677,9 @@ impl FunctionImplementation for EncodeClarityValueUint {
             None => return Err(diagnosed_error!("'cv_uint' function: expected uint, got none :(")),
         };
         let clarity_value = ClarityValue::UInt(u128::from(entry));
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::uint(bytes))
     }
 }
@@ -702,7 +714,9 @@ impl FunctionImplementation for EncodeClarityValueInt {
             None => return Err(diagnosed_error!("'cv_int' function: expected uint, got none :(")),
         };
         let clarity_value = ClarityValue::Int(i128::from(entry));
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::int(bytes))
     }
 }
@@ -735,7 +749,9 @@ impl FunctionImplementation for EncodeClarityValuePrincipal {
         };
 
         let clarity_value = ClarityValue::Principal(PrincipalData::parse(&arg_str).unwrap());
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::principal(bytes))
     }
 }
@@ -771,7 +787,9 @@ impl FunctionImplementation for EncodeClarityValueAscii {
             ClarityValue::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
                 data: arg_str.as_bytes().to_vec(),
             })));
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::string_ascii(bytes))
     }
 }
@@ -802,8 +820,11 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
                 "unable of run 'cv_string_utf8' function (expected string argument)."
             ));
         };
-        let clarity_value = UTF8Data::to_value(&arg_str.as_bytes().to_vec());
-        let bytes = clarity_value.serialize_to_vec();
+        let clarity_value = UTF8Data::to_value(&arg_str.as_bytes().to_vec())
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::string_utf8(bytes))
     }
 }
@@ -834,8 +855,9 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
                 "unable of run 'cv_buff' function (expected buffer argument)."
             ));
         };
-        let bytes =
-            ClarityValue::Sequence(SequenceData::Buffer(BuffData { data })).serialize_to_vec();
+        let bytes = ClarityValue::Sequence(SequenceData::Buffer(BuffData { data }))
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::buffer(bytes))
     }
 }
@@ -859,7 +881,9 @@ impl FunctionImplementation for EncodeClarityValueTuple {
             Some(value) => ClarityValue::Tuple(value_to_tuple(value)),
             _ => unreachable!(),
         };
-        let bytes = clarity_value.serialize_to_vec();
+        let bytes = clarity_value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
         Ok(StacksValue::tuple(bytes))
     }
 }
@@ -871,7 +895,7 @@ fn encode_ft_post_condition(
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
     let principal_monitored =
-        if address.eq("signer") { PostConditionPrincipal::Origin } else { unimplemented!() };
+        if address.eq(SIGNER) { PostConditionPrincipal::Origin } else { unimplemented!() };
 
     let Some((contract_id_specified, asset_name)) = token_id.split_once("::") else {
         unimplemented!()
@@ -1225,7 +1249,9 @@ impl FunctionImplementation for DecodeClarityValueOk {
             None => return Err(diagnosed_error!("function '{}': argument missing", &fn_spec.name)),
         };
 
-        let inner_bytes: Vec<u8> = value.serialize_to_vec();
+        let inner_bytes: Vec<u8> = value
+            .serialize_to_vec()
+            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
 
         Ok(StacksValue::generic_clarity_value(inner_bytes))
     }

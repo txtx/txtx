@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::codec::codec::StacksTransaction;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
