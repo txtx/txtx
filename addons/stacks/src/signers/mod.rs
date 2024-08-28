@@ -50,7 +50,7 @@ pub async fn get_addition_actions_for_address(
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
             &Some(signer_did.clone()),
-            &format!("Connect signer {instance_name}"),
+            &format!("Connect wallet {instance_name}"),
             None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
