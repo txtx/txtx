@@ -1,5 +1,6 @@
 use crate::codec::codec::TransactionPayload;
 use async_recursion::async_recursion;
+use clarity::util::hash::bytes_to_hex;
 use clarity_repl::clarity::codec::StacksMessageCodec;
 use clarity_repl::clarity::util::hash::{hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
@@ -384,7 +385,7 @@ impl StacksRpc {
         for arg in args.iter() {
             let bytes =
                 arg.serialize_to_vec().map_err(|e| RpcError::Message(format!("{:?}", e)))?;
-            arguments.push(bytes);
+            arguments.push(bytes_to_hex(&bytes));
         }
         let res = self
             .client
