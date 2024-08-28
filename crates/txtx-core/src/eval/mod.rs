@@ -364,8 +364,6 @@ pub async fn run_constructs_evaluation(
     }
 
     let mut genesis_dependency_execution_results = HashMap::new();
-    let mut empty_result = CommandExecutionResult::new();
-    empty_result.outputs.insert("value".into(), Value::bool(true));
 
     let mut signers_results = HashMap::new();
     for (signer_construct_did, _) in runbook_execution_context.signers_instances.iter() {
