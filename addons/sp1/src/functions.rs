@@ -10,8 +10,6 @@ use txtx_addon_kit::types::{
 
 use crate::typing::{Sp1Value, SP1_ELF};
 
-const INFURA_API_KEY: &str = "";
-
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         GetElfFromSp1Project => {

@@ -199,9 +199,9 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
                 let value = encode_any_value_to_clarity_value(element)?;
                 values.push(value);
             }
-            ClarityValue::list_from(values).map_err(|e| {
-                diagnosed_error!("unable to encode Clarity list ({})", e.to_string())
-            })?
+            ClarityValue::cons_list_unsanitized(values)
+                .map_err(|e| diagnosed_error!("unable to encode Clarity list ({})", e.to_string()))
+                .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?
         }
         Value::String(_) => {
             if let Some(bytes) = src.try_get_buffer_bytes() {

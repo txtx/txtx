@@ -1,9 +1,9 @@
+use crate::codec::codec::StacksTransaction;
 use clarity::codec::StacksMessageCodec;
 use clarity::types::StacksEpochId;
 use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
 use clarity::vm::{ClarityVersion, ContractName};
 use clarity_repl::analysis::ast_dependency_detector::ASTDependencyDetector;
-use clarity_repl::codec::StacksTransaction;
 use clarity_repl::repl::{
     ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
 };

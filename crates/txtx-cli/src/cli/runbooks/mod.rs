@@ -2,7 +2,6 @@ use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
-use txtx_addon_sp1::Sp1Addon;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env,
@@ -14,6 +13,8 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{
     kit::{
@@ -45,6 +46,7 @@ use txtx_core::{
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     web_ui::{
@@ -58,7 +60,15 @@ use web_ui::cloud_relayer::RelayerContext;
 pub const DEFAULT_BINDING_PORT: &str = "8488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
+    vec![
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EVMNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
+        #[cfg(feature = "sp1")]
+        Box::new(Sp1Addon::new()),
+    ]
+}
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
     let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
@@ -181,13 +191,7 @@ pub async fn handle_check_command(
     buffer_stdin: Option<String>,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-        Box::new(Sp1Addon::new()),
-    ];
-
+    let available_addons = get_available_addons();
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
@@ -481,13 +485,7 @@ pub async fn handle_run_command(
     let do_use_term_console = cmd.term_console;
     let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
 
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-        Box::new(Sp1Addon::new()),
-    ];
-
+    let available_addons = get_available_addons();
     if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
         for addon in available_addons.iter() {
             if namespace.starts_with(&format!("{}", addon.get_namespace())) {
@@ -1173,12 +1171,7 @@ pub async fn load_runbook_from_file_path(
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
-    let available_addons: Vec<Box<dyn Addon>> = vec![
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EVMNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-        Box::new(Sp1Addon::new()),
-    ];
+    let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook.build_contexts_from_sources(
         runbook_sources,

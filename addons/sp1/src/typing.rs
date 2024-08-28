@@ -23,5 +23,4 @@ impl Sp1Value {
     pub fn verification_key(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SP1_VERIFICATION_KEY)
     }
-
 }
