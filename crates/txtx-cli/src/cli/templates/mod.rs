@@ -29,6 +29,21 @@ pub fn build_manifest_data(manifest: &WorkspaceManifest) -> mustache::Data {
                 });
             }
             runbooks
+        })
+        .insert_vec("environments", |environment_builder| {
+            let mut environments = environment_builder;
+            for (name, environment_spec) in manifest.environments.iter() {
+                environments = environments.push_map(|entry_builder| {
+                    entry_builder.insert_str("name", name).insert_vec("values", |inputs_builder| {
+                        let mut inputs = inputs_builder;
+                        for (key, value) in environment_spec.iter() {
+                            inputs = inputs.push_str(format!("{}: {}", key, value));
+                        }
+                        inputs
+                    })
+                });
+            }
+            environments
         });
 
     let data = doc_builder.build();

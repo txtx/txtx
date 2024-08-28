@@ -10,6 +10,7 @@ pub mod sign_transaction;
 
 use std::str::FromStr;
 
+use crate::constants::SIGNER;
 use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use crate::stacks_helpers::parse_clarity_value;
 use crate::typing::StacksValue;
@@ -122,7 +123,7 @@ pub fn encode_contract_call(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = StacksValue::contract_call(bytes);
+    let value = StacksValue::transaction_payload(bytes);
 
     Ok(value)
 }
@@ -157,7 +158,7 @@ pub fn encode_contract_deployment(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = StacksValue::contract_call(bytes);
+    let value = StacksValue::transaction_payload(bytes);
 
     Ok(value)
 }
@@ -234,13 +235,13 @@ pub fn encode_stx_transfer(
 
     let mut bytes = vec![];
     payload.consensus_serialize(&mut bytes).unwrap();
-    let value = StacksValue::contract_call(bytes);
+    let value = StacksValue::transaction_payload(bytes);
 
     Ok(value)
 }
 
 fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
-    let signer = args.get_expected_string("signer")?;
+    let signer = args.get_expected_string(SIGNER)?;
     let signer_did = ConstructDid(Did::from_hex_string(signer));
     Ok(signer_did)
 }

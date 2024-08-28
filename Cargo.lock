@@ -4890,9 +4890,9 @@ checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
 name = "memchr"
-version = "2.7.2"
+version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8640c5d730cb13ebd907d8d04b52f55ac9a2eec55b440c8892f40d56c76c1d"
+checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "memoffset"
@@ -5623,12 +5623,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-util"
-version = "0.1.3-succinct"
+name = "openssl-src"
+version = "300.3.1+3.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7259953d42a81bf137fbbd73bd30a8e1914d6dce43c2b90ed575783a22608b91"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "openssl-sys"
+version = "0.9.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79f3fef0e00d9d7246385e758c4cd39b4efcbbcea31752471491ab502631385e"
 dependencies = [
- "serde",
+ "cc",
+ "libc",
+ "openssl-src",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -7267,7 +7280,24 @@ checksum = "78ce6afeda22f0b55dde2c34897bce76a629587348480384231205c14b59a01f"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",
- "libyml",
+ "libyml 0.0.3",
+ "log 0.4.22",
+ "memchr",
+ "ryu",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "serde_yml"
+version = "0.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48e76bab63c3fd98d27c17f9cbce177f64a91f5e69ac04cafe04e1bb25d1dc3c"
+dependencies = [
+ "indexmap 2.2.6",
+ "itoa",
+ "libyml 0.0.4",
  "log 0.4.22",
  "memchr",
  "ryu",
@@ -8908,7 +8938,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "crossbeam-channel",
  "dotenvy_macro",
@@ -9022,7 +9052,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -9046,13 +9076,15 @@ dependencies = [
  "mustache",
  "native-tls",
  "npm_rs",
+ "openssl",
+ "openssl-sys",
  "ratatui",
  "rusqlite",
  "rust-embed",
  "serde",
  "serde_derive",
  "serde_json",
- "serde_yml",
+ "serde_yml 0.0.10",
  "test-case",
  "tokio",
  "tokio-tungstenite",
@@ -9071,7 +9103,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -9088,7 +9120,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_yml",
+ "serde_yml 0.0.11",
  "similar",
  "txtx-addon-kit",
  "txtx-addon-network-stacks",
@@ -9096,7 +9128,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-stream",
  "futures",
@@ -9110,7 +9142,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",

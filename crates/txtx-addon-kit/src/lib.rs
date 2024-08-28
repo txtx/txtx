@@ -15,6 +15,7 @@ pub use rust_fsm as fsm;
 use types::commands::CommandInputsEvaluationResult;
 use types::commands::CommandInstance;
 use types::diagnostics::Diagnostic;
+use types::AddonPostProcessingResult;
 use types::ConstructDid;
 use types::Did;
 use types::ValueStore;
@@ -112,8 +113,8 @@ pub trait Addon: Debug + Sync + Send {
             &'a CommandInstance,
             Option<&'a CommandInputsEvaluationResult>,
         )>,
-    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
-        Ok(HashMap::new())
+    ) -> Result<AddonPostProcessingResult, Diagnostic> {
+        Ok(AddonPostProcessingResult::new())
     }
 }
 

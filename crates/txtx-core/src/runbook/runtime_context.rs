@@ -11,7 +11,8 @@ use kit::{
         functions::FunctionSpecification,
         signers::{SignerInstance, SignerSpecification},
         types::Value,
-        AuthorizationContext, ConstructDid, Did, PackageDid, PackageId, RunbookId, ValueStore,
+        AuthorizationContext, ConstructDid, ContractSourceTransform, Did, PackageDid, PackageId,
+        RunbookId, ValueStore,
     },
     Addon, AddonDefaults,
 };
@@ -215,9 +216,9 @@ impl RuntimeContext {
         Ok(inputs_sets)
     }
 
-    pub fn collect_domain_specific_dependencies(
+    pub fn perform_addon_processing(
         &self,
-        runbook_execution_context: &RunbookExecutionContext,
+        runbook_execution_context: &mut RunbookExecutionContext,
     ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
         let mut consolidated_dependencies = HashMap::new();
         let mut grouped_commands: HashMap<
@@ -226,7 +227,7 @@ impl RuntimeContext {
         > = HashMap::new();
         for (did, command_instance) in runbook_execution_context.commands_instances.iter() {
             let inputs_simulation_results =
-                runbook_execution_context.commands_inputs_simulation_results.get(did);
+                runbook_execution_context.commands_inputs_evaluation_results.get(did);
             grouped_commands
                 .entry(command_instance.namespace.clone())
                 .and_modify(|e: &mut _| {
@@ -234,16 +235,52 @@ impl RuntimeContext {
                 })
                 .or_insert(vec![(did.clone(), command_instance, inputs_simulation_results)]);
         }
-        for (addon_key, commands_instances) in grouped_commands.iter() {
-            let Some((addon, _)) = self.addons_context.registered_addons.get(addon_key) else {
+        let mut post_processing = vec![];
+        for (addon_key, commands_instances) in grouped_commands.drain() {
+            let Some((addon, _)) = self.addons_context.registered_addons.get(&addon_key) else {
                 continue;
             };
-            let deps =
-                addon.get_domain_specific_commands_inputs_dependencies(commands_instances)?;
-            for (k, v) in deps.into_iter() {
+            let res =
+                addon.get_domain_specific_commands_inputs_dependencies(&commands_instances)?;
+            for (k, v) in res.dependencies.into_iter() {
                 consolidated_dependencies.insert(k, v);
             }
+            post_processing.push(res.transforms);
         }
+
+        for res in post_processing.iter() {
+            for (construct_did, transforms) in res.iter() {
+                let Some(inputs_evaluation_results) = runbook_execution_context
+                    .commands_inputs_evaluation_results
+                    .get_mut(construct_did)
+                else {
+                    continue;
+                };
+
+                for transform in transforms.iter() {
+                    match transform {
+                        ContractSourceTransform::FindAndReplace(from, to) => {
+                            let Ok(mut contract) =
+                                inputs_evaluation_results.inputs.get_expected_object("contract")
+                            else {
+                                continue;
+                            };
+                            let mut contract_source = match contract.get_mut("contract_source") {
+                                Some(Value::String(source)) => source.to_string(),
+                                _ => continue,
+                            };
+                            contract_source = contract_source.replace(from, to);
+                            contract
+                                .insert("contract_source".into(), Value::string(contract_source));
+                            inputs_evaluation_results
+                                .inputs
+                                .insert("contract", Value::object(contract));
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(consolidated_dependencies)
     }
 

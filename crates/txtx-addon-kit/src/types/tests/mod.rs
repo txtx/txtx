@@ -31,9 +31,9 @@ fn it_serdes_values(value: Value) {
     assert_eq!(de, value);
 }
 
-#[test_case(json!({"type": "integer", "value": 1 }))]
-#[test_case(json!({"type": "integer", "value": 18446744073709551615 as u64 }))]
-#[test_case(json!({"type": "integer", "value": -10 }))]
+#[test_case(json!({"type": "integer", "value": "1" }))]
+#[test_case(json!({"type": "integer", "value": "18446744073709551615" }))]
+#[test_case(json!({"type": "integer", "value": "-10" }))]
 #[test_case(json!({"type": "float", "value": 1.12 }))]
 #[test_case(json!({"type": "bool", "value": false }))]
 #[test_case(json!({"type": "bool", "value": true }))]

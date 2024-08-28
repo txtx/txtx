@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::stacks_helpers::encode_any_value_to_clarity_value;
+use crate::{constants::SIGNER, stacks_helpers::encode_any_value_to_clarity_value};
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
     SequenceData, SequencedValue, UTF8Data,
@@ -871,7 +871,7 @@ fn encode_ft_post_condition(
     condition: FungibleConditionCode,
 ) -> Result<TransactionPostCondition, Diagnostic> {
     let principal_monitored =
-        if address.eq("signer") { PostConditionPrincipal::Origin } else { unimplemented!() };
+        if address.eq(SIGNER) { PostConditionPrincipal::Origin } else { unimplemented!() };
 
     let Some((contract_id_specified, asset_name)) = token_id.split_once("::") else {
         unimplemented!()

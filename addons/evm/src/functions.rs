@@ -305,22 +305,17 @@ impl FunctionImplementation for EncodeEVMChain {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let chain_name = match args.get(0) {
-            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
-            other => {
-                return Err(diagnosed_error!(
-                    "'evm::chain' function: expected string, got {:?}",
-                    other
-                ))
+        let chain = match args.get(0) {
+            Some(Value::String(chain_name)) => {
+                alloy_chains::Chain::from_str(&chain_name.to_ascii_lowercase()).map_err(|e| {
+                    diagnosed_error!(
+                        "'evm::chain' function: invalid chain name {}: {}",
+                        chain_name,
+                        e
+                    )
+                })?
             }
-        };
-        let chain = alloy_chains::Chain::from_str(&chain_name).map_err(|e| {
-            diagnosed_error!("'evm::chain' function: invalid chain name {}: {}", chain_name, e)
-        })?;
-
-        let rpc_api_url = match args.get(1) {
-            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
-            None => format!("https://{}.infura.io/v3/{}", &chain_name, INFURA_API_KEY),
+            Some(Value::Integer(chain_id)) => alloy_chains::Chain::from_id(*chain_id as u64),
             other => {
                 return Err(diagnosed_error!(
                     "'evm::chain' function: expected string, got {:?}",
@@ -332,6 +327,17 @@ impl FunctionImplementation for EncodeEVMChain {
         let chain_alias = match chain.into_kind() {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
+        };
+
+        let rpc_api_url = match args.get(1) {
+            Some(Value::String(val)) => val.to_ascii_lowercase().clone(),
+            None => format!("https://{}.infura.io/v3/{}", &chain_alias, INFURA_API_KEY),
+            other => {
+                return Err(diagnosed_error!(
+                    "'evm::chain' function: expected string, got {:?}",
+                    other
+                ))
+            }
         };
 
         let obj_props = IndexMap::from([
