@@ -16,7 +16,6 @@ use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
 use super::cloud_relayer::{delete_channel, get_channel, open_channel, RelayerContext};
-use super::Asset;
 
 pub async fn start_server(
     gql_context: GraphContext,
@@ -77,8 +76,9 @@ async fn graphiql() -> Result<HttpResponse, Error> {
     graphiql_handler("/graphql", Some("/subscriptions")).await
 }
 
+#[cfg(feature = "web_ui")]
 fn handle_embedded_file(path: &str) -> HttpResponse {
-    match Asset::get(path) {
+    match super::Asset::get(path) {
         Some(content) => HttpResponse::Ok()
             .content_type(from_path(path).first_or_octet_stream().as_ref())
             .body(content.data.into_owned()),
@@ -90,6 +90,11 @@ fn handle_embedded_file(path: &str) -> HttpResponse {
             }
         }
     }
+}
+
+#[cfg(not(feature = "web_ui"))]
+fn handle_embedded_file(_path: &str) -> HttpResponse {
+    HttpResponse::NotFound().body("404 Not Found")
 }
 
 #[actix_web::get("/{_:.*}")]

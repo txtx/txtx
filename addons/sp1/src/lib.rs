@@ -8,7 +8,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-use sp1_sdk::action;
 use txtx_addon_kit::{
     types::{commands::PreCommandSpecification, functions::FunctionSpecification},
     Addon,
