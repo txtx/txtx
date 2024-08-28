@@ -670,6 +670,12 @@ pub async fn run_constructs_evaluation(
                     return pass_result;
                 }
             };
+            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did)
+            {
+                for dep in deps.iter() {
+                    unexecutable_nodes.insert(dep.clone());
+                }
+            }
             pass_result.pending_background_tasks_futures.push(future);
             pass_result.pending_background_tasks_constructs_uuids.push(construct_did.clone());
         } else {
