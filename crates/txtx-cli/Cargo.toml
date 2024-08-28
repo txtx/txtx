@@ -15,7 +15,8 @@ path = "src/main.rs"
 txtx-core = { workspace = true }
 txtx-addon-network-stacks = { workspace = true }
 txtx-addon-network-evm = { workspace = true }
-txtx-addon-telegram ={ workspace = true }
+txtx-addon-telegram = { workspace = true }
+txtx-addon-sp1 = { workspace = true, optional = true }
 txtx-gql = { workspace = true }
 hiro-system-kit = "0.3.1"
 clap = { version = "4.4.6", features = ["derive"], optional = true }
@@ -60,6 +61,9 @@ default = ["cli"]
 cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
+# Sp1 is pulling dependencies degrading our WASM compatibility
+# This issue needs to be figured out.
+sp1 = ["txtx-addon-sp1"]
 
 [build-dependencies]
 npm_rs="1.0.0"
