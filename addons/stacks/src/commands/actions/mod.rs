@@ -10,6 +10,10 @@ pub mod sign_transaction;
 
 use std::str::FromStr;
 
+use crate::codec::codec::{
+    StacksString, TokenTransferMemo, TransactionContractCall, TransactionPayload,
+    TransactionSmartContract,
+};
 use crate::constants::SIGNER;
 use crate::stacks_helpers::encode_any_value_to_clarity_value;
 use crate::stacks_helpers::parse_clarity_value;
@@ -22,10 +26,6 @@ use clarity::vm::ClarityVersion;
 use clarity::{
     types::chainstate::StacksAddress,
     vm::{types::PrincipalData, ClarityName},
-};
-use clarity_repl::codec::{
-    StacksString, TokenTransferMemo, TransactionContractCall, TransactionPayload,
-    TransactionSmartContract,
 };
 use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;

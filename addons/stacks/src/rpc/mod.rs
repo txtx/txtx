@@ -1,8 +1,8 @@
+use crate::codec::codec::TransactionPayload;
 use async_recursion::async_recursion;
 use clarity_repl::clarity::codec::StacksMessageCodec;
-use clarity_repl::clarity::util::hash::{bytes_to_hex, hex_bytes, to_hex};
+use clarity_repl::clarity::util::hash::{hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
-use clarity_repl::codec::TransactionPayload;
 use serde_json::Value as JsonValue;
 use std::io::Cursor;
 use txtx_addon_kit::helpers::format_currency;
@@ -380,9 +380,12 @@ impl StacksRpc {
             "{}/v2/contracts/call-read/{}/{}/{}",
             self.url, contract_addr, contract_name, method
         );
-
-        let arguments =
-            args.iter().map(|a| bytes_to_hex(&a.serialize_to_vec())).collect::<Vec<_>>();
+        let mut arguments = vec![];
+        for arg in args.iter() {
+            let bytes =
+                arg.serialize_to_vec().map_err(|e| RpcError::Message(format!("{:?}", e)))?;
+            arguments.push(bytes);
+        }
         let res = self
             .client
             .post(path)

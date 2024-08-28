@@ -6,15 +6,12 @@ edition = "2021"
 [dependencies]
 txtx-addon-kit = { workspace = true, default-features = false}
 lazy_static = "1.4.0"
-wasm-bindgen = { version = "=0.2.93", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-teloxide = "0.12.2"
+teloxide = "0.13.0"
 
 [features]
 default = ["txtx-addon-kit/default"]
 wasm = [
   "txtx-addon-kit/wasm",
-  "wasm-bindgen",
 ]
 
 [lib]

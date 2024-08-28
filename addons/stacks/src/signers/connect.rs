@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use crate::codec::codec::StacksTransaction;
 use clarity::address::AddressHashMode;
 use clarity::codec::StacksMessageCodec;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
-use clarity_repl::codec::StacksTransaction;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,

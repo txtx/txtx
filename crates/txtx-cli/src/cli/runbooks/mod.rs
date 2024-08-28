@@ -13,6 +13,8 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{
     kit::{
@@ -43,9 +45,8 @@ use txtx_core::{
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
-#[cfg(feature = "sp1")]
-use txtx_addon_sp1::Sp1Addon;
 
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     web_ui::{
@@ -55,7 +56,6 @@ use crate::{
 };
 use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";

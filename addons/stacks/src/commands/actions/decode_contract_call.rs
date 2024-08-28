@@ -1,5 +1,7 @@
-use clarity_repl::codec::{StacksTransaction, TransactionAuth, TransactionSpendingCondition};
-use clarity_repl::{clarity::codec::StacksMessageCodec, codec::TransactionPayload};
+use crate::codec::codec::{
+    StacksTransaction, TransactionAuth, TransactionPayload, TransactionSpendingCondition,
+};
+use clarity_repl::clarity::codec::StacksMessageCodec;
 use txtx_addon_kit::types::commands::{
     return_synchronous_result, CommandExecutionFutureResult, CommandImplementation,
     PreCommandSpecification,
