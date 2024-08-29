@@ -260,7 +260,7 @@ lazy_static! {
 pub struct StacksDeployContract;
 impl CommandImplementation for StacksDeployContract {
     fn post_process_evaluated_inputs(
-        _ctx: &CommandSpecification,
+        ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
@@ -277,6 +277,7 @@ impl CommandImplementation for StacksDeployContract {
         let clarity_version = match contract.get("clarity_version").map(|v| v.as_uint()) {
             Some(Some(Ok(1))) => ClarityVersion::Clarity1,
             Some(Some(Ok(2))) => ClarityVersion::Clarity2,
+            Some(Some(Ok(3))) => ClarityVersion::Clarity3,
             _ => ClarityVersion::latest(),
         };
 
@@ -394,7 +395,16 @@ impl CommandImplementation for StacksDeployContract {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = match get_signer_did(args) {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((
+                    signers,
+                    ValueStore::tmp(),
+                    diag,
+                ))
+            }
+        };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
@@ -419,7 +429,7 @@ impl CommandImplementation for StacksDeployContract {
                             return Err((
                                 signers,
                                 signer_state,
-                                diagnosed_error!("unable to retrieve 'contract_name'"),
+                                diagnosed_error!("unable to retrieve 'contract_instance_name'"),
                             ))
                         }
                     };
@@ -505,7 +515,7 @@ impl CommandImplementation for StacksDeployContract {
                             return Err((
                                 signers,
                                 signer_state,
-                                diagnosed_error!("unable to retrieve 'contract_name'"),
+                                diagnosed_error!("unable to retrieve 'contract_instance_name'"),
                             ))
                         }
                     };
