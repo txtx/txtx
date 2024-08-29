@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::codec::codec::StacksTransaction;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
@@ -330,11 +329,11 @@ impl SignerImplementation for StacksConnect {
     ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
         let key = construct_did.to_string();
-        let signed_transaction = signer_state
-            .get_expected_value(&key)
-            // .map_err(|e| (signers, e))?;
-            .unwrap();
-        result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        if let Some(signed_transaction) =
+            signer_state.get_scoped_value(&key, SIGNED_TRANSACTION_BYTES)
+        {
+            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        }
 
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
