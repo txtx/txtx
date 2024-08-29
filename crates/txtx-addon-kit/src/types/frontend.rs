@@ -1486,7 +1486,7 @@ impl ActionItemRequestType {
                 let Some(existing) = existing_item.as_provide_signed_tx() else {
                     unreachable!("cannot change action item request type")
                 };
-                if new.payload != existing.payload {
+                if new.payload != existing.payload || new.skippable != existing.skippable {
                     if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
                         unreachable!(
                             "cannot change provide signed tx request check_expectation_action_uuid"
