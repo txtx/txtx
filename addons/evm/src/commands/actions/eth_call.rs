@@ -34,10 +34,10 @@ lazy_static! {
                 internal: false
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to send the RPC request.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true,
+                documentation: "The URL of the EVM API used to send the RPC request.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true,
                 internal: false
             },
             contract_address: {

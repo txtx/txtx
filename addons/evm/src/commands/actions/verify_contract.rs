@@ -27,18 +27,18 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 block_explorer_api_key: {
-                  documentation: "The URL of the block explorer used to verify the contract.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true,
-                  internal: false
+                    documentation: "The URL of the block explorer used to verify the contract.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true,
+                    internal: false
                 },
                 contract_address: {
-                  documentation: "The contract address to verify.",
-                  typing: Type::string(),
-                  optional: false,
-                  interpolable: true,
-                  internal: false
+                    documentation: "The contract address to verify.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true,
+                    internal: false
                 },
                 artifacts: {
                     documentation: indoc!{ r#"An object containing the deployment artifacts. Schema:

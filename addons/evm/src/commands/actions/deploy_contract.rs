@@ -50,10 +50,10 @@ lazy_static! {
                 internal: false
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to broadcast the transaction.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true,
+                documentation: "The URL of the EVM API used to broadcast the transaction.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true,
                 internal: false
             },
             signer: {
@@ -148,10 +148,10 @@ lazy_static! {
                 internal: false
             },
             block_explorer_api_key: {
-              documentation: "The URL of the block explorer used to verify the contract.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true,
+                documentation: "The URL of the block explorer used to verify the contract.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true,
                 internal: false
             }
           ],

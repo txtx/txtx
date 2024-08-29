@@ -121,10 +121,10 @@ lazy_static! {
                 internal: false
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to fetch and fill transaction data and to broadcast it to the network.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true,
+                documentation: "The URL of the EVM API used to fetch and fill transaction data and to broadcast it to the network.",
+                typing: Type::string(),
+                optional: true,
+                interpolable: true,
                 internal: false
             }
           ],
