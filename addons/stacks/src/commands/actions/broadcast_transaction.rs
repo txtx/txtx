@@ -16,7 +16,7 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::StacksValue;
 
-use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
+use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 use crate::rpc::StacksRpc;
 
 lazy_static! {
@@ -158,7 +158,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
+        use txtx_addon_kit::{
+            constants::SIGNED_TRANSACTION_BYTES, types::frontend::ProgressBarStatusColor,
+        };
 
         use crate::{
             constants::{

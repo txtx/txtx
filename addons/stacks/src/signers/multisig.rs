@@ -1,17 +1,19 @@
 use clarity::address::AddressHashMode;
-use clarity::types::chainstate::{StacksAddress, StacksPublicKey};
+use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
 use clarity::{codec::StacksMessageCodec, util::secp256k1::MessageSignature};
 use std::collections::{HashMap, VecDeque};
+use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecification};
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
+use crate::codec::codec::expect_stacks_public_key;
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
         TransactionPublicKeyEncoding, TransactionSpendingCondition, Txid,
     },
-    constants::{MESSAGE_BYTES, SIGNED_MESSAGE_BYTES},
+    constants::MESSAGE_BYTES,
 };
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
@@ -31,8 +33,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
-    CHECKED_PUBLIC_KEY, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT, RPC_API_URL,
-    SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT,
+    RPC_API_URL,
 };
 use crate::rpc::StacksRpc;
 
@@ -542,7 +544,7 @@ impl SignerImplementation for StacksConnect {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
-        use txtx_addon_kit::futures::future;
+        use txtx_addon_kit::{constants::SIGNED_MESSAGE_BYTES, futures::future};
 
         use crate::typing::StacksValue;
 
@@ -898,13 +900,13 @@ fn set_signer_states(
         if this_signer_signed {
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                "SIGNATURE_SKIPPABLE",
+                SIGNATURE_SKIPPABLE,
                 Value::bool(false),
             );
 
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                "SIGNATURE_SIGNABLE",
+                IS_SIGNABLE,
                 Value::bool(false),
             );
         } else {
@@ -914,15 +916,14 @@ fn set_signer_states(
             let eligible_signers_after_this_signer = signer_count - next_signer_idx;
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                "SIGNATURE_SKIPPABLE",
-                Value::bool(eligible_signers_after_this_signer >= remaining_signatures_required),
+                SIGNATURE_SKIPPABLE,
             );
 
             // look ahead at signers. if any of them signed, then this one is not signable
             let downstream_signatures = downstream_signature_counts.get(signer_idx).unwrap_or(&0);
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                "SIGNATURE_SIGNABLE",
+                IS_SIGNABLE,
                 Value::bool(downstream_signatures.eq(&0)),
             );
         }

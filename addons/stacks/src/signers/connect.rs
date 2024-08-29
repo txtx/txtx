@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use clarity::address::AddressHashMode;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
+use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
@@ -25,8 +26,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
-    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, IS_SIGNABLE, NETWORK_ID,
+    PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
 };
 
 use super::get_addition_actions_for_address;
@@ -273,7 +274,7 @@ impl SignerImplementation for StacksConnect {
         };
 
         let signable = signer_state
-            .get_scoped_value(&construct_did_str, "SIGNATURE_SIGNABLE")
+            .get_scoped_value(&construct_did_str, IS_SIGNABLE)
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
@@ -283,7 +284,7 @@ impl SignerImplementation for StacksConnect {
         };
 
         let skippable = signer_state
-            .get_scoped_value(&construct_did_str, "SIGNATURE_SKIPPABLE")
+            .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);

@@ -1,5 +1,6 @@
 use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
 use crate::types::{RunbookExecutionContext, RunbookSources};
+use kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES};
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::diagnostics::DiagnosticSpan;
@@ -1047,19 +1048,19 @@ pub fn update_signer_instances_from_action_response(
                                 Some(bytes) => {
                                     signer_state.insert_scoped_value(
                                         &did,
-                                        "signed_transaction_bytes",
+                                        SIGNED_TRANSACTION_BYTES,
                                         Value::string(bytes.clone()),
                                     );
                                 }
                                 None => {
                                     let skippable = signer_state
-                                        .get_scoped_value(&did, "SIGNATURE_SKIPPABLE")
+                                        .get_scoped_value(&did, SIGNATURE_SKIPPABLE)
                                         .and_then(|v| v.as_bool())
                                         .unwrap_or(false);
                                     if skippable {
                                         signer_state.insert_scoped_value(
                                             &did,
-                                            "signed_transaction_bytes",
+                                            SIGNED_TRANSACTION_BYTES,
                                             Value::null(),
                                         );
                                     }
@@ -1074,7 +1075,7 @@ pub fn update_signer_instances_from_action_response(
                         {
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                "signed_message_bytes",
+                                SIGNED_MESSAGE_BYTES,
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                             signers.push_signer_state(signer_state.clone());

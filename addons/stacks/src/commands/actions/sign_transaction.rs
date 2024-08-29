@@ -10,6 +10,7 @@ use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::clarity::address::AddressHashMode;
 use std::collections::HashMap;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -31,8 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
-    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
-    UNSIGNED_TRANSACTION_BYTES,
+    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, TRANSACTION_PAYLOAD_BYTES, UNSIGNED_TRANSACTION_BYTES,
 };
 
 use crate::rpc::StacksRpc;
