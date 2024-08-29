@@ -1128,20 +1128,6 @@ pub fn perform_inputs_evaluation(
                     ActionItemResponseType::ProvideInput(update) => {
                         results.inputs.insert(&update.input_name, update.updated_value.clone());
                     }
-                    // todo (maybe remove):
-                    ActionItemResponseType::ProvideSignedTransaction(response) => {
-                        match &response.signed_transaction_bytes {
-                            Some(bytes) => results
-                                .insert("signed_transaction_bytes", Value::string(bytes.clone())),
-                            None => results.insert("signed_transaction_bytes", Value::null()),
-                        }
-                    }
-                    ActionItemResponseType::ProvideSignedMessage(response) => {
-                        results.insert(
-                            "signed_message_bytes",
-                            Value::string(response.signed_message_bytes.clone()),
-                        );
-                    }
                     _ => {}
                 }
             })
