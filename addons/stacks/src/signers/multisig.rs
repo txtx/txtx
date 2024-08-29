@@ -438,7 +438,7 @@ impl SignerImplementation for StacksConnect {
         let payload_bytes = payload.expect_buffer_bytes();
         let unsigned_tx =
             StacksTransaction::consensus_deserialize(&mut &payload_bytes[..]).unwrap();
-        let (signature_count, payloads) = generate_ordered_multisig_payloads(
+        let (signature_count, actions_count, payloads) = generate_ordered_multisig_payloads(
             &origin_uuid.to_string(),
             unsigned_tx.clone(),
             &multisig_signer_instances,
@@ -448,12 +448,9 @@ impl SignerImplementation for StacksConnect {
 
         let required_signature_count =
             signer_state.get_expected_uint(REQUIRED_SIGNATURE_COUNT).unwrap();
+        let expected_actions_count = multisig_signer_instances.len() as u64;
 
-        if signature_count >= required_signature_count {
-            println!(
-                "=> {:?} of {:?} signatures acquired",
-                signature_count, required_signature_count
-            );
+        if signature_count >= required_signature_count && actions_count == expected_actions_count {
             let tx = generate_signed_ordered_multisig_tx(
                 &origin_uuid.value().to_string(),
                 unsigned_tx.clone(),
@@ -463,7 +460,6 @@ impl SignerImplementation for StacksConnect {
             )
             .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
-            println!("verifying tx: {:?}", tx);
             tx.verify().map_err(|e| {
                 (
                     signers.clone(),
@@ -551,7 +547,6 @@ impl SignerImplementation for StacksConnect {
         if let Some(signed_transaction_bytes) = signer_state
             .get_scoped_value(&origin_uuid.value().to_string(), SIGNED_TRANSACTION_BYTES)
         {
-            println!("multisig sign found signed tx in wallet state");
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
@@ -559,7 +554,6 @@ impl SignerImplementation for StacksConnect {
 
             return Ok(Box::pin(future::ready(Ok((signers, signer_state, result)))));
         }
-        println!("multisig sign did not find signed tx in wallet state");
 
         let multisig_signer_instances =
             get_multisig_signer_instances(&signer_state, signers_instances);
@@ -659,7 +653,7 @@ fn get_multisig_signer_instances(
     signers
 }
 
-/// Takes an unsigned [StacksTransaction], a set of signers, and a [WalletsState] for each signer
+/// Takes an unsigned [StacksTransaction], a set of signers, and a [SignersState] for each signer
 /// that _could_ contain a signature, and generates a next payload for each signer.
 ///
 /// Each signer's payload will be identical to the original transaction, except the multisig auth's
@@ -693,21 +687,24 @@ fn generate_ordered_multisig_payloads(
     tx: StacksTransaction,
     multisig_signer_instances: &Vec<(ConstructDid, SignerInstance)>,
     signers: &SignersState,
-) -> Result<(u64, HashMap<ConstructDid, Value>), String> {
+) -> Result<(u64, u64, HashMap<ConstructDid, Value>), String> {
     let mut payloads = HashMap::new();
     let mut signature_count = 0;
-    println!("generate_ordered_multisig_payloads");
+    let mut actions_count = 0;
 
     // Loop over each signer to compute what their auth's `fields` should be
     for (this_signer_idx, (this_signer_uuid, _)) in multisig_signer_instances.iter().enumerate() {
-        let this_wallet_state = signers.get_signer_state(&this_signer_uuid).unwrap();
+        let this_signer_state = signers.get_signer_state(&this_signer_uuid).unwrap();
 
+        let stored_signature =
+            this_signer_state.get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES);
         // along the way, track how many signers have completed signatures
-        signature_count += this_wallet_state
-            .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
+        signature_count += stored_signature
             // if we have a signature for this signer, check if it's null. if null, this signer was skipped so don't add it to our count
             .map(|v| v.as_null().and_then(|_| Some(0)).unwrap_or(1))
             .unwrap_or(0);
+        // track all actions, regardless of if it was a skip or a signature
+        actions_count += if stored_signature.is_some() { 1 } else { 0 };
 
         // this signer's fields depend on the previous signers in the order, so we look back through the signers
         // note: the first signer can't look back and will thus have empty `fields`
@@ -715,42 +712,27 @@ fn generate_ordered_multisig_payloads(
         if this_signer_idx > 0 {
             let mut idx = this_signer_idx - 1;
 
-            while let Some((previous_signer_uuid, previous_wallet_instance)) =
+            while let Some((previous_signer_uuid, instance_of_previous_signer)) =
                 multisig_signer_instances.get(idx)
             {
-                let previous_wallet_state =
+                let state_of_previous_signer =
                     signers.get_signer_state(&previous_signer_uuid).unwrap();
 
-                let signature =
-                    previous_wallet_state.get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES);
-                println!("signature for signer {}: {:?}", idx, signature);
                 // check if the previous signer has provided a signature.
                 // if so, we need to push on the signature portion of the previous signer's auth `field`.
                 // if not, we should use the previous signer's public key
-                let field = match previous_wallet_state
-                    .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
-                {
-                    Some(&Value::Null) | None => {
-                        let public_key =
-                            previous_wallet_state.get_expected_value(CHECKED_PUBLIC_KEY).unwrap();
-                        let stacks_public_key =
-                            StacksPublicKey::from_hex(&public_key.expect_string()).unwrap();
-                        TransactionAuthField::PublicKey(stacks_public_key)
-                    }
-                    Some(signed_tx_bytes) => {
-                        let bytes = signed_tx_bytes.expect_buffer_bytes();
-                        let signed_tx =
-                            StacksTransaction::consensus_deserialize(&mut &bytes[..]).unwrap();
+                let field = extract_auth_field_from_signer_state(
+                    state_of_previous_signer,
+                    idx,
+                    origin_uuid,
+                )
+                .map_err(|e| {
+                    format!(
+                        "error with multisig signer {}: {}",
+                        instance_of_previous_signer.name, e
+                    )
+                })?;
 
-                        // we're expecting the auth value to contain a multisig spending condition
-                        // note: if this poses a problem, we may want to just default to providing
-                        // the public key
-                        extract_auth_field_from_auth(&signed_tx.auth, idx).ok_or(format!(
-                            "missing expected auth field for multisig signer {:?}",
-                            previous_wallet_instance.name
-                        ))?
-                    }
-                };
                 this_signer_fields.push_front(field);
                 if idx == 0 {
                     break;
@@ -773,16 +755,14 @@ fn generate_ordered_multisig_payloads(
             TransactionAuth::Standard(TransactionSpendingCondition::Multisig(spending_condition));
         let mut bytes = vec![];
         tx.consensus_serialize(&mut bytes).unwrap();
-        let retrieved = StacksTransaction::consensus_deserialize(&mut &bytes[..]).unwrap();
-        println!("retrieved: {:?}", retrieved);
         let payload = Value::buffer(bytes);
         payloads.insert(this_signer_uuid.clone(), payload);
     }
 
-    Ok((signature_count, payloads))
+    Ok((signature_count, actions_count, payloads))
 }
 
-/// Takes an unsigned [StacksTransaction], a set of signers , and a [WalletsState] for each signer
+/// Takes an unsigned [StacksTransaction], a set of signers , and a [SignersState] for each signer
 /// that _could_ contain a signature, and generates a signed [StacksTransaction] containing each
 /// signer's signature (if available) or public key.
 ///
@@ -798,37 +778,14 @@ fn generate_signed_ordered_multisig_tx(
     required_signature_count: u64,
 ) -> Result<StacksTransaction, String> {
     let mut fields = vec![];
-    let mut signatures_tracked = 0;
-    for (signer_idx, (signer_uuid, wallet_instance)) in multisig_signer_instances.iter().enumerate()
+    for (signer_idx, (signer_uuid, signer_instance)) in multisig_signer_instances.iter().enumerate()
     {
-        let signer_wallet_state = signers.get_signer_state(&signer_uuid).unwrap();
-        let field = match signer_wallet_state
-            .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
-        {
-            Some(&Value::Null) | None => {
-                let public_key =
-                    signer_wallet_state.get_expected_value(CHECKED_PUBLIC_KEY).unwrap();
-                let stacks_public_key =
-                    StacksPublicKey::from_hex(&public_key.expect_string()).unwrap();
-                TransactionAuthField::PublicKey(stacks_public_key)
-            }
-            Some(signed_tx_bytes) => {
-                signatures_tracked += 1;
-                let bytes = signed_tx_bytes.expect_buffer_bytes();
-                let signed_tx = StacksTransaction::consensus_deserialize(&mut &bytes[..]).unwrap();
-                // we're expecting the auth value to contain a multisig spending condition
-                // note: if this poses a problem, we may want to just default to providing
-                // the public key
-                extract_auth_field_from_auth(&signed_tx.auth, signer_idx).ok_or(format!(
-                    "missing expected auth field for multisig signer {:?}",
-                    wallet_instance.name
-                ))?
-            }
-        };
+        let signer_state = signers.get_signer_state(&signer_uuid).unwrap();
+
+        let field = extract_auth_field_from_signer_state(signer_state, signer_idx, origin_uuid)
+            .map_err(|e| format!("error with multisig signer {}: {}", signer_instance.name, e))?;
+
         fields.push(field);
-        // if signatures_tracked == required_signature_count {
-        //     break;
-        // }
     }
 
     let TransactionAuth::Standard(TransactionSpendingCondition::Multisig(mut spending_condition)) =
@@ -839,23 +796,47 @@ fn generate_signed_ordered_multisig_tx(
     spending_condition.fields = fields;
     spending_condition.signatures_required = required_signature_count.try_into().unwrap();
     tx.auth = TransactionAuth::Standard(TransactionSpendingCondition::Multisig(spending_condition));
-    println!("signed ordered multisig: {:?}", tx);
     Ok(tx)
 }
 
-fn extract_auth_field_from_auth(
-    auth: &TransactionAuth,
+fn extract_auth_field_from_signer_state(
+    signer_state: &ValueStore,
+    multisig_signer_idx: usize,
+    origin_uuid: &str,
+) -> Result<TransactionAuthField, String> {
+    let field = match signer_state.get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES) {
+        Some(&Value::Null) | None => {
+            let stacks_public_key = expect_stacks_public_key(signer_state, CHECKED_PUBLIC_KEY)?;
+            TransactionAuthField::PublicKey(stacks_public_key)
+        }
+        Some(signed_tx_bytes) => {
+            // we're expecting the auth value to contain a multisig spending condition
+            // note: if this poses a problem, we may want to just default to providing
+            // the public key
+            extract_auth_field_from_signed_tx_bytes(&signed_tx_bytes, multisig_signer_idx)?
+                .ok_or(format!("missing expected auth field"))?
+        }
+    };
+    Ok(field)
+}
+
+fn extract_auth_field_from_signed_tx_bytes(
+    signed_tx_bytes: &Value,
     index: usize,
-) -> Option<TransactionAuthField> {
-    match auth {
+) -> Result<Option<TransactionAuthField>, String> {
+    let bytes = signed_tx_bytes.expect_buffer_bytes();
+    let signed_tx = StacksTransaction::consensus_deserialize(&mut &bytes[..])
+        .map_err(|e| format!("signed stacks transaction is invalid: {e}"))?;
+    let field = match signed_tx.auth {
         TransactionAuth::Standard(TransactionSpendingCondition::Multisig(spending_condition)) => {
             let Some(auth_field) = spending_condition.fields.get(index) else {
-                return None;
+                return Ok(None);
             };
             Some(auth_field.clone())
         }
         _ => None,
-    }
+    };
+    Ok(field)
 }
 
 fn set_signer_states(
@@ -868,36 +849,23 @@ fn set_signer_states(
     let signer_count = multisig_signer_instances.len() as u64;
     let remaining_signatures_required = required_signatures - signature_count;
 
-    let downstream_signature_counts =
-        multisig_signer_instances.iter().fold(VecDeque::new(), |mut acc, (signer_uuid, _)| {
-            let len = acc.len();
-            let increment = signers
-                .get_signer_state(signer_uuid)
-                .unwrap()
-                .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
-                // if we have a signature for this signer, check if it's null. if null, this signer was skipped so don't add it to our count
-                .map(|v| v.as_null().and_then(|_| Some(0)).unwrap_or(1))
-                .unwrap_or(0);
-
-            if len == 0 {
-                acc.push_front(increment);
-            } else {
-                let prev = acc[len - 1];
-                acc.push_front(increment + prev);
-            }
-            acc
-        });
-
-    println!("downstream signature counts: {:?}", downstream_signature_counts);
-
-    for (signer_idx, (signer_uuid, _)) in multisig_signer_instances.iter().enumerate() {
+    let mut previous_signer_action_completed = true;
+    for (signer_idx, (signer_uuid, _inst)) in multisig_signer_instances.iter().enumerate() {
         let mut signing_command_state = signers.pop_signer_state(&signer_uuid).unwrap();
 
-        let this_signer_signed =
-            signing_command_state.get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES).is_some();
+        // if this signer has a signature stored and it is null, the user skipped this signature
+        let this_signer_skipped = signing_command_state
+            .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
+            .and_then(|v| Some(v.as_null().is_some()))
+            .unwrap_or(false);
+        // if this signer has a signature stored and it _isn't_ null, we have a real signature and weren't skipped
+        let this_signer_signed = signing_command_state
+            .get_scoped_value(origin_uuid, SIGNED_TRANSACTION_BYTES)
+            .and_then(|v| Some(v.as_null().is_none()))
+            .unwrap_or(false);
 
         // if the signer has already signed, they can't sign again and are not skippable
-        if this_signer_signed {
+        if this_signer_signed || this_signer_skipped {
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
                 SIGNATURE_SKIPPABLE,
@@ -917,16 +885,20 @@ fn set_signer_states(
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
                 SIGNATURE_SKIPPABLE,
+                Value::bool(
+                    previous_signer_action_completed
+                        && (eligible_signers_after_this_signer >= remaining_signatures_required),
+                ),
             );
 
-            // look ahead at signers. if any of them signed, then this one is not signable
-            let downstream_signatures = downstream_signature_counts.get(signer_idx).unwrap_or(&0);
+            // only signable if our previous signer has taken action (skip or sign), and we still need signatures
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
                 IS_SIGNABLE,
-                Value::bool(downstream_signatures.eq(&0)),
+                Value::bool(previous_signer_action_completed && remaining_signatures_required > 0),
             );
         }
+        previous_signer_action_completed = this_signer_signed || this_signer_skipped;
 
         signers.push_signer_state(signing_command_state);
     }
