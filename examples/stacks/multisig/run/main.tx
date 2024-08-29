@@ -33,6 +33,7 @@ action "send_name_preorder" "stacks::call_contract" {
   ]
   signer = signer.alice_and_bob
   confirmations = 1
+  post_condition_mode = "allow"
 }
 
 action "send_name_register" "stacks::call_contract" {

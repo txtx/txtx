@@ -12,7 +12,7 @@ signer "alice" "stacks::mnemonic" {
 
 input "namespace" {
   description = "TLD / Namespace"
-  value = "btq"
+  value = "btc"
 }
 
 input "salt" {

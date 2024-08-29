@@ -6,9 +6,14 @@ signer "bob" "stacks::connect" {
   expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
 }
 
-wallet "alice_and_bob" "stacks::multisig" {
-  signers = [wallet.alice, wallet.bob]
-  required_signatures = 1
+signer "charlie" "stacks::connect" {
+  //mnemonic = "hurry aunt blame peanut heavy update captain human rice crime juice adult scale device promote vast project quiz unit note reform update climb purchase"
+  expected_address = "ST2REHHS5J3CERCRBEPMGH7921Q6PYKAADT7JP2VB"
+}
+
+signer "alice_and_bob" "stacks::multisig" {
+  signers = [signer.alice, signer.bob, signer.charlie]
+  required_signatures = 2
 }
 
 input "namespace" {
