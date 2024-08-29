@@ -13,7 +13,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::constants::{
-    SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::sha2::Sha512;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -156,7 +156,7 @@ impl SignerImplementation for StacksMnemonic {
             Err(diag) => return Err((signers, signer_state, diag)),
         };
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
+        signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -207,6 +207,9 @@ impl SignerImplementation for StacksMnemonic {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
+                return Ok((signers, signer_state, Actions::none()));
+            }
 
             let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
                 Ok(value) => value,
