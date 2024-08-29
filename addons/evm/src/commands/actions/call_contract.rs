@@ -28,11 +28,10 @@ use txtx_addon_kit::AddonDefaults;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
 use crate::commands::actions::sign_transaction::SignEVMTransaction;
-use crate::constants::{
-    RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH, UNSIGNED_TRANSACTION_BYTES,
-};
+use crate::constants::{RPC_API_URL, TX_HASH, UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 
 use super::get_signer_did;
 

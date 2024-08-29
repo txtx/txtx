@@ -26,7 +26,7 @@ use crate::codec::get_typed_transaction_bytes;
 use crate::codec::{salt_str_to_hex, CommonTransactionFields};
 use crate::constants::{
     ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT, RPC_API_URL,
-    SIGNED_TRANSACTION_BYTES, TX_HASH,
+    TX_HASH,
 };
 use crate::rpc::EVMRpc;
 use crate::typing::{CONTRACT_METADATA, EVM_ADDRESS};
@@ -35,6 +35,7 @@ use super::check_confirmations::CheckEVMConfirmations;
 use super::get_signer_did;
 use super::sign_transaction::SignEVMTransaction;
 use super::verify_contract::VerifyEVMContract;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 
 lazy_static! {
     pub static ref EVM_DEPLOY_CONTRACT_CREATE2: PreCommandSpecification = define_command! {

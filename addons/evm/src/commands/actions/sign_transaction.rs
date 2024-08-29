@@ -23,7 +23,8 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
-use crate::constants::{SIGNED_TRANSACTION_BYTES, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::UNSIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 
 use super::get_signer_did;
 
