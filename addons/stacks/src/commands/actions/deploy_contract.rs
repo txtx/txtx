@@ -8,8 +8,11 @@ use clarity_repl::repl::{
     ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
 };
 use std::collections::{BTreeMap, HashMap};
+use std::future;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
+use txtx_addon_kit::types::commands::{
+    CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
+};
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ContractSourceTransform;
 use txtx_addon_kit::{
@@ -58,7 +61,8 @@ lazy_static! {
                     documentation: "Description of the deployment",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contract: {
                     documentation: "Contract informations.",
@@ -69,6 +73,7 @@ lazy_static! {
                             typing: Type::string(),
                             optional: true,
                             interpolable: true,
+                            internal: false,
                         },
                         ObjectProperty {
                             name: "contract_name".into(),
@@ -76,6 +81,7 @@ lazy_static! {
                             typing: Type::string(),
                             optional: true,
                             interpolable: true,
+                            internal: false,
                         },
                         ObjectProperty {
                             name: "clarity_version".into(),
@@ -83,63 +89,74 @@ lazy_static! {
                             typing: Type::integer(),
                             optional: true,
                             interpolable: true,
+                            internal: false,
                         }, ]),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 signer: {
                     documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 nonce: {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
                     typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                   },
                 post_condition_mode: {
                     documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                   },
                 transforms: {
                     documentation: "An array of transform operations to perform on the contract source, before being its signature.",
@@ -150,6 +167,7 @@ lazy_static! {
                             typing: Type::string(),
                             optional: false,
                             interpolable: true,
+                            internal: false,
                         },
                         ObjectProperty {
                             name: "from".into(),
@@ -157,6 +175,7 @@ lazy_static! {
                             typing: Type::string(),
                             optional: false,
                             interpolable: true,
+                            internal: false,
                         },
                         ObjectProperty {
                             name: "to".into(),
@@ -164,33 +183,39 @@ lazy_static! {
                             typing: Type::string(),
                             optional: false,
                             interpolable: true,
+                            internal: false,
                         }, ])),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contracts_ids_dependencies: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contracts_ids_lazy_dependencies: {
                     documentation: "Contracts that are depending on this contract after their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 fee_strategy: {
                     documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contract_instance_name: {
                     documentation: "The name to use for deploying the contract. Will automatically update contract dependencies.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 }
             ],
             outputs: [
@@ -237,8 +262,7 @@ impl CommandImplementation for StacksDeployContract {
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
-        // ) -> InputPostProcessingFutureResult {
-    ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
+    ) -> InputsPostProcessingFutureResult {
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
         let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
@@ -350,7 +374,7 @@ impl CommandImplementation for StacksDeployContract {
             obj.insert("contract_source".into(), Value::string(contract_source));
         }
 
-        Ok(evaluated_inputs)
+        Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
     }
 
     fn check_instantiability(

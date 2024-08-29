@@ -6,8 +6,11 @@ use clarity_repl::repl::{
     ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
 };
 use std::collections::{BTreeMap, HashMap};
+use std::future;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
+use txtx_addon_kit::types::commands::{
+    CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
+};
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -40,12 +43,12 @@ use super::{
 };
 
 lazy_static! {
-    pub static ref DEPLOY_STACKS_CONTRACT_REQUIREMENT: PreCommandSpecification = {
+    pub static ref DEPLOY_STACKS_REQUIREMENT: PreCommandSpecification = {
         let mut command = define_command! {
         StacksDeployContractRequirement => {
             name: "Stacks Contract Requirement Deployment",
-            matcher: "deploy_contract_requirement",
-            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
+            matcher: "deploy_requirement",
+            documentation: "The `deploy_requirement` action retrieves a deployed contract along with its dependencies, signs the transactions using a signer, and broadcasts the signed transactions to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -53,61 +56,71 @@ lazy_static! {
                     documentation: "Description of the deployment",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contract_id: {
                     documentation: "The contract id deployed on Mainnet that needs to mirrored.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 signer: {
                     documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 nonce: {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
                     typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contracts_ids_dependencies: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 },
                 contracts_ids_lazy_dependencies: {
                     documentation: "Contracts that are depending on this contract after their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 }
             ],
             outputs: [
@@ -150,8 +163,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
-        // ) -> InputPostProcessingFutureResult {
-    ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
+    ) -> InputsPostProcessingFutureResult {
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
         let contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
@@ -162,7 +174,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
             Some(Some(value)) => ContractName::try_from(value)
                 .map_err(|e| diagnosed_error!("invalid contract_name: {}", e.to_string()))?,
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_name'")),
-        };
+        }; 
         let clarity_version = match contract.get("clarity_version").map(|v| v.as_uint()) {
             Some(Some(Ok(1))) => ClarityVersion::Clarity1,
             Some(Some(Ok(2))) => ClarityVersion::Clarity2,
@@ -211,7 +223,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
             .inputs
             .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
 
-        Ok(evaluated_inputs)
+        Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
         // Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
     }
 
@@ -232,7 +244,16 @@ impl CommandImplementation for StacksDeployContractRequirement {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = match get_signer_did(args) {
+            Ok(value) => value,
+            Err(diag) => {
+                return Err((
+                    signers,
+                    ValueStore::tmp(),
+                    diag,
+                ))
+            }
+        };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id

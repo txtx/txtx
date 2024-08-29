@@ -30,13 +30,15 @@ lazy_static! {
                   documentation: "The URL of the block explorer used to verify the contract.",
                   typing: Type::string(),
                   optional: false,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
                 },
                 contract_address: {
                   documentation: "The contract address to verify.",
                   typing: Type::string(),
                   optional: false,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
                 },
                 artifacts: {
                     documentation: indoc!{ r#"An object containing the deployment artifacts. Schema:
@@ -55,7 +57,8 @@ lazy_static! {
                     "# },
                     typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
                     optional: false,
-                    interpolable: true
+                    interpolable: true,
+                    internal: false
                 }
             ],
             outputs: [

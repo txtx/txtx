@@ -40,13 +40,15 @@ lazy_static! {
                 documentation: "A description of the transaction",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             transaction_payload_bytes: {
                 documentation: "The unsigned transaction payload bytes.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                internal: false
             }
           ],
           outputs: [

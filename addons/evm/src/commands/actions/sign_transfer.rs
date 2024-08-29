@@ -41,79 +41,91 @@ lazy_static! {
                 documentation: "A description of the transaction",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             signer: {
                 documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             to: {
                 documentation: "The address of the recipient of the transfer.",
                 typing: Type::addon(EVM_ADDRESS),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             amount: {
                 documentation: "The amount, in WEI, to transfer.",
                 typing: Type::integer(),
                 optional: false,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             type: {
                 documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             chain_id: {
                 documentation: "The chain id.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             // network_id: {
             //     documentation: "The network id.",
             //     typing: Type::string(),
             //     optional: true,
-            //     interpolable: true
+            //     interpolable: true,
             // },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             rpc_api_url: {
               documentation: "The URL of the EVM API used to fetch and fill transaction data and to broadcast it to the network.",
               typing: Type::string(),
               optional: true,
-              interpolable: true
+              interpolable: true,
+                internal: false
             }
           ],
           outputs: [

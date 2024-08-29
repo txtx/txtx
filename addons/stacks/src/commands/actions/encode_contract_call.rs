@@ -28,25 +28,29 @@ lazy_static! {
                   documentation: "The address and identifier of the contract to invoke.",
                   typing: Type::addon(STACKS_CV_PRINCIPAL),
                   optional: false,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
               },
               function_name: {
                   documentation: "The contract method to invoke.",
                   typing: Type::string(),
                   optional: false,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
               },
               function_args: {
                   documentation: "The function arguments for the contract call.",
                   typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                   optional: true,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
               },
               network_id: {
                   documentation: "The network id used to validate the transaction version.",
                   typing: Type::string(),
                   optional: true,
-                  interpolable: true
+                  interpolable: true,
+                  internal: false
               }
           ],
           outputs: [

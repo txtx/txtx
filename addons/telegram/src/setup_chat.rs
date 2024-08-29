@@ -22,13 +22,15 @@ lazy_static! {
                 documentation: "A description of the call.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                interpolable: true,
+                internal: false
             },
             telegram_bot_api_token: {
               documentation: "Coming soon",
               typing: Type::string(),
               optional: false,
-              interpolable: true
+              interpolable: true,
+                internal: false
             }
           ],
           outputs: [

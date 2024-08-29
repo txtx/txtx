@@ -46,7 +46,7 @@ macro_rules! define_command {
         implements_signing_capability: $implements_signing_capability:expr,
         implements_background_task_capability: $implements_background_task_capability:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr, internal: $internal:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
@@ -71,6 +71,7 @@ macro_rules! define_command {
                 typing: $input_ts,
                 optional: $optional,
                 interpolable: $interpolable,
+                internal: $internal,
                 check_required: false,
                 check_performed: false,
                 sensitive: false
@@ -139,6 +140,7 @@ macro_rules! define_object_type {
             typing: $input_ts,
             optional: $optional,
             interpolable: $interpolable,
+            internal: false,
         }),*])
     };
 }
@@ -184,6 +186,7 @@ macro_rules! define_signer {
                 sensitive: $sensitive,
                 check_required: false,
                 check_performed: false,
+                internal: false,
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {

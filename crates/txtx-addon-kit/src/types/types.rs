@@ -679,6 +679,7 @@ pub struct ObjectProperty {
     pub typing: Type,
     pub optional: bool,
     pub interpolable: bool,
+    pub internal: bool,
 }
 
 #[derive(Clone, Debug)]
