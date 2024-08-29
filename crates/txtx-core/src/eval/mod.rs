@@ -1,6 +1,8 @@
 use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
 use crate::types::{RunbookExecutionContext, RunbookSources};
-use kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES};
+use kit::constants::{
+    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+};
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::diagnostics::DiagnosticSpan;
@@ -1052,19 +1054,29 @@ pub fn update_signer_instances_from_action_response(
                                         Value::string(bytes.clone()),
                                     );
                                 }
-                                None => {
-                                    let skippable = signer_state
-                                        .get_scoped_value(&did, SIGNATURE_SKIPPABLE)
-                                        .and_then(|v| v.as_bool())
-                                        .unwrap_or(false);
-                                    if skippable {
+                                None => match response.signature_approved {
+                                    Some(true) => {
                                         signer_state.insert_scoped_value(
                                             &did,
-                                            SIGNED_TRANSACTION_BYTES,
-                                            Value::null(),
+                                            SIGNATURE_APPROVED,
+                                            Value::bool(true),
                                         );
                                     }
-                                }
+                                    Some(false) => {}
+                                    None => {
+                                        let skippable = signer_state
+                                            .get_scoped_value(&did, SIGNATURE_SKIPPABLE)
+                                            .and_then(|v| v.as_bool())
+                                            .unwrap_or(false);
+                                        if skippable {
+                                            signer_state.insert_scoped_value(
+                                                &did,
+                                                SIGNED_TRANSACTION_BYTES,
+                                                Value::null(),
+                                            );
+                                        }
+                                    }
+                                },
                             }
                             signers.push_signer_state(signer_state.clone());
                         }

@@ -414,6 +414,7 @@ fn test_signer_runbook_no_env() {
                             .unwrap()
                             .signer_uuid
                             .clone(),
+                        signature_approved: None,
                     },
                 ),
             },
@@ -628,6 +629,7 @@ fn test_multisig_runbook_no_env() {
                         .unwrap()
                         .signer_uuid
                         .clone(),
+                    signature_approved: None,
                 },
             ),
         },
@@ -651,6 +653,7 @@ fn test_multisig_runbook_no_env() {
                         .unwrap()
                         .signer_uuid
                         .clone(),
+                    signature_approved: None,
                 },
             ),
         },

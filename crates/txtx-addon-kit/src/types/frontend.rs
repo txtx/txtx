@@ -1501,6 +1501,11 @@ impl ActionItemRequestType {
                     if new.network_id != existing.network_id {
                         unreachable!("cannot change provide signed tx request network_id");
                     }
+                    if new.only_approval_needed != existing.only_approval_needed {
+                        unreachable!(
+                            "cannot change provide signed tx request only_approval_needed"
+                        );
+                    }
                     Some(new_type.clone())
                 } else {
                     None
@@ -1615,6 +1620,7 @@ pub struct ProvideSignedTransactionRequest {
     pub signer_uuid: ConstructDid,
     pub expected_signer_address: Option<String>,
     pub skippable: bool,
+    pub only_approval_needed: bool,
     pub payload: Value,
     pub namespace: String,
     pub network_id: String,
@@ -1630,11 +1636,17 @@ impl ProvideSignedTransactionRequest {
             payload: payload.clone(),
             namespace: namespace.to_string(),
             network_id: network_id.to_string(),
+            only_approval_needed: false,
         }
     }
 
     pub fn skippable(&mut self, is_skippable: bool) -> &mut Self {
         self.skippable = is_skippable;
+        self
+    }
+
+    pub fn only_approval_needed(&mut self) -> &mut Self {
+        self.only_approval_needed = true;
         self
     }
 
@@ -1724,6 +1736,7 @@ pub struct ProvideSignedMessageResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: Option<String>,
+    pub signature_approved: Option<bool>,
     pub signer_uuid: ConstructDid,
 }
 
