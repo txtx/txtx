@@ -138,6 +138,8 @@ impl CommandImplementation for SignStacksTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+
         use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
         let signer_did = get_signer_did(args).unwrap();
@@ -153,8 +155,12 @@ impl CommandImplementation for SignStacksTransaction {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+            if signer_state
+                .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+                .is_some()
+                || signer_state
+                    .get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED)
+                    .is_some()
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
