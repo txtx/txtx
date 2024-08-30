@@ -995,19 +995,16 @@ pub fn eval_expression(
 
             let func = match &binary_op.operator.value() {
                 BinaryOperator::And => "and_bool",
-                BinaryOperator::Div => match rhs {
-                    Value::Integer(_) => "div_int",
-                    _ => "div_uint",
-                },
+                BinaryOperator::Div => "div",
                 BinaryOperator::Eq => "eq",
                 BinaryOperator::Greater => "gt",
                 BinaryOperator::GreaterEq => "gte",
                 BinaryOperator::Less => "lt",
                 BinaryOperator::LessEq => "lte",
-                BinaryOperator::Minus => "minus_uint",
-                BinaryOperator::Mod => "modulo_uint",
-                BinaryOperator::Mul => "multiply_uint",
-                BinaryOperator::Plus => "add_uint",
+                BinaryOperator::Minus => "minus",
+                BinaryOperator::Mod => "modulo",
+                BinaryOperator::Mul => "multiply",
+                BinaryOperator::Plus => "add",
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
