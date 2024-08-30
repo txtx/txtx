@@ -47,6 +47,7 @@ jobs:
   tests:
     name: Run Test Suite
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -69,4 +70,4 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
 
       - name: Run Tests
-      run: cargo test --all
+        run: cargo test --all
