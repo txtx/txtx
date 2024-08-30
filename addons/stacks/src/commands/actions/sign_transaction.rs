@@ -213,7 +213,9 @@ impl CommandImplementation for SignStacksTransaction {
 
             if supervision_context.review_input_values {
                 actions.push_group(
-                    &description.clone().unwrap_or("".into()),
+                    &description
+                        .clone()
+                        .unwrap_or("Review and sign the transactions from the list below".into()),
                     vec![
                         ActionItemRequest::new(
                             &Some(construct_did.clone()),

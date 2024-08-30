@@ -430,8 +430,11 @@ impl SignerImplementation for StacksConnect {
                 }),
                 ACTION_OPEN_MODAL,
             );
-            let open_modal_action = vec![action];
-            consolidated_actions.push_sub_group(None, open_modal_action);
+            consolidated_actions.append(&mut Actions::append_item(
+                action,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transaction Signing"),
+            ));
             consolidated_actions.push_modal(modal);
         }
 
