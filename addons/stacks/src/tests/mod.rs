@@ -286,15 +286,19 @@ fn test_multisig_runbook_no_env() {
     );
 
     let action_panel_data =
-        harness.expect_action_panel(None, "TRANSACTION SIGNING", vec![vec![2, 1, 1]]);
+        harness.expect_action_panel(None, "TRANSACTION SIGNING", vec![vec![3, 1]]);
 
+    assert_eq!(
+        action_panel_data.groups[0].title,
+        "Review and sign the transactions from the list below".to_string()
+    );
     let nonce_action = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let fee_action = &action_panel_data.groups[0].sub_groups[0].action_items[1];
-    let compute_multisig = &action_panel_data.groups[0].sub_groups[1].action_items[0];
-    let validate_signature = &action_panel_data.groups[0].sub_groups[2].action_items[0];
+    let compute_multisig_signature = &action_panel_data.groups[0].sub_groups[0].action_items[2];
+    let validate_signature = &action_panel_data.groups[0].sub_groups[1].action_items[0];
 
     // alice signature
-    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c30000000102014511a3f97d09ec94db5f7ebee6f8fe62b5400ce1ba97c39e68acda4493e6c57572e752a2bcfacf3d2c6dc6cd18b5ede7c9913eeb6729e1a00b312f950b9e8f4a0002030100000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000001020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc0002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: sign_tx_alice.id.clone(),
@@ -318,7 +322,7 @@ fn test_multisig_runbook_no_env() {
     );
 
     // bob signature
-    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c30000000202014511a3f97d09ec94db5f7ebee6f8fe62b5400ce1ba97c39e68acda4493e6c57572e752a2bcfacf3d2c6dc6cd18b5ede7c9913eeb6729e1a00b312f950b9e8f4a0201f9f471b80dc111b4e33632335002a5e26ac4369899da7545273c883d26bdd28356e29821259e4ced4d65f0d833a12860b4a0844858b14df6f39ece49c05f75f30002030100000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
+    let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000002020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc02003b4784204e1a01ea1e359862bd42d3654f3b4d72a938a1fe511f7acc91fb1e89740c469a7e39d344c5ffe7f52099517d6dedd701b152c7d804cffe49eafe10390002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: sign_tx_bob.id.clone(),
@@ -339,7 +343,7 @@ fn test_multisig_runbook_no_env() {
             (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
             (&sign_tx_bob.id, Some(ActionItemStatus::Success(None))),
             (
-                &compute_multisig.id,
+                &compute_multisig_signature.id,
                 Some(ActionItemStatus::Success(Some("All signers participated".to_string()))),
             ),
         ],
