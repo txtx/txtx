@@ -36,6 +36,7 @@ use std::io::{Read, Write};
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::str::FromStr;
+use txtx_addon_kit::types::ValueStore;
 
 pub const MAX_BLOCK_LEN: u32 = 2 * 1024 * 1024;
 pub const MAX_TRANSACTION_LEN: u32 = MAX_BLOCK_LEN;
@@ -1235,6 +1236,15 @@ impl StacksString {
         }
         Some(StacksString(s.as_bytes().to_vec()))
     }
+}
+
+pub fn expect_stacks_public_key(
+    store: &ValueStore,
+    key: &str,
+) -> Result<Secp256k1PublicKey, String> {
+    let public_key = store.get_expected_string(key).map_err(|e| e.to_string())?;
+    StacksPublicKey::from_hex(&public_key)
+        .map_err(|e| format!("invalid Stacks public key ({}) provided: {}", public_key, e))
 }
 
 #[test]

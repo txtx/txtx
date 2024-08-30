@@ -407,7 +407,7 @@ fn test_signer_runbook_no_env() {
                 action_item_id: provide_signature_action.id.clone(),
                 payload: ActionItemResponseType::ProvideSignedTransaction(
                     ProvideSignedTransactionResponse {
-                        signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                        signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                         signer_uuid: provide_signature_action
                             .action_type
                             .as_provide_signed_tx()
@@ -496,7 +496,7 @@ fn test_multisig_runbook_no_env() {
 
     let get_public_key_alice = &modal_panel_data.groups[0].sub_groups[0].action_items[0];
     let get_public_key_bob = &modal_panel_data.groups[1].sub_groups[0].action_items[0];
-    println!("modal_panel_data: {:?}", modal_panel_data);
+
     // validate some data about actions to provide pub key
     {
         assert_eq!(get_public_key_alice.action_status, ActionItemStatus::Todo);
@@ -513,13 +513,13 @@ fn test_multisig_runbook_no_env() {
         };
         assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET BOB");
     }
-    println!("action panel data: {:?}", action_panel_data);
+
     let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
     let verify_address_bob = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let compute_multisig = &action_panel_data.groups[1].sub_groups[1].action_items[0];
     let verify_balance = &action_panel_data.groups[1].sub_groups[1].action_items[1];
     assert_eq!(compute_multisig.action_status, ActionItemStatus::Todo);
-    assert_eq!(compute_multisig.title.to_uppercase(), "COMPUTE MULTISIG ADDRESS");
+    assert_eq!(compute_multisig.title.to_uppercase(), "COMPUTED MULTISIG ADDRESS");
 
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
@@ -621,7 +621,7 @@ fn test_multisig_runbook_no_env() {
             action_item_id: sign_tx_alice.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
-                    signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                    signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                     signer_uuid: sign_tx_alice
                         .action_type
                         .as_provide_signed_tx()
@@ -644,7 +644,7 @@ fn test_multisig_runbook_no_env() {
             action_item_id: sign_tx_bob.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
                 ProvideSignedTransactionResponse {
-                    signed_transaction_bytes: signed_transaction_bytes.to_string(),
+                    signed_transaction_bytes: Some(signed_transaction_bytes.to_string()),
                     signer_uuid: sign_tx_bob
                         .action_type
                         .as_provide_signed_tx()

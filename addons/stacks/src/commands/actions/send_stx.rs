@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::uuid::Uuid;
@@ -18,10 +19,7 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
-use crate::{
-    constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
-    typing::STACKS_CV_PRINCIPAL,
-};
+use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::STACKS_CV_PRINCIPAL};
 
 use super::encode_stx_transfer;
 use super::get_signer_did;

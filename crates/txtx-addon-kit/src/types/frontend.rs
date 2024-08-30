@@ -4,7 +4,7 @@ use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
-    ConstructDid,
+    ConstructDid, Did,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -1486,7 +1486,7 @@ impl ActionItemRequestType {
                 let Some(existing) = existing_item.as_provide_signed_tx() else {
                     unreachable!("cannot change action item request type")
                 };
-                if new.payload != existing.payload {
+                if new.payload != existing.payload || new.skippable != existing.skippable {
                     if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
                         unreachable!(
                             "cannot change provide signed tx request check_expectation_action_uuid"
@@ -1613,9 +1613,44 @@ pub struct ProvidePublicKeyRequest {
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
+    pub expected_signer_address: Option<String>,
+    pub skippable: bool,
     pub payload: Value,
     pub namespace: String,
     pub network_id: String,
+}
+
+impl ProvideSignedTransactionRequest {
+    pub fn new(signer_uuid: &Did, payload: &Value, namespace: &str, network_id: &str) -> Self {
+        ProvideSignedTransactionRequest {
+            signer_uuid: ConstructDid(signer_uuid.clone()),
+            check_expectation_action_uuid: None,
+            expected_signer_address: None,
+            skippable: false,
+            payload: payload.clone(),
+            namespace: namespace.to_string(),
+            network_id: network_id.to_string(),
+        }
+    }
+
+    pub fn skippable(&mut self, is_skippable: bool) -> &mut Self {
+        self.skippable = is_skippable;
+        self
+    }
+
+    pub fn check_expectation_action_uuid(&mut self, uuid: &ConstructDid) -> &mut Self {
+        self.check_expectation_action_uuid = Some(uuid.clone());
+        self
+    }
+
+    pub fn expected_signer_address(&mut self, address: Option<&str>) -> &mut Self {
+        self.expected_signer_address = address.and_then(|a| Some(a.to_string()));
+        self
+    }
+
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::ProvideSignedTransaction(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1688,7 +1723,7 @@ pub struct ProvideSignedMessageResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionResponse {
-    pub signed_transaction_bytes: String,
+    pub signed_transaction_bytes: Option<String>,
     pub signer_uuid: ConstructDid,
 }
 

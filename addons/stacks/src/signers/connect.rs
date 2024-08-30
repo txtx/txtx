@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use crate::codec::codec::StacksTransaction;
 use clarity::address::AddressHashMode;
-use clarity::codec::StacksMessageCodec;
 use clarity::types::chainstate::StacksAddress;
 use clarity::util::secp256k1::Secp256k1PublicKey;
+use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
-    BlockEvent, ProvideSignedTransactionRequest,
+    ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
+    ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
@@ -27,8 +26,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, NETWORK_ID, PUBLIC_KEYS,
-    REQUESTED_STARTUP_DATA, RPC_API_URL, SIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, IS_SIGNABLE, NETWORK_ID,
+    PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
 };
 
 use super::get_addition_actions_for_address;
@@ -173,6 +172,7 @@ impl SignerImplementation for StacksConnect {
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_bytes)),
                 );
+                signer_state.insert(CHECKED_ADDRESS, Value::string(stx_address));
             }
             let update =
                 ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
@@ -262,8 +262,8 @@ impl SignerImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        if let Some(_) =
-            signer_state.get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+        let construct_did_str = &construct_did.to_string();
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
             return Ok((signers, signer_state, Actions::none()));
         }
@@ -272,26 +272,38 @@ impl SignerImplementation for StacksConnect {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let (status, payload) = if let Some(()) = payload.as_null() {
-            (ActionItemStatus::Blocked, Value::string("N/A".to_string()))
-        } else {
-            let _ =
-                StacksTransaction::consensus_deserialize(&mut &payload.expect_buffer_bytes()[..]);
-            (ActionItemStatus::Todo, payload.clone())
+
+        let signable = signer_state
+            .get_scoped_value(&construct_did_str, IS_SIGNABLE)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let status = match signable {
+            true => ActionItemStatus::Todo,
+            false => ActionItemStatus::Blocked,
         };
+
+        let skippable = signer_state
+            .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
 
         let request = ActionItemRequest::new(
             &Some(construct_did.clone()),
             title,
             description.clone(),
             status,
-            ActionItemRequestType::ProvideSignedTransaction(ProvideSignedTransactionRequest {
-                check_expectation_action_uuid: Some(construct_did.clone()),
-                signer_uuid: ConstructDid(signer_state.uuid.clone()),
-                payload: payload.clone(),
-                namespace: "stacks".to_string(),
-                network_id,
-            }),
+            ProvideSignedTransactionRequest::new(
+                &signer_state.uuid,
+                &payload,
+                "stacks",
+                &network_id,
+            )
+            .skippable(skippable)
+            .expected_signer_address(expected_signer_address)
+            .check_expectation_action_uuid(construct_did)
+            .to_action_type(),
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );
         Ok((
@@ -318,11 +330,11 @@ impl SignerImplementation for StacksConnect {
     ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
         let key = construct_did.to_string();
-        let signed_transaction = signer_state
-            .get_expected_value(&key)
-            // .map_err(|e| (signers, e))?;
-            .unwrap();
-        result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        if let Some(signed_transaction) =
+            signer_state.get_scoped_value(&key, SIGNED_TRANSACTION_BYTES)
+        {
+            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        }
 
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
