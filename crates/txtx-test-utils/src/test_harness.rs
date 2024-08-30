@@ -31,6 +31,13 @@ impl TestHarness {
         let _ = self.action_item_events_tx.send(response.clone());
     }
 
+    pub fn receive_event(&self) -> BlockEvent {
+        let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
+            panic!("unable to receive input block");
+        };
+        event
+    }
+
     pub fn send_and_expect_action_item_update(
         &self,
         response: ActionItemResponse,
@@ -103,8 +110,9 @@ impl TestHarness {
         assert_eq!(
             action_panel_data.title.to_uppercase(),
             expected_title.to_uppercase(),
-            "unexpected panel title after sending action item response: {:?}",
-            response
+            "unexpected panel title after sending action item response: {:?}\n=>full panel: {:?}",
+            response,
+            action_panel_data
         );
         let ctx = format!(
             "=> response triggering panel: {:?}\n=> actual panel group: {:?}",
