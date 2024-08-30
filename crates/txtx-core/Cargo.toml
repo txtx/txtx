@@ -27,8 +27,7 @@ similar = "2.5.0"
 better-debug = "1.0.1"
 
 [dev-dependencies]
-txtx-addon-network-stacks = { path = "../../addons/stacks"}
-hiro-system-kit = "0.3.4"
+txtx-test-utils = {path = "../../crates/txtx-test-utils"}
 
 [features]
 default = ["txtx-addon-kit/default"]
