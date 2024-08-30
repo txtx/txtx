@@ -1,6 +1,11 @@
 name: Setup Environment Variables
 description: Set up the txtx .env file.
 
+inputs:
+  infura_api_key:
+    description: 'The Infura API key'
+    required: true
+    
 runs:
   using: 'composite'
   steps:
