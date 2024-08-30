@@ -17,6 +17,9 @@ mod stacks_helpers;
 pub mod typing;
 mod utils;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashMap;
 
 use clarity::vm::types::QualifiedContractIdentifier;

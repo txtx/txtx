@@ -430,8 +430,11 @@ impl SignerImplementation for StacksConnect {
                 }),
                 ACTION_OPEN_MODAL,
             );
-            let open_modal_action = vec![action];
-            consolidated_actions.push_sub_group(None, open_modal_action);
+            consolidated_actions.append(&mut Actions::append_item(
+                action,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transaction Signing"),
+            ));
             consolidated_actions.push_modal(modal);
         }
 
@@ -659,7 +662,7 @@ fn get_multisig_signer_instances(
 /// Each signer's payload will be identical to the original transaction, except the multisig auth's
 /// `fields` will be updated.
 /// Here is an example set of fields for three signers across multiple states:
-/// ```no_run
+/// ```ignore
 /// // Before anyone has signed, the first signer should have no fields,
 /// // and subsequent signers should apply their signature on top of signer n-1's
 /// // pub key
@@ -767,7 +770,7 @@ fn generate_ordered_multisig_payloads(
 /// signer's signature (if available) or public key.
 ///
 /// Building off the example from [generate_ordered_multisig_payloads], the fields for the signed tx would be:
-/// ```no_run
+/// ```ignore
 /// [alice_pubkey, bob_signature, charlie_signature]
 /// ```
 fn generate_signed_ordered_multisig_tx(
