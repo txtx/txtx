@@ -9,6 +9,7 @@ pub struct FunctionInput {
     pub name: String,
     pub documentation: String,
     pub typing: Vec<Type>,
+    pub optional: bool,
 }
 
 #[derive(Clone, Debug)]
