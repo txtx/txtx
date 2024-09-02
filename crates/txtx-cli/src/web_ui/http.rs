@@ -8,7 +8,6 @@ use actix_web::Responder;
 use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler, subscriptions};
 use juniper_graphql_ws::ConnectionConfig;
-use mime_guess::from_path;
 use std::error::Error as StdError;
 use std::time::Duration;
 use txtx_core::kit::types::frontend::{ClientType, DiscoveryResponse};
@@ -78,6 +77,8 @@ async fn graphiql() -> Result<HttpResponse, Error> {
 
 #[cfg(feature = "web_ui")]
 fn handle_embedded_file(path: &str) -> HttpResponse {
+    use mime_guess::from_path;
+
     match super::Asset::get(path) {
         Some(content) => HttpResponse::Ok()
             .content_type(from_path(path).first_or_octet_stream().as_ref())

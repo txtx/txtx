@@ -327,13 +327,6 @@ impl RunbookExecutionContext {
         workspace_context: &RunbookWorkspaceContext,
     ) {
         for (construct_did, command_instance) in self.commands_instances.iter() {
-            // Unused ???
-            // let addon_context_key = (
-            //     command_instance.package_id.did(),
-            //     command_instance.namespace.clone(),
-            // );
-            // let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
-
             let inputs_simulation_results =
                 self.commands_inputs_evaluation_results.get(&construct_did);
 
@@ -355,10 +348,7 @@ impl RunbookExecutionContext {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, diags) => {
-                        println!("{:?}", diags);
-                        results
-                    }
+                    CommandInputEvaluationStatus::Aborted(results, diags) => results,
                 },
                 Err(_d) => {
                     continue;

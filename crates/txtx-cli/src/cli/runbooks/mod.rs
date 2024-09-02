@@ -121,7 +121,7 @@ pub fn display_snapshot_diffing(
     let synthesized_changes = consolidated_changes.get_synthesized_changes();
 
     if synthesized_changes.is_empty() && consolidated_changes.new_plans_to_add.is_empty() {
-        println!("{} Latest snapshot in sync with latest runbook updates", green!("✓"));
+        println!("{} Latest snapshot in sync with latest runbook updates\n", green!("✓"));
         return None;
     }
 
@@ -915,7 +915,7 @@ pub async fn handle_run_command(
                 let _ = std::fs::remove_file(&lock_file.to_string());
             }
 
-            println!("{} Saving execution state to {}", green!("✓"), state_file_location);
+            println!("\n{} Saving execution state to {}", green!("✓"), state_file_location);
             let diff = RunbookSnapshotContext::new();
             let snapshot = diff
                 .snapshot_runbook_execution(

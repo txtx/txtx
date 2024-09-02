@@ -106,12 +106,12 @@ lazy_static! {
                 typing: Type::string()
             },
             tx_id: {
-              documentation: "The transaction id.",
-              typing: Type::string()
+                documentation: "The transaction id.",
+                typing: Type::string()
             },
             result: {
-              documentation: "The transaction result.",
-              typing: Type::buffer()
+                documentation: "The transaction result.",
+                typing: Type::buffer()
             }
           ],
         example: txtx_addon_kit::indoc! {r#"

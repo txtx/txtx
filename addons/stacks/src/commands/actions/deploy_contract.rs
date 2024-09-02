@@ -259,7 +259,7 @@ lazy_static! {
 pub struct StacksDeployContract;
 impl CommandImplementation for StacksDeployContract {
     fn post_process_evaluated_inputs(
-        ctx: &CommandSpecification,
+        _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
@@ -396,13 +396,7 @@ impl CommandImplementation for StacksDeployContract {
     ) -> SignerActionsFutureResult {
         let signer_did = match get_signer_did(args) {
             Ok(value) => value,
-            Err(diag) => {
-                return Err((
-                    signers,
-                    ValueStore::tmp(),
-                    diag,
-                ))
-            }
+            Err(diag) => return Err((signers, ValueStore::tmp(), diag)),
         };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 

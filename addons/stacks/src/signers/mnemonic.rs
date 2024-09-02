@@ -130,7 +130,10 @@ impl SignerImplementation for StacksMnemonic {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
+        let mnemonic = match args.get_expected_value("mnemonic") {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let derivation_path = match args.get_value("derivation_path") {
             Some(v) => v.clone(),
             None => Value::string(DEFAULT_DERIVATION_PATH.into()),
@@ -139,7 +142,10 @@ impl SignerImplementation for StacksMnemonic {
             Some(v) => v.clone(),
             None => Value::bool(false),
         };
-        let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let version = match network_id.as_str() {
             "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
             _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
