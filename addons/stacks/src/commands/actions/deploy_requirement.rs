@@ -1,17 +1,17 @@
 use clarity::types::StacksEpochId;
-use clarity::vm::types::{QualifiedContractIdentifier, StandardPrincipalData};
-use clarity::vm::{ClarityVersion, ContractName};
+use clarity::vm::types::QualifiedContractIdentifier;
+use clarity::vm::ClarityVersion;
 use clarity_repl::analysis::ast_dependency_detector::ASTDependencyDetector;
 use clarity_repl::repl::{
     ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
 };
 use std::collections::{BTreeMap, HashMap};
-use std::future;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::indexmap::indexmap;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
+use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -30,16 +30,9 @@ use txtx_addon_kit::{
     AddonDefaults,
 };
 
-use crate::{
-    constants::{TRANSACTION_PAYLOAD_BYTES, TRANSACTION_POST_CONDITIONS_BYTES},
-    typing::STACKS_POST_CONDITIONS,
-};
-
-use super::encode_contract_deployment;
-use super::{
-    broadcast_transaction::BroadcastStacksTransaction, get_signer_did,
-    sign_transaction::SignStacksTransaction,
-};
+use super::deploy_contract::StacksDeployContract;
+use crate::rpc::StacksRpc;
+use crate::typing::STACKS_POST_CONDITIONS;
 
 lazy_static! {
     pub static ref DEPLOY_STACKS_REQUIREMENT: PreCommandSpecification = {
@@ -67,6 +60,20 @@ lazy_static! {
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true,
+                    internal: false
+                },
+                rpc_api_url_source: {
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true,
+                    internal: false
+                },
+                rpc_api_url: {
+                    documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
                     interpolable: true,
@@ -107,6 +114,37 @@ lazy_static! {
                     interpolable: true,
                     internal: false
                 },
+                transforms: {
+                    documentation: "An array of transform operations to perform on the contract source, before being its signature.",
+                    typing: Type::array(Type::object(vec![
+                        ObjectProperty {
+                            name: "type".into(),
+                            documentation: "Type of transform (supported: 'contract_source_find_and_replace').".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            interpolable: true,
+                            internal: false,
+                        },
+                        ObjectProperty {
+                            name: "from".into(),
+                            documentation: "The pattern to locate.".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            interpolable: true,
+                            internal: false,
+                        },
+                        ObjectProperty {
+                            name: "to".into(),
+                            documentation: "The update.".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            interpolable: true,
+                            internal: false,
+                        }, ])),
+                    optional: true,
+                    interpolable: true,
+                    internal: false
+                },
                 contracts_ids_dependencies: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
@@ -137,7 +175,7 @@ lazy_static! {
                 }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                        action "counter_deployment" "stacks::deploy_contract" {
+                        action "counter_deployment" "stacks::deploy_requirement" {
                             description = "Deploy counter contract."
                             source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
                             contract_name = "verify-and-update-price-feeds"
@@ -163,67 +201,127 @@ impl CommandImplementation for StacksDeployContractRequirement {
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
-        let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
-        let contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
-            Some(Some(value)) => value.to_string(),
-            _ => return Err(diagnosed_error!("unable to retrieve 'contract_source'")),
-        };
-        let contract_name: ContractName = match contract.get("contract_name").map(|v| v.as_string())
-        {
-            Some(Some(value)) => ContractName::try_from(value)
-                .map_err(|e| diagnosed_error!("invalid contract_name: {}", e.to_string()))?,
-            _ => return Err(diagnosed_error!("unable to retrieve 'contract_name'")),
-        }; 
-        let clarity_version = match contract.get("clarity_version").map(|v| v.as_uint()) {
-            Some(Some(Ok(1))) => ClarityVersion::Clarity1,
-            Some(Some(Ok(2))) => ClarityVersion::Clarity2,
-            _ => ClarityVersion::latest(),
+        let contract_id = evaluated_inputs.inputs.get_expected_string("contract_id")?;
+
+        let rpc_api_url_source =
+            evaluated_inputs.inputs.get_expected_string("rpc_api_url_source")?.to_string();
+
+        // Load cached contracts if existing
+        let contract_id = QualifiedContractIdentifier::parse(contract_id)
+            .map_err(|e| diagnosed_error!("unable to parse contract_id ({})", e.to_string()))?;
+
+        let transforms = match evaluated_inputs.inputs.get_expected_array("transforms") {
+            Ok(value) => value.clone(),
+            Err(_) => vec![],
         };
 
-        // TODO: Generate a hash of the signer construct_did instead.
-        let transient = StandardPrincipalData::transient();
-        let contract_id =
-            QualifiedContractIdentifier::new(transient.clone(), contract_name.clone());
-        let interpreter = ClarityInterpreter::new(transient.clone(), Settings::default());
-        let boot_contract = ClarityContract {
-            code_source: ClarityCodeSource::ContractInMemory(contract_source.to_string()),
-            deployer: ContractDeployer::Address(transient.to_address()),
-            name: contract_name.to_string(),
-            epoch: StacksEpochId::latest(),
-            clarity_version: clarity_version.clone(),
-        };
-        let (ast, _, _) = interpreter.build_ast(&boot_contract);
-        let mut contracts_asts = BTreeMap::new();
-        contracts_asts.insert(contract_id.clone(), (clarity_version, ast));
-        let preloaded = BTreeMap::new();
+        // Fetch remote otherwise
+        let future = async move {
+            let client = StacksRpc::new(&rpc_api_url_source, None);
+            let res = client
+                .get_contract_source(&contract_id.issuer.to_string(), &contract_id.name.to_string())
+                .await;
+            let deployed_contract = match res {
+                Ok(contract) => contract,
+                Err(e) => {
+                    return Err(diagnosed_error!(
+                        "unable to retrieve requirement ({})",
+                        e.to_string()
+                    ))
+                }
+            };
+            let clarity_version = ClarityVersion::latest();
+            let interpreter =
+                ClarityInterpreter::new(contract_id.issuer.clone(), Settings::default());
+            let boot_contract = ClarityContract {
+                code_source: ClarityCodeSource::ContractInMemory(
+                    deployed_contract.source.to_string(),
+                ),
+                deployer: ContractDeployer::Address(contract_id.issuer.to_address()),
+                name: contract_id.name.to_string(),
+                epoch: StacksEpochId::latest(),
+                clarity_version: clarity_version.clone(),
+            };
+            let (ast, _, _) = interpreter.build_ast(&boot_contract);
+            let mut contracts_asts = BTreeMap::new();
+            contracts_asts.insert(contract_id.clone(), (clarity_version.clone(), ast));
+            let preloaded = BTreeMap::new();
 
-        // The actual graph will be built later on, we're only using the ASTDependencyDetector to parse
-        // and retrieve the dependencies.
-        let mut dependencies = vec![];
-        let mut lazy_dependencies = vec![];
-        if let Err((data, _)) =
-            ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded)
-        {
-            for (_contract_id, deps) in data.iter() {
-                for dep in deps.iter() {
-                    let contract_id = Value::string(dep.contract_id.to_string());
-                    if dep.required_before_publish {
-                        dependencies.push(contract_id);
-                    } else {
-                        lazy_dependencies.push(contract_id);
+            // The actual graph will be built later on, we're only using the ASTDependencyDetector to parse
+            // and retrieve the dependencies.
+            let mut dependencies = vec![];
+            let mut lazy_dependencies = vec![];
+            if let Err((data, _)) =
+                ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded)
+            {
+                for (_contract_id, deps) in data.iter() {
+                    for dep in deps.iter() {
+                        let contract_id = Value::string(dep.contract_id.to_string());
+                        if dep.required_before_publish {
+                            dependencies.push(contract_id);
+                        } else {
+                            lazy_dependencies.push(contract_id);
+                        }
                     }
                 }
             }
-        }
 
-        evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
-        evaluated_inputs.inputs.insert("contracts_ids_dependencies", Value::array(dependencies));
-        evaluated_inputs
-            .inputs
-            .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
+            let mut contract_source = deployed_contract.source.clone();
 
-        Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
-        // Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
+            for transform in transforms.iter() {
+                let Value::Object(props) = transform else {
+                    return Err(diagnosed_error!(
+                        "unable to read transform '{}'",
+                        transform.to_string()
+                    ));
+                };
+
+                match props.get("type") {
+                    Some(Value::String(transform_type))
+                        if transform_type.eq("contract_source_find_and_replace") => {}
+                    _ => {
+                        return Err(diagnosed_error!("transform type unsupported"));
+                    }
+                }
+
+                let from = match props.get("from") {
+                    Some(Value::String(from_value)) => from_value,
+                    _ => {
+                        return Err(diagnosed_error!("missing attribute 'from'"));
+                    }
+                };
+                let to = match props.get("to") {
+                    Some(Value::String(to_value)) => to_value,
+                    _ => {
+                        return Err(diagnosed_error!("missing attribute 'to'"));
+                    }
+                };
+
+                contract_source = contract_source.replace(from, to);
+            }
+
+            evaluated_inputs.inputs.insert(
+                "contract",
+                Value::object(indexmap! {
+                    "contract_source".to_string() => Value::string(contract_source),
+                    "contract_name".to_string() => Value::string(contract_id.name.to_string()),
+                    "clarity_version".to_string() => Value::integer(2),
+                }),
+            );
+
+            evaluated_inputs
+                .inputs
+                .insert("contract_instance_name", Value::string(contract_id.name.to_string()));
+            evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
+            evaluated_inputs
+                .inputs
+                .insert("contracts_ids_dependencies", Value::array(dependencies));
+            evaluated_inputs
+                .inputs
+                .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
+            Ok(evaluated_inputs)
+        };
+        Ok(Box::pin(future))
     }
 
     fn check_instantiability(
@@ -241,76 +339,9 @@ impl CommandImplementation for StacksDeployContractRequirement {
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        mut signers: SignersState,
+        signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = match get_signer_did(args) {
-            Ok(value) => value,
-            Err(diag) => {
-                return Err((
-                    signers,
-                    ValueStore::tmp(),
-                    diag,
-                ))
-            }
-        };
-        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-
-        // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
-            .get_expected_object("contract")
-        {
-            Ok(value) => {
-                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            signers,
-                            signer_state,
-                            diagnosed_error!("unable to retrieve 'contract_source'"),
-                        ))
-                    }
-                };
-                let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            signers,
-                            signer_state,
-                            diagnosed_error!("unable to retrieve 'contract_name'"),
-                        ))
-                    }
-                };
-                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(Ok(value))) => Some(value),
-                    _ => None,
-                };
-                (contract_source, contract_name, clarity_version)
-            }
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-
-        let empty_vec = vec![];
-        let post_conditions_values =
-            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-        let bytes = match encode_contract_deployment(
-            spec,
-            &contract_source,
-            &contract_name,
-            clarity_version,
-        ) {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        signers.push_signer_state(signer_state);
-
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
-            TRANSACTION_POST_CONDITIONS_BYTES,
-            Value::array(post_conditions_values.clone()),
-        );
-
-        SignStacksTransaction::check_signed_executability(
+        StacksDeployContract::check_signed_executability(
             construct_did,
             instance_name,
             spec,
@@ -329,108 +360,17 @@ impl CommandImplementation for StacksDeployContractRequirement {
         defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        mut signers: SignersState,
+        signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
-        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-
-        // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
-            .get_expected_object("contract")
-        {
-            Ok(value) => {
-                let contract_source = match value.get("contract_source").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            signers,
-                            signer_state,
-                            diagnosed_error!("unable to retrieve 'contract_source'"),
-                        ))
-                    }
-                };
-                let contract_name = match value.get("contract_name").map(|v| v.as_string()) {
-                    Some(Some(value)) => value.to_string(),
-                    _ => {
-                        return Err((
-                            signers,
-                            signer_state,
-                            diagnosed_error!("unable to retrieve 'contract_name'"),
-                        ))
-                    }
-                };
-                let clarity_version = match value.get("clarity_version").map(|v| v.as_uint()) {
-                    Some(Some(Ok(value))) => Some(value),
-                    _ => None,
-                };
-                (contract_source, contract_name, clarity_version)
-            }
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        signers.push_signer_state(signer_state);
-
-        let empty_vec = vec![];
-        let post_conditions_values =
-            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-        let bytes =
-            encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
-                .unwrap();
-
-        let args = args.clone();
-        let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
-        let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
-
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
-            TRANSACTION_POST_CONDITIONS_BYTES,
-            Value::array(post_conditions_values.clone()),
-        );
-
-        let future = async move {
-            let run_signing_future = SignStacksTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &defaults,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
-            let (signers, signer_state, mut res_signing) = match run_signing_future {
-                Ok(future) => match future.await {
-                    Ok(res) => res,
-                    Err(err) => return Err(err),
-                },
-                Err(err) => return Err(err),
-            };
-
-            args.insert(
-                SIGNED_TRANSACTION_BYTES,
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
-            );
-            let mut res = match BroadcastStacksTransaction::run_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &defaults,
-                &progress_tx,
-            ) {
-                Ok(future) => match future.await {
-                    Ok(res) => res,
-                    Err(diag) => return Err((signers, signer_state, diag)),
-                },
-                Err(data) => return Err((signers, signer_state, data)),
-            };
-
-            res_signing.append(&mut res);
-
-            Ok((signers, signer_state, res_signing))
-        };
-        Ok(Box::pin(future))
+        StacksDeployContract::run_signed_execution(
+            construct_did,
+            spec,
+            args,
+            defaults,
+            progress_tx,
+            signers_instances,
+            signers,
+        )
     }
 
     fn build_background_task(
@@ -443,7 +383,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        BroadcastStacksTransaction::build_background_task(
+        StacksDeployContract::build_background_task(
             &construct_did,
             &spec,
             &inputs,
@@ -453,78 +393,5 @@ impl CommandImplementation for StacksDeployContractRequirement {
             &background_tasks_uuid,
             &supervision_context,
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use clarity::{
-        types::StacksEpochId,
-        vm::{
-            ast::ContractAST,
-            types::{QualifiedContractIdentifier, StandardPrincipalData},
-            ClarityVersion, ContractName,
-        },
-    };
-    use clarity_repl::{
-        analysis::ast_dependency_detector::ASTDependencyDetector,
-        repl::{
-            ClarityCodeSource, ClarityContract, ClarityInterpreter, ContractDeployer, Settings,
-        },
-    };
-    use std::collections::BTreeMap;
-
-    fn build_ast_from_src(
-        sender: &StandardPrincipalData,
-        contract_source: &str,
-        contract_name: &ContractName,
-        clarity_version: ClarityVersion,
-    ) -> ContractAST {
-        let interpreter = ClarityInterpreter::new(sender.clone(), Settings::default());
-        let contract = ClarityContract {
-            code_source: ClarityCodeSource::ContractInMemory(contract_source.to_string()),
-            deployer: ContractDeployer::Address(sender.to_address()),
-            name: contract_name.to_string(),
-            epoch: StacksEpochId::latest(),
-            clarity_version: clarity_version.clone(),
-        };
-        let (ast, _, _) = interpreter.build_ast(&contract);
-        ast
-    }
-
-    #[test]
-    fn it_retrieve_dependencies() {
-        let contract_name: ContractName = "transient".try_into().unwrap();
-        let sender = StandardPrincipalData::transient();
-        let contract_id = QualifiedContractIdentifier::new(sender.clone(), contract_name.clone());
-        let clarity_version = ClarityVersion::latest();
-
-        let ast = build_ast_from_src(&sender, "(+ 1 1)", &contract_name, clarity_version.clone());
-        let mut contracts_asts = BTreeMap::new();
-        contracts_asts.insert(contract_id.clone(), (clarity_version, ast));
-        let preloaded = BTreeMap::new();
-        let res = ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded).unwrap();
-        assert_eq!(res.len(), 1);
-
-        let ast = build_ast_from_src(
-            &sender,
-            "(contract-call? .test-contract contract-call u1)",
-            &contract_name,
-            clarity_version.clone(),
-        );
-        let mut contracts_asts = BTreeMap::new();
-        contracts_asts.insert(contract_id.clone(), (clarity_version, ast));
-        let preloaded = BTreeMap::new();
-        let (_, deps) =
-            ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded).unwrap_err();
-        assert_eq!(deps.len(), 1);
-
-        let ast = build_ast_from_src(&sender, "(begin (contract-call? .test-contract-1 contract-call u1) (contract-call? .test-contract-2 contract-call u1))", &contract_name, clarity_version.clone());
-        let mut contracts_asts = BTreeMap::new();
-        contracts_asts.insert(contract_id.clone(), (clarity_version, ast));
-        let preloaded = BTreeMap::new();
-        let (_, deps) =
-            ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded).unwrap_err();
-        assert_eq!(deps.len(), 2);
     }
 }

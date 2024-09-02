@@ -1141,12 +1141,14 @@ pub async fn load_runbook_from_manifest(
                 manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
-            let res = runbook.build_contexts_from_sources(
-                runbook_sources,
-                inputs_map,
-                authorization_context,
-                available_addons,
-            );
+            let res = runbook
+                .build_contexts_from_sources(
+                    runbook_sources,
+                    inputs_map,
+                    authorization_context,
+                    available_addons,
+                )
+                .await;
             if let Err(diags) = res {
                 for diag in diags.iter() {
                     println!("{} {}", red!("x"), diag);
@@ -1173,12 +1175,14 @@ pub async fn load_runbook_from_file_path(
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
     let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);
-    let res = runbook.build_contexts_from_sources(
-        runbook_sources,
-        inputs_map,
-        authorization_context,
-        available_addons,
-    );
+    let res = runbook
+        .build_contexts_from_sources(
+            runbook_sources,
+            inputs_map,
+            authorization_context,
+            available_addons,
+        )
+        .await;
     if let Err(diags) = res {
         for diag in diags.iter() {
             println!("{} {}", red!("x"), diag);

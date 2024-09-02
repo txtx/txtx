@@ -321,7 +321,7 @@ impl RunbookExecutionContext {
         pass_result
     }
 
-    pub fn simulate_inputs_execution(
+    pub async fn simulate_inputs_execution(
         &mut self,
         runtime_context: &RuntimeContext,
         workspace_context: &RunbookWorkspaceContext,
@@ -365,8 +365,21 @@ impl RunbookExecutionContext {
                 }
             };
 
+            let post_processed_inputs_res = command_instance
+                .post_process_inputs_evaluations(evaluated_inputs)
+                .await
+                .map_err(|d| vec![d]);
+
+            let post_processed_inputs = match post_processed_inputs_res {
+                Ok(result) => result,
+                Err(_d) => {
+                    continue;
+                }
+            };
+
             // Update the evaluated inputs
-            self.commands_inputs_evaluation_results.insert(construct_did.clone(), evaluated_inputs);
+            self.commands_inputs_evaluation_results
+                .insert(construct_did.clone(), post_processed_inputs);
         }
     }
 }

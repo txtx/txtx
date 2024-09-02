@@ -82,7 +82,7 @@ macro_rules! define_command {
                 documentation: String::from($output_doc),
                 typing: $output_ts,
             }),*],
-            post_process_evaluated_inputs: $func_key::post_process_evaluated_inputs,
+            inputs_post_processing_closure: $func_key::post_process_evaluated_inputs,
             check_instantiability: $func_key::check_instantiability,
             check_executability: $func_key::check_executability,
             run_execution: Box::new($func_key::run_execution),

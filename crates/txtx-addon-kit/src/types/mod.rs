@@ -242,6 +242,10 @@ impl ValueStore {
         ValueStore { name: name.to_string(), uuid: uuid.clone(), storage: IndexMap::new() }
     }
 
+    pub fn tmp() -> ValueStore {
+        ValueStore { name: "".to_string(), uuid: Did::zero(), storage: IndexMap::new() }
+    }
+
     pub fn get_defaulting_string(
         &self,
         key: &str,
@@ -559,6 +563,7 @@ impl AuthorizationContext {
 #[derive(Debug)]
 pub enum ContractSourceTransform {
     FindAndReplace(String, String),
+    RemapDownstreamDependencies(String, String),
 }
 
 pub struct AddonPostProcessingResult {

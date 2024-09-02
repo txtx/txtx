@@ -539,7 +539,7 @@ pub async fn reset_runbook_execution(
         );
     };
 
-    let reset = runbook.update_inputs_selector(Some(environment_key.to_string()), true)?;
+    let reset = runbook.update_inputs_selector(Some(environment_key.to_string()), true).await?;
 
     if !reset {
         unimplemented!()
