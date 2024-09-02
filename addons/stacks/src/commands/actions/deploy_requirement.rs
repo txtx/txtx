@@ -8,6 +8,7 @@ use clarity_repl::repl::{
 use std::collections::{BTreeMap, HashMap};
 use std::future;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
@@ -30,9 +31,7 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    constants::{
-        SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES, TRANSACTION_POST_CONDITIONS_BYTES,
-    },
+    constants::{TRANSACTION_PAYLOAD_BYTES, TRANSACTION_POST_CONDITIONS_BYTES},
     typing::STACKS_POST_CONDITIONS,
 };
 

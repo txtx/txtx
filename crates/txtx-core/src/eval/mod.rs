@@ -1,5 +1,8 @@
 use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
 use crate::types::{RunbookExecutionContext, RunbookSources};
+use kit::constants::{
+    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+};
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
 use kit::types::diagnostics::DiagnosticSpan;
@@ -364,8 +367,6 @@ pub async fn run_constructs_evaluation(
     }
 
     let mut genesis_dependency_execution_results = HashMap::new();
-    let mut empty_result = CommandExecutionResult::new();
-    empty_result.outputs.insert("value".into(), Value::bool(true));
 
     let mut signers_results = HashMap::new();
     for (signer_construct_did, _) in runbook_execution_context.signers_instances.iter() {
@@ -663,6 +664,12 @@ pub async fn run_constructs_evaluation(
                     return pass_result;
                 }
             };
+            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did)
+            {
+                for dep in deps.iter() {
+                    unexecutable_nodes.insert(dep.clone());
+                }
+            }
             pass_result.pending_background_tasks_futures.push(future);
             pass_result.pending_background_tasks_constructs_uuids.push(construct_did.clone());
         } else {
@@ -988,19 +995,16 @@ pub fn eval_expression(
 
             let func = match &binary_op.operator.value() {
                 BinaryOperator::And => "and_bool",
-                BinaryOperator::Div => match rhs {
-                    Value::Integer(_) => "div_int",
-                    _ => "div_uint",
-                },
+                BinaryOperator::Div => "div",
                 BinaryOperator::Eq => "eq",
                 BinaryOperator::Greater => "gt",
                 BinaryOperator::GreaterEq => "gte",
                 BinaryOperator::Less => "lt",
                 BinaryOperator::LessEq => "lte",
-                BinaryOperator::Minus => "minus_uint",
-                BinaryOperator::Mod => "modulo_uint",
-                BinaryOperator::Mul => "multiply_uint",
-                BinaryOperator::Plus => "add_uint",
+                BinaryOperator::Minus => "minus",
+                BinaryOperator::Mod => "modulo",
+                BinaryOperator::Mul => "multiply",
+                BinaryOperator::Plus => "add",
                 BinaryOperator::NotEq => "neq",
                 BinaryOperator::Or => "or_bool",
             };
@@ -1038,11 +1042,39 @@ pub fn update_signer_instances_from_action_response(
                         if let Some(mut signer_state) =
                             signers.pop_signer_state(&response.signer_uuid)
                         {
-                            signer_state.insert_scoped_value(
-                                &construct_did.value().to_string(),
-                                "signed_transaction_bytes",
-                                Value::string(response.signed_transaction_bytes.clone()),
-                            );
+                            let did = &construct_did.to_string();
+                            match &response.signed_transaction_bytes {
+                                Some(bytes) => {
+                                    signer_state.insert_scoped_value(
+                                        &did,
+                                        SIGNED_TRANSACTION_BYTES,
+                                        Value::string(bytes.clone()),
+                                    );
+                                }
+                                None => match response.signature_approved {
+                                    Some(true) => {
+                                        signer_state.insert_scoped_value(
+                                            &did,
+                                            SIGNATURE_APPROVED,
+                                            Value::bool(true),
+                                        );
+                                    }
+                                    Some(false) => {}
+                                    None => {
+                                        let skippable = signer_state
+                                            .get_scoped_value(&did, SIGNATURE_SKIPPABLE)
+                                            .and_then(|v| v.as_bool())
+                                            .unwrap_or(false);
+                                        if skippable {
+                                            signer_state.insert_scoped_value(
+                                                &did,
+                                                SIGNED_TRANSACTION_BYTES,
+                                                Value::null(),
+                                            );
+                                        }
+                                    }
+                                },
+                            }
                             signers.push_signer_state(signer_state.clone());
                         }
                     }
@@ -1052,7 +1084,7 @@ pub fn update_signer_instances_from_action_response(
                         {
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                "signed_message_bytes",
+                                SIGNED_MESSAGE_BYTES,
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                             signers.push_signer_state(signer_state.clone());
@@ -1060,10 +1092,11 @@ pub fn update_signer_instances_from_action_response(
                     }
                     _ => {}
                 }
-            })
+            });
         }
         None => {}
     }
+
     signers
 }
 
@@ -1104,18 +1137,6 @@ pub fn perform_inputs_evaluation(
                     ActionItemResponseType::ReviewInput(_update) => {}
                     ActionItemResponseType::ProvideInput(update) => {
                         results.inputs.insert(&update.input_name, update.updated_value.clone());
-                    }
-                    ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                        results.insert(
-                            "signed_transaction_bytes",
-                            Value::string(bytes.signed_transaction_bytes.clone()),
-                        );
-                    }
-                    ActionItemResponseType::ProvideSignedMessage(response) => {
-                        results.insert(
-                            "signed_message_bytes",
-                            Value::string(response.signed_message_bytes.clone()),
-                        );
                     }
                     _ => {}
                 }

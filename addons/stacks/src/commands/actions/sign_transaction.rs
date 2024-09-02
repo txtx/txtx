@@ -10,6 +10,7 @@ use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::clarity::address::AddressHashMode;
 use std::collections::HashMap;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -31,8 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
-    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES,
-    UNSIGNED_TRANSACTION_BYTES,
+    NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, TRANSACTION_PAYLOAD_BYTES, UNSIGNED_TRANSACTION_BYTES,
 };
 
 use crate::rpc::StacksRpc;
@@ -145,6 +145,8 @@ impl CommandImplementation for SignStacksTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+
         use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
         let signer_did = get_signer_did(args).unwrap();
@@ -160,8 +162,12 @@ impl CommandImplementation for SignStacksTransaction {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+            if signer_state
+                .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+                .is_some()
+                || signer_state
+                    .get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED)
+                    .is_some()
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -214,7 +220,9 @@ impl CommandImplementation for SignStacksTransaction {
 
             if supervision_context.review_input_values {
                 actions.push_group(
-                    &description.clone().unwrap_or("".into()),
+                    &description
+                        .clone()
+                        .unwrap_or("Review and sign the transactions from the list below".into()),
                     vec![
                         ActionItemRequest::new(
                             &Some(construct_did.clone()),
@@ -321,7 +329,7 @@ async fn build_unsigned_transaction(
     args: &ValueStore,
     defaults: &AddonDefaults,
 ) -> Result<StacksTransaction, Diagnostic> {
-    // Extract and decode transaction_payload_bytes
+    use crate::constants::REQUIRED_SIGNATURE_COUNT;
 
     use crate::constants::RPC_API_AUTH_TOKEN;
     let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
@@ -400,13 +408,20 @@ async fn build_unsigned_transaction(
         })
         .collect::<Result<Vec<StacksPublicKey>, Diagnostic>>()?;
 
+    let signer_count = stacks_public_keys.len() as u16;
+    let required_signature_count: u16 = signer_state
+        .get_uint(REQUIRED_SIGNATURE_COUNT)
+        .unwrap()
+        .and_then(|count| Some(count.try_into().unwrap_or(signer_count).max(1)))
+        .unwrap_or(signer_count);
+
     let version: u8 = signer_state.get_expected_integer("hash_flag")?.try_into().unwrap();
     let hash_mode = AddressHashMode::from_version(version);
 
     let address = StacksAddress::from_public_keys(
         version,
         &hash_mode,
-        stacks_public_keys.len(),
+        required_signature_count.into(),
         &stacks_public_keys,
     )
     .unwrap();
@@ -436,7 +451,7 @@ async fn build_unsigned_transaction(
             nonce,
             tx_fee: fee,
             fields: vec![],
-            signatures_required: stacks_public_keys.len() as u16,
+            signatures_required: required_signature_count,
         }),
         false => TransactionSpendingCondition::Singlesig(SinglesigSpendingCondition {
             hash_mode: SinglesigHashMode::P2PKH,
@@ -472,12 +487,7 @@ async fn build_unsigned_transaction(
             &mut &post_condition_bytes.expect_buffer_bytes()[..],
         ) {
             Ok(res) => res,
-            Err(e) => {
-                return Err(diagnosed_error!(
-                    "transaction payload invalid, return diagnostic ({})",
-                    e.to_string()
-                ))
-            }
+            Err(e) => return Err(diagnosed_error!("invalid post-condition: ({})", e.to_string())),
         };
         unsigned_tx.post_conditions.push(post_condition);
     }

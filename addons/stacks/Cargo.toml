@@ -20,6 +20,9 @@ serde_derive = "1"
 async-recursion = "1"
 toml = "0.5"
 
+[dev-dependencies]
+txtx-test-utils = { path = "../../crates/txtx-test-utils" }
+
 [features]
 default = [
   "clarity/default", 

@@ -12,10 +12,14 @@ use hmac::Hmac;
 use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
 use tiny_hderive::bip32::ExtendedPrivKey;
+use txtx_addon_kit::constants::{
+    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+};
 use txtx_addon_kit::sha2::Sha512;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
+    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvideSignedTransactionRequest,
+    ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -31,11 +35,13 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, MESSAGE_BYTES, SIGNED_MESSAGE_BYTES};
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, IS_SIGNABLE, MESSAGE_BYTES,
+};
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
-use crate::constants::{NETWORK_ID, PUBLIC_KEYS, SIGNED_TRANSACTION_BYTES};
+use crate::constants::{NETWORK_ID, PUBLIC_KEYS};
 use crate::typing::StacksValue;
 use crate::typing::STACKS_TRANSACTION;
 
@@ -150,7 +156,7 @@ impl SignerImplementation for StacksMnemonic {
             Err(diag) => return Err((signers, signer_state, diag)),
         };
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
+        signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -187,19 +193,67 @@ impl SignerImplementation for StacksMnemonic {
     }
 
     fn check_signability(
-        _caller_uuid: &ConstructDid,
-        _title: &str,
-        _description: &Option<String>,
-        _payload: &Value,
+        construct_did: &ConstructDid,
+        title: &str,
+        description: &Option<String>,
+        payload: &Value,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        args: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
-        _supervision_context: &RunbookSupervisionContext,
+        defaults: &AddonDefaults,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        Ok((signers, signer_state, Actions::none()))
+        let actions = if supervision_context.review_input_values {
+            let construct_did_str = &construct_did.to_string();
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
+                return Ok((signers, signer_state, Actions::none()));
+            }
+
+            let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+                Ok(value) => value,
+                Err(diag) => return Err((signers, signer_state, diag)),
+            };
+            let signable = signer_state
+                .get_scoped_value(&construct_did_str, IS_SIGNABLE)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+
+            let status = match signable {
+                true => ActionItemStatus::Todo,
+                false => ActionItemStatus::Blocked,
+            };
+            let skippable = signer_state
+                .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let request = ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                title,
+                description.clone(),
+                status,
+                ProvideSignedTransactionRequest::new(
+                    &signer_state.uuid,
+                    &payload,
+                    "stacks",
+                    &network_id,
+                )
+                .skippable(skippable)
+                .check_expectation_action_uuid(construct_did)
+                .only_approval_needed()
+                .to_action_type(),
+                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+            );
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transaction Signing"),
+            )
+        } else {
+            Actions::none()
+        };
+        Ok((signers, signer_state, actions))
     }
 
     fn sign(

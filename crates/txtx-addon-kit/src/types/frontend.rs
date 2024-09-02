@@ -4,7 +4,7 @@ use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
     types::{Type, Value},
-    ConstructDid,
+    ConstructDid, Did,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -467,6 +467,59 @@ impl ProgressBarStatusColor {
             ProgressBarStatusColor::Yellow => "Yellow".into(),
             ProgressBarStatusColor::Red => "Red".into(),
         }
+    }
+}
+
+const PROGRESS_SYMBOLS: [&str; 8] = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+#[derive(Clone, Debug)]
+pub struct ProgressSymbol {
+    current: usize,
+}
+impl ProgressSymbol {
+    pub fn new() -> Self {
+        ProgressSymbol { current: 0 }
+    }
+    pub fn next(&mut self) -> &str {
+        self.current = (self.current + 1) % PROGRESS_SYMBOLS.len();
+        PROGRESS_SYMBOLS[self.current]
+    }
+    pub fn pending(&mut self) -> String {
+        format!("Pending {}", self.next())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusUpdater {
+    status_update: ProgressBarStatusUpdate,
+    tx: channel::Sender<BlockEvent>,
+    progress: ProgressSymbol,
+}
+impl StatusUpdater {
+    pub fn new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+    ) -> Self {
+        let mut progress = ProgressSymbol::new();
+        let initial_status = ProgressBarStatusUpdate::new(
+            &background_tasks_uuid,
+            &construct_did,
+            &&ProgressBarStatus::new_msg(ProgressBarStatusColor::Yellow, &progress.pending(), ""),
+        );
+        StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
+    }
+    pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Yellow,
+            &self.progress.pending(),
+            new_status_msg,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_status(&mut self, new_status: ProgressBarStatus) {
+        self.status_update.update_status(&new_status);
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
 }
 
@@ -1486,7 +1539,7 @@ impl ActionItemRequestType {
                 let Some(existing) = existing_item.as_provide_signed_tx() else {
                     unreachable!("cannot change action item request type")
                 };
-                if new.payload != existing.payload {
+                if new.payload != existing.payload || new.skippable != existing.skippable {
                     if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
                         unreachable!(
                             "cannot change provide signed tx request check_expectation_action_uuid"
@@ -1500,6 +1553,11 @@ impl ActionItemRequestType {
                     }
                     if new.network_id != existing.network_id {
                         unreachable!("cannot change provide signed tx request network_id");
+                    }
+                    if new.only_approval_needed != existing.only_approval_needed {
+                        unreachable!(
+                            "cannot change provide signed tx request only_approval_needed"
+                        );
                     }
                     Some(new_type.clone())
                 } else {
@@ -1613,9 +1671,51 @@ pub struct ProvidePublicKeyRequest {
 pub struct ProvideSignedTransactionRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
+    pub expected_signer_address: Option<String>,
+    pub skippable: bool,
+    pub only_approval_needed: bool,
     pub payload: Value,
     pub namespace: String,
     pub network_id: String,
+}
+
+impl ProvideSignedTransactionRequest {
+    pub fn new(signer_uuid: &Did, payload: &Value, namespace: &str, network_id: &str) -> Self {
+        ProvideSignedTransactionRequest {
+            signer_uuid: ConstructDid(signer_uuid.clone()),
+            check_expectation_action_uuid: None,
+            expected_signer_address: None,
+            skippable: false,
+            payload: payload.clone(),
+            namespace: namespace.to_string(),
+            network_id: network_id.to_string(),
+            only_approval_needed: false,
+        }
+    }
+
+    pub fn skippable(&mut self, is_skippable: bool) -> &mut Self {
+        self.skippable = is_skippable;
+        self
+    }
+
+    pub fn only_approval_needed(&mut self) -> &mut Self {
+        self.only_approval_needed = true;
+        self
+    }
+
+    pub fn check_expectation_action_uuid(&mut self, uuid: &ConstructDid) -> &mut Self {
+        self.check_expectation_action_uuid = Some(uuid.clone());
+        self
+    }
+
+    pub fn expected_signer_address(&mut self, address: Option<&str>) -> &mut Self {
+        self.expected_signer_address = address.and_then(|a| Some(a.to_string()));
+        self
+    }
+
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::ProvideSignedTransaction(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1688,7 +1788,8 @@ pub struct ProvideSignedMessageResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvideSignedTransactionResponse {
-    pub signed_transaction_bytes: String,
+    pub signed_transaction_bytes: Option<String>,
+    pub signature_approved: Option<bool>,
     pub signer_uuid: ConstructDid,
 }
 

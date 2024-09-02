@@ -9264,6 +9264,7 @@ dependencies = [
  "tiny-hderive",
  "toml 0.5.11",
  "txtx-addon-kit",
+ "txtx-test-utils",
 ]
 
 [[package]]
@@ -9344,7 +9345,6 @@ dependencies = [
  "chrono",
  "daggy",
  "getrandom 0.2.15",
- "hiro-system-kit 0.3.4",
  "jaq-interpret",
  "jaq-parse",
  "lazy_static",
@@ -9357,7 +9357,7 @@ dependencies = [
  "serde_yml 0.0.11",
  "similar",
  "txtx-addon-kit",
- "txtx-addon-network-stacks",
+ "txtx-test-utils",
 ]
 
 [[package]]
@@ -9393,6 +9393,16 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "txtx-test-utils"
+version = "0.1.0"
+dependencies = [
+ "hiro-system-kit 0.3.4",
+ "test-case",
+ "txtx-addon-kit",
+ "txtx-core",
 ]
 
 [[package]]

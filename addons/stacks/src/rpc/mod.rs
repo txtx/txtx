@@ -267,6 +267,12 @@ impl StacksRpc {
                             .unwrap();
                         RpcError::ContractAlreadyExists(contract_identifier)
                     }
+                    Some(r) if error.reason_data.is_some() => RpcError::Message(format!(
+                        "{}: {}",
+                        r.clone(),
+                        error.reason_data.unwrap().to_string()
+                    )),
+
                     Some(r) => RpcError::Message(r.clone()),
                     None => RpcError::Message(format!("{:?}", error)),
                 }

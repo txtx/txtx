@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::types::Value;
@@ -23,7 +24,7 @@ use crate::constants::TRANSACTION_POST_CONDITIONS_BYTES;
 use crate::constants::TRANSACTION_POST_CONDITION_MODE_BYTES;
 use crate::typing::STACKS_POST_CONDITIONS;
 use crate::{
-    constants::{SIGNED_TRANSACTION_BYTES, TRANSACTION_PAYLOAD_BYTES},
+    constants::TRANSACTION_PAYLOAD_BYTES,
     typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL},
 };
 

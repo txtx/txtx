@@ -16,7 +16,7 @@ use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::StacksValue;
 
-use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL, SIGNED_TRANSACTION_BYTES};
+use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 use crate::rpc::StacksRpc;
 
 lazy_static! {
@@ -164,7 +164,9 @@ impl CommandImplementation for BroadcastStacksTransaction {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
+        use txtx_addon_kit::{
+            constants::SIGNED_TRANSACTION_BYTES, types::frontend::ProgressBarStatusColor,
+        };
 
         use crate::{
             constants::{
@@ -224,14 +226,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
             })?;
 
-            let backoff_ms = if network_id.eq("devnet") {
-                DEFAULT_DEVNET_BACKOFF
-            } else {
-                DEFAULT_MAINNET_BACKOFF
-            };
-
             let client = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
-            let mut retry_count = 4;
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {
@@ -241,34 +236,17 @@ impl CommandImplementation for BroadcastStacksTransaction {
                         return Ok(result);
                     }
                     Err(e) => {
-                        retry_count -= 1;
-                        if retry_count > 0 {
-                            sleep_ms(backoff_ms);
-                            status_update.update_status(&ProgressBarStatus::new_msg(
-                                ProgressBarStatusColor::Yellow,
-                                &format!("Pending {}", progress_symbol[progress]),
-                                &format!(
-                                    "Broadcasting Transaction (error {}, retry in 15s)",
-                                    e.to_string()
-                                ),
-                            ));
-                            let _ = progress_tx
-                                .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
-                            continue;
-                        }
-
+                        let diag =
+                            diagnosed_error!("unable to broadcast Stacks transaction: {}", e);
                         status_update.update_status(&ProgressBarStatus::new_err(
                             "Failure",
-                            &format!("unable to broadcast Stacks transaction ({})", e),
-                            &diagnosed_error!("{}", e),
+                            &format!("Received RPC Error for Stacks Transaction"),
+                            &diag,
                         ));
                         let _ = progress_tx
                             .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                        return Err(Diagnostic::error_from_string(format!(
-                            "unable to broadcast Stacks transaction ({})",
-                            e,
-                        )));
+                        return Err(diag);
                     }
                 }
             };

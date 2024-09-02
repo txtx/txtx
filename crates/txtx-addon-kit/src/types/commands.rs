@@ -14,6 +14,7 @@ use uuid::Uuid;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 
 use crate::{
+    constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
     helpers::hcl::{
         collect_constructs_references_from_expression, get_object_expression_key,
         visit_optional_untyped_attribute,
@@ -760,16 +761,16 @@ impl CommandInstance {
                                 }
                             }
                         }
-                        ActionItemResponseType::ProvideSignedTransaction(bytes) => {
-                            // TODO
-                            values.insert(
-                                "signed_transaction_bytes",
-                                Value::string(bytes.signed_transaction_bytes.clone()),
-                            );
+                        ActionItemResponseType::ProvideSignedTransaction(response) => {
+                            match &response.signed_transaction_bytes {
+                                Some(bytes) => values
+                                    .insert(SIGNED_TRANSACTION_BYTES, Value::string(bytes.clone())),
+                                None => values.insert(SIGNED_TRANSACTION_BYTES, Value::null()),
+                            }
                         }
                         ActionItemResponseType::ProvideSignedMessage(response) => {
                             values.insert(
-                                "signed_message_bytes",
+                                SIGNED_MESSAGE_BYTES,
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                         }
