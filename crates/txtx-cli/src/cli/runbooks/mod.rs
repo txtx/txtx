@@ -12,6 +12,7 @@ use std::{
 };
 use tokio::sync::RwLock;
 use txtx_addon_network_evm::EVMNetworkAddon;
+use txtx_addon_network_solana::SolanaNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
@@ -62,6 +63,7 @@ pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
+        Box::new(SolanaNetworkAddon::new()),
         Box::new(StacksNetworkAddon::new()),
         Box::new(EVMNetworkAddon::new()),
         Box::new(TelegramAddon::new()),

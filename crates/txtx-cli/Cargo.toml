@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 txtx-core = { workspace = true }
+txtx-addon-network-solana = { workspace = true }
 txtx-addon-network-stacks = { workspace = true }
 txtx-addon-network-evm = { workspace = true }
 txtx-addon-telegram = { workspace = true }
