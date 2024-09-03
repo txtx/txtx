@@ -12,16 +12,16 @@ use txtx_addon_kit::AddonDefaults;
 use crate::typing::{BitcoinValue, BITCOIN_OPCODE};
 
 lazy_static! {
-    pub static ref ENCODE: PreCommandSpecification = define_command! {
+    pub static ref ENCODE_SCRIPT: PreCommandSpecification = define_command! {
         CallReadonlyStacksFunction => {
-            name: "Encode Bitcoin Opcodes to Script",
-            matcher: "encode",
-            documentation: "The `btc::encode` action takes a series of Bitcoin opcodes and encodes them as Bitcoin Script.",
+            name: "Encode Bitcoin Script",
+            matcher: "encode_script",
+            documentation: "The `btc::encode_script` action takes a series of Bitcoin instructions and encodes them as Bitcoin Script.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
             inputs: [
-                opcodes: {
-                    documentation: "A series of Bitcoin opcodes.",
+                instructions: {
+                    documentation: "A series of Bitcoin instructions.",
                     typing: Type::array(Type::addon(BITCOIN_OPCODE)),
                     optional: false,
                     interpolable: true
@@ -34,8 +34,8 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-                action "my_script" "btc::encode" {
-                    opcodes = [
+                action "my_script" "btc::encode_script" {
+                    instructions = [
                         btc::op_dup(),
                         btc::op_hash160(),
                         btc::op_pushdata(20, "55ae51684c43435da751ac8d2173b2652eb64105"),
@@ -80,18 +80,20 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         _defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
+        use crate::constants::INSTRUCTIONS;
+
         let args = args.clone();
 
-        let opcodes = args
-            .get_expected_array("opcodes")?
+        let instructions = args
+            .get_expected_array(INSTRUCTIONS)?
             .into_iter()
             .map(|op| {
                 op.try_get_buffer_bytes()
                     .and_then(|b| Some(b.clone()))
-                    .ok_or(diagnosed_error!("bitcoin opcodes should be encoded as bytes"))
+                    .ok_or(diagnosed_error!("bitcoin instructions should be encoded as bytes"))
             })
             .collect::<Result<Vec<Vec<u8>>, Diagnostic>>()?;
-        let script_bytes = opcodes.into_iter().flatten().collect::<Vec<u8>>();
+        let script_bytes = instructions.into_iter().flatten().collect::<Vec<u8>>();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
