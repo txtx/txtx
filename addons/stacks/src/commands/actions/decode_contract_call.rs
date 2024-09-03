@@ -17,7 +17,7 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::SIGNER;
-use crate::stacks_helpers::clarity_value_to_value;
+use crate::stacks_helpers::cv_to_value;
 
 lazy_static! {
     pub static ref DECODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -116,7 +116,7 @@ impl CommandImplementation for EncodeStacksContractCall {
                         let function_args = payload
                             .function_args
                             .into_iter()
-                            .map(|a| clarity_value_to_value(a))
+                            .map(|a| cv_to_value(a))
                             .collect::<Result<Vec<_>, _>>()
                             .unwrap();
                         result

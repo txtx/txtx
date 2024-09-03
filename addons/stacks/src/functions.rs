@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     constants::{NAMESPACE, SIGNER},
-    stacks_helpers::encode_any_value_to_clarity_value,
+    stacks_helpers::value_to_cv,
     typing::{DEPLOYMENT_ARTIFACTS_TYPE, STACKS_CV_ERR, STACKS_POST_CONDITIONS},
 };
 use clarity::vm::{
@@ -31,7 +31,7 @@ use crate::{
         AssetInfo, FungibleConditionCode, NonfungibleConditionCode, PostConditionPrincipal,
         TransactionPostCondition,
     },
-    stacks_helpers::{parse_clarity_value, value_to_tuple},
+    stacks_helpers::{decode_cv_bytes, value_to_tuple},
     typing::{
         STACKS_CV_BOOL, STACKS_CV_BUFFER, STACKS_CV_GENERIC, STACKS_CV_INT, STACKS_CV_NONE,
         STACKS_CV_OK, STACKS_CV_PRINCIPAL, STACKS_CV_SOME, STACKS_CV_STRING_ASCII,
@@ -595,8 +595,7 @@ impl FunctionImplementation for EncodeClarityValueOk {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let arg = args.get(0).unwrap();
-        let value =
-            encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let value = value_to_cv(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
         let clarity_value =
             ClarityValue::okay(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
         let bytes = cv_to_bytes(fn_spec, clarity_value)?;
@@ -621,8 +620,7 @@ impl FunctionImplementation for EncodeClarityValueErr {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let arg = args.get(0).unwrap();
-        let value =
-            encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let value = value_to_cv(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
         let clarity_value =
             ClarityValue::error(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
         let bytes = cv_to_bytes(fn_spec, clarity_value)?;
@@ -648,7 +646,7 @@ impl FunctionImplementation for EncodeClarityValueSome {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let arg = args.get(0).unwrap();
-        let value = encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e))?;
+        let value = value_to_cv(arg).map_err(|e| to_diag(fn_spec, e))?;
         let clarity_value =
             ClarityValue::some(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
         let bytes = cv_to_bytes(fn_spec, clarity_value)?;
@@ -877,7 +875,8 @@ impl FunctionImplementation for EncodeClarityValueTuple {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let arg = args.get(0).unwrap();
-        let clarity_value = ClarityValue::Tuple(value_to_tuple(arg));
+        let clarity_value =
+            ClarityValue::Tuple(value_to_tuple(arg).map_err(|e| to_diag(fn_spec, e))?);
         let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::tuple(bytes))
     }
@@ -944,7 +943,7 @@ fn encode_nft_post_condition(
     };
 
     let asset_id_value = Value::parse_and_default_to_string(asset_id_str);
-    let asset_id = encode_any_value_to_clarity_value(&asset_id_value)?;
+    let asset_id = value_to_cv(&asset_id_value)?;
 
     let post_condition =
         TransactionPostCondition::Nonfungible(principal_monitored, asset_info, asset_id, condition);
@@ -1194,8 +1193,7 @@ impl FunctionImplementation for DecodeClarityValueResponse {
             .try_get_buffer_bytes_result()
             .map_err(|e| to_diag(fn_spec, e))?
             .unwrap();
-        let clarity_value =
-            parse_clarity_value(&bytes, STACKS_CV_GENERIC).map_err(|e| to_diag(fn_spec, e))?;
+        let clarity_value = decode_cv_bytes(&bytes).map_err(|e| to_diag(fn_spec, e))?;
 
         let ClarityValue::Response(response) = clarity_value else {
             return Err(to_diag(fn_spec, "expected Clarity Response type".into()));

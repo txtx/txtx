@@ -15,8 +15,8 @@ use crate::codec::codec::{
     TransactionSmartContract,
 };
 use crate::constants::SIGNER;
-use crate::stacks_helpers::encode_any_value_to_clarity_value;
-use crate::stacks_helpers::parse_clarity_value;
+use crate::stacks_helpers::decode_cv_bytes;
+use crate::stacks_helpers::value_to_cv;
 use crate::typing::StacksValue;
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
 use call_contract::SEND_CONTRACT_CALL;
@@ -63,7 +63,7 @@ pub fn encode_contract_call(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let contract_id = match contract_id_value {
-        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+        Value::Addon(data) => match decode_cv_bytes(&data.bytes).unwrap() {
             clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
             cv => {
                 return Err(diagnosed_error!(
@@ -110,8 +110,7 @@ pub fn encode_contract_call(
 
     let mut function_args = vec![];
     for raw_value in function_args_values.iter() {
-        let value =
-            encode_any_value_to_clarity_value(raw_value).map_err(|e| diagnosed_error!("{e}"))?;
+        let value = value_to_cv(raw_value).map_err(|e| diagnosed_error!("{e}"))?;
         function_args.push(value);
     }
 
@@ -173,7 +172,7 @@ pub fn encode_stx_transfer(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let recipient_address = match recipient {
-        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+        Value::Addon(data) => match decode_cv_bytes(&data.bytes).unwrap() {
             clarity::vm::Value::Principal(principal) => principal,
             cv => {
                 return Err(diagnosed_error!(

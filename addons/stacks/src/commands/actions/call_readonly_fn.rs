@@ -16,7 +16,7 @@ use crate::constants::{
     DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN, RPC_API_URL,
 };
 use crate::rpc::StacksRpc;
-use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
+use crate::stacks_helpers::{cv_to_value, decode_cv_bytes};
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 lazy_static! {
@@ -133,8 +133,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                     arg_value
                 ));
             };
-            let arg =
-                parse_clarity_value(&data.bytes, &data.id).map_err(|e| diagnosed_error!("{e}"))?;
+            let arg = decode_cv_bytes(&data.bytes).map_err(|e| diagnosed_error!("{e}"))?;
             function_args.push(arg);
         }
 
@@ -204,7 +203,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                 }
             }
 
-            let value = clarity_value_to_value(call_result)?;
+            let value = cv_to_value(call_result)?;
             result.outputs.insert("value".into(), value);
 
             Ok(result)
