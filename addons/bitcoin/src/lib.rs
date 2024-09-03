@@ -4,10 +4,13 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
+pub mod codec;
 mod commands;
+pub mod constants;
 mod functions;
 mod typing;
 
+use constants::NAMESPACE;
 use txtx_addon_kit::{
     types::{
         commands::PreCommandSpecification, functions::FunctionSpecification,
@@ -31,11 +34,14 @@ impl Addon for BitcoinNetworkAddon {
     }
 
     fn get_description(&self) -> &str {
-        "Lorem ipsum"
+        txtx_addon_kit::indoc! {r#"
+            The Bitcoin `txtx` addon enables building Runbooks that interact with the Bitcoin blockchain.
+            Currently the Bitcoin addon can be used to encode Bitcoin Script.
+        "#}
     }
 
     fn get_namespace(&self) -> &str {
-        "bitcoin"
+        NAMESPACE
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {

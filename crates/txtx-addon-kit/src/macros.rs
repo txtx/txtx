@@ -14,7 +14,7 @@ macro_rules! define_function {
         name: $fn_name:expr,
         documentation: $doc:expr,
         example: $example:expr,
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr $(, optional: $input_opt:expr)? }),*],
         output: { documentation: $output_doc:expr, typing: $output_ts:expr },
     }) => {
         txtx_addon_kit::types::functions::FunctionSpecification {
@@ -24,6 +24,13 @@ macro_rules! define_function {
                 name: String::from(stringify!($input_name)),
                 documentation: String::from($input_doc),
                 typing: $input_ts,
+                optional: {
+                    let mut is_optional = true;
+                    $(
+                        is_optional = $input_opt;
+                    )?
+                    is_optional
+                },
             }),*],
             output: txtx_addon_kit::types::functions::FunctionOutput {
                 documentation: String::from($output_doc),

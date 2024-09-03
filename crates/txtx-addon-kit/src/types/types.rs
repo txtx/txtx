@@ -263,6 +263,24 @@ impl Value {
 
         Some(bytes)
     }
+
+    pub fn try_get_buffer_bytes_result(&self) -> Result<Option<Vec<u8>>, String> {
+        let bytes = match &self {
+            Value::Buffer(value) => value.clone(),
+            Value::String(bytes) => {
+                let stripped = if bytes.starts_with("0x") { &bytes[2..] } else { &bytes[..] };
+                let bytes = crate::hex::decode(stripped).map_err(|e| {
+                    format!("string '{}' could not be decoded to hex bytes: {}", bytes, e)
+                })?;
+                bytes
+            }
+            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
+            Value::Addon(addon_value) => addon_value.bytes.clone(),
+            _ => return Ok(None),
+        };
+
+        Ok(Some(bytes))
+    }
     pub fn expect_array(&self) -> &Box<Vec<Value>> {
         match &self {
             Value::Array(value) => value,
@@ -591,6 +609,22 @@ impl Type {
     }
     pub fn array(array_item_type: Type) -> Type {
         Type::Array(Box::new(array_item_type))
+    }
+}
+
+impl Type {
+    pub fn to_string(&self) -> String {
+        match self {
+            Type::Bool => "bool".into(),
+            Type::Null => "null".into(),
+            Type::Integer => "integer".into(),
+            Type::Float => "float".into(),
+            Type::String => "string".into(),
+            Type::Buffer => "buffer".into(),
+            Type::Object(_) => "object".into(),
+            Type::Addon(addon) => format!("addon({})", addon),
+            Type::Array(typing) => format!("array[{}]", typing.to_string()),
+        }
     }
 }
 
