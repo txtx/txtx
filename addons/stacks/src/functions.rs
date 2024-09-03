@@ -45,7 +45,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A Clarity Value.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::addon(STACKS_CV_GENERIC)],
+                        optional: false
                     }
                 ],
                 output: {
@@ -84,7 +85,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "The boolean values `true` or `false`.",
-                        typing: vec![Type::bool()]
+                        typing: vec![Type::bool()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -106,7 +108,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A positive integer between 0 and 2<sup>128</sup>-1.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -128,7 +131,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "An integer between -2<sup>127</sup> and 2<sup>127</sup>-1.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -156,7 +160,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity principal string.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -178,7 +183,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid ASCII string.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -200,7 +206,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid UTF-8 string.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -222,7 +229,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "An object where each key is a string and each value is a valid Clarity value.",
-                        typing: vec![Type::object(vec![])]
+                        typing: vec![Type::object(vec![])],
+                        optional: false
                     }
                 ],
                 output: {
@@ -244,7 +252,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A hex string.",
-                        typing: vec![Type::object(vec![])]
+                        typing: vec![Type::string(), Type::buffer()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -261,7 +270,8 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value.",
-                        typing: vec![Type::bool()]
+                        typing: vec![Type::addon(STACKS_CV_GENERIC)],
+                        optional: false
                     }
                 ],
                 output: {
@@ -278,12 +288,13 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value.",
-                        typing: vec![Type::bool()]
+                        typing: vec![Type::addon(STACKS_CV_GENERIC)],
+                        optional: false
                     }
                 ],
                 output: {
                     documentation: "The input wrapped in an `Err` Clarity type.",
-                    typing: Type::bool()
+                    typing: Type::addon(STACKS_CV_ERR)
                 },
             }
         },
@@ -302,20 +313,23 @@ lazy_static! {
                 inputs: [
                     account_address: {
                         documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     tokens_amount: {
                         documentation: "Threshold of tokens that triggers the revert action to prevent overspending.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
                     documentation: "The post-condition, encoded as a buffer.",
-                    typing: Type::buffer()
+                    typing: Type::addon(STACKS_POST_CONDITIONS)
                 },
             }
         },
@@ -334,20 +348,23 @@ lazy_static! {
                 inputs: [
                     account_address: {
                         documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     tokens_amount: {
                         documentation: "The number of tokens required to be sent.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
                     documentation: "The post-condition, encoded as a buffer.",
-                    typing: Type::buffer()
+                    typing: Type::addon(STACKS_POST_CONDITIONS)
                 },
             }
         },
@@ -366,20 +383,23 @@ lazy_static! {
                 inputs: [
                     account_address: {
                         documentation: indoc! {r#"The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender."#},
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     tokens_amount: {
                         documentation: "The minimum number of tokens required to be sent.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     },
                     token_id: {
                         documentation: "The asset identifier of the token to be checked. The default is µSTX if not provided.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
                     documentation: "The post-condition, encoded as a buffer.",
-                    typing: Type::buffer()
+                    typing: Type::addon(STACKS_POST_CONDITIONS)
                 },
             }
         },
@@ -404,20 +424,23 @@ lazy_static! {
                 inputs: [
                     account_address: {
                         documentation: "The address of the account that the post condition will check.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     contract_asset_id: {
                         documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     asset_id: {
                         documentation: "The NFT Asset Id to check.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
                     documentation: "The post-condition, encoded as a buffer.",
-                    typing: Type::bool()
+                    typing: Type::addon(STACKS_POST_CONDITIONS)
                 },
             }
         },
@@ -441,20 +464,23 @@ lazy_static! {
                 inputs: [
                     account_address: {
                         documentation: "The address of the account that the post condition will check.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     contract_asset_id: {
                         documentation: "The NFT Contract Asset Id to check (<principal>.<contract_name>::<non_fungible_storage>).",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     asset_id: {
                         documentation: "The NFT Asset Id to check.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
                     documentation: "The post-condition, encoded as a buffer.",
-                    typing: Type::bool()
+                    typing: Type::addon(STACKS_POST_CONDITIONS)
                 },
             }
         },
@@ -465,13 +491,14 @@ lazy_static! {
                 example: indoc! {r#"// Coming soon "#},
                 inputs: [
                     clarity_value: {
-                        documentation: "Any valid Clarity value.",
-                        typing: vec![Type::buffer()]
+                        documentation: "Any Clarity Response (`(ok <inner>)` or `(err <inner>)`) type.",
+                        typing: vec![Type::addon(STACKS_CV_GENERIC)],
+                        optional: false
                     }
                 ],
                 output: {
-                    documentation: "The inner value that was wrapped in an `(ok <inner>)` Clarity type.",
-                    typing: Type::buffer()
+                    documentation: "The inner value that was wrapped in a Clarity Response type.",
+                    typing: Type::addon(STACKS_CV_GENERIC)
                 },
             }
         },
@@ -483,16 +510,18 @@ lazy_static! {
                 inputs: [
                     clarinet_manifest_path: {
                         documentation: "The path of the Clarinet toml file.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     },
                     contract_name: {
                         documentation: "Contract name of the contract source to fetch.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
                     documentation: "The source code of the contract",
-                    typing: Type::buffer()
+                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
                 },
             }
         },
