@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 
-use crate::{constants::SIGNER, stacks_helpers::encode_any_value_to_clarity_value};
+use crate::{
+    constants::SIGNER,
+    stacks_helpers::encode_any_value_to_clarity_value,
+    typing::{DEPLOYMENT_ARTIFACTS_TYPE, STACKS_CV_ERR, STACKS_POST_CONDITIONS},
+};
 use clarity::vm::types::{
     ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
     SequenceData, SequencedValue, UTF8Data,
@@ -265,8 +269,13 @@ lazy_static! {
         define_function! {
             EncodeClarityValueOk => {
                 name: "cv_ok",
-                documentation: "Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.",
+                example: indoc! {r#"
+                output "ok" { 
+                  value = stacks::cv_ok(1) 
+                }
+                // > ok: 0x070100000000000000000000000000000001
+                "#},
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value.",
@@ -283,8 +292,13 @@ lazy_static! {
         define_function! {
             EncodeClarityValueErr => {
                 name: "cv_err",
-                documentation: "Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.",
-                example: indoc! {r#"// Coming soon "#},
+                documentation: "`stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.",
+                example: indoc! {r#"
+                output "err" { 
+                  value = stacks::cv_err(1) 
+                }
+                // > err: 0x080100000000000000000000000000000001
+                "#},
                 inputs: [
                     clarity_value: {
                         documentation: "Any valid Clarity value.",
@@ -485,10 +499,22 @@ lazy_static! {
             }
         },
         define_function! {
-            DecodeClarityValueOk => {
-                name: "decode_ok",
-                documentation: "`stacks::decode_ok` returns the inner value as a Clarity buffer.",
-                example: indoc! {r#"// Coming soon "#},
+            DecodeClarityValueResponse => {
+                name: "decode_response",
+                documentation: "`stacks::decode_response` returns the inner value of a Clarity Response as a Clarity buffer.",
+                example: indoc! {r#"
+                input "ok_uint" {
+                    value = stacks::cv_ok(1)
+                }
+                output "ok" {
+                    value = input.ok_uint
+                }
+                output "decoded_ok" {
+                    value = stacks::decode_response(input.ok_uint)
+                } 
+                // > ok: 0x070100000000000000000000000000000001
+                // > decoded_ok: 0x0100000000000000000000000000000001
+                "#},
                 inputs: [
                     clarity_value: {
                         documentation: "Any Clarity Response (`(ok <inner>)` or `(err <inner>)`) type.",
@@ -579,7 +605,7 @@ impl FunctionImplementation for EncodeClarityValueErr {
             ));
         };
         let value = encode_any_value_to_clarity_value(arg)?;
-        let clarity_value = ClarityValue::okay(value)
+        let clarity_value = ClarityValue::error(value)
             .map_err(|e| diagnosed_error!("unable of run 'cv_err' function ({})", e.to_string()))?;
         let bytes = clarity_value
             .serialize_to_vec()
@@ -1235,8 +1261,8 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
     }
 }
 
-pub struct DecodeClarityValueOk;
-impl FunctionImplementation for DecodeClarityValueOk {
+pub struct DecodeClarityValueResponse;
+impl FunctionImplementation for DecodeClarityValueResponse {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -1278,7 +1304,14 @@ impl FunctionImplementation for DecodeClarityValueOk {
             None => return Err(diagnosed_error!("function '{}': argument missing", &fn_spec.name)),
         };
 
-        let inner_bytes: Vec<u8> = value
+        let ClarityValue::Response(response) = value else {
+            return Err(diagnosed_error!(
+                "function '{}': expected clarity response type",
+                &fn_spec.name
+            ));
+        };
+        let inner_bytes: Vec<u8> = response
+            .data
             .serialize_to_vec()
             .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
 
