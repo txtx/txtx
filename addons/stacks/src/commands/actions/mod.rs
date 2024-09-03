@@ -110,7 +110,8 @@ pub fn encode_contract_call(
 
     let mut function_args = vec![];
     for raw_value in function_args_values.iter() {
-        let value = encode_any_value_to_clarity_value(raw_value)?;
+        let value =
+            encode_any_value_to_clarity_value(raw_value).map_err(|e| diagnosed_error!("{e}"))?;
         function_args.push(value);
     }
 

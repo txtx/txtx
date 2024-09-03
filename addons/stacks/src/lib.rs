@@ -23,6 +23,7 @@ mod tests;
 use std::collections::HashMap;
 
 use clarity::vm::types::QualifiedContractIdentifier;
+use constants::NAMESPACE;
 use txtx_addon_kit::{
     types::{
         commands::{CommandInputsEvaluationResult, CommandInstance, PreCommandSpecification},
@@ -57,7 +58,7 @@ impl Addon for StacksNetworkAddon {
     }
 
     fn get_namespace(&self) -> &str {
-        "stacks"
+        NAMESPACE
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {

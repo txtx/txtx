@@ -133,7 +133,8 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                     arg_value
                 ));
             };
-            let arg = parse_clarity_value(&data.bytes, &data.id)?;
+            let arg =
+                parse_clarity_value(&data.bytes, &data.id).map_err(|e| diagnosed_error!("{e}"))?;
             function_args.push(arg);
         }
 

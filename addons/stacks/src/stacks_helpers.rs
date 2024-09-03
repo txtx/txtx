@@ -20,7 +20,7 @@ use crate::typing::{
     STACKS_CV_STRING_ASCII, STACKS_CV_STRING_UTF8, STACKS_CV_TUPLE, STACKS_CV_UINT,
 };
 
-pub fn parse_clarity_value(bytes: &Vec<u8>, type_id: &str) -> Result<ClarityValue, Diagnostic> {
+pub fn parse_clarity_value(bytes: &Vec<u8>, type_id: &str) -> Result<ClarityValue, String> {
     match type_id {
         STACKS_CV_UINT
         | STACKS_CV_INT
@@ -37,10 +37,7 @@ pub fn parse_clarity_value(bytes: &Vec<u8>, type_id: &str) -> Result<ClarityValu
         | STACKS_CV_NONE
         | STACKS_CV_ERR => match ClarityValue::consensus_deserialize(&mut &bytes[..]) {
             Ok(v) => Ok(v),
-            Err(e) => Err(Diagnostic::error_from_string(format!(
-                "failed to parse clarity value: {}",
-                e.to_string()
-            ))),
+            Err(e) => Err(format!("failed to parse clarity value: {}", e.to_string())),
         },
         _ => {
             unimplemented!()
@@ -189,7 +186,7 @@ pub fn clarity_value_to_value(clarity_value: ClarityValue) -> Result<Value, Diag
     }
 }
 
-pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Diagnostic> {
+pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, String> {
     let dst = match src {
         Value::Addon(addon_data) => parse_clarity_value(&addon_data.bytes, &addon_data.id)?,
         Value::Array(array) => {
@@ -200,16 +197,15 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
                 values.push(value);
             }
             ClarityValue::cons_list_unsanitized(values)
-                .map_err(|e| diagnosed_error!("unable to encode Clarity list ({})", e.to_string()))
-                .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?
+                .map_err(|e| format!("unable to encode Clarity list ({})", e.to_string()))
+                .map_err(|e| format!("unable to serialize clarity value: {:?}", e))?
         }
         Value::String(_) => {
             if let Some(bytes) = src.try_get_buffer_bytes() {
-                ClarityValue::buff_from(bytes).map_err(|e| {
-                    diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string())
-                })?
+                ClarityValue::buff_from(bytes)
+                    .map_err(|e| format!("unable to encode Clarity buffer ({})", e.to_string()))?
             } else {
-                return Err(diagnosed_error!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."));
+                return Err(format!("unable to infer typing (ascii vs utf8). Use stacks::cv_string_utf8(<value>) or stacks::cv_string_ascii(<value>) to reduce ambiguity."));
             }
         }
         Value::Bool(value) => ClarityValue::Bool(*value),
@@ -220,7 +216,7 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             } else if *int > 0 {
                 ClarityValue::UInt((*int).try_into().unwrap())
             } else {
-                return Err(diagnosed_error!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity."));
+                return Err(format!("unable to infer typing (signed vs unsigned). Use stacks::cv_uint(<value>) or stacks::cv_int(<value>) to reduce ambiguity."));
             }
         }
         Value::Buffer(data) => {
@@ -229,14 +225,13 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             //     ClarityValue::consensus_deserialize(&mut &value_bytes[..])
             //         .map_err(|e| diagnosed_error!("{}", e.to_string()))?
             // } else {
-            ClarityValue::buff_from(data.clone()).map_err(|e| {
-                diagnosed_error!("unable to encode Clarity buffer ({})", e.to_string())
-            })?
+            ClarityValue::buff_from(data.clone())
+                .map_err(|e| format!("unable to encode Clarity buffer ({})", e.to_string()))?
             // }
         }
         Value::Float(_) => {
             // should return an error
-            return Err(diagnosed_error!("unable to encode float to a Clarity type"));
+            return Err(format!("unable to encode float to a Clarity type"));
         }
         Value::Object(object) => {
             // should be encoded as a tuple
@@ -244,12 +239,12 @@ pub fn encode_any_value_to_clarity_value(src: &Value) -> Result<ClarityValue, Di
             for (key, value) in object.iter() {
                 let tuple_value = encode_any_value_to_clarity_value(&value.clone())?;
                 let tuple_key = ClarityName::try_from(key.as_str()).map_err(|e| {
-                    diagnosed_error!("unable to encode key {} to clarity ({})", key, e.to_string())
+                    format!("unable to encode key {} to clarity ({})", key, e.to_string())
                 })?;
                 data.push((tuple_key, tuple_value));
             }
             let tuple_data = TupleData::from_data(data)
-                .map_err(|e| diagnosed_error!("unable to encode tuple data ({})", e.to_string()))?;
+                .map_err(|e| format!("unable to encode tuple data ({})", e.to_string()))?;
             ClarityValue::Tuple(tuple_data)
         }
     };

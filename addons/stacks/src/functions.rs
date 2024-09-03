@@ -1,20 +1,25 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    constants::SIGNER,
+    constants::{NAMESPACE, SIGNER},
     stacks_helpers::encode_any_value_to_clarity_value,
     typing::{DEPLOYMENT_ARTIFACTS_TYPE, STACKS_CV_ERR, STACKS_POST_CONDITIONS},
 };
-use clarity::vm::types::{
-    ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
-    SequenceData, SequencedValue, UTF8Data,
+use clarity::vm::{
+    errors::InterpreterError,
+    types::{
+        ASCIIData, BuffData, CharType, OptionalData, PrincipalData, QualifiedContractIdentifier,
+        SequenceData, SequencedValue, UTF8Data,
+    },
 };
 use clarity_repl::clarity::{codec::StacksMessageCodec, Value as ClarityValue};
 use txtx_addon_kit::{
     indexmap::indexmap,
     types::{
         diagnostics::Diagnostic,
-        functions::{FunctionImplementation, FunctionSpecification},
+        functions::{
+            arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
+        },
         types::{Type, Value},
         AuthorizationContext,
     },
@@ -33,6 +38,25 @@ use crate::{
         STACKS_CV_STRING_UTF8, STACKS_CV_TUPLE, STACKS_CV_UINT,
     },
 };
+
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+    checker(fn_spec, args)
+}
+pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
+    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    error_fn(fn_spec, e)
+}
+
+pub fn serialize_cv_err(fn_spec: &FunctionSpecification, e: InterpreterError) -> Diagnostic {
+    to_diag(fn_spec, format!("unable to serialize clarity value: {:?}", e))
+}
+pub fn cv_to_bytes(
+    fn_spec: &FunctionSpecification,
+    clarity_value: ClarityValue,
+) -> Result<Vec<u8>, Diagnostic> {
+    clarity_value.serialize_to_vec().map_err(|e| serialize_cv_err(fn_spec, e))
+}
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -565,21 +589,17 @@ impl FunctionImplementation for EncodeClarityValueOk {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_ok' function (expected 1 argument, got 0)."
-            ));
-        };
-        let value = encode_any_value_to_clarity_value(arg)?;
-        let clarity_value = ClarityValue::okay(value)
-            .map_err(|e| diagnosed_error!("unable of run 'cv_ok' function ({})", e.to_string()))?;
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap();
+        let value =
+            encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let clarity_value =
+            ClarityValue::okay(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::ok(bytes))
     }
 }
@@ -595,21 +615,17 @@ impl FunctionImplementation for EncodeClarityValueErr {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_err' function (expected 1 argument, got 0)."
-            ));
-        };
-        let value = encode_any_value_to_clarity_value(arg)?;
-        let clarity_value = ClarityValue::error(value)
-            .map_err(|e| diagnosed_error!("unable of run 'cv_err' function ({})", e.to_string()))?;
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap();
+        let value =
+            encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let clarity_value =
+            ClarityValue::error(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::err(bytes))
     }
 }
@@ -626,22 +642,16 @@ impl FunctionImplementation for EncodeClarityValueSome {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_some' function (expected 1 argument, got 0)."
-            ));
-        };
-        let value = encode_any_value_to_clarity_value(arg)?;
-        let clarity_value = ClarityValue::okay(value).map_err(|e| {
-            diagnosed_error!("unable of run 'cv_some' function ({})", e.to_string())
-        })?;
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap();
+        let value = encode_any_value_to_clarity_value(arg).map_err(|e| to_diag(fn_spec, e))?;
+        let clarity_value =
+            ClarityValue::some(value).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::some(bytes))
     }
 }
@@ -657,17 +667,15 @@ impl FunctionImplementation for EncodeClarityValueNone {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         if !args.is_empty() {
-            return Err(diagnosed_error!("`cv_none` function: expected no arguments"));
+            return Err(to_diag(fn_spec, "expected no arguments".into()));
         }
         let clarity_value = ClarityValue::Optional(OptionalData { data: None });
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::none(bytes))
     }
 }
@@ -683,21 +691,14 @@ impl FunctionImplementation for EncodeClarityValueBool {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Bool(val)) => val.clone(),
-            Some(any) => {
-                return Err(diagnosed_error!("'cv_bool' function: expected bool, got {:?}", any))
-            }
-            None => return Err(diagnosed_error!("'cv_bool' function: expected bool, got none :(")),
-        };
+        arg_checker(fn_spec, args)?;
+        let entry = args.get(0).unwrap().as_bool().unwrap();
         let clarity_value = ClarityValue::Bool(entry);
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::bool(bytes))
     }
 }
@@ -713,28 +714,22 @@ impl FunctionImplementation for EncodeClarityValueUint {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Integer(val)) => {
-                let as_u128 = u128::try_from(val.clone()).map_err(|e| {
-                    Diagnostic::error_from_string(format!(
-                        "Failed to stacks::cv_uint, could not parse Integer: {e}"
-                    ))
-                })?;
-                as_u128
-            }
-            Some(any) => {
-                return Err(diagnosed_error!("'cv_uint' function: expected uint, got {:?}", any))
-            }
-            None => return Err(diagnosed_error!("'cv_uint' function: expected uint, got none :(")),
-        };
+        arg_checker(fn_spec, args)?;
+        let entry = args
+            .get(0)
+            .unwrap()
+            .as_integer()
+            .and_then(|i| Some(u128::try_from(i)))
+            .transpose()
+            .map_err(|e| to_diag(fn_spec, format!("could not parse uint: {e}")))?
+            .unwrap();
+
         let clarity_value = ClarityValue::UInt(u128::from(entry));
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::uint(bytes))
     }
 }
@@ -750,28 +745,14 @@ impl FunctionImplementation for EncodeClarityValueInt {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let entry = match args.get(0) {
-            Some(Value::Integer(val)) => {
-                let as_i128 = i128::try_from(val.clone()).map_err(|e| {
-                    Diagnostic::error_from_string(format!(
-                        "'cv_int' function: could not parse Integer ({e})"
-                    ))
-                })?;
-                as_i128
-            }
-            Some(any) => {
-                return Err(diagnosed_error!("'cv_int' function: expected uint, got {:?}", any))
-            }
-            None => return Err(diagnosed_error!("'cv_int' function: expected uint, got none :(")),
-        };
+        arg_checker(fn_spec, args)?;
+        let entry = args.get(0).unwrap().as_integer().unwrap();
         let clarity_value = ClarityValue::Int(i128::from(entry));
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::int(bytes))
     }
 }
@@ -787,26 +768,15 @@ impl FunctionImplementation for EncodeClarityValuePrincipal {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_principal' function (expected 1 argument, got 0)."
-            ));
-        };
-
-        let Some(arg_str) = arg.as_string() else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_principal' function (expected string argument)."
-            ));
-        };
-
-        let clarity_value = ClarityValue::Principal(PrincipalData::parse(&arg_str).unwrap());
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap().as_string().unwrap();
+        let principal = PrincipalData::parse(&arg).map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let clarity_value = ClarityValue::Principal(principal);
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::principal(bytes))
     }
 }
@@ -822,29 +792,18 @@ impl FunctionImplementation for EncodeClarityValueAscii {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_string_ascii' function (expected 1 argument, got 0)."
-            ));
-        };
-
-        let Some(arg_str) = arg.as_string() else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_string_ascii' function (expected string argument)."
-            ));
-        };
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap().as_string().unwrap();
 
         let clarity_value =
             ClarityValue::Sequence(SequenceData::String(CharType::ASCII(ASCIIData {
-                data: arg_str.as_bytes().to_vec(),
+                data: arg.as_bytes().to_vec(),
             })));
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::string_ascii(bytes))
     }
 }
@@ -860,26 +819,15 @@ impl FunctionImplementation for EncodeClarityValueUTF8 {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_string_utf8' function (expected 1 argument, got 0)."
-            ));
-        };
-
-        let Some(arg_str) = arg.as_string() else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_string_utf8' function (expected string argument)."
-            ));
-        };
-        let clarity_value = UTF8Data::to_value(&arg_str.as_bytes().to_vec())
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap().as_string().unwrap();
+        let clarity_value = UTF8Data::to_value(&arg.as_bytes().to_vec())
+            .map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::string_utf8(bytes))
     }
 }
@@ -895,24 +843,19 @@ impl FunctionImplementation for EncodeClarityValueBuffer {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(arg) = args.get(0) else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_buff' function (expected 1 argument, got 0)."
-            ));
-        };
-
-        let Some(data) = arg.try_get_buffer_bytes() else {
-            return Err(diagnosed_error!(
-                "unable of run 'cv_buff' function (expected buffer argument)."
-            ));
-        };
-        let bytes = ClarityValue::Sequence(SequenceData::Buffer(BuffData { data }))
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let data = args
+            .get(0)
+            .unwrap()
+            .try_get_buffer_bytes_result()
+            .map_err(|e| to_diag(fn_spec, e))?
+            .unwrap();
+        let clarity_value = ClarityValue::Sequence(SequenceData::Buffer(BuffData { data }));
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::buffer(bytes))
     }
 }
@@ -928,17 +871,14 @@ impl FunctionImplementation for EncodeClarityValueTuple {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let clarity_value = match args.get(0) {
-            Some(value) => ClarityValue::Tuple(value_to_tuple(value)),
-            _ => unreachable!(),
-        };
-        let bytes = clarity_value
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        arg_checker(fn_spec, args)?;
+        let arg = args.get(0).unwrap();
+        let clarity_value = ClarityValue::Tuple(value_to_tuple(arg));
+        let bytes = cv_to_bytes(fn_spec, clarity_value)?;
         Ok(StacksValue::tuple(bytes))
     }
 }
@@ -948,7 +888,7 @@ fn encode_ft_post_condition(
     token_amount: i128,
     token_id: &str,
     condition: FungibleConditionCode,
-) -> Result<TransactionPostCondition, Diagnostic> {
+) -> Result<TransactionPostCondition, String> {
     let principal_monitored =
         if address.eq(SIGNER) { PostConditionPrincipal::Origin } else { unimplemented!() };
 
@@ -978,12 +918,12 @@ fn encode_nft_post_condition(
     contract_asset_id: &str,
     asset_id_str: &str,
     condition: NonfungibleConditionCode,
-) -> Result<TransactionPostCondition, Diagnostic> {
+) -> Result<TransactionPostCondition, String> {
     let principal_monitored = if address.eq("signer") {
         PostConditionPrincipal::Origin
     } else {
         match PrincipalData::parse(address)
-            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))?
+            .map_err(|e| format!("unable to parse address: {}", e.to_string()))?
         {
             PrincipalData::Contract(contract) => {
                 PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
@@ -1016,12 +956,12 @@ fn encode_stx_post_condition(
     address: &str,
     token_amount: i128,
     condition: FungibleConditionCode,
-) -> Result<TransactionPostCondition, Diagnostic> {
+) -> Result<TransactionPostCondition, String> {
     let principal_monitored = if address.eq("signer") {
         PostConditionPrincipal::Origin
     } else {
         match PrincipalData::parse(address)
-            .map_err(|e| diagnosed_error!("unable to parse address: {}", e.to_string()))?
+            .map_err(|e| format!("unable to parse address: {}", e.to_string()))?
         {
             PrincipalData::Contract(contract) => {
                 PostConditionPrincipal::Contract(contract.issuer.into(), contract.name.clone())
@@ -1047,19 +987,14 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let address = match args.get(0) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        arg_checker(fn_spec, args)?;
+        let address = args.get(0).unwrap().as_string().unwrap();
 
-        let token_amount = match args.get(1) {
-            Some(Value::Integer(val)) => val,
-            _ => unreachable!(),
-        };
+        let token_amount = args.get(1).unwrap().as_integer().unwrap();
 
         let token_id_opt = match args.get(2) {
             Some(Value::String(val)) => Some(val),
@@ -1069,15 +1004,15 @@ impl FunctionImplementation for RevertIfAccountSendingMoreThan {
         let post_condition_bytes = match token_id_opt {
             Some(token_id) => encode_ft_post_condition(
                 address,
-                *token_amount,
+                token_amount,
                 token_id,
                 FungibleConditionCode::SentLe,
-            )?
+            )
+            .map_err(|e| to_diag(fn_spec, e))?
             .serialize_to_vec(),
-            None => {
-                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentLe)?
-                    .serialize_to_vec()
-            }
+            None => encode_stx_post_condition(address, token_amount, FungibleConditionCode::SentLe)
+                .map_err(|e| to_diag(fn_spec, e))?
+                .serialize_to_vec(),
         };
         Ok(StacksValue::post_conditions(post_condition_bytes))
     }
@@ -1094,19 +1029,14 @@ impl FunctionImplementation for RevertIfAccountNotSending {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let address = match args.get(0) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        arg_checker(fn_spec, args)?;
+        let address = args.get(0).unwrap().as_string().unwrap();
 
-        let token_amount = match args.get(1) {
-            Some(Value::Integer(val)) => val,
-            _ => unreachable!(),
-        };
+        let token_amount = args.get(1).unwrap().as_integer().unwrap();
 
         let token_id_opt = match args.get(2) {
             Some(Value::String(val)) => Some(val),
@@ -1116,15 +1046,15 @@ impl FunctionImplementation for RevertIfAccountNotSending {
         let post_condition_bytes = match token_id_opt {
             Some(token_id) => encode_ft_post_condition(
                 address,
-                *token_amount,
+                token_amount,
                 token_id,
                 FungibleConditionCode::SentEq,
-            )?
+            )
+            .map_err(|e| to_diag(fn_spec, e))?
             .serialize_to_vec(),
-            None => {
-                encode_stx_post_condition(address, *token_amount, FungibleConditionCode::SentEq)?
-                    .serialize_to_vec()
-            }
+            None => encode_stx_post_condition(address, token_amount, FungibleConditionCode::SentEq)
+                .map_err(|e| to_diag(fn_spec, e))?
+                .serialize_to_vec(),
         };
         Ok(StacksValue::post_conditions(post_condition_bytes))
     }
@@ -1141,19 +1071,14 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let address = match args.get(0) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        arg_checker(fn_spec, args)?;
+        let address = args.get(0).unwrap().as_string().unwrap();
 
-        let token_amount = match args.get(1) {
-            Some(Value::Integer(val)) => *val,
-            _ => unreachable!(),
-        };
+        let token_amount = args.get(1).unwrap().as_integer().unwrap();
 
         let token_id_opt = match args.get(2) {
             Some(Value::String(val)) => Some(val),
@@ -1166,12 +1091,12 @@ impl FunctionImplementation for RevertIfAccountNotSendingAtLeast {
                 token_amount,
                 token_id,
                 FungibleConditionCode::SentGe,
-            )?
+            )
+            .map_err(|e| to_diag(fn_spec, e))?
             .serialize_to_vec(),
-            None => {
-                encode_stx_post_condition(address, token_amount, FungibleConditionCode::SentGe)?
-                    .serialize_to_vec()
-            }
+            None => encode_stx_post_condition(address, token_amount, FungibleConditionCode::SentGe)
+                .map_err(|e| to_diag(fn_spec, e))?
+                .serialize_to_vec(),
         };
         Ok(StacksValue::post_conditions(post_condition_bytes))
     }
@@ -1188,31 +1113,24 @@ impl FunctionImplementation for RevertIfNFTNotOwnedByAccount {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let address = match args.get(0) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        arg_checker(fn_spec, args)?;
+        let address = args.get(0).unwrap().as_string().unwrap();
 
-        let contract_asset_id = match args.get(1) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        let contract_asset_id = args.get(1).unwrap().as_string().unwrap();
 
-        let asset_id = match args.get(2) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        let asset_id = args.get(2).unwrap().as_string().unwrap();
 
         let post_condition_bytes = encode_nft_post_condition(
             address,
             contract_asset_id,
             asset_id,
             NonfungibleConditionCode::NotSent,
-        )?
+        )
+        .map_err(|e| to_diag(fn_spec, e))?
         .serialize_to_vec();
 
         Ok(StacksValue::post_conditions(post_condition_bytes))
@@ -1230,31 +1148,24 @@ impl FunctionImplementation for RevertIfNFTOwnedByAccount {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let address = match args.get(0) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        arg_checker(fn_spec, args)?;
+        let address = args.get(0).unwrap().as_string().unwrap();
 
-        let contract_asset_id = match args.get(1) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        let contract_asset_id = args.get(1).unwrap().as_string().unwrap();
 
-        let asset_id = match args.get(2) {
-            Some(Value::String(val)) => val,
-            _ => unreachable!(),
-        };
+        let asset_id = args.get(2).unwrap().as_string().unwrap();
 
         let post_condition_bytes = encode_nft_post_condition(
             address,
             contract_asset_id,
             asset_id,
             NonfungibleConditionCode::Sent,
-        )?
+        )
+        .map_err(|e| to_diag(fn_spec, e))?
         .serialize_to_vec();
 
         Ok(StacksValue::post_conditions(post_condition_bytes))
@@ -1276,44 +1187,21 @@ impl FunctionImplementation for DecodeClarityValueResponse {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let value = match args.get(0) {
-            // todo maybe we can assume some types?
-            Some(Value::Addon(data)) => match parse_clarity_value(&data.bytes, &data.id) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            },
-            Some(Value::Buffer(buffer_data)) => {
-                match parse_clarity_value(&buffer_data, &STACKS_CV_GENERIC) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                }
-            }
-            Some(Value::String(buffer_hex)) => {
-                if !buffer_hex.starts_with("0x") {
-                    unreachable!()
-                }
-                let bytes = txtx_addon_kit::hex::decode(&buffer_hex[2..]).unwrap();
-                match parse_clarity_value(&bytes, &STACKS_CV_GENERIC) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                }
-            }
-            Some(_v) => {
-                return Err(diagnosed_error!("function '{}': argument type error", &fn_spec.name))
-            }
-            None => return Err(diagnosed_error!("function '{}': argument missing", &fn_spec.name)),
-        };
+        arg_checker(fn_spec, args)?;
+        let bytes = args
+            .get(0)
+            .unwrap()
+            .try_get_buffer_bytes_result()
+            .map_err(|e| to_diag(fn_spec, e))?
+            .unwrap();
+        let clarity_value =
+            parse_clarity_value(&bytes, STACKS_CV_GENERIC).map_err(|e| to_diag(fn_spec, e))?;
 
-        let ClarityValue::Response(response) = value else {
-            return Err(diagnosed_error!(
-                "function '{}': expected clarity response type",
-                &fn_spec.name
-            ));
+        let ClarityValue::Response(response) = clarity_value else {
+            return Err(to_diag(fn_spec, "expected Clarity Response type".into()));
         };
-        let inner_bytes: Vec<u8> = response
-            .data
-            .serialize_to_vec()
-            .map_err(|e| diagnosed_error!("unable to serialize clarity value: {:?}", e))?;
+        let inner_bytes: Vec<u8> =
+            response.data.serialize_to_vec().map_err(|e| serialize_cv_err(fn_spec, e))?;
 
         Ok(StacksValue::generic_clarity_value(inner_bytes))
     }
@@ -1330,53 +1218,60 @@ impl FunctionImplementation for RetrieveClarinetContract {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let clarinet_toml_path = args.get(0).unwrap();
-        let contract_key = args.get(1).unwrap();
+        arg_checker(fn_spec, args)?;
+        let clarinet_toml_path = args.get(0).unwrap().as_string().unwrap();
+        let contract_key = args.get(1).unwrap().as_string().unwrap();
 
-        let mut clarinet_manifest = auth_ctx
-            .workspace_location
-            .get_parent_location()
-            .map_err(|e| diagnosed_error!("unable to read Clarinet.toml ({})", e.to_string()))?;
-        let _ = clarinet_manifest.append_path(&clarinet_toml_path.to_string());
+        let mut clarinet_manifest =
+            auth_ctx.workspace_location.get_parent_location().map_err(|e| {
+                to_diag(fn_spec, format!("invalid Clarinet.toml location ({})", e.to_string()))
+            })?;
+        let _ = clarinet_manifest.append_path(clarinet_toml_path);
 
-        let manifest_bytes = clarinet_manifest
-            .read_content()
-            .map_err(|e| diagnosed_error!("unable to read Clarinet.toml ({})", e.to_string()))?;
-        let manifest: ClarinetManifest = toml::from_slice(&manifest_bytes)
-            .map_err(|e| diagnosed_error!("unable to deserialize Clarinet.toml ({})", e))?;
+        let manifest_bytes = clarinet_manifest.read_content().map_err(|e| {
+            to_diag(fn_spec, format!("unable to read Clarinet.toml ({})", e.to_string()))
+        })?;
+        let manifest: ClarinetManifest = toml::from_slice(&manifest_bytes).map_err(|e| {
+            to_diag(fn_spec, format!("unable to deserialize Clarinet.toml ({})", e.to_string()))
+        })?;
 
         let mut contract_entry = None;
         for (contract_name, contract) in manifest.contracts.into_iter() {
-            if contract_name.eq(&contract_key.to_string()) {
+            if contract_name.eq(&contract_key) {
                 contract_entry = Some(contract.clone());
                 break;
             }
         }
 
         let Some(contract) = contract_entry else {
-            return Err(diagnosed_error!(
-                "unable to locate contract with name {} in Clarinet.toml",
-                contract_key.to_string()
+            return Err(to_diag(
+                fn_spec,
+                format!("unable to locate contract with name {} in Clarinet.toml", contract_key),
             ));
         };
 
-        let mut contract_location = clarinet_manifest.get_parent_location().unwrap();
+        let mut contract_location = clarinet_manifest.get_parent_location().map_err(|e| {
+            to_diag(fn_spec, format!("invalid contract location ({})", e.to_string()))
+        })?;
         let _ = contract_location.append_path(&contract.path);
         let contract_source = contract_location.read_content_as_utf8().map_err(|e| {
-            diagnosed_error!(
-                "unable to read contract at path {} ({})",
-                contract_location.to_string(),
-                e
+            to_diag(
+                fn_spec,
+                format!(
+                    "unable to read contract at path {} ({})",
+                    contract_location.to_string(),
+                    e
+                ),
             )
         })?;
 
         let res = Value::object(indexmap! {
             "contract_source".to_string() => Value::string(contract_source),
-            "contract_name".to_string() => contract_key.clone(),
+            "contract_name".to_string() => Value::string(contract_key.to_string()),
             "clarity_version".to_string() => Value::integer(contract.clarity_version as i128)
         });
 
