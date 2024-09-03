@@ -13,7 +13,6 @@ mod constants;
 mod functions;
 pub mod rpc;
 mod signers;
-mod stacks_helpers;
 pub mod typing;
 mod utils;
 

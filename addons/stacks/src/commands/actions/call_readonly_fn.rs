@@ -12,11 +12,11 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
+use crate::codec::cv::{cv_to_value, decode_cv_bytes};
 use crate::constants::{
     DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN, RPC_API_URL,
 };
 use crate::rpc::StacksRpc;
-use crate::stacks_helpers::{cv_to_value, decode_cv_bytes};
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 lazy_static! {

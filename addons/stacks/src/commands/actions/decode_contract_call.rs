@@ -16,8 +16,8 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
+use crate::codec::cv::cv_to_value;
 use crate::constants::SIGNER;
-use crate::stacks_helpers::cv_to_value;
 
 lazy_static! {
     pub static ref DECODE_STACKS_CONTRACT_CALL: PreCommandSpecification = define_command! {

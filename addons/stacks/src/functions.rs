@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
+    codec::cv::value_to_cv,
     constants::{NAMESPACE, SIGNER},
-    stacks_helpers::value_to_cv,
     typing::{DEPLOYMENT_ARTIFACTS_TYPE, STACKS_CV_ERR, STACKS_POST_CONDITIONS},
 };
 use clarity::vm::{
@@ -31,7 +31,7 @@ use crate::{
         AssetInfo, FungibleConditionCode, NonfungibleConditionCode, PostConditionPrincipal,
         TransactionPostCondition,
     },
-    stacks_helpers::{decode_cv_bytes, value_to_tuple},
+    codec::cv::{decode_cv_bytes, value_to_tuple},
     typing::{
         STACKS_CV_BOOL, STACKS_CV_BUFFER, STACKS_CV_GENERIC, STACKS_CV_INT, STACKS_CV_NONE,
         STACKS_CV_OK, STACKS_CV_PRINCIPAL, STACKS_CV_SOME, STACKS_CV_STRING_ASCII,
