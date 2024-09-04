@@ -1,7 +1,6 @@
 pub mod broadcast_transaction;
 mod call_contract;
 pub mod call_readonly_fn;
-mod decode_contract_call;
 mod deploy_contract;
 mod deploy_contract_requirement;
 pub mod encode_contract_call;
@@ -27,7 +26,6 @@ use clarity::{
     types::chainstate::StacksAddress,
     vm::{types::PrincipalData, ClarityName},
 };
-use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
 use deploy_contract_requirement::DEPLOY_STACKS_CONTRACT_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
@@ -43,7 +41,6 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_STACKS_TRANSACTION.clone(),
-        DECODE_STACKS_CONTRACT_CALL.clone(),
         DEPLOY_STACKS_CONTRACT.clone(),
         DEPLOY_STACKS_CONTRACT_REQUIREMENT.clone(),
         ENCODE_STACKS_CONTRACT_CALL.clone(),
