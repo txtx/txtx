@@ -197,6 +197,8 @@ lazy_static! {
 
 pub struct StacksDeployContractRequirement;
 impl CommandImplementation for StacksDeployContractRequirement {
+
+    #[cfg(not(feature = "wasm"))]
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
@@ -206,7 +208,6 @@ impl CommandImplementation for StacksDeployContractRequirement {
         let rpc_api_url_source =
             evaluated_inputs.inputs.get_expected_string("rpc_api_url_source")?.to_string();
 
-        // Load cached contracts if existing
         let contract_id = QualifiedContractIdentifier::parse(contract_id)
             .map_err(|e| diagnosed_error!("unable to parse contract_id ({})", e.to_string()))?;
 
@@ -215,8 +216,11 @@ impl CommandImplementation for StacksDeployContractRequirement {
             Err(_) => vec![],
         };
 
-        // Fetch remote otherwise
         let future = async move {
+            // Load cached contracts if existing
+            // TODO
+
+            // Fetch remote otherwise
             let client = StacksRpc::new(&rpc_api_url_source, None);
             let res = client
                 .get_contract_source(&contract_id.issuer.to_string(), &contract_id.name.to_string())
