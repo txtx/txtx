@@ -400,7 +400,10 @@ impl Value {
                 let bytes = if bytes.starts_with("0x") {
                     crate::hex::decode(&bytes[2..]).unwrap()
                 } else {
-                    crate::hex::decode(&bytes).unwrap()
+                    match crate::hex::decode(&bytes) {
+                        Ok(res) => res,
+                        Err(_) => bytes.as_bytes().to_vec()
+                    }
                 };
                 bytes
             }

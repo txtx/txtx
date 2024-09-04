@@ -2,7 +2,7 @@ use super::{RunbookExecutionMode, RunningContext};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
-    types::{diagnostics::Diagnostic, types::Value, ConstructDid, PackageDid, RunbookId},
+    types::{diagnostics::Diagnostic, types::Value, ConstructDid, Did, PackageDid, RunbookId},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -22,8 +22,10 @@ pub struct RunbookExecutionSnapshot {
     name: String,
     /// Keep track of the execution end date
     ended_at: String,
-    ///
-    runs: IndexMap<String, RunbookRunSnapshot>,
+    /// Schema version
+    version: u32,
+    /// Executed flows
+    flows: IndexMap<String, RunbookRunSnapshot>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +48,8 @@ impl RunbookExecutionSnapshot {
             workspace: runbook_id.workspace.clone(),
             name: runbook_id.name.clone(),
             ended_at,
-            runs: IndexMap::new(),
+            version: 1,
+            flows: IndexMap::new(),
         }
     }
 }
@@ -65,8 +68,8 @@ pub struct SigningCommandSnapshot {
     construct_addon: Option<String>,
     construct_location: FileLocation,
     downstream_constructs_dids: Vec<ConstructDid>,
-    inputs: IndexMap<String, CommandInputSnapshot>,
-    outputs: IndexMap<String, CommandOutputSnapshot>,
+    inputs_fingerprint: Did,
+    outputs: IndexMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,14 +123,14 @@ impl RunbookSnapshotContext {
                 match &running_context.execution_context.execution_mode {
                     RunbookExecutionMode::Ignored => {
                         // Runbook was fully executed, the source of truth is the snapshoted context
-                        let previous_run = previous_snapshot
+                        let previous_flow = previous_snapshot
                             .as_ref()
                             .expect("unexpected error: former snapshot should have been provided")
-                            .runs
+                            .flows
                             .get(&run_id)
                             .expect("unexpected error: former snapshot corrupted")
                             .clone();
-                        snapshot.runs.insert(run_id, previous_run);
+                        snapshot.flows.insert(run_id, previous_flow);
                         continue;
                     }
                     RunbookExecutionMode::Full => {
@@ -161,7 +164,7 @@ impl RunbookSnapshotContext {
                         let previous_run = previous_snapshot
                             .as_ref()
                             .ok_or(diagnosed_error!("former snapshot should have been provided"))?
-                            .runs
+                            .flows
                             .get(&run_id)
                             .ok_or(diagnosed_error!("unexpected error: former snapshot corrupted"))?
                             .clone();
@@ -214,54 +217,19 @@ impl RunbookSnapshotContext {
                     construct_location: signing_construct_id.construct_location.clone(),
                     construct_addon: None,
                     downstream_constructs_dids,
-                    inputs: IndexMap::new(),
+                    inputs_fingerprint: Did::zero(),
                     outputs: IndexMap::new(),
                 };
                 run.signers.insert(signer_did.clone(), new_command);
                 let command_to_update = run.signers.get_mut(signer_did).unwrap();
-
-                // Check if construct is sensitive
-                let is_construct_sensitive = false;
 
                 if let Some(inputs_evaluations) = running_context
                     .execution_context
                     .commands_inputs_evaluation_results
                     .get(signer_did)
                 {
-                    for input in command_instance.specification.inputs.iter() {
-                        let Some(value) = inputs_evaluations.inputs.get_value(&input.name) else {
-                            continue;
-                        };
-                        let is_input_sensitive = input.sensitive;
-                        let _should_values_be_hashed = is_construct_sensitive || is_input_sensitive;
-
-                        match command_instance.get_expression_from_input(input) {
-                            Ok(Some(entry)) => {
-                                let input_name = &input.name;
-                                match command_to_update.inputs.get_mut(input_name) {
-                                    Some(input) => {
-                                        input.value_pre_evaluation =
-                                            Some(entry.to_string().trim().to_string());
-                                        input.value_post_evaluation = value.clone();
-                                        input.critical = true;
-                                    }
-                                    None => {
-                                        command_to_update.inputs.insert(
-                                            input_name.clone(),
-                                            CommandInputSnapshot {
-                                                value_pre_evaluation: Some(
-                                                    entry.to_string().trim().to_string(),
-                                                ),
-                                                value_post_evaluation: value.clone(),
-                                                critical: true,
-                                            },
-                                        );
-                                    }
-                                }
-                            }
-                            _ => {}
-                        };
-                    }
+                    let fingerprint = command_instance.compute_fingerprint(inputs_evaluations);
+                    command_to_update.inputs_fingerprint = fingerprint;
                 }
 
                 if let Some(outputs_results) =
@@ -271,19 +239,7 @@ impl RunbookSnapshotContext {
                         let Some(value) = outputs_results.outputs.get(&output.name) else {
                             continue;
                         };
-                        let output_name = &output.name;
-                        match command_to_update.outputs.get_mut(output_name) {
-                            Some(output_to_update) => {
-                                output_to_update.value = value.clone();
-                                output_to_update.signed = false;
-                            }
-                            None => {
-                                command_to_update.outputs.insert(
-                                    output_name.clone(),
-                                    CommandOutputSnapshot { value: value.clone(), signed: false },
-                                );
-                            }
-                        }
+                        command_to_update.outputs.insert(output.name.clone(), value.clone());
                     }
                 }
             }
@@ -364,8 +320,9 @@ impl RunbookSnapshotContext {
                         let Some(value) = inputs_evaluations.inputs.get_value(&input.name) else {
                             continue;
                         };
-                        let is_input_sensitive = input.sensitive;
-
+                        if input.sensitive {
+                            continue;
+                        }
                         match command_instance.get_expression_from_input(input) {
                             Ok(Some(entry)) => {
                                 let input_name = &input.name;
@@ -437,7 +394,7 @@ impl RunbookSnapshotContext {
                 }
             }
 
-            snapshot.runs.insert(run_id, run);
+            snapshot.flows.insert(run_id, run);
         }
 
         let rountrip: RunbookExecutionSnapshot = serde_json::from_value(json!(snapshot)).unwrap();
@@ -482,8 +439,8 @@ impl RunbookSnapshotContext {
         //     false,
         // ));
 
-        let old_runs_ids = old_ref.runs.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
-        let new_runs_ids = new_ref.runs.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let old_runs_ids = old_ref.flows.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
+        let new_runs_ids = new_ref.flows.iter().map(|(c, _)| c.to_string()).collect::<Vec<_>>();
         let runs_ids_sequence_changes =
             capture_diff_slices(Algorithm::Myers, &old_runs_ids, &new_runs_ids);
         // println!("Comparing \n{:?}\n{:?}", old_signers_dids, new_signers_dids);
@@ -500,13 +457,13 @@ impl RunbookSnapshotContext {
                 }
                 DiffOp::Delete { old_index, old_len, new_index: _ } => {
                     for i in 0..*old_len {
-                        let entry = old_ref.runs.get_index(old_index + i).unwrap().0.clone();
+                        let entry = old_ref.flows.get_index(old_index + i).unwrap().0.clone();
                         consolidated_changes.old_plans_to_rem.push(entry)
                     }
                 }
                 DiffOp::Insert { old_index: _, new_index, new_len } => {
                     for i in 0..*new_len {
-                        let entry = new_ref.runs.get_index(new_index + i).unwrap().0.clone();
+                        let entry = new_ref.flows.get_index(new_index + i).unwrap().0.clone();
                         consolidated_changes.new_plans_to_add.push(entry)
                     }
                 }
@@ -524,7 +481,7 @@ impl RunbookSnapshotContext {
             let mut plan_changes = ConsolidatedPlanChanges::new();
 
             let ((old_run_id, old_run), (new_run_id, new_run)) =
-                match (old_ref.runs.get_index(old_index), new_ref.runs.get_index(new_index)) {
+                match (old_ref.flows.get_index(old_index), new_ref.flows.get_index(new_index)) {
                     (Some(old), Some(new)) => (old, new),
                     _ => continue,
                 };
