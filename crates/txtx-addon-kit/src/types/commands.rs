@@ -257,19 +257,6 @@ pub struct CompositeCommandSpecification {
 }
 
 impl CommandSpecification {
-    pub fn set_input_as_sensitive(&mut self, input_name: &str) {
-        for input in self.inputs.iter_mut() {
-            if input.name.eq(input_name) {
-                input.sensitive = true;
-            }
-        }
-        for input in self.default_inputs.iter_mut() {
-            if input.name.eq(input_name) {
-                input.sensitive = true;
-            }
-        }
-    }
-
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
