@@ -18,6 +18,7 @@ pub const MESSAGE_BYTES: &str = "message_bytes";
 pub const REQUIRED_SIGNATURE_COUNT: &str = "required_signer_count";
 pub const SIGNER: &str = "signer";
 pub const IS_SIGNABLE: &str = "is_signable";
+pub const FORMATTED_TRANSACTION: &str = "formatted_transaction";
 
 // Defaults keys
 pub const NETWORK_ID: &str = "network_id";
