@@ -882,26 +882,35 @@ pub async fn handle_run_command(
             for (batch_name, mut batch_outputs) in collected_outputs.drain(..) {
                 if !batch_outputs.is_empty() {
                     println!("{}", yellow!(format!("{} Outputs: ", batch_name)));
-                    let mut data = vec![];
-                    for (key, values) in batch_outputs.drain(..) {
-                        let mut rows = vec![];
+                    if cmd.json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&batch_outputs).map_err(|e| {
+                                format!("failed to serialize outputs to json: {e}")
+                            })?
+                        );
+                    } else {
+                        let mut data = vec![];
+                        for (key, values) in batch_outputs.drain(..) {
+                            let mut rows = vec![];
 
-                        for (i, value) in values.into_iter().enumerate() {
-                            let parts = value.split("\n");
-                            for (j, part) in parts.into_iter().enumerate() {
-                                if i == 0 && j == 0 {
-                                    rows.push(vec![key.clone(), part.to_string()]);
-                                } else {
-                                    let row = vec!["".to_string(), part.to_string()];
-                                    rows.push(row);
+                            for (i, value) in values.into_iter().enumerate() {
+                                let parts = value.split("\n");
+                                for (j, part) in parts.into_iter().enumerate() {
+                                    if i == 0 && j == 0 {
+                                        rows.push(vec![key.clone(), part.to_string()]);
+                                    } else {
+                                        let row = vec!["".to_string(), part.to_string()];
+                                        rows.push(row);
+                                    }
                                 }
                             }
+                            data.append(&mut rows)
                         }
-                        data.append(&mut rows)
+                        let mut ascii_table = AsciiTable::default();
+                        ascii_table.set_max_width(150);
+                        ascii_table.print(data);
                     }
-                    let mut ascii_table = AsciiTable::default();
-                    ascii_table.set_max_width(150);
-                    ascii_table.print(data);
                 }
             }
         }

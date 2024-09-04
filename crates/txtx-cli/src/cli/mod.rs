@@ -150,6 +150,9 @@ pub struct ExecuteRunbook {
     /// Execute the runbook with supervision via the terminal console (coming soon)
     #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
+    /// When running in unsupervised mode, print outputs in JSON format
+    #[arg(long = "json", action=ArgAction::SetTrue, requires="unsupervised")]
+    pub json: bool,
     /// Explain how the runbook will be executed.
     #[arg(long = "explain", action=ArgAction::SetTrue)]
     pub explain: bool,
