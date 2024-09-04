@@ -28,28 +28,28 @@ lazy_static! {
                     documentation: "The transaction hash to check.",
                     typing: Type::buffer(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL of the EVM API used to poll for the transaction's inclusion in a block.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 chain_id: {
                     documentation: "Coming soon",
                     typing: Type::integer(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],

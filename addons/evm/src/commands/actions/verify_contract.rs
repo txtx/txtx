@@ -30,14 +30,14 @@ lazy_static! {
                     documentation: "The URL of the block explorer used to verify the contract.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 contract_address: {
                     documentation: "The contract address to verify.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 artifacts: {
@@ -57,7 +57,7 @@ lazy_static! {
                     "# },
                     typing: DEPLOYMENT_ARTIFACTS_TYPE.clone(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],

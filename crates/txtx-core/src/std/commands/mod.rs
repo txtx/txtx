@@ -92,28 +92,28 @@ pub fn new_input_specification() -> CommandSpecification {
                     documentation: "Value of the input",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 default: {
                     documentation: "Default value of the input, if value is omitted",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 description: {
                     documentation: "Description of the input",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: false,
                     internal: false
                 },
                 type: {
                     documentation: "The type of the input output. Can be inferred from `value` or `default` if provided.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],
@@ -273,14 +273,14 @@ pub fn new_output_specification() -> CommandSpecification {
                     documentation: "Value of the output",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 description: {
                     documentation: "Description of the output",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: false,
                     internal: false
                 }
             ],
@@ -365,7 +365,7 @@ pub fn new_runtime_setting() -> CommandSpecification {
                     documentation: "Value of the input",
                     typing: Type::object(vec![]),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],

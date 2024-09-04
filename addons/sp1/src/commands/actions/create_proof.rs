@@ -24,28 +24,28 @@ lazy_static! {
                     documentation: "The compiled program ELF.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 inputs: {
                     documentation: "The programs's inputs.",
                     typing: Type::array(Type::string()),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 verify: {
                     documentation: "Verify proof locally.",
                     typing: Type::bool(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 sp1_private_key: {
                     documentation: "Verify proof locally.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],

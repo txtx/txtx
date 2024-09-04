@@ -13,7 +13,7 @@ use libsecp256k1::{PublicKey, SecretKey};
 use pbkdf2::pbkdf2;
 use tiny_hderive::bip32::ExtendedPrivKey;
 use txtx_addon_kit::constants::{
-    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES
+    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::sha2::Sha512;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -36,7 +36,8 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, IS_SIGNABLE, MESSAGE_BYTES, CHECKED_PUBLIC_KEY
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY,
+    IS_SIGNABLE, MESSAGE_BYTES,
 };
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -58,28 +59,28 @@ lazy_static! {
                     documentation: "The mnemonic phrase used to generate the secret key.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: true
                 },
                 derivation_path: {
                     documentation: "The derivation path used to generate the secret key.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: true
                 },
                 is_encrypted: {
                     documentation: "Coming soon",
                     typing: Type::bool(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: false
                 },
                 password: {
                     documentation: "Coming soon",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: true
                 }
             ],
@@ -122,7 +123,6 @@ impl SignerImplementation for StacksMnemonic {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {

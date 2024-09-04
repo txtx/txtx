@@ -52,21 +52,21 @@ lazy_static! {
                     documentation: "A list of signers that make up the multisig.",
                     typing: Type::array(Type::string()),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: false
                 },
                 expected_address: {
                     documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: false
                 },
                 required_signatures: {
                     documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     sensitive: false
                 }
             ],

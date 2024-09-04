@@ -41,55 +41,55 @@ lazy_static! {
             documentation: "The contract abi.",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         bytecode: {
             documentation: "The compiled contract bytecode.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         source: {
             documentation: "The contract source code.",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         compiler_version: {
             documentation: "The solc version used to compile the contract.",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         contract_name: {
             documentation: "The name of the contract being deployed.",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         optimizer_enabled: {
             documentation: "Whether the optimizer is enabled during contract compilation.",
             typing: Type::bool(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         optimizer_runs: {
             documentation: "The number of runs the optimizer performed.",
             typing: Type::integer(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         evm_version: {
             documentation: "The EVM version used to compile the contract.",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         },
         via_ir: {
             documentation: "Coming soon",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         }
     };
     pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
@@ -97,55 +97,55 @@ lazy_static! {
             documentation: "The contract abi.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         bytecode: {
             documentation: "The compiled contract bytecode.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         source: {
             documentation: "The contract source code.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         compiler_version: {
             documentation: "The solc version used to compile the contract.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         contract_name: {
             documentation: "The name of the contract being deployed.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         optimizer_enabled: {
             documentation: "Whether the optimizer is enabled during contract compilation.",
             typing: Type::bool(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         optimizer_runs: {
             documentation: "The number of runs the optimizer performed.",
             typing: Type::integer(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         evm_version: {
             documentation: "The EVM version used to compile the contract.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         via_ir: {
             documentation: "Coming soon",
             typing: Type::string(),
             optional: true,
-            interpolable: false
+            tainting: true
         }
     };
     pub static ref CHAIN_DEFAULTS: Type = define_object_type! {
@@ -153,13 +153,13 @@ lazy_static! {
             documentation: "The chain id.",
             typing: Type::integer(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         rpc_api_url: {
             documentation: "The RPC API URL for the chain.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         }
     };
 }

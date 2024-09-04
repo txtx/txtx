@@ -45,7 +45,7 @@ lazy_static! {
                         documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true,
+                        tainting: true,
                         sensitive: true
                     }
                 ],

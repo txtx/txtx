@@ -32,7 +32,7 @@ lazy_static! {
                   documentation: "The contract call transaction bytes to decode.",
                   typing: Type::buffer(),
                   optional: false,
-                  interpolable: true,
+                  tainting: true,
                   internal: false
               }
           ],

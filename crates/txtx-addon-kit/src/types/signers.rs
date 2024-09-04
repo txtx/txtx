@@ -11,9 +11,13 @@ use std::{collections::HashMap, future::Future, pin::Pin};
 use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
-    }, diagnostics::Diagnostic, frontend::{
+    },
+    diagnostics::Diagnostic,
+    frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
-    }, types::{ObjectProperty, RunbookSupervisionContext, Type, Value}, ConstructDid, Did, PackageId, ValueStore
+    },
+    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
+    ConstructDid, Did, PackageId, ValueStore,
 };
 
 #[derive(Debug, Clone)]
@@ -287,13 +291,11 @@ impl SignerInstance {
             Ok(diagnostics)
         }
     }
-    
+
     pub fn compute_fingerprint(&self, evaluated_inputs: &CommandInputsEvaluationResult) -> Did {
         let mut comps = vec![];
         for input in self.specification.inputs.iter() {
-            let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else {
-                continue
-            };
+            let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else { continue };
             if input.sensitive {
                 println!("Including {} for fingerprint", input.name);
                 comps.push(value.to_bytes());

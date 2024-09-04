@@ -48,70 +48,70 @@ lazy_static! {
                     documentation: "Description of the deployment",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: false,
                     internal: false
                 },
                 contract_id: {
                     documentation: "The contract id deployed on Mainnet that needs to mirrored.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 rpc_api_url_source: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: false,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true,
+                    tainting: false,
                     internal: false
                 },
                 signer: {
                     documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 nonce: {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 post_conditions: {
                     documentation: "The post conditions to include to the transaction.",
                     typing: Type::array(Type::addon(STACKS_POST_CONDITIONS)),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 transforms: {
@@ -122,7 +122,7 @@ lazy_static! {
                             documentation: "Type of transform (supported: 'contract_source_find_and_replace').".into(),
                             typing: Type::string(),
                             optional: false,
-                            interpolable: true,
+                            tainting: true,
                             internal: false,
                         },
                         ObjectProperty {
@@ -130,7 +130,7 @@ lazy_static! {
                             documentation: "The pattern to locate.".into(),
                             typing: Type::string(),
                             optional: false,
-                            interpolable: true,
+                            tainting: true,
                             internal: false,
                         },
                         ObjectProperty {
@@ -138,25 +138,25 @@ lazy_static! {
                             documentation: "The update.".into(),
                             typing: Type::string(),
                             optional: false,
-                            interpolable: true,
+                            tainting: true,
                             internal: false,
                         }, ])),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 contracts_ids_dependencies: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 },
                 contracts_ids_lazy_dependencies: {
                     documentation: "Contracts that are depending on this contract after their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
-                    interpolable: true,
+                    tainting: true,
                     internal: false
                 }
             ],
@@ -197,7 +197,6 @@ lazy_static! {
 
 pub struct StacksDeployContractRequirement;
 impl CommandImplementation for StacksDeployContractRequirement {
-
     #[cfg(not(feature = "wasm"))]
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,

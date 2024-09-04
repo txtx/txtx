@@ -46,7 +46,7 @@ macro_rules! define_command {
         implements_signing_capability: $implements_signing_capability:expr,
         implements_background_task_capability: $implements_background_task_capability:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr, internal: $internal:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, internal: $internal:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
@@ -70,7 +70,7 @@ macro_rules! define_command {
                 documentation: String::from($input_doc),
                 typing: $input_ts,
                 optional: $optional,
-                interpolable: $interpolable,
+                tainting: $tainting,
                 internal: $internal,
                 check_required: false,
                 check_performed: false,
@@ -131,7 +131,7 @@ macro_rules! define_object_type {
             documentation: $input_doc:expr,
             typing: $input_ts:expr,
             optional: $optional:expr,
-            interpolable: $interpolable:expr
+            tainting: $tainting:expr
         }),*
     ] => {
         Type::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
@@ -139,7 +139,7 @@ macro_rules! define_object_type {
             documentation: String::from($input_doc),
             typing: $input_ts,
             optional: $optional,
-            interpolable: $interpolable,
+            tainting: $tainting,
             internal: false,
         }),*])
     };
@@ -165,7 +165,7 @@ macro_rules! define_signer {
         name: $fn_name:expr,
         matcher: $matcher:expr,
         documentation: $doc:expr,
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, interpolable: $interpolable:expr, sensitive: $sensitive:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, sensitive: $sensitive:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
@@ -182,7 +182,7 @@ macro_rules! define_signer {
                 documentation: String::from($input_doc),
                 typing: $input_ts,
                 optional: $optional,
-                interpolable: $interpolable,
+                tainting: $tainting,
                 sensitive: $sensitive,
                 check_required: false,
                 check_performed: false,

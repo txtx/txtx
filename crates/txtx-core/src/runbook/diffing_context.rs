@@ -267,9 +267,6 @@ impl RunbookSnapshotContext {
                 let construct_id =
                     running_context.workspace_context.constructs.get(construct_did).unwrap();
 
-                let critical =
-                    running_context.execution_context.signed_commands.contains(construct_did);
-
                 let mut upstream_constructs_dids = vec![];
                 if let Some(deps) = running_context
                     .execution_context
@@ -323,6 +320,11 @@ impl RunbookSnapshotContext {
                         if input.sensitive {
                             continue;
                         }
+                        let critical = running_context
+                            .execution_context
+                            .signed_commands
+                            .contains(construct_did)
+                            && input.tainting;
                         match command_instance.get_expression_from_input(input) {
                             Ok(Some(entry)) => {
                                 let input_name = &input.name;
@@ -744,6 +746,8 @@ pub fn diff_command_snapshots(
                 false,
             ));
 
+            let critical = new_input.critical;
+
             // Input value_pre_evaluation
             consolidated_changes.constructs_to_update.push(evaluated_diff(
                 Some(old_construct_did.clone()),
@@ -752,7 +756,7 @@ pub fn diff_command_snapshots(
                     new_input.value_pre_evaluation.as_ref().unwrap_or(&empty_string),
                 ),
                 format!("Non-signing command's input value_pre_evaluation updated"),
-                true,
+                critical,
             ));
             // Input value_post_evaluation
             if let Some(props) = new_input.value_post_evaluation.as_object() {
@@ -766,7 +770,7 @@ pub fn diff_command_snapshots(
                         Some(old_construct_did.clone()),
                         TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
                         format!("Non-signing command's input value_post_evaluation updated"),
-                        true,
+                        critical,
                     ));
                 }
             } else {
@@ -777,7 +781,7 @@ pub fn diff_command_snapshots(
                         &new_input.value_post_evaluation.to_string(),
                     ),
                     format!("Non-signing command's input value_post_evaluation updated"),
-                    true,
+                    critical,
                 ));
             }
         }

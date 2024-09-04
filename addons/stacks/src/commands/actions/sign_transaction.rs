@@ -53,49 +53,49 @@ lazy_static! {
                 documentation: "Description of the transaction",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: false,
                 internal: false
             },
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             network_id: {
                 documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`."#},
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             signer: {
                 documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             fee: {
                 documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                 typing: Type::integer(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             fee_strategy: {
                 documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: false,
                 internal: false
             }
           ],

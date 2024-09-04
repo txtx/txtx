@@ -22,28 +22,28 @@ lazy_static! {
                 documentation: "A description of the call.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: false,
                 internal: false
             },
             telegram_bot_api_token: {
               documentation: "Coming soon",
               typing: Type::string(),
               optional: false,
-              interpolable: true,
+              tainting: true,
                 internal: false
             },
             telegram_chat_id: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 internal: false
             },
             message: {
                 documentation: "Message to send.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 internal: false
             }
           ],

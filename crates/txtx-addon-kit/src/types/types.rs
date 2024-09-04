@@ -402,7 +402,7 @@ impl Value {
                 } else {
                     match crate::hex::decode(&bytes) {
                         Ok(res) => res,
-                        Err(_) => bytes.as_bytes().to_vec()
+                        Err(_) => bytes.as_bytes().to_vec(),
                     }
                 };
                 bytes
@@ -681,7 +681,7 @@ pub struct ObjectProperty {
     pub documentation: String,
     pub typing: Type,
     pub optional: bool,
-    pub interpolable: bool,
+    pub tainting: bool,
     pub internal: bool,
 }
 
