@@ -16,6 +16,7 @@ txtx-core = { workspace = true }
 txtx-addon-network-solana = { workspace = true }
 txtx-addon-network-stacks = { workspace = true }
 txtx-addon-network-evm = { workspace = true }
+txtx-addon-network-bitcoin = { workspace = true }
 txtx-addon-telegram = { workspace = true }
 txtx-addon-sp1 = { workspace = true, optional = true }
 txtx-gql = { workspace = true }

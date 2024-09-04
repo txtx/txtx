@@ -10047,6 +10047,7 @@ dependencies = [
  "toml 0.8.19",
  "totp-rs",
  "tower-lsp",
+ "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
  "txtx-addon-network-solana",
  "txtx-addon-network-stacks",
