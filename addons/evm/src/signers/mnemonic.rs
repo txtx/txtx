@@ -40,10 +40,10 @@ use super::DEFAULT_DERIVATION_PATH;
 lazy_static! {
     pub static ref EVM_MNEMONIC: SignerSpecification = define_signer! {
         EVMMnemonic => {
-          name: "EVM Mnemonic Signer",
-          matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` signer can be used to synchronously sign a transaction."#},
-          inputs: [
+            name: "EVM Mnemonic Signer",
+            matcher: "mnemonic",
+            documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` signer can be used to synchronously sign a transaction."#},
+            inputs: [
             mnemonic: {
                 documentation: "The mnemonic phrase used to generate the secret key.",
                 typing: Type::string(),
@@ -72,18 +72,18 @@ lazy_static! {
                 interpolable: true,
                 sensitive: true
             }
-          ],
-          outputs: [
-              public_key: {
-                documentation: "The public key of the account generated from the secret key.",
-                typing: Type::array(Type::buffer())
-              },
-              address: {
-                documentation: "The address generated from the secret key.",
-                typing: Type::array(Type::buffer())
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
+            ],
+            outputs: [
+                public_key: {
+                    documentation: "The public key of the account generated from the secret key.",
+                    typing: Type::array(Type::buffer())
+                },
+                address: {
+                    documentation: "The address generated from the secret key.",
+                    typing: Type::array(Type::string())
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
         signer "bob" "evm::mnemonic" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"

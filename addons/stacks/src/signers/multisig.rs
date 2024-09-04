@@ -43,57 +43,57 @@ use super::get_addition_actions_for_address;
 lazy_static! {
     pub static ref STACKS_MULTISIG: SignerSpecification = define_signer! {
         StacksConnect => {
-          name: "Stacks Multisig",
-          matcher: "multisig",
-          documentation:txtx_addon_kit::indoc! {r#"The `multisig` signer creates an ordered, `n` of `n` multisig.
-          Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order."#},
-          inputs: [
-            signers: {
-              documentation: "A list of signers that make up the multisig.",
-                typing: Type::array(Type::string()),
-                optional: false,
-                interpolable: true,
-                sensitive: false
-            },
-            expected_address: {
-              documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true,
-                sensitive: false
-            },
-            required_signatures: {
-              documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true,
-                sensitive: false
-            }
-          ],
-          outputs: [
-              public_key: {
-                documentation: "The public key of the generated multisig signer.",
-                typing: Type::array(Type::buffer())
-              },
-              signers: {
-                documentation: "The list of signers that make up the multisig.",
-                typing: Type::array(Type::string())
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-            signer "alice" "stacks::connect" {
-                expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
-            }
+            name: "Stacks Multisig",
+            matcher: "multisig",
+            documentation:txtx_addon_kit::indoc! {r#"The `multisig` signer creates an ordered, `n` of `n` multisig.
+            Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order."#},
+            inputs: [
+                signers: {
+                    documentation: "A list of signers that make up the multisig.",
+                    typing: Type::array(Type::string()),
+                    optional: false,
+                    interpolable: true,
+                    sensitive: false
+                },
+                expected_address: {
+                    documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true,
+                    sensitive: false
+                },
+                required_signatures: {
+                    documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true,
+                    sensitive: false
+                }
+            ],
+            outputs: [
+                signers: {
+                    documentation: "The list of signers that make up the multisig.",
+                    typing: Type::array(Type::string())
+                },
+                address: {
+                    documentation: "The address of the account generated from the public key.",
+                    typing: Type::array(Type::string())
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                signer "alice" "stacks::connect" {
+                    expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+                }
 
-            signer "bob" "stacks::connect" {
-                expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
-            }
+                signer "bob" "stacks::connect" {
+                    expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+                }
 
-            signer "alice_and_bob" "stacks::multisig" {
-                signers = [signer.alice, signer.bob]
-            }
-    "#},
-      }
+                signer "alice_and_bob" "stacks::multisig" {
+                    signers = [signer.alice, signer.bob]
+                }
+            "#},
+        }
     };
 }
 

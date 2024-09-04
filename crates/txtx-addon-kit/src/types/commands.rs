@@ -885,7 +885,7 @@ impl CommandInstance {
     pub async fn check_signed_executability(
         &mut self,
         construct_did: &ConstructDid,
-        evaluated_inputs: &mut CommandInputsEvaluationResult,
+        evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         addon_defaults: AddonDefaults,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,

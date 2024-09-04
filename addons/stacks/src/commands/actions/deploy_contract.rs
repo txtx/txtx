@@ -67,7 +67,7 @@ lazy_static! {
                     documentation: "Contract informations.",
                     typing: Type::object(vec![
                         ObjectProperty {
-                            name: "source_code".into(),
+                            name: "contract_source".into(),
                             documentation: "The code of the contract method to deploy.".into(),
                             typing: Type::string(),
                             optional: true,
