@@ -280,7 +280,7 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "A hex string.",
-                        typing: vec![Type::string(), Type::buffer()],
+                        typing: vec![Type::string(), Type::buffer(), Type::addon(STACKS_CV_GENERIC)],
                         optional: false
                     }
                 ],
