@@ -4,6 +4,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
+pub mod codec;
 mod commands;
 mod constants;
 mod functions;
@@ -55,7 +56,7 @@ impl Addon for SolanaNetworkAddon {
     }
 
     fn get_signers(&self) -> Vec<SignerSpecification> {
-        signers::WALLETS.clone()
+        signers::SIGNERS.clone()
     }
 
     fn get_domain_specific_commands_inputs_dependencies<'a>(

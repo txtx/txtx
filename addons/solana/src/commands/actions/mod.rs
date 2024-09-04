@@ -1,12 +1,15 @@
 use call_contract::SEND_CONTRACT_CALL;
-use txtx_addon_kit::types::{commands::PreCommandSpecification, diagnostics::Diagnostic, ConstructDid, Did, ValueStore};
+use sign_transaction::SIGN_SOLANA_TRANSACTION;
+use txtx_addon_kit::types::{
+    commands::PreCommandSpecification, diagnostics::Diagnostic, ConstructDid, Did, ValueStore,
+};
 mod call_contract;
+pub mod sign_transaction;
 use crate::constants::SIGNER;
 
 lazy_static! {
-    pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
-        SEND_CONTRACT_CALL.clone(),
-    ];
+    pub static ref ACTIONS: Vec<PreCommandSpecification> =
+        vec![SEND_CONTRACT_CALL.clone(), SIGN_SOLANA_TRANSACTION.clone()];
 }
 
 fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {

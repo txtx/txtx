@@ -1,14 +1,26 @@
 use std::collections::HashMap;
 
-use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandImplementation, CommandSpecification, PreCommandSpecification};
+use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::types::commands::{
+    CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+    PreCommandSpecification,
+};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::BlockEvent;
-use txtx_addon_kit::types::signers::{SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState};
+use txtx_addon_kit::types::signers::{
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
+};
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_kit::AddonDefaults;
-use txtx_addon_kit::channel;
+
+use crate::codec::encode_contract_call;
+use crate::commands::actions::get_signer_did;
+use crate::constants::{CHAIN_ID, CONTRACT_ID, TRANSACTION_PAYLOAD_BYTES};
+
+use super::sign_transaction::SignSolanaTransaction;
 
 lazy_static! {
     pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -93,28 +105,6 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-                action "my_ref" "stacks::call_contract" {
-                    description = "Encodes the contract call, sign, and broadcasts the set-token function."
-                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                    function_name = "verify-and-update-price-feeds"
-                    function_args = [
-                        stacks::cv_buff(output.bitcoin_price_feed),
-                        stacks::cv_tuple({
-                            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-                            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
-                        })
-                    ]
-                    signer = signer.alice
-                }            
-                output "tx_id" {
-                value = action.my_ref.tx_id
-                }
-                output "result" {
-                value = action.my_ref.result
-                }
-                // > tx_id: 0x...
-                // > result: success
     "#},
       }
     };
@@ -139,151 +129,113 @@ impl CommandImplementation for SendContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-    //     let signer_did = get_signer_did(args).unwrap();
-    //     let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-    //     // Extract network_id
-    //     let network_id: String = match args.get_defaulting_string("network_id", defaults) {
-    //         Ok(value) => value,
-    //         Err(diag) => return Err((signers, signer_state, diag)),
-    //     };
-    //     let contract_id_value = match args.get_expected_value("contract_id") {
-    //         Ok(value) => value,
-    //         Err(diag) => return Err((signers, signer_state, diag)),
-    //     };
-    //     let function_name = match args.get_expected_string("function_name") {
-    //         Ok(value) => value,
-    //         Err(diag) => return Err((signers, signer_state, diag)),
-    //     };
-    //     let function_args_values = match args.get_expected_array("function_args") {
-    //         Ok(value) => value,
-    //         Err(diag) => return Err((signers, signer_state, diag)),
-    //     };
-    //     let empty_vec = vec![];
-    //     let post_conditions_values =
-    //         args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-    //     let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
-    //     let bytes = match encode_contract_call(
-    //         spec,
-    //         function_name,
-    //         function_args_values,
-    //         &network_id,
-    //         contract_id_value,
-    //     ) {
-    //         Ok(value) => value,
-    //         Err(diag) => return Err((signers, signer_state, diag)),
-    //     };
-    //     signers.push_signer_state(signer_state);
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+        // Extract network_id
+        let chain_id: String = match args.get_defaulting_string(CHAIN_ID, defaults) {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
+        let contract_id_value = match args.get_expected_value(CONTRACT_ID) {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
+        let function_name = match args.get_expected_string("function_name") {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
+        let function_args_values = match args.get_expected_array("function_args") {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
 
-    //     let mut args = args.clone();
-    //     args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-    //     args.insert(
-    //         TRANSACTION_POST_CONDITIONS_BYTES,
-    //         Value::array(post_conditions_values.clone()),
-    //     );
-    //     args.insert(
-    //         TRANSACTION_POST_CONDITION_MODE_BYTES,
-    //         Value::string(post_condition_mode.to_string()),
-    //     );
+            let bytes = encode_contract_call().map_err(|e| (signers, signer_state, diagnosed_error!("{e}")))?;
+            signers.push_signer_state(signer_state);
 
-    //     SignStacksTransaction::check_signed_executability(
-    //         construct_did,
-    //         instance_name,
-    //         spec,
-    //         &args,
-    //         defaults,
-    //         supervision_context,
-    //         signers_instances,
-    //         signers,
-    //     )
-    // }
+            let mut args = args.clone();
+            args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
-    // fn run_signed_execution(
-    //     construct_did: &ConstructDid,
-    //     spec: &CommandSpecification,
-    //     args: &ValueStore,
-    //     defaults: &AddonDefaults,
-    //     progress_tx: &channel::Sender<BlockEvent>,
-    //     signers_instances: &HashMap<ConstructDid, SignerInstance>,
-    //     signers: SignersState,
-    // ) -> SignerSignFutureResult {
-    //     let empty_vec = vec![];
-    //     let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
-    //     let contract_id_value = args.get_expected_value("contract_id").unwrap();
-    //     let function_name = args.get_expected_string("function_name").unwrap();
-    //     let function_args_values = args.get_expected_array("function_args").unwrap();
-    //     let post_conditions_values =
-    //         args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-    //     let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
+            SignSolanaTransaction::check_signed_executability(
+                construct_did,
+                instance_name,
+                spec,
+                &args,
+                defaults,
+                supervision_context,
+                signers_instances,
+                signers,
+            )
+        }
 
-    //     let bytes = encode_contract_call(
-    //         spec,
-    //         function_name,
-    //         function_args_values,
-    //         &network_id,
-    //         contract_id_value,
-    //     )
-    //     .unwrap();
-    //     let progress_tx = progress_tx.clone();
-    //     let args = args.clone();
-    //     let signers_instances = signers_instances.clone();
-    //     let defaults = defaults.clone();
-    //     let construct_did = construct_did.clone();
-    //     let spec = spec.clone();
-    //     let progress_tx = progress_tx.clone();
+        fn run_signed_execution(
+            construct_did: &ConstructDid,
+            spec: &CommandSpecification,
+            args: &ValueStore,
+            defaults: &AddonDefaults,
+            progress_tx: &channel::Sender<BlockEvent>,
+            signers_instances: &HashMap<ConstructDid, SignerInstance>,
+            signers: SignersState,
+        ) -> SignerSignFutureResult {
+            let empty_vec = vec![];
+            let chain_id: String = args.get_defaulting_string(CHAIN_ID, defaults).unwrap();
+            let contract_id_value = args.get_expected_value("contract_id").unwrap();
+            let function_name = args.get_expected_string("function_name").unwrap();
+            let function_args_values = args.get_expected_array("function_args").unwrap();
 
-    //     let mut args = args.clone();
-    //     args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-    //     args.insert(
-    //         TRANSACTION_POST_CONDITIONS_BYTES,
-    //         Value::array(post_conditions_values.clone()),
-    //     );
-    //     args.insert(
-    //         TRANSACTION_POST_CONDITION_MODE_BYTES,
-    //         Value::string(post_condition_mode.to_string()),
-    //     );
+            let bytes = encode_contract_call().unwrap();
+            let progress_tx = progress_tx.clone();
+            let args = args.clone();
+            let signers_instances = signers_instances.clone();
+            let defaults = defaults.clone();
+            let construct_did = construct_did.clone();
+            let spec = spec.clone();
+            let progress_tx = progress_tx.clone();
 
-    //     let future = async move {
-    //         let run_signing_future = SignStacksTransaction::run_signed_execution(
-    //             &construct_did,
-    //             &spec,
-    //             &args,
-    //             &defaults,
-    //             &progress_tx,
-    //             &signers_instances,
-    //             signers,
-    //         );
-    //         let (signers, signer_state, mut res_signing) = match run_signing_future {
-    //             Ok(future) => match future.await {
-    //                 Ok(res) => res,
-    //                 Err(err) => return Err(err),
-    //             },
-    //             Err(err) => return Err(err),
-    //         };
+            let mut args = args.clone();
+            args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
-    //         args.insert(
-    //             SIGNED_TRANSACTION_BYTES,
-    //             res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
-    //         );
-    //         let mut res = match BroadcastStacksTransaction::run_execution(
-    //             &construct_did,
-    //             &spec,
-    //             &args,
-    //             &defaults,
-    //             &progress_tx,
-    //         ) {
-    //             Ok(future) => match future.await {
-    //                 Ok(res) => res,
-    //                 Err(diag) => return Err((signers, signer_state, diag)),
-    //             },
-    //             Err(data) => return Err((signers, signer_state, data)),
-    //         };
+            let future = async move {
+                let run_signing_future = SignSolanaTransaction::run_signed_execution(
+                    &construct_did,
+                    &spec,
+                    &args,
+                    &defaults,
+                    &progress_tx,
+                    &signers_instances,
+                    signers,
+                );
+                let (signers, signer_state, mut res_signing) = match run_signing_future {
+                    Ok(future) => match future.await {
+                        Ok(res) => res,
+                        Err(err) => return Err(err),
+                    },
+                    Err(err) => return Err(err),
+                };
 
-    //         res_signing.append(&mut res);
+                args.insert(
+                    SIGNED_TRANSACTION_BYTES,
+                    res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
+                );
+                let mut res = match BroadcastStacksTransaction::run_execution(
+                    &construct_did,
+                    &spec,
+                    &args,
+                    &defaults,
+                    &progress_tx,
+                ) {
+                    Ok(future) => match future.await {
+                        Ok(res) => res,
+                        Err(diag) => return Err((signers, signer_state, diag)),
+                    },
+                    Err(data) => return Err((signers, signer_state, data)),
+                };
 
-    //         Ok((signers, signer_state, res_signing))
-    //     };
-    //     Ok(Box::pin(future))
-    unimplemented!()
+                res_signing.append(&mut res);
+
+                Ok((signers, signer_state, res_signing))
+            };
+            Ok(Box::pin(future))
+        unimplemented!()
     }
 
     fn build_background_task(
