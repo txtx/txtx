@@ -1,4 +1,4 @@
-use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::types::{Type, Value};
 
 pub const STACKS_CV_UINT: &str = "stacks::cv_uint";
 pub const STACKS_CV_INT: &str = "stacks::cv_int";
@@ -90,4 +90,27 @@ impl StacksValue {
     pub fn signature(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, STACKS_SIGNATURE)
     }
+}
+
+lazy_static! {
+    pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
+        contract_source: {
+            documentation: "The contract source.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
+        },
+        contract_name: {
+            documentation: "The contract name.",
+            typing: Type::string(),
+            optional: false,
+            interpolable: false
+        },
+        clarity_version: {
+            documentation: "The contract version.",
+            typing: Type::integer(),
+            optional: false,
+            interpolable: false
+        }
+    };
 }

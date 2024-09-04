@@ -36,7 +36,8 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, IS_SIGNABLE, MESSAGE_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, FORMATTED_TRANSACTION,
+    IS_SIGNABLE, MESSAGE_BYTES,
 };
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -228,6 +229,12 @@ impl SignerImplementation for StacksMnemonic {
                 .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
+
+            let formatted_payload = signer_state
+                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+                .and_then(|v| v.as_string())
+                .and_then(|v| Some(v.to_string()));
+
             let request = ActionItemRequest::new(
                 &Some(construct_did.clone()),
                 title,
@@ -242,6 +249,7 @@ impl SignerImplementation for StacksMnemonic {
                 .skippable(skippable)
                 .check_expectation_action_uuid(construct_did)
                 .only_approval_needed()
+                .formatted_payload(formatted_payload)
                 .to_action_type(),
                 ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
             );

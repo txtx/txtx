@@ -75,6 +75,9 @@ fn test_signer_runbook_no_env() {
     let nonce_action = &action_panel_data.groups[0].sub_groups[0].action_items[0];
     let fee_action = &action_panel_data.groups[0].sub_groups[0].action_items[1];
     let provide_signature_action = &action_panel_data.groups[0].sub_groups[0].action_items[2];
+
+    harness.assert_provide_signature_formatted_payload(provide_signature_action, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"singlesig\",\n    \"signer\": \"4484198ea20f526ac9643690ef9243fbbe94f832\",\n    \"nonce\": 0,\n    \"tx_fee\": 195\n  }\n}".into()));
+
     assert_eq!(Some("Check account nonce".to_string()), nonce_action.description);
     assert_eq!(Some("Check transaction fee".to_string()), fee_action.description);
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
@@ -277,7 +280,10 @@ fn test_multisig_runbook_no_env() {
     );
 
     let sign_tx_alice = &sign_tx_modal.groups[0].sub_groups[0].action_items[0];
+    harness.assert_provide_signature_formatted_payload(sign_tx_alice, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": []\n  }\n}".into()));
+
     let sign_tx_bob = &sign_tx_modal.groups[0].sub_groups[1].action_items[0];
+    harness.assert_provide_signature_formatted_payload(sign_tx_bob, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": [\n      \"02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33\"\n    ]\n  }\n}".into()));
 
     // I don't know why this update is sent here, this feels extraneous
     harness.expect_action_item_update(

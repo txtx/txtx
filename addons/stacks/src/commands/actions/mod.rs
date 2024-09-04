@@ -1,7 +1,6 @@
 pub mod broadcast_transaction;
 mod call_contract;
 pub mod call_readonly_fn;
-mod decode_contract_call;
 mod deploy_contract;
 mod deploy_contract_requirement;
 pub mod encode_contract_call;
@@ -14,9 +13,9 @@ use crate::codec::codec::{
     StacksString, TokenTransferMemo, TransactionContractCall, TransactionPayload,
     TransactionSmartContract,
 };
+use crate::codec::cv::decode_cv_bytes;
+use crate::codec::cv::value_to_cv;
 use crate::constants::SIGNER;
-use crate::stacks_helpers::encode_any_value_to_clarity_value;
-use crate::stacks_helpers::parse_clarity_value;
 use crate::typing::StacksValue;
 use broadcast_transaction::BROADCAST_STACKS_TRANSACTION;
 use call_contract::SEND_CONTRACT_CALL;
@@ -27,7 +26,6 @@ use clarity::{
     types::chainstate::StacksAddress,
     vm::{types::PrincipalData, ClarityName},
 };
-use decode_contract_call::DECODE_STACKS_CONTRACT_CALL;
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
 use deploy_contract_requirement::DEPLOY_STACKS_CONTRACT_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
@@ -43,7 +41,6 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_STACKS_TRANSACTION.clone(),
-        DECODE_STACKS_CONTRACT_CALL.clone(),
         DEPLOY_STACKS_CONTRACT.clone(),
         DEPLOY_STACKS_CONTRACT_REQUIREMENT.clone(),
         ENCODE_STACKS_CONTRACT_CALL.clone(),
@@ -63,7 +60,7 @@ pub fn encode_contract_call(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let contract_id = match contract_id_value {
-        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+        Value::Addon(data) => match decode_cv_bytes(&data.bytes).unwrap() {
             clarity::vm::Value::Principal(PrincipalData::Contract(c)) => c,
             cv => {
                 return Err(diagnosed_error!(
@@ -110,7 +107,7 @@ pub fn encode_contract_call(
 
     let mut function_args = vec![];
     for raw_value in function_args_values.iter() {
-        let value = encode_any_value_to_clarity_value(raw_value)?;
+        let value = value_to_cv(raw_value).map_err(|e| diagnosed_error!("{e}"))?;
         function_args.push(value);
     }
 
@@ -172,7 +169,7 @@ pub fn encode_stx_transfer(
 ) -> Result<Value, Diagnostic> {
     // Extract contract_address
     let recipient_address = match recipient {
-        Value::Addon(data) => match parse_clarity_value(&data.bytes, &data.id).unwrap() {
+        Value::Addon(data) => match decode_cv_bytes(&data.bytes).unwrap() {
             clarity::vm::Value::Principal(principal) => principal,
             cv => {
                 return Err(diagnosed_error!(
