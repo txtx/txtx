@@ -808,7 +808,9 @@ pub async fn handle_run_command(
             runbook_name
         );
 
-        let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
+        let res =
+            start_unsupervised_runbook_runloop(&mut runbook, &progress_tx)
+                .await;
         if let Err(diags) = res {
             println!("{} Execution aborted", red!("x"));
             for diag in diags.iter() {
@@ -819,28 +821,6 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
             }
 
-            if let Some(RunbookState::File(state_file_location)) = runbook_state {
-                let previous_snapshot =
-                    match load_runbook_execution_snapshot(&state_file_location, false) {
-                        Ok(snapshot) => Some(snapshot),
-                        Err(_e) => None,
-                    };
-
-                let lock_file = get_lock_file_location(&state_file_location);
-                println!("{} Saving transient state to {}", yellow!("!"), lock_file);
-                let diff = RunbookSnapshotContext::new();
-                let snapshot = diff
-                    .snapshot_runbook_execution(
-                        &runbook.runbook_id,
-                        &runbook.running_contexts,
-                        previous_snapshot,
-                    )
-                    .map_err(|e| e.message)?;
-                lock_file
-                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-                    .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
-                ();
-            }
             return Ok(());
         }
 
@@ -878,43 +858,6 @@ pub async fn handle_run_command(
                 .insert(running_context.inputs_set.name.clone(), running_context_outputs);
         }
 
-        if !collected_outputs.is_empty() {
-            for (batch_name, mut batch_outputs) in collected_outputs.drain(..) {
-                if !batch_outputs.is_empty() {
-                    println!("{}", yellow!(format!("{} Outputs: ", batch_name)));
-                    if cmd.json {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&batch_outputs).map_err(|e| {
-                                format!("failed to serialize outputs to json: {e}")
-                            })?
-                        );
-                    } else {
-                        let mut data = vec![];
-                        for (key, values) in batch_outputs.drain(..) {
-                            let mut rows = vec![];
-
-                            for (i, value) in values.into_iter().enumerate() {
-                                let parts = value.split("\n");
-                                for (j, part) in parts.into_iter().enumerate() {
-                                    if i == 0 && j == 0 {
-                                        rows.push(vec![key.clone(), part.to_string()]);
-                                    } else {
-                                        let row = vec!["".to_string(), part.to_string()];
-                                        rows.push(row);
-                                    }
-                                }
-                            }
-                            data.append(&mut rows)
-                        }
-                        let mut ascii_table = AsciiTable::default();
-                        ascii_table.set_max_width(150);
-                        ascii_table.print(data);
-                    }
-                }
-            }
-        }
-
         if let Some(RunbookState::File(state_file_location)) = runbook_state {
             let previous_snapshot =
                 match load_runbook_execution_snapshot(&state_file_location, false) {
@@ -940,6 +883,45 @@ pub async fn handle_run_command(
                 .expect("unable to save state");
             ();
         }
+
+        if !collected_outputs.is_empty() {
+            if cmd.output_json {
+                println!("{}", serde_json::json!(&collected_outputs));
+            } else {
+                for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
+                    if !flow_outputs.is_empty() {
+                        println!("{}", yellow!(format!("{} Outputs: ", flow_name)));
+                        let mut data = vec![];
+                        for (key, values) in flow_outputs.drain(..) {
+                            if let Some(ref desired_output) = cmd.output {
+                                if desired_output.eq(&key) && !values.is_empty() {
+                                    println!("{}", values.first().unwrap());
+                                    return Ok(())
+                                }
+                            }
+                            let mut rows = vec![];
+
+                            for (i, value) in values.into_iter().enumerate() {
+                                let parts = value.split("\n");
+                                for (j, part) in parts.into_iter().enumerate() {
+                                    if i == 0 && j == 0 {
+                                        rows.push(vec![key.clone(), part.to_string()]);
+                                    } else {
+                                        let row = vec!["".to_string(), part.to_string()];
+                                        rows.push(row);
+                                    }
+                                }
+                            }
+                            data.append(&mut rows)
+                        }
+                        let mut ascii_table = AsciiTable::default();
+                        ascii_table.set_max_width(150);
+                        ascii_table.print(data);
+                    }
+                }
+            }
+        }
+
         return Ok(());
     }
 
