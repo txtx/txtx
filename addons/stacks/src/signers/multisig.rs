@@ -32,9 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT,
-    RPC_API_URL,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT, RPC_API_URL
 };
 use crate::rpc::StacksRpc;
 
@@ -504,8 +502,19 @@ impl SignerImplementation for StacksConnect {
             );
 
             for (signer_uuid, signer_wallet_instance) in multisig_signer_instances.into_iter() {
-                let signer_wallet_state = signers.pop_signer_state(&signer_uuid).unwrap();
-                let payload = payloads.get(&signer_uuid).unwrap();
+                let mut signer_wallet_state = signers.pop_signer_state(&signer_uuid).unwrap();
+                let transaction = payloads.get(&signer_uuid).unwrap();
+                let mut bytes = vec![];
+                transaction.consensus_serialize(&mut bytes).unwrap();
+                let payload = Value::buffer(bytes);
+                let formatted_payload = transaction.format_for_display();
+
+                signer_wallet_state.insert_scoped_value(
+                    &origin_uuid.to_string(),
+                    FORMATTED_TRANSACTION,
+                    Value::string(formatted_payload),
+                );
+
                 let (mut updated_wallets, signer_wallet_state, mut actions) =
                     (signer_wallet_instance.specification.check_signability)(
                         &origin_uuid,
@@ -697,7 +706,7 @@ fn generate_ordered_multisig_payloads(
     tx: StacksTransaction,
     multisig_signer_instances: &Vec<(ConstructDid, SignerInstance)>,
     signers: &SignersState,
-) -> Result<(u64, u64, HashMap<ConstructDid, Value>), String> {
+) -> Result<(u64, u64, HashMap<ConstructDid, StacksTransaction>), String> {
     let mut payloads = HashMap::new();
     let mut signature_count = 0;
     let mut actions_count = 0;
@@ -763,10 +772,7 @@ fn generate_ordered_multisig_payloads(
         spending_condition.fields = fields;
         tx.auth =
             TransactionAuth::Standard(TransactionSpendingCondition::Multisig(spending_condition));
-        let mut bytes = vec![];
-        tx.consensus_serialize(&mut bytes).unwrap();
-        let payload = Value::buffer(bytes);
-        payloads.insert(this_signer_uuid.clone(), payload);
+        payloads.insert(this_signer_uuid.clone(), tx);
     }
 
     Ok((signature_count, actions_count, payloads))

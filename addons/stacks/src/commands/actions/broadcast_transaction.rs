@@ -169,11 +169,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
         };
 
         use crate::{
+            codec::cv::txid_display_str,
             constants::{
                 DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN,
             },
             rpc::{RpcError, TransactionStatus},
-            stacks_helpers::txid_display_str,
         };
 
         let args = inputs.clone();

@@ -29,13 +29,16 @@ use clarity::{
     impl_byte_array_serde,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use serde_json::Value as JsonValue;
 use std::convert::TryFrom;
 use std::convert::TryInto;
-use std::fmt;
+use std::fmt::{self};
 use std::io::{Read, Write};
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::str::FromStr;
+use txtx_addon_kit::hex;
 use txtx_addon_kit::types::ValueStore;
 
 pub const MAX_BLOCK_LEN: u32 = 2 * 1024 * 1024;
@@ -310,6 +313,12 @@ pub enum TransactionAuthField {
 }
 
 impl TransactionAuthField {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            TransactionAuthField::PublicKey(pubkey) => pubkey.to_hex(),
+            TransactionAuthField::Signature(_, sig) => hex::encode(sig.0),
+        }
+    }
     pub fn is_public_key(&self) -> bool {
         matches!(*self, TransactionAuthField::PublicKey(_))
     }
@@ -624,6 +633,25 @@ pub enum TransactionSpendingCondition {
 }
 
 impl TransactionSpendingCondition {
+    pub fn format_for_display(&self) -> JsonValue {
+        let value = match self {
+            TransactionSpendingCondition::Singlesig(condition) => json!({
+                "spending_condition": "singlesig",
+                "signer": condition.signer.to_string(),
+                "nonce": condition.nonce,
+                "tx_fee": condition.tx_fee,
+            }),
+            TransactionSpendingCondition::Multisig(condition) => json!({
+                "spending_condition": "multisig",
+                "signer": condition.signer.to_string(),
+                "nonce": condition.nonce,
+                "tx_fee": condition.tx_fee,
+                "signatures_required":condition.signatures_required,
+                "fields": condition.fields.iter().map(|f| f.format_for_display()).collect::<Vec<String>>()
+            }),
+        };
+        value
+    }
     pub fn new_singlesig_p2pkh(pubkey: Secp256k1PublicKey) -> Option<TransactionSpendingCondition> {
         let key_encoding = if pubkey.compressed() {
             TransactionPublicKeyEncoding::Compressed
@@ -968,6 +996,16 @@ pub enum TransactionAuth {
 }
 
 impl TransactionAuth {
+    pub fn format_for_display(&self) -> JsonValue {
+        match self {
+            TransactionAuth::Standard(condition) => condition.format_for_display(),
+            TransactionAuth::Sponsored(sponsored, sponsoring) => json!({
+                "type": "Sponsored",
+                "sponsor_condition": sponsoring.format_for_display(),
+                "beneficiary_condition": sponsored.format_for_display()
+            }),
+        }
+    }
     pub fn from_p2pkh(privk: &Secp256k1PrivateKey) -> Option<TransactionAuth> {
         TransactionSpendingCondition::new_singlesig_p2pkh(Secp256k1PublicKey::from_private(privk))
             .map(TransactionAuth::Standard)
@@ -1412,6 +1450,36 @@ impl TransactionPayload {
             TransactionPayload::TenureChange(..) => "TenureChange",
         }
     }
+
+    pub fn format_for_display(&self) -> JsonValue {
+        let value = match self {
+            TransactionPayload::TokenTransfer(principal, amount, memo) => json!({
+                "type": "Transfer",
+                "principal": principal.to_string(),
+                "amount": amount,
+                "memo": memo.to_string()
+            }),
+            TransactionPayload::ContractCall(call_data) => json!({
+                "type": "Contract Call",
+                "contract_address": call_data.address.to_string(),
+                "contract_name": call_data.contract_name.to_string(),
+                "function_name": call_data.function_name.to_string(),
+                "function_args": call_data.function_args.iter().map(|a| a.to_string()).collect::<Vec<String>>()
+            }),
+            TransactionPayload::SmartContract(contract, version) => json!({
+                "type": "Contract Deployment",
+                "contract_name": contract.name,
+                "clarity_version": version.and_then(|v| Some(v.to_string()))
+            }),
+            TransactionPayload::PoisonMicroblock(_, _) => json!({"type": "Poison Microblock"}),
+            TransactionPayload::Coinbase(_, principal, _) => json!({
+                "type": "Coinbase",
+                "principal" : principal.clone().and_then(|p| Some(p.to_string()))
+            }),
+            TransactionPayload::TenureChange(_) => json!({"type": "Tenure Change"}),
+        };
+        value
+    }
 }
 
 #[repr(u8)]
@@ -1436,6 +1504,12 @@ pub struct AssetInfo {
     pub contract_address: StacksAddress,
     pub contract_name: ContractName,
     pub asset_name: ClarityName,
+}
+
+impl AssetInfo {
+    pub fn format_for_display(&self) -> String {
+        format!("{}.{}::{}", self.contract_address, self.contract_name, self.asset_name)
+    }
 }
 
 /// numeric wire-format ID of an asset info type variant
@@ -1469,6 +1543,16 @@ pub enum FungibleConditionCode {
 }
 
 impl FungibleConditionCode {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            FungibleConditionCode::SentEq => "doesn't send exactly",
+            FungibleConditionCode::SentGt => "sends greater than",
+            FungibleConditionCode::SentGe => "sends greater than or equal to",
+            FungibleConditionCode::SentLt => "sends less than",
+            FungibleConditionCode::SentLe => "sends less than or equal to",
+        }
+        .into()
+    }
     pub fn from_u8(b: u8) -> Option<FungibleConditionCode> {
         match b {
             0x01 => Some(FungibleConditionCode::SentEq),
@@ -1499,6 +1583,13 @@ pub enum NonfungibleConditionCode {
 }
 
 impl NonfungibleConditionCode {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            NonfungibleConditionCode::Sent => "sends",
+            NonfungibleConditionCode::NotSent => "does not send",
+        }
+        .into()
+    }
     pub fn from_u8(b: u8) -> Option<NonfungibleConditionCode> {
         match b {
             0x10 => Some(NonfungibleConditionCode::Sent),
@@ -1538,6 +1629,15 @@ pub enum PostConditionPrincipal {
 }
 
 impl PostConditionPrincipal {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            PostConditionPrincipal::Origin => "Origin".to_string(),
+            PostConditionPrincipal::Standard(address) => address.to_string(),
+            PostConditionPrincipal::Contract(address, contract_name) => {
+                format!("{}.{}", address.to_string(), contract_name.to_string())
+            }
+        }
+    }
     pub fn to_principal_data(&self, origin_principal: &PrincipalData) -> PrincipalData {
         match *self {
             PostConditionPrincipal::Origin => origin_principal.clone(),
@@ -1569,6 +1669,35 @@ pub enum TransactionPostCondition {
     Fungible(PostConditionPrincipal, AssetInfo, FungibleConditionCode, u64),
     Nonfungible(PostConditionPrincipal, AssetInfo, Value, NonfungibleConditionCode),
 }
+impl TransactionPostCondition {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            TransactionPostCondition::STX(principal, condition, amount) => format!(
+                "Revert if {} {} {} STX",
+                principal.format_for_display(),
+                condition.format_for_display(),
+                amount
+            ),
+            TransactionPostCondition::Fungible(principal, asset_info, condition, amount) => {
+                format!(
+                    "Revert if {} {} {} {}",
+                    principal.format_for_display(),
+                    condition.format_for_display(),
+                    amount,
+                    asset_info.format_for_display()
+                )
+            }
+            TransactionPostCondition::Nonfungible(principal, asset_info, _, condition) => {
+                format!(
+                    "Revert if {} {} {}",
+                    principal.format_for_display(),
+                    condition.format_for_display(),
+                    asset_info.format_for_display()
+                )
+            }
+        }
+    }
+}
 
 /// Post-condition modes for unspecified assets
 #[repr(u8)]
@@ -1576,6 +1705,14 @@ pub enum TransactionPostCondition {
 pub enum TransactionPostConditionMode {
     Allow = 0x01, // allow any other changes not specified
     Deny = 0x02,  // deny any other changes not specified
+}
+impl TransactionPostConditionMode {
+    pub fn format_for_display(&self) -> String {
+        match self {
+            TransactionPostConditionMode::Allow => "Allow".to_string(),
+            TransactionPostConditionMode::Deny => "Deny".to_string(),
+        }
+    }
 }
 
 /// Stacks transaction versions
@@ -1586,6 +1723,14 @@ pub enum TransactionVersion {
     Testnet = 0x80,
 }
 
+impl TransactionVersion {
+    pub fn format_for_display(&self) -> JsonValue {
+        match self {
+            TransactionVersion::Mainnet => JsonValue::String("mainnet".to_string()),
+            TransactionVersion::Testnet => JsonValue::String("testnet".to_string()),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StacksTransaction {
     pub version: TransactionVersion,
@@ -1617,6 +1762,18 @@ impl StacksTransaction {
         }
     }
 
+    pub fn format_for_display(&self) -> String {
+        let value = json!({
+            "version":self.version.format_for_display(),
+            "chain_id":self.chain_id.to_string(),
+            "payload": self.payload.format_for_display(),
+            "post_condition_mode":self.post_condition_mode.format_for_display(),
+            "post_conditions":self.post_conditions.iter().map(|c| c.format_for_display()).collect::<Vec<String>>(),
+            "auth":self.auth.format_for_display(),
+        });
+        // we constructed this object, so we should be safe to unwrap here
+        serde_json::to_string_pretty(&value).unwrap()
+    }
     /// Get fee rate
     pub fn get_tx_fee(&self) -> u64 {
         self.auth.get_tx_fee()

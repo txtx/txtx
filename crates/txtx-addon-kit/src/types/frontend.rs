@@ -1675,6 +1675,7 @@ pub struct ProvideSignedTransactionRequest {
     pub skippable: bool,
     pub only_approval_needed: bool,
     pub payload: Value,
+    pub formatted_payload: Option<String>,
     pub namespace: String,
     pub network_id: String,
 }
@@ -1687,6 +1688,7 @@ impl ProvideSignedTransactionRequest {
             expected_signer_address: None,
             skippable: false,
             payload: payload.clone(),
+            formatted_payload: None,
             namespace: namespace.to_string(),
             network_id: network_id.to_string(),
             only_approval_needed: false,
@@ -1710,6 +1712,11 @@ impl ProvideSignedTransactionRequest {
 
     pub fn expected_signer_address(&mut self, address: Option<&str>) -> &mut Self {
         self.expected_signer_address = address.and_then(|a| Some(a.to_string()));
+        self
+    }
+
+    pub fn formatted_payload(&mut self, display_payload: Option<String>) -> &mut Self {
+        self.formatted_payload = display_payload;
         self
     }
 

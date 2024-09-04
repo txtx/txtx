@@ -182,6 +182,21 @@ impl TestHarness {
 
         event.expect_runbook_completed();
     }
+
+    pub fn assert_provide_signature_formatted_payload(
+        &self,
+        action: &ActionItemRequest,
+        formatted_payload: Option<String>,
+    ) {
+        let Some(action) = action.action_type.as_provide_signed_tx() else {
+            panic!("expected sign transaction payload, found {:?}", action);
+        };
+        assert_eq!(
+            action.formatted_payload, formatted_payload,
+            "mismatching payload for action {:?}",
+            action
+        );
+    }
 }
 
 pub fn setup_test(
