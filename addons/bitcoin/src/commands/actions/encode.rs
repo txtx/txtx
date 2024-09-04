@@ -24,7 +24,8 @@ lazy_static! {
                     documentation: "A series of Bitcoin instructions.",
                     typing: Type::array(Type::addon(BITCOIN_OPCODE)),
                     optional: false,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 }
             ],
             outputs: [
