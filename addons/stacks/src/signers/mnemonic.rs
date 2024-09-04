@@ -36,8 +36,8 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_PUBLIC_KEY,
-    IS_SIGNABLE, MESSAGE_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, MESSAGE_BYTES,
 };
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -123,6 +123,8 @@ impl SignerImplementation for StacksMnemonic {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::constants::CHECKED_ADDRESS;
+
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
@@ -162,7 +164,7 @@ impl SignerImplementation for StacksMnemonic {
         };
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
-        signer_state.insert("address", Value::string(expected_address.to_string()));
+        signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -195,7 +197,7 @@ impl SignerImplementation for StacksMnemonic {
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
-        let address = signer_state.get_value("address").unwrap();
+        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
         result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }

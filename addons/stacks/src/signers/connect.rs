@@ -246,7 +246,9 @@ impl SignerImplementation for StacksConnect {
         signer_state.insert("hash_flag", Value::integer(version.into()));
         signer_state.insert("multi_sig", Value::bool(false));
 
-        let address = args.get_value("expected_address").unwrap();
+        let address = args
+            .get_value(EXPECTED_ADDRESS)
+            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
         result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }

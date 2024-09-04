@@ -32,7 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT,
     RPC_API_URL,
 };
@@ -126,7 +126,7 @@ impl SignerImplementation for StacksConnect {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::types::frontend::ReviewInputRequest;
 
-        use crate::constants::RPC_API_AUTH_TOKEN;
+        use crate::constants::{EXPECTED_ADDRESS, RPC_API_AUTH_TOKEN};
 
         let root_construct_did = construct_did.clone();
         let multisig_signer_instances = get_multisig_signer_instances(args, signers_instances);
@@ -268,6 +268,8 @@ impl SignerImplementation for StacksConnect {
                 )
                 .map(|address| address.to_string())
                 {
+                    signer_state.insert(CHECKED_ADDRESS, Value::string(stacks_address.to_string()));
+
                     let mut actions = Actions::none();
                     if is_balance_check_required {
                         let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
@@ -342,6 +344,10 @@ impl SignerImplementation for StacksConnect {
             Ok(value) => value.clone(),
             Err(diag) => return Err((signers, signer_state, diag)),
         };
+        let address = match signer_state.get_expected_value(CHECKED_ADDRESS) {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
@@ -390,6 +396,7 @@ impl SignerImplementation for StacksConnect {
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
             result.outputs.insert("public_key".into(), public_key);
+            result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))
         };
