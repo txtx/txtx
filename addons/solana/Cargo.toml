@@ -12,6 +12,9 @@ serde = "1"
 serde_derive = "1"
 async-recursion = "1"
 toml = "0.5"
+#solana-sdk = "2.0.8"
+#solana-sdk = { path = "../../../solana/sdk" }
+solana-sdk = { git = "https://github.com/radicleart/solana", branch = "zeroize_fix", subdir = "solana/sdk" }
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../crates/txtx-test-utils" }

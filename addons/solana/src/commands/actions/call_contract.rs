@@ -1,0 +1,311 @@
+use std::collections::HashMap;
+
+use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandImplementation, CommandSpecification, PreCommandSpecification};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::signers::{SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::{ConstructDid, ValueStore};
+use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_kit::AddonDefaults;
+use txtx_addon_kit::channel;
+
+lazy_static! {
+    pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
+        SendContractCall => {
+            name: "Send Contract Call Transaction",
+            matcher: "call_contract",
+            documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+            implements_signing_capability: true,
+            implements_background_task_capability: true,
+            inputs: [
+                description: {
+                    documentation: "Description of the transaction",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                contract_id: {
+                    documentation: "The address and identifier of the contract to invoke.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                function_name: {
+                    documentation: "The contract method to invoke.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                function_args: {
+                    documentation: "The function arguments for the contract call.",
+                    typing: Type::array(Type::string()),
+                    optional: true,
+                    interpolable: true
+                },
+                network_id: {
+                    documentation: "The network id used to validate the transaction version.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_url: {
+                    documentation: "The URL to use when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                rpc_api_auth_token: {
+                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                    typing: Type::string(),
+                    optional: true,
+                    interpolable: true
+                },
+                signer: {
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
+                    typing: Type::string(),
+                    optional: false,
+                    interpolable: true
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    typing: Type::integer(),
+                    optional: true,
+                    interpolable: true
+                }
+            ],
+            outputs: [
+                signed_transaction_bytes: {
+                    documentation: "The signed transaction bytes.",
+                    typing: Type::string()
+                },
+                tx_id: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                value: {
+                    documentation: "The transaction id.",
+                    typing: Type::string()
+                },
+                result: {
+                    documentation: "The transaction result.",
+                    typing: Type::buffer()
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                action "my_ref" "stacks::call_contract" {
+                    description = "Encodes the contract call, sign, and broadcasts the set-token function."
+                    contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                    function_name = "verify-and-update-price-feeds"
+                    function_args = [
+                        stacks::cv_buff(output.bitcoin_price_feed),
+                        stacks::cv_tuple({
+                            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
+                            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
+                            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
+                        })
+                    ]
+                    signer = signer.alice
+                }            
+                output "tx_id" {
+                value = action.my_ref.tx_id
+                }
+                output "result" {
+                value = action.my_ref.result
+                }
+                // > tx_id: 0x...
+                // > result: success
+    "#},
+      }
+    };
+}
+
+pub struct SendContractCall;
+impl CommandImplementation for SendContractCall {
+    fn check_instantiability(
+        _ctx: &CommandSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn check_signed_executability(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        args: &ValueStore,
+        defaults: &AddonDefaults,
+        supervision_context: &RunbookSupervisionContext,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        mut signers: SignersState,
+    ) -> SignerActionsFutureResult {
+    //     let signer_did = get_signer_did(args).unwrap();
+    //     let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+    //     // Extract network_id
+    //     let network_id: String = match args.get_defaulting_string("network_id", defaults) {
+    //         Ok(value) => value,
+    //         Err(diag) => return Err((signers, signer_state, diag)),
+    //     };
+    //     let contract_id_value = match args.get_expected_value("contract_id") {
+    //         Ok(value) => value,
+    //         Err(diag) => return Err((signers, signer_state, diag)),
+    //     };
+    //     let function_name = match args.get_expected_string("function_name") {
+    //         Ok(value) => value,
+    //         Err(diag) => return Err((signers, signer_state, diag)),
+    //     };
+    //     let function_args_values = match args.get_expected_array("function_args") {
+    //         Ok(value) => value,
+    //         Err(diag) => return Err((signers, signer_state, diag)),
+    //     };
+    //     let empty_vec = vec![];
+    //     let post_conditions_values =
+    //         args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+    //     let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
+    //     let bytes = match encode_contract_call(
+    //         spec,
+    //         function_name,
+    //         function_args_values,
+    //         &network_id,
+    //         contract_id_value,
+    //     ) {
+    //         Ok(value) => value,
+    //         Err(diag) => return Err((signers, signer_state, diag)),
+    //     };
+    //     signers.push_signer_state(signer_state);
+
+    //     let mut args = args.clone();
+    //     args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+    //     args.insert(
+    //         TRANSACTION_POST_CONDITIONS_BYTES,
+    //         Value::array(post_conditions_values.clone()),
+    //     );
+    //     args.insert(
+    //         TRANSACTION_POST_CONDITION_MODE_BYTES,
+    //         Value::string(post_condition_mode.to_string()),
+    //     );
+
+    //     SignStacksTransaction::check_signed_executability(
+    //         construct_did,
+    //         instance_name,
+    //         spec,
+    //         &args,
+    //         defaults,
+    //         supervision_context,
+    //         signers_instances,
+    //         signers,
+    //     )
+    // }
+
+    // fn run_signed_execution(
+    //     construct_did: &ConstructDid,
+    //     spec: &CommandSpecification,
+    //     args: &ValueStore,
+    //     defaults: &AddonDefaults,
+    //     progress_tx: &channel::Sender<BlockEvent>,
+    //     signers_instances: &HashMap<ConstructDid, SignerInstance>,
+    //     signers: SignersState,
+    // ) -> SignerSignFutureResult {
+    //     let empty_vec = vec![];
+    //     let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
+    //     let contract_id_value = args.get_expected_value("contract_id").unwrap();
+    //     let function_name = args.get_expected_string("function_name").unwrap();
+    //     let function_args_values = args.get_expected_array("function_args").unwrap();
+    //     let post_conditions_values =
+    //         args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+    //     let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
+
+    //     let bytes = encode_contract_call(
+    //         spec,
+    //         function_name,
+    //         function_args_values,
+    //         &network_id,
+    //         contract_id_value,
+    //     )
+    //     .unwrap();
+    //     let progress_tx = progress_tx.clone();
+    //     let args = args.clone();
+    //     let signers_instances = signers_instances.clone();
+    //     let defaults = defaults.clone();
+    //     let construct_did = construct_did.clone();
+    //     let spec = spec.clone();
+    //     let progress_tx = progress_tx.clone();
+
+    //     let mut args = args.clone();
+    //     args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+    //     args.insert(
+    //         TRANSACTION_POST_CONDITIONS_BYTES,
+    //         Value::array(post_conditions_values.clone()),
+    //     );
+    //     args.insert(
+    //         TRANSACTION_POST_CONDITION_MODE_BYTES,
+    //         Value::string(post_condition_mode.to_string()),
+    //     );
+
+    //     let future = async move {
+    //         let run_signing_future = SignStacksTransaction::run_signed_execution(
+    //             &construct_did,
+    //             &spec,
+    //             &args,
+    //             &defaults,
+    //             &progress_tx,
+    //             &signers_instances,
+    //             signers,
+    //         );
+    //         let (signers, signer_state, mut res_signing) = match run_signing_future {
+    //             Ok(future) => match future.await {
+    //                 Ok(res) => res,
+    //                 Err(err) => return Err(err),
+    //             },
+    //             Err(err) => return Err(err),
+    //         };
+
+    //         args.insert(
+    //             SIGNED_TRANSACTION_BYTES,
+    //             res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
+    //         );
+    //         let mut res = match BroadcastStacksTransaction::run_execution(
+    //             &construct_did,
+    //             &spec,
+    //             &args,
+    //             &defaults,
+    //             &progress_tx,
+    //         ) {
+    //             Ok(future) => match future.await {
+    //                 Ok(res) => res,
+    //                 Err(diag) => return Err((signers, signer_state, diag)),
+    //             },
+    //             Err(data) => return Err((signers, signer_state, data)),
+    //         };
+
+    //         res_signing.append(&mut res);
+
+    //         Ok((signers, signer_state, res_signing))
+    //     };
+    //     Ok(Box::pin(future))
+    unimplemented!()
+    }
+
+    fn build_background_task(
+        construct_did: &ConstructDid,
+        spec: &CommandSpecification,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
+        defaults: &AddonDefaults,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+        supervision_context: &RunbookSupervisionContext,
+    ) -> CommandExecutionFutureResult {
+        // BroadcastStacksTransaction::build_background_task(
+        //     &construct_did,
+        //     &spec,
+        //     &inputs,
+        //     &outputs,
+        //     &defaults,
+        //     &progress_tx,
+        //     &background_tasks_uuid,
+        //     &supervision_context,
+        // )
+        unimplemented!()
+    }
+}
