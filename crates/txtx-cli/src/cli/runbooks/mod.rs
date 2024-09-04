@@ -821,6 +821,28 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
             }
 
+            if let Some(RunbookState::File(state_file_location)) = runbook_state {
+                let previous_snapshot =
+                    match load_runbook_execution_snapshot(&state_file_location, false) {
+                        Ok(snapshot) => Some(snapshot),
+                        Err(_e) => None,
+                    };
+
+                let lock_file = get_lock_file_location(&state_file_location);
+                println!("{} Saving transient state to {}", yellow!("!"), lock_file);
+                let diff = RunbookSnapshotContext::new();
+                let snapshot = diff
+                    .snapshot_runbook_execution(
+                        &runbook.runbook_id,
+                        &runbook.running_contexts,
+                        previous_snapshot,
+                    )
+                    .map_err(|e| e.message)?;
+                lock_file
+                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                    .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
+                ();
+            }
             return Ok(());
         }
 
