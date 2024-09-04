@@ -140,7 +140,9 @@ impl CommandImplementation for SignStacksTransaction {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 
-        use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
+        use crate::constants::{
+            ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, FORMATTED_TRANSACTION,
+        };
 
         let signer_did = get_signer_did(args).unwrap();
         let signer = signers_instances.get(&signer_did).unwrap().clone();
@@ -202,6 +204,12 @@ impl CommandImplementation for SignStacksTransaction {
             transaction.consensus_serialize(&mut bytes).unwrap(); // todo
             let payload = StacksValue::transaction(bytes);
 
+            let display_payload = transaction.format_for_display();
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                FORMATTED_TRANSACTION,
+                Value::string(display_payload),
+            );
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
                 UNSIGNED_TRANSACTION_BYTES,
