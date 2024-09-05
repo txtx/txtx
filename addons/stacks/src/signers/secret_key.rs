@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::codec::crypto::{
     compute_keypair, secret_key_from_bytes, sign_message, sign_transaction,
 };
-use crate::commands::actions::get_signer_did;
 
 use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
@@ -217,7 +216,7 @@ impl SignerImplementation for StacksSecretKey {
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
@@ -291,7 +290,7 @@ impl SignerImplementation for StacksSecretKey {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
