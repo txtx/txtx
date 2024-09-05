@@ -1,4 +1,5 @@
 use kit::types::commands::CommandExecutionResult;
+use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::{diagnostics::Diagnostic, types::Value};
 use kit::types::{AuthorizationContext, Did, RunbookId, ValueStore};
@@ -287,4 +288,60 @@ impl RunbookSources {
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
         self.tree.insert(location, (name, content));
     }
+}
+
+pub fn add_source_context_to_diagnostic(
+    diag: &Diagnostic,
+    runbook_sources: &RunbookSources,
+) -> Option<DiagnosticSpan> {
+    let Some(construct_location) = &diag.location else {
+        return None;
+    };
+    let Some(span_range) = &diag.span_range() else {
+        return None;
+    };
+
+    let Some((_, (_, raw_content))) =
+        runbook_sources.tree.iter().find(|(location, _)| location.eq(&construct_location))
+    else {
+        unimplemented!();
+    };
+    let mut bytes = vec![0u8; 2 * raw_content.len()];
+    txtx_addon_kit::hex::encode_to_slice(raw_content, &mut bytes).unwrap();
+    let mut lines = 1;
+    let mut cols = 1;
+    let mut span = DiagnosticSpan::new();
+
+    let mut chars = raw_content.chars().enumerate().peekable();
+    while let Some((i, ch)) = chars.next() {
+        if i == span_range.start {
+            span.line_start = lines;
+            span.column_start = cols;
+        }
+        if i == span_range.end {
+            span.line_end = lines;
+            span.column_end = cols;
+        }
+        match ch {
+            '\n' => {
+                lines += 1;
+                cols = 1;
+            }
+            '\r' => {
+                // check for \r\n
+                if let Some((_, '\n')) = chars.peek() {
+                    // Skip the next character
+                    chars.next();
+                    lines += 1;
+                    cols = 1;
+                } else {
+                    cols += 1;
+                }
+            }
+            _ => {
+                cols += 1;
+            }
+        }
+    }
+    Some(span)
 }
