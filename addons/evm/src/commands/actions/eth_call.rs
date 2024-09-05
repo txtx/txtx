@@ -93,7 +93,7 @@ lazy_static! {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             max_priority_fee_per_gas: {
