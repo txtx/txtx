@@ -105,7 +105,7 @@ lazy_static! {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
                 typing: Type::integer(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             gas_price: {
