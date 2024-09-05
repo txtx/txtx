@@ -297,7 +297,6 @@ impl SignerInstance {
         for input in self.specification.inputs.iter() {
             let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else { continue };
             if input.sensitive {
-                println!("Including {} for fingerprint", input.name);
                 comps.push(value.to_bytes());
             }
         }
