@@ -76,7 +76,7 @@ lazy_static! {
                 documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
                 typing: Type::addon(EVM_ADDRESS),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             function_name: {
