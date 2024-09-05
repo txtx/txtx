@@ -29,7 +29,7 @@ lazy_static! {
               documentation: "Coming soon",
               typing: Type::string(),
               optional: false,
-              tainting: true,
+              tainting: false,
                 internal: false
             }
           ],
