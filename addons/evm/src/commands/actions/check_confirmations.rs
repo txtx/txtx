@@ -35,7 +35,7 @@ lazy_static! {
                     documentation: "The URL of the EVM API used to poll for the transaction's inclusion in a block.",
                     typing: Type::string(),
                     optional: false,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 chain_id: {
@@ -49,7 +49,7 @@ lazy_static! {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 }
             ],

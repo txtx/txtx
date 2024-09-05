@@ -60,7 +60,7 @@ lazy_static! {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 }
                 // todo:

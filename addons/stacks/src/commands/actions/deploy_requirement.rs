@@ -97,14 +97,14 @@ lazy_static! {
                     documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 fee: {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 post_conditions: {
@@ -145,14 +145,14 @@ lazy_static! {
                     tainting: true,
                     internal: false
                 },
-                contracts_ids_dependencies: {
+                dependency_contract_ids: {
                     documentation: "Contracts that are depending on this contract at their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
                     tainting: true,
                     internal: false
                 },
-                contracts_ids_lazy_dependencies: {
+                lazy_dependency_contract_ids: {
                     documentation: "Contracts that are depending on this contract after their deployment.",
                     typing: Type::array(Type::string()),
                     optional: true,
@@ -318,10 +318,10 @@ impl CommandImplementation for StacksDeployContractRequirement {
             evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
             evaluated_inputs
                 .inputs
-                .insert("contracts_ids_dependencies", Value::array(dependencies));
+                .insert("dependency_contract_ids", Value::array(dependencies));
             evaluated_inputs
                 .inputs
-                .insert("contracts_ids_lazy_dependencies", Value::array(lazy_dependencies));
+                .insert("lazy_dependency_contract_ids", Value::array(lazy_dependencies));
             Ok(evaluated_inputs)
         };
         Ok(Box::pin(future))

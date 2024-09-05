@@ -98,7 +98,7 @@ lazy_static! {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             gas_limit: {

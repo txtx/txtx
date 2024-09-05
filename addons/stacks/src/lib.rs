@@ -111,7 +111,7 @@ impl Addon for StacksNetworkAddon {
                 };
 
                 let dependencies =
-                    simulated_inputs.inputs.get_expected_array("contracts_ids_dependencies")?;
+                    simulated_inputs.inputs.get_expected_array("dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
@@ -126,7 +126,7 @@ impl Addon for StacksNetworkAddon {
 
                 let dependencies = simulated_inputs
                     .inputs
-                    .get_expected_array("contracts_ids_lazy_dependencies")?;
+                    .get_expected_array("lazy_dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
