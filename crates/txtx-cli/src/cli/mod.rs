@@ -154,7 +154,7 @@ pub struct ExecuteRunbook {
     #[arg(long = "output-json", action=ArgAction::SetTrue)]
     pub output_json: bool,
     /// Pick a specific output to stdout at the end of the execution
-    #[arg(long = "output", conflicts_with = "output-json")]
+    #[arg(long = "output", conflicts_with = "output_json")]
     pub output: Option<String>,
     /// Explain how the runbook will be executed.
     #[arg(long = "explain", action=ArgAction::SetTrue)]
