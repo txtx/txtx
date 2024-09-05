@@ -100,7 +100,7 @@ lazy_static! {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             chain_id: {
