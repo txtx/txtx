@@ -68,7 +68,7 @@ lazy_static! {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 signer: {
