@@ -125,6 +125,7 @@ impl SignerImplementation for StacksSecretKey {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::codec::crypto::version_from_network_id;
         use crate::constants::CHECKED_ADDRESS;
         use crate::{
             codec::crypto::{secret_key_from_bytes, secret_key_from_mnemonic},
@@ -139,7 +140,8 @@ impl SignerImplementation for StacksSecretKey {
         }
         let network_id = args
             .get_defaulting_string(NETWORK_ID, defaults)
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+        let version = version_from_network_id(&network_id);
 
         let secret_key = if let Ok(secret_key_bytes) = args.get_expected_buffer_bytes("secret_key")
         {
@@ -159,6 +161,8 @@ impl SignerImplementation for StacksSecretKey {
         let (_, public_key, expected_address) = compute_keypair(secret_key, network_id)
             .map_err(|e| signer_err(&signers, &signer_state, e))?;
 
+        signer_state.insert("hash_flag", Value::integer(version.into()));
+        signer_state.insert("multi_sig", Value::bool(false));
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
         signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
@@ -287,8 +291,8 @@ impl SignerImplementation for StacksSecretKey {
 
         let network_id = args
             .get_defaulting_string(NETWORK_ID, defaults)
-            .map_err(|e| signer_err(&signers, &signer_state, e.to_string()))?;
-        let secret_key_bytes = args
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+        let secret_key_bytes = signer_state
             .get_expected_buffer_bytes("secret_key")
             .map_err(|e| signer_err(&signers, &signer_state, e.to_string()))?;
         let secret_key = secret_key_from_bytes(&secret_key_bytes)

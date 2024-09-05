@@ -39,13 +39,18 @@ pub fn secret_key_from_bytes(secret_key_bytes: &Vec<u8>) -> Result<SecretKey, St
         .map_err(|e| format!("failed to parse secret key: {e}"))
 }
 
+pub fn version_from_network_id(network_id: &str) -> u8 {
+    match network_id {
+        "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
+        _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
+    }
+}
+
 pub fn compute_keypair(
     secret_key: SecretKey,
     network_id: String,
 ) -> Result<(Value, Value, StacksAddress), String> {
-    // Enforce a 33 bytes secret key format, expected by Stacks
-    let mut secret_key_bytes = secret_key.serialize().to_vec();
-    secret_key_bytes.push(1);
+    let secret_key_bytes = secret_key.serialize().to_vec();
     let secret_key_hex = StacksValue::buffer(secret_key_bytes);
 
     let public_key = PublicKey::from_secret_key(&secret_key);
