@@ -75,7 +75,7 @@ lazy_static! {
                 documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
                 typing: Type::string(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             max_fee_per_gas: {
