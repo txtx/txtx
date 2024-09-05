@@ -45,7 +45,7 @@ lazy_static! {
                     documentation: "Verify proof locally.",
                     typing: Type::string(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 }
             ],
