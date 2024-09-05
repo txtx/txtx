@@ -67,7 +67,7 @@ pub fn compute_keypair(
         version,
         &AddressHashMode::SerializeP2PKH,
         1,
-        &vec![pub_key],
+        &vec![pub_key.clone()],
     )
     .ok_or(format!("failed to generate stacks address from public key {}", pub_key.to_hex()))?;
 
