@@ -117,7 +117,7 @@ lazy_static! {
                 documentation: "Sets the gas price for Legacy transactions.",
                 typing: Type::integer(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false
             },
             contract: {
