@@ -35,28 +35,28 @@ use crate::constants::PUBLIC_KEYS;
 use crate::signers::namespaced_err_fn;
 
 lazy_static! {
-    pub static ref EVM_MNEMONIC: SignerSpecification = define_signer! {
-        EVMMnemonic => {
-          name: "EVM Mnemonic Signer",
-          matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` signer can be used to synchronously sign a transaction."#},
+    pub static ref EVM_SECRET_KEY_SIGNER: SignerSpecification = define_signer! {
+        EvmSecretKeySigner => {
+          name: "EVM Secret Key Signer",
+          matcher: "secret_key",
+          documentation:txtx_addon_kit::indoc! {r#"The `evm::secret_key` signer can be used to synchronously sign a transaction."#},
           inputs: [
             secret_key: {
-                documentation: "Coming soon",
+                documentation: "The secret key used to sign messages and transactions.",
                 typing: Type::string(),
                 optional: true,
                 tainting: true,
                 sensitive: true
             },
             mnemonic: {
-                documentation: "The mnemonic phrase used to generate the secret key.",
+                documentation: "The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
                 typing: Type::string(),
                 optional: true,
                 tainting: true,
                 sensitive: true
             },
             derivation_path: {
-                documentation: "The derivation path used to generate the secret key.",
+                documentation: "The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
                 typing: Type::string(),
                 optional: true,
                 tainting: true,
@@ -76,19 +76,19 @@ lazy_static! {
                 tainting: true,
                 sensitive: true
             }
-            ],
-            outputs: [
-                public_key: {
-                    documentation: "The public key of the account generated from the secret key.",
-                    typing: Type::array(Type::buffer())
-                },
-                address: {
-                    documentation: "The address generated from the secret key.",
-                    typing: Type::array(Type::string())
-                }
-            ],
-            example: txtx_addon_kit::indoc! {r#"
-        signer "bob" "evm::mnemonic" {
+          ],
+          outputs: [
+              public_key: {
+                documentation: "The public key of the account generated from the secret key.",
+                typing: Type::array(Type::buffer())
+              },
+              address: {
+                documentation: "The address generated from the secret key.",
+                typing: Type::array(Type::buffer())
+              }
+          ],
+          example: txtx_addon_kit::indoc! {r#"
+        signer "bob" "evm::secret_key" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
         }
@@ -97,8 +97,8 @@ lazy_static! {
     };
 }
 
-pub struct EVMMnemonic;
-impl SignerImplementation for EVMMnemonic {
+pub struct EvmSecretKeySigner;
+impl SignerImplementation for EvmSecretKeySigner {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,
