@@ -140,7 +140,7 @@ lazy_static! {
                     documentation: "The transaction fee. This value will automatically be estimated if omitted.",
                     typing: Type::integer(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 post_conditions: {
