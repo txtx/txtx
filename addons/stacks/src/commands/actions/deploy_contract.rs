@@ -206,7 +206,7 @@ lazy_static! {
                     documentation: "The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.",
                     typing: Type::string(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 contract_instance_name: {
