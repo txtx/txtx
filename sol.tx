@@ -1,0 +1,47 @@
+
+
+signer "alice" "solana:mnemonic" {
+    ...
+}
+
+signer "bob" "solana:mnemonic" {
+    ...
+}
+
+input account_metas {
+    value = [
+        solana::account_meta(input.account_pubkey),
+        solana::account_meta(input.account_pubkey),
+    ]
+}
+
+action "instruction_a" "solana::create_instruction" {
+    program_id = "program_a"
+    accounts = [solana::account_meta(signer.alice, true, true)]
+    data = "my data"
+}
+
+action "call" "solana:call_contract" {
+    instructions = [
+        action.instruction_a
+    ]
+}
+
+action "evm" "evm::call_contract" {
+    contract_address = "..contract_id"
+    function_name = "some_func"
+    function_args = []
+    abi = evm::get_abi("./path/to/abi")
+    signer = signer
+}
+
+
+
+signer "whatever" "stacks::multisig" {
+    signers = [signer.alice, signer.bob]
+}
+
+action "stacks" "stacks::call_contract" {
+    ...
+    signer = signer.whatever
+}

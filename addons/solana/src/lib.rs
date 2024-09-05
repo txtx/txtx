@@ -8,6 +8,7 @@ pub mod codec;
 mod commands;
 mod constants;
 mod functions;
+pub mod rpc;
 mod signers;
 pub mod typing;
 
