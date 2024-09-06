@@ -4,10 +4,10 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
     pub static ref TELEGRAM_SEND_MESSAGE: PreCommandSpecification = define_command! {
@@ -77,8 +77,7 @@ impl CommandImplementation for TelegramSendMessage {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
@@ -87,11 +86,10 @@ impl CommandImplementation for TelegramSendMessage {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
-        _defaults: &AddonDefaults,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        let args = args.clone();
+        let args = values.clone();
 
         let telegram_chat_id: i64 =
             args.get_expected_integer("telegram_chat_id")?.try_into().unwrap();
