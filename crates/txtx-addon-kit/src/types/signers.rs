@@ -1,13 +1,13 @@
-use crate::{
-    helpers::hcl::{
-        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
-    },
-    AddonDefaults,
+use crate::helpers::hcl::{
+    collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
+use crate::types::stores::AddonDefaults;
+use crate::types::stores::ValueStore;
 use futures::future;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
+use super::Did;
 use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
@@ -17,7 +17,7 @@ use super::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    ConstructDid, Did, PackageId, ValueStore,
+    ConstructDid, PackageId,
 };
 
 #[derive(Debug, Clone)]
@@ -113,7 +113,6 @@ pub type SignerActivateClosure = Box<
         ValueStore,
         SignersState,
         &HashMap<ConstructDid, SignerInstance>,
-        &AddonDefaults,
         &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult,
 >;
@@ -133,7 +132,6 @@ pub type SignerSignClosure = Box<
         ValueStore,
         SignersState,
         &HashMap<ConstructDid, SignerInstance>,
-        &AddonDefaults,
     ) -> SignerSignFutureResult,
 >;
 
@@ -145,7 +143,6 @@ pub type SignerCheckActivabilityClosure = fn(
     ValueStore,
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
-    &AddonDefaults,
     &RunbookSupervisionContext,
     bool,
     bool,
@@ -171,7 +168,6 @@ pub type SignerCheckSignabilityClosure = fn(
     ValueStore,
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
-    &AddonDefaults,
     &RunbookSupervisionContext,
 ) -> Result<CheckSignabilityOk, SignerActionErr>;
 
@@ -262,36 +258,6 @@ pub struct SignerInstance {
 }
 
 impl SignerInstance {
-    pub fn check_inputs(&self) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
-        let mut diagnostics = vec![];
-        let mut has_errors = false;
-
-        for input in self.specification.inputs.iter() {
-            match (input.optional, self.block.body.get_attribute(&input.name)) {
-                (false, None) => {
-                    has_errors = true;
-                    diagnostics.push(Diagnostic::error_from_expression(
-                        &self.block,
-                        None,
-                        format!("missing attribute '{}'", input.name),
-                    ));
-                }
-                (_, Some(_attr)) => {
-                    // todo(lgalabru): check typing
-                }
-                (_, _) => {}
-            }
-        }
-
-        // todo(lgalabru): check arbitrary attributes
-
-        if has_errors {
-            Err(diagnostics)
-        } else {
-            Ok(diagnostics)
-        }
-    }
-
     pub fn compute_fingerprint(&self, evaluated_inputs: &CommandInputsEvaluationResult) -> Did {
         let mut comps = vec![];
         for input in self.specification.inputs.iter() {
@@ -400,7 +366,7 @@ impl SignerInstance {
     pub async fn check_activability(
         &self,
         construct_did: &ConstructDid,
-        input_evaluation_results: &mut CommandInputsEvaluationResult,
+        evaluated_inputs: &mut CommandInputsEvaluationResult,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         addon_defaults: &AddonDefaults,
@@ -410,17 +376,13 @@ impl SignerInstance {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
-        let mut values = ValueStore::new(&self.name, &construct_did.value());
-        for input in self.specification.inputs.iter() {
-            let value = match input_evaluation_results.inputs.get_value(&input.name) {
-                Some(value) => value.clone(),
-                None => match input.optional {
-                    true => continue,
-                    false => unreachable!(), // todo: return diagnostic
-                },
-            };
-            values.insert(&input.name, value);
-        }
+        let mut values = ValueStore::new_with_defaults(
+            &self.name,
+            &construct_did.value(),
+            addon_defaults.store.clone(),
+        )
+        .with_checked_inputs(&self.name, &evaluated_inputs.inputs, &self.specification.inputs)
+        .map_err(|e| (signers.clone(), e))?;
 
         match action_item_responses {
             Some(responses) => {
@@ -438,7 +400,6 @@ impl SignerInstance {
                                 signer_state,
                                 signers,
                                 signers_instances,
-                                &addon_defaults,
                                 &supervision_context,
                                 is_balance_check_required,
                                 is_public_key_required,
@@ -477,7 +438,6 @@ impl SignerInstance {
         }
 
         let signer_state = signers.pop_signer_state(construct_did).unwrap();
-
         let spec = &self.specification;
         let res = (spec.check_activability)(
             &construct_did,
@@ -487,7 +447,6 @@ impl SignerInstance {
             signer_state,
             signers,
             signers_instances,
-            &addon_defaults,
             &supervision_context,
             is_balance_check_required,
             is_public_key_required,
@@ -507,11 +466,12 @@ impl SignerInstance {
         addon_defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
-        // todo: I don't think this one needs to be a result
-        let mut values = ValueStore::new(&self.name, &construct_did.value());
-        for (key, value) in evaluated_inputs.inputs.iter() {
-            values.insert(&key, value.clone());
-        }
+        let values = ValueStore::new_with_defaults(
+            &self.name,
+            &construct_did.value(),
+            addon_defaults.store.clone(),
+        )
+        .with_inputs(&evaluated_inputs.inputs);
 
         let signer_state = signers.pop_signer_state(construct_did).unwrap();
         let future = (&self.specification.activate)(
@@ -521,7 +481,6 @@ impl SignerInstance {
             signer_state,
             signers,
             signers_instances,
-            &addon_defaults,
             progress_tx,
         );
         let res = consolidate_signer_activate_future_result(future)
@@ -576,11 +535,10 @@ pub trait SignerImplementation {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         _signer_state: ValueStore,
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
@@ -591,11 +549,10 @@ pub trait SignerImplementation {
     fn activate(
         _construct_id: &ConstructDid,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         _signer_state: ValueStore,
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         unimplemented!()
@@ -607,11 +564,10 @@ pub trait SignerImplementation {
         _description: &Option<String>,
         _payload: &Value,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         _signer_state: ValueStore,
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         unimplemented!()
@@ -622,11 +578,10 @@ pub trait SignerImplementation {
         _title: &str,
         _payload: &Value,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         _signer_state: ValueStore,
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
         unimplemented!()
     }
