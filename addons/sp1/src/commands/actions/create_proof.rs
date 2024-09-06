@@ -1,15 +1,14 @@
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
-use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::Type,
 };
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
 
 lazy_static! {
     pub static ref CREATE_PROOF: PreCommandSpecification = define_command! {
@@ -82,8 +81,7 @@ impl CommandImplementation for CreateProof {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
@@ -93,8 +91,7 @@ impl CommandImplementation for CreateProof {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let future = async move {
@@ -111,7 +108,6 @@ impl CommandImplementation for CreateProof {
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        _defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
