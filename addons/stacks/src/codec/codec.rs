@@ -39,7 +39,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::str::FromStr;
 use txtx_addon_kit::hex;
-use txtx_addon_kit::types::ValueStore;
+use txtx_addon_kit::types::stores::ValueStore;
 
 pub const MAX_BLOCK_LEN: u32 = 2 * 1024 * 1024;
 pub const MAX_TRANSACTION_LEN: u32 = MAX_BLOCK_LEN;

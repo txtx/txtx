@@ -2,14 +2,14 @@ use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionFutureResult, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
@@ -104,8 +104,7 @@ impl CommandImplementation for EncodeStacksContractCall {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
@@ -115,13 +114,12 @@ impl CommandImplementation for EncodeStacksContractCall {
         _construct_id: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
 
         // Extract network_id
-        let network_id = args.get_defaulting_string("network_id", defaults)?;
+        let network_id = args.get_expected_string("network_id")?.to_owned();
         let contract_id_value = args.get_expected_value("contract_id")?;
         let function_name = args.get_expected_string("function_name")?;
         let function_args_values = args.get_expected_array("function_args")?;
