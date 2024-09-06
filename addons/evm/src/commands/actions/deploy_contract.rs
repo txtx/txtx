@@ -10,13 +10,12 @@ use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
-use txtx_addon_kit::types::ValueStore;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::get_typed_transaction_bytes;
 
@@ -183,8 +182,7 @@ impl CommandImplementation for EVMDeployContract {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -193,13 +191,12 @@ impl CommandImplementation for EVMDeployContract {
 
         use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
 
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
 
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
         let to_diag_with_ctx =
@@ -217,8 +214,7 @@ impl CommandImplementation for EVMDeployContract {
             let transaction = build_unsigned_contract_deploy(
                 &mut signer_state,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &to_diag_with_ctx,
             )
             .await
@@ -233,16 +229,15 @@ impl CommandImplementation for EVMDeployContract {
             })?;
 
             let payload = EvmValue::transaction(bytes);
-            let mut args = args.clone();
-            args.insert(TRANSACTION_PAYLOAD_BYTES, payload);
+            let mut values = values.clone();
+            values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             signers.push_signer_state(signer_state);
 
             let future_result = SignEVMTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &supervision_context,
                 &signers_instances,
                 signers,
@@ -264,15 +259,13 @@ impl CommandImplementation for EVMDeployContract {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let mut args = args.clone();
+        let mut values = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
@@ -281,8 +274,7 @@ impl CommandImplementation for EVMDeployContract {
             let run_signing_future = SignEVMTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
                 &signers_instances,
                 signers,
@@ -295,12 +287,11 @@ impl CommandImplementation for EVMDeployContract {
                 Err(err) => return Err(err),
             };
 
-            args.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
+            values.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
             let mut res = match CheckEVMConfirmations::run_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
             ) {
                 Ok(future) => match future.await {
@@ -312,13 +303,12 @@ impl CommandImplementation for EVMDeployContract {
 
             res_signing.append(&mut res);
 
-            let do_verify = args.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
+            let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
                 let mut res = match VerifyEVMContract::run_execution(
                     &construct_did,
                     &spec,
-                    &args,
-                    &defaults,
+                    &values,
                     &progress_tx,
                 ) {
                     Ok(future) => match future.await {
@@ -342,7 +332,6 @@ impl CommandImplementation for EVMDeployContract {
         spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
@@ -351,7 +340,6 @@ impl CommandImplementation for EVMDeployContract {
         let spec = spec.clone();
         let mut inputs = inputs.clone();
         let outputs = outputs.clone();
-        let defaults = defaults.clone();
         let progress_tx = progress_tx.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
@@ -363,7 +351,6 @@ impl CommandImplementation for EVMDeployContract {
                 &spec,
                 &inputs,
                 &outputs,
-                &defaults,
                 &progress_tx,
                 &background_tasks_uuid,
                 &supervision_context,
@@ -385,7 +372,6 @@ impl CommandImplementation for EVMDeployContract {
                     &spec,
                     &inputs,
                     &outputs,
-                    &defaults,
                     &progress_tx,
                     &background_tasks_uuid,
                     &supervision_context,
@@ -403,8 +389,7 @@ impl CommandImplementation for EVMDeployContract {
 async fn build_unsigned_contract_deploy(
     signer_state: &mut ValueStore,
     _spec: &CommandSpecification,
-    args: &ValueStore,
-    defaults: &AddonDefaults,
+    values: &ValueStore,
     to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<TransactionRequest, Diagnostic> {
     use crate::{
@@ -415,13 +400,13 @@ async fn build_unsigned_contract_deploy(
 
     let from = signer_state.get_expected_value("signer_address")?.clone();
 
-    let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
-    let init_code = get_contract_init_code(args)
+    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
+    let chain_id = values.get_expected_uint(CHAIN_ID)?;
+    let init_code = get_contract_init_code(values)
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
 
     let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(args).map_err(to_diag_with_ctx)?;
+        get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
         if let Some(signer_nonce) = signer_state
             .get_value(NONCE)
@@ -432,7 +417,7 @@ async fn build_unsigned_contract_deploy(
             nonce = Some(signer_nonce + 1);
         }
     }
-    let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
+    let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
@@ -448,7 +433,7 @@ async fn build_unsigned_contract_deploy(
         input: None,
         deploy_code: Some(init_code),
     };
-    let tx = build_unsigned_transaction(rpc, args, common)
+    let tx = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {e}"))?;
     Ok(tx)

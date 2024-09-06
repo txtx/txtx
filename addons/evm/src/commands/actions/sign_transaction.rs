@@ -10,7 +10,7 @@ use txtx_addon_kit::types::frontend::{
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
-use txtx_addon_kit::types::ValueStore;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -19,7 +19,6 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
-use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
@@ -79,8 +78,7 @@ impl CommandImplementation for SignEVMTransaction {
         construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -91,13 +89,12 @@ impl CommandImplementation for SignEVMTransaction {
 
         use crate::constants::TRANSACTION_PAYLOAD_BYTES;
 
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
 
         let signer = signers_instances.get(&signer_did).unwrap().clone();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
@@ -110,7 +107,7 @@ impl CommandImplementation for SignEVMTransaction {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let payload = args
+            let payload = values
                 .get_expected_value(TRANSACTION_PAYLOAD_BYTES)
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
             let transaction_bytes = payload.expect_buffer_bytes();
@@ -139,7 +136,7 @@ impl CommandImplementation for SignEVMTransaction {
             );
             signers.push_signer_state(signer_state);
             let description =
-                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
@@ -181,11 +178,10 @@ impl CommandImplementation for SignEVMTransaction {
                     &description,
                     &payload,
                     &signer.specification,
-                    &args,
+                    &values,
                     signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                     &supervision_context,
                 )?;
             actions.append(&mut signer_actions);
@@ -198,7 +194,6 @@ impl CommandImplementation for SignEVMTransaction {
         construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -231,7 +226,6 @@ impl CommandImplementation for SignEVMTransaction {
             signer_state,
             signers,
             signers_instances,
-            &defaults,
         );
         res
     }

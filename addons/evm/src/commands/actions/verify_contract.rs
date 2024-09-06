@@ -4,16 +4,15 @@ use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSp
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
-use txtx_addon_kit::types::ValueStore;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::DEPLOYMENT_ARTIFACTS_TYPE;
 
@@ -99,8 +98,7 @@ impl CommandImplementation for VerifyEVMContract {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
@@ -110,8 +108,7 @@ impl CommandImplementation for VerifyEVMContract {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let future = async move {
@@ -128,7 +125,6 @@ impl CommandImplementation for VerifyEVMContract {
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
@@ -151,10 +147,10 @@ impl CommandImplementation for VerifyEVMContract {
         let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
 
-        let chain_id = inputs.get_defaulting_uint(CHAIN_ID, &defaults)?;
+        let chain_id = inputs.get_expected_uint(CHAIN_ID)?;
 
         let contract_address = inputs.get_expected_value(CONTRACT_ADDRESS)?;
-        let explorer_api_key = inputs.get_defaulting_string(BLOCK_EXPLORER_API_KEY, defaults)?;
+        let explorer_api_key = inputs.get_expected_string(BLOCK_EXPLORER_API_KEY)?.to_owned();
         let artifacts = inputs.get_expected_object(ARTIFACTS)?;
 
         let constructor_args =

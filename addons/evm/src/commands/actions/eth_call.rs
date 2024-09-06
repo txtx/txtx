@@ -4,14 +4,14 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::RPC_API_URL;
 use crate::rpc::EVMRpc;
@@ -163,8 +163,7 @@ impl CommandImplementation for EthCall {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
@@ -173,17 +172,15 @@ impl CommandImplementation for EthCall {
     fn run_execution(
         _construct_id: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let spec = spec.clone();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let values = values.clone();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            let call_result = build_eth_call(&spec, &args, &defaults).await?;
+            let call_result = build_eth_call(&spec, &values).await?;
             result.outputs.insert("result".into(), call_result);
 
             Ok(result)
@@ -196,8 +193,7 @@ impl CommandImplementation for EthCall {
 #[cfg(not(feature = "wasm"))]
 async fn build_eth_call(
     _spec: &CommandSpecification,
-    args: &ValueStore,
-    defaults: &AddonDefaults,
+    values: &ValueStore,
 ) -> Result<Value, Diagnostic> {
     use crate::{
         codec::{
@@ -217,18 +213,18 @@ async fn build_eth_call(
     };
 
     // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
-    let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
+    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
+    let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
-    let contract_address: &Value = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let from = args.get_expected_value(SIGNER)?;
-    let contract_abi = args.get_string(CONTRACT_ABI);
-    let function_name = args.get_string(CONTRACT_FUNCTION_NAME);
-    let function_args = args.get_value(CONTRACT_FUNCTION_ARGS);
+    let contract_address: &Value = values.get_expected_value(CONTRACT_ADDRESS)?;
+    let from = values.get_expected_value(SIGNER)?;
+    let contract_abi = values.get_string(CONTRACT_ABI);
+    let function_name = values.get_string(CONTRACT_FUNCTION_NAME);
+    let function_args = values.get_value(CONTRACT_FUNCTION_ARGS);
 
-    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(args)
+    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
-    let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
+    let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
@@ -269,7 +265,7 @@ async fn build_eth_call(
         input: Some(input),
         deploy_code: None,
     };
-    let tx = build_unsigned_transaction(rpc.clone(), args, common)
+    let tx = build_unsigned_transaction(rpc.clone(), values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
 
