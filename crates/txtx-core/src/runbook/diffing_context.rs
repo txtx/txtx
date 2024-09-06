@@ -135,7 +135,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::Full => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.inputs_set.storage.clone();
+                        let mut inputs = running_context.inputs_set.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {
@@ -148,7 +148,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::FullFailed => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.inputs_set.storage.clone();
+                        let mut inputs = running_context.inputs_set.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {

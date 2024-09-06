@@ -1,6 +1,6 @@
 use kit::types::frontend::{Actions, BlockEvent};
+use kit::types::stores::ValueStore;
 use kit::types::types::RunbookSupervisionContext;
-use kit::types::ValueStore;
 use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
@@ -11,7 +11,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::{define_command, indoc, AddonDefaults};
+use txtx_addon_kit::{define_command, indoc};
 
 lazy_static! {
     pub static ref SEND_HTTP_REQUEST: PreCommandSpecification = define_command! {
@@ -105,8 +105,7 @@ impl CommandImplementation for SendHttpRequest {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
@@ -115,20 +114,20 @@ impl CommandImplementation for SendHttpRequest {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
-        _defaults: &AddonDefaults,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
-        let args = args.clone();
-        let url = args.get_expected_string("url")?.to_string();
-        let request_body = args.get_string("request_body").map(|v| v.to_string());
+        let values = values.clone();
+        let url = values.get_expected_string("url")?.to_string();
+        let request_body = values.get_string("request_body").map(|v| v.to_string());
         let method = {
-            let value = args.get_string("method").unwrap_or("GET");
+            let value = values.get_string("method").unwrap_or("GET");
             Method::try_from(value).unwrap()
         };
-        let request_headers =
-            args.get_value("request_headers").and_then(|value| Some(value.expect_object().clone()));
+        let request_headers = values
+            .get_value("request_headers")
+            .and_then(|value| Some(value.expect_object().clone()));
 
         #[cfg(not(feature = "wasm"))]
         let future = async move {
