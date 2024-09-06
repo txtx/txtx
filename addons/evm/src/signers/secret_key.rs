@@ -24,7 +24,7 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::{channel, AddonDefaults};
 
-use crate::codec::crypto::field_bytes_to_unsafe_signer;
+use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
@@ -120,7 +120,9 @@ impl SignerImplementation for EvmSecretKeySigner {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use crate::codec::crypto::{mnemonic_to_unsafe_signer, secret_key_to_unsafe_signer};
+        use crate::codec::crypto::{
+            mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer,
+        };
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
 
@@ -132,7 +134,7 @@ impl SignerImplementation for EvmSecretKeySigner {
 
         let expected_signer =
             if let Ok(secret_key_bytes) = args.get_expected_buffer_bytes("secret_key") {
-                secret_key_to_unsafe_signer(&secret_key_bytes)
+                secret_key_to_secret_key_signer(&secret_key_bytes)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
             } else {
                 let mnemonic = args
@@ -141,7 +143,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 let derivation_path = args.get_string("derivation_path");
                 let is_encrypted = args.get_bool("is_encrypted");
                 let password = args.get_string("password");
-                mnemonic_to_unsafe_signer(mnemonic, derivation_path, is_encrypted, password)
+                mnemonic_to_secret_key_signer(mnemonic, derivation_path, is_encrypted, password)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
             };
 
@@ -245,10 +247,10 @@ impl SignerImplementation for EvmSecretKeySigner {
                 .get_expected_buffer_bytes("signer_field_bytes")
                 .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
-            let unsafe_signer = field_bytes_to_unsafe_signer(&signer_field_bytes)
+            let secret_key_signer = field_bytes_to_secret_key_signer(&signer_field_bytes)
                 .map_err(|e| signer_err(&signers, &signer_state, e))?;
 
-            let eth_signer = EthereumWallet::from(unsafe_signer);
+            let eth_signer = EthereumWallet::from(secret_key_signer);
 
             let payload_bytes = payload.expect_buffer_bytes();
 
