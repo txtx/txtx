@@ -1,9 +1,13 @@
+use alloy::consensus::TxEnvelope;
 use alloy::hex;
+use alloy::network::{Ethereum, EthereumWallet};
 use alloy::primitives::{Address, Bytes, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
 use alloy::transports::http::Http;
+use alloy_provider::fillers::{FillProvider, JoinFill, WalletFiller};
+use alloy_provider::Identity;
 use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
 use alloy_rpc_types::BlockId;
 use alloy_rpc_types::BlockNumberOrTag::Latest;
@@ -23,6 +27,34 @@ impl std::fmt::Display for RpcError {
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
+    }
+}
+
+pub type WalletProvider = FillProvider<
+    JoinFill<Identity, WalletFiller<EthereumWallet>>,
+    RootProvider<Http<Client>>,
+    Http<Client>,
+    Ethereum,
+>;
+pub struct EvmWalletRpc {
+    pub url: Url,
+    pub wallet: EthereumWallet,
+    pub provider: WalletProvider,
+}
+impl EvmWalletRpc {
+    pub fn new(url: &str, wallet: EthereumWallet) -> Result<Self, String> {
+        let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
+
+        let provider = ProviderBuilder::new().wallet(wallet.clone()).on_http(url.clone());
+        Ok(Self { url, wallet, provider })
+    }
+    pub async fn sign_and_send_tx(&self, tx_envelope: TxEnvelope) -> Result<[u8; 32], RpcError> {
+        let pending_tx =
+            self.provider.send_tx_envelope(tx_envelope).await.map_err(|e| {
+                RpcError::Message(format!("failed to sign and send transaction: {e}"))
+            })?;
+        let tx_hash = pending_tx.tx_hash().0;
+        Ok(tx_hash)
     }
 }
 

@@ -16,6 +16,7 @@ pub mod rpc;
 mod signers;
 mod typing;
 
+use constants::NAMESPACE;
 use txtx_addon_kit::{
     types::{
         commands::PreCommandSpecification, functions::FunctionSpecification,
@@ -47,7 +48,7 @@ impl Addon for EVMNetworkAddon {
     }
 
     fn get_namespace(&self) -> &str {
-        "evm"
+        NAMESPACE
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {

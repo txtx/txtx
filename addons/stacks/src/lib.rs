@@ -52,7 +52,7 @@ impl Addon for StacksNetworkAddon {
         txtx_addon_kit::indoc! {r#"
             The Stacks `txtx` plugin enables building Runbooks that interact with the Stacks blockchain. 
             The plugin provides utility functions that allow you to encode data in the proper Clarity format that is required by contracts on the Stacks blockchain.
-            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a mnemonic phrase or via your browser signer. 
+            The actions can be used to create valid transfer, contract call, and contract deployment transactions that can be signed via a secret key, mnemonic phrase, or via your browser signer. 
             "#}
     }
 

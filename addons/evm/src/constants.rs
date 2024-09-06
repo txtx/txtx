@@ -1,3 +1,5 @@
+pub const NAMESPACE: &str = "evm";
+
 // Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
 pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";

@@ -1,4 +1,5 @@
 pub mod codec;
+pub mod crypto;
 pub mod cv;
 
 #[macro_use]

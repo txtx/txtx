@@ -17,7 +17,7 @@ runtime "addon::evm" {
     }
 }
 
-signer "deployer" "evm::mnemonic" {
+signer "deployer" "evm::secret_key" {
     mnemonic = env.mnemonic
 }
 
