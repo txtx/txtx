@@ -2,7 +2,7 @@ pub mod broadcast_transaction;
 mod call_contract;
 pub mod call_readonly_fn;
 mod deploy_contract;
-mod deploy_contract_requirement;
+mod deploy_requirement;
 pub mod encode_contract_call;
 mod send_stx;
 pub mod sign_transaction;
@@ -27,7 +27,7 @@ use clarity::{
     vm::{types::PrincipalData, ClarityName},
 };
 use deploy_contract::DEPLOY_STACKS_CONTRACT;
-use deploy_contract_requirement::DEPLOY_STACKS_CONTRACT_REQUIREMENT;
+use deploy_requirement::DEPLOY_STACKS_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
 use send_stx::SEND_STX_TRANSFER;
 use sign_transaction::SIGN_STACKS_TRANSACTION;
@@ -42,7 +42,7 @@ lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_STACKS_TRANSACTION.clone(),
         DEPLOY_STACKS_CONTRACT.clone(),
-        DEPLOY_STACKS_CONTRACT_REQUIREMENT.clone(),
+        DEPLOY_STACKS_REQUIREMENT.clone(),
         ENCODE_STACKS_CONTRACT_CALL.clone(),
         BROADCAST_STACKS_TRANSACTION.clone(),
         CALL_READONLY_FN.clone(),

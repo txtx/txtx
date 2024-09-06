@@ -17,7 +17,7 @@ use super::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    ConstructDid, PackageId, ValueStore,
+    ConstructDid, Did, PackageId, ValueStore,
 };
 
 #[derive(Debug, Clone)]
@@ -290,6 +290,17 @@ impl SignerInstance {
         } else {
             Ok(diagnostics)
         }
+    }
+
+    pub fn compute_fingerprint(&self, evaluated_inputs: &CommandInputsEvaluationResult) -> Did {
+        let mut comps = vec![];
+        for input in self.specification.inputs.iter() {
+            let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else { continue };
+            if input.sensitive {
+                comps.push(value.to_bytes());
+            }
+        }
+        Did::from_components(comps)
     }
 
     pub fn get_expressions_referencing_commands_from_inputs(

@@ -36,8 +36,7 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, FORMATTED_TRANSACTION,
-    IS_SIGNABLE, MESSAGE_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_SIGNABLE, MESSAGE_BYTES
 };
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -51,51 +50,51 @@ use super::DEFAULT_DERIVATION_PATH;
 lazy_static! {
     pub static ref STACKS_MNEMONIC: SignerSpecification = define_signer! {
         StacksMnemonic => {
-          name: "Mnemonic Signer",
-          matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
-          inputs: [
-            mnemonic: {
-                documentation: "The mnemonic phrase used to generate the secret key.",
-                typing: Type::string(),
-                optional: false,
-                interpolable: true,
-                sensitive: true
-            },
-            derivation_path: {
-                documentation: "The derivation path used to generate the secret key.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true,
-                sensitive: true
-            },
-            is_encrypted: {
-                documentation: "Coming soon",
-                typing: Type::bool(),
-                optional: true,
-                interpolable: true,
-                sensitive: false
-            },
-            password: {
-                documentation: "Coming soon",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true,
-                sensitive: true
-            }
-          ],
-          outputs: [
-              public_key: {
-                documentation: "The public key of the account generated from the secret key.",
-                typing: Type::array(Type::buffer())
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-        signer "bob" "stacks::mnemonic" {
-            mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
-            derivation_path = "m/44'/5757'/0'/0/0"
-        }
-    "#},
+            name: "Mnemonic Signer",
+            matcher: "mnemonic",
+            documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
+            inputs: [
+                mnemonic: {
+                    documentation: "The mnemonic phrase used to generate the secret key.",
+                    typing: Type::string(),
+                    optional: false,
+                    tainting: true,
+                    sensitive: true
+                },
+                derivation_path: {
+                    documentation: "The derivation path used to generate the secret key.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                },
+                is_encrypted: {
+                    documentation: "Coming soon",
+                    typing: Type::bool(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: false
+                },
+                password: {
+                    documentation: "Coming soon",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                }
+            ],
+            outputs: [
+                address: {
+                    documentation: "The address of the account generated from the public key.",
+                    typing: Type::array(Type::string())
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                signer "bob" "stacks::mnemonic" {
+                    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+                    derivation_path = "m/44'/5757'/0'/0/0"
+                }
+            "#},
       }
     };
 }
@@ -123,7 +122,7 @@ impl SignerImplementation for StacksMnemonic {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use crate::constants::CHECKED_PUBLIC_KEY;
+        use crate::constants::CHECKED_ADDRESS;
 
         let mut actions = Actions::none();
 
@@ -131,7 +130,10 @@ impl SignerImplementation for StacksMnemonic {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
+        let mnemonic = match args.get_expected_value("mnemonic") {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let derivation_path = match args.get_value("derivation_path") {
             Some(v) => v.clone(),
             None => Value::string(DEFAULT_DERIVATION_PATH.into()),
@@ -140,7 +142,10 @@ impl SignerImplementation for StacksMnemonic {
             Some(v) => v.clone(),
             None => Value::bool(false),
         };
-        let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
+        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let version = match network_id.as_str() {
             "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
             _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
@@ -158,6 +163,7 @@ impl SignerImplementation for StacksMnemonic {
         };
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
+        signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -189,7 +195,9 @@ impl SignerImplementation for StacksMnemonic {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let result = CommandExecutionResult::new();
+        let mut result = CommandExecutionResult::new();
+        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
+        result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 

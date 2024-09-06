@@ -26,13 +26,15 @@ lazy_static! {
                     documentation: "The URL for the request. Supported schemes are http and https.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 request_body: {
                   documentation: "The request body as a string.",
                   typing: Type::string(),
                   optional: true,
-                  interpolable: true
+                  tainting: true,
+                  internal: false
                 },
                 method: {
                   documentation: indoc!{r#"
@@ -41,13 +43,15 @@ lazy_static! {
                   POST support is only intended for read-only URLs, such as submitting a search."#},
                   typing: Type::string(),
                   optional: true,
-                  interpolable: true
+                  tainting: true,
+                  internal: false
                 },
                 request_timeout_ms: {
                   documentation: "The request timeout in milliseconds.",
                   typing: Type::integer(),
                   optional: true,
-                  interpolable: true
+                  tainting: true,
+                  internal: false
                 },
                 request_headers: {
                     documentation: "A map of request header field names and values.",
@@ -56,10 +60,12 @@ lazy_static! {
                         documentation: "Content-Type".into(),
                         typing: Type::string(),
                         optional: true,
-                        interpolable: true,
+                        tainting: true,
+                        internal: false,
                     }]),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 }
             ],
             outputs: [

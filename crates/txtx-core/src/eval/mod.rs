@@ -1417,12 +1417,6 @@ pub fn perform_inputs_evaluation(
         return Ok(CommandInputEvaluationStatus::Aborted(results, diags));
     }
 
-    let results = if simulation {
-        command_instance.post_process_inputs_evaluations(results).map_err(|d| vec![d])?
-    } else {
-        results
-    };
-
     let status = match (fatal_error, require_user_interaction) {
         (false, false) => CommandInputEvaluationStatus::Complete(results),
         (_, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),

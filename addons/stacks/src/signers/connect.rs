@@ -45,14 +45,14 @@ lazy_static! {
                         documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true,
+                        tainting: true,
                         sensitive: true
                     }
                 ],
                 outputs: [
-                    public_key: {
-                        documentation: "The public key of the connected signer.",
-                        typing: Type::array(Type::buffer())
+                    address: {
+                        documentation: "The address of the account generated from the public key.",
+                        typing: Type::array(Type::string())
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -225,7 +225,7 @@ impl SignerImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let result = CommandExecutionResult::new();
+        let mut result = CommandExecutionResult::new();
         let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
             Ok(value) => value,
             Err(diag) => {
@@ -246,6 +246,10 @@ impl SignerImplementation for StacksConnect {
         signer_state.insert("hash_flag", Value::integer(version.into()));
         signer_state.insert("multi_sig", Value::bool(false));
 
+        let address = args
+            .get_value(EXPECTED_ADDRESS)
+            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
+        result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 

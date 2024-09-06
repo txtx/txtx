@@ -98,19 +98,19 @@ lazy_static! {
             documentation: "The contract source.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         contract_name: {
             documentation: "The contract name.",
             typing: Type::string(),
             optional: false,
-            interpolable: false
+            tainting: true
         },
         clarity_version: {
             documentation: "The contract version.",
             typing: Type::integer(),
             optional: false,
-            interpolable: false
+            tainting: true
         }
     };
 }

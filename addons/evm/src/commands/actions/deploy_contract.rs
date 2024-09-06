@@ -47,97 +47,113 @@ lazy_static! {
                 documentation: "A description of the transaction",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to broadcast the transaction.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true
+                documentation: "The URL of the EVM API used to broadcast the transaction.",
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false
             },
             signer: {
                 documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             amount: {
                 documentation: "The amount, in WEI, to send with the deployment.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             type: {
                 documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             chain_id: {
                 documentation: "The chain id.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             contract: {
                 documentation: "Coming soon",
                 typing: CONTRACT_METADATA.clone(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             constructor_args: {
                 documentation: "Coming soon",
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             confirmations: {
                 documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             verify: {
                 documentation: "",
                 typing: Type::bool(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             block_explorer_api_key: {
-              documentation: "The URL of the block explorer used to verify the contract.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true
+                documentation: "The URL of the block explorer used to verify the contract.",
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false
             }
           ],
           outputs: [

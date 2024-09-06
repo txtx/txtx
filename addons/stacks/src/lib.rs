@@ -90,7 +90,9 @@ impl Addon for StacksNetworkAddon {
         let mut overrides = HashMap::new();
         let mut contracts_lookup = HashMap::new();
         for (construct_did, command_instance, inputs_simulation) in commands_instances.into_iter() {
-            if command_instance.specification.matcher.eq("deploy_contract") {
+            if command_instance.specification.matcher.eq("deploy_contract")
+                || command_instance.specification.matcher.eq("deploy_requirement")
+            {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
@@ -101,13 +103,15 @@ impl Addon for StacksNetworkAddon {
 
         for (construct_did, command_instance, inputs_simulation) in commands_instances.into_iter() {
             let mut consolidated_dependencies = vec![];
-            if command_instance.specification.matcher.eq("deploy_contract") {
+            if command_instance.specification.matcher.eq("deploy_contract")
+                || command_instance.specification.matcher.eq("deploy_requirement")
+            {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
 
                 let dependencies =
-                    simulated_inputs.inputs.get_expected_array("contracts_ids_dependencies")?;
+                    simulated_inputs.inputs.get_expected_array("dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
@@ -122,7 +126,7 @@ impl Addon for StacksNetworkAddon {
 
                 let dependencies = simulated_inputs
                     .inputs
-                    .get_expected_array("contracts_ids_lazy_dependencies")?;
+                    .get_expected_array("lazy_dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
@@ -141,18 +145,17 @@ impl Addon for StacksNetworkAddon {
         // we should handle call-contract dependencies (only if litteral)?
 
         for (construct_did, command_instance, inputs_simulation) in commands_instances.iter() {
+            let Some(simulated_inputs) = inputs_simulation else {
+                continue;
+            };
+            let Some(contract_id) = simulated_inputs.inputs.get_string("contract_id") else {
+                continue;
+            };
+            let from = QualifiedContractIdentifier::parse(contract_id).unwrap().name.to_string();
+            let Some(to) = simulated_inputs.inputs.get_string("contract_instance_name") else {
+                continue;
+            };
             if command_instance.specification.matcher.eq("deploy_contract") {
-                let Some(simulated_inputs) = inputs_simulation else {
-                    continue;
-                };
-                let Some(contract_id) = simulated_inputs.inputs.get_string("contract_id") else {
-                    continue;
-                };
-                let from =
-                    QualifiedContractIdentifier::parse(contract_id).unwrap().name.to_string();
-                let Some(to) = simulated_inputs.inputs.get_string("contract_instance_name") else {
-                    continue;
-                };
                 for (contract, dependencies) in overrides.iter() {
                     if dependencies.contains(construct_did) {
                         additional_transforms
@@ -163,6 +166,15 @@ impl Addon for StacksNetworkAddon {
                                 format!(".{}", to),
                             ));
                     }
+                }
+            } else if command_instance.specification.matcher.eq("deploy_requirement") {
+                for (contract, _) in overrides.iter() {
+                    additional_transforms.entry(contract.clone()).or_insert_with(Vec::new).push(
+                        ContractSourceTransform::FindAndReplace(
+                            format!("'{}", contract_id),
+                            format!(".{}", to),
+                        ),
+                    );
                 }
             }
         }

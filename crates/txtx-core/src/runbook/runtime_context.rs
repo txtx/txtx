@@ -248,6 +248,7 @@ impl RuntimeContext {
             post_processing.push(res.transforms);
         }
 
+        let mut remapping_required = vec![];
         for res in post_processing.iter() {
             for (construct_did, transforms) in res.iter() {
                 let Some(inputs_evaluation_results) = runbook_execution_context
@@ -275,6 +276,9 @@ impl RuntimeContext {
                             inputs_evaluation_results
                                 .inputs
                                 .insert("contract", Value::object(contract));
+                        }
+                        ContractSourceTransform::RemapDownstreamDependencies(from, to) => {
+                            remapping_required.push((from, to));
                         }
                     }
                 }

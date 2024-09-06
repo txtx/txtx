@@ -59,7 +59,7 @@ impl Runbook {
         }
     }
 
-    pub fn build_contexts_from_sources(
+    pub async fn build_contexts_from_sources(
         &mut self,
         sources: RunbookSources,
         inputs_map: RunbookInputsMap,
@@ -103,7 +103,8 @@ impl Runbook {
             // Step 3: simulate inputs evaluation - some more edges could be hidden in there
             running_context
                 .execution_context
-                .simulate_inputs_execution(&runtime_context, &running_context.workspace_context);
+                .simulate_inputs_execution(&runtime_context, &running_context.workspace_context)
+                .await;
             // Step 4: let addons build domain aware dependencies
             let domain_specific_dependencies = runtime_context
                 .perform_addon_processing(&mut running_context.execution_context)
@@ -134,7 +135,7 @@ impl Runbook {
         unreachable!()
     }
 
-    pub fn update_inputs_selector(
+    pub async fn update_inputs_selector(
         &mut self,
         selector: Option<String>,
         force: bool,
@@ -162,6 +163,7 @@ impl Runbook {
             authorization_context,
             available_addons,
         )
+        .await
     }
 
     pub fn get_inputs_selectors(&self) -> Vec<String> {
