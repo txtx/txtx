@@ -37,31 +37,36 @@ lazy_static! {
                 documentation: "Description of the transaction",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             chain_id: {
                 documentation: indoc!{r#"Coming soon"#},
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             signer: {
                 documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             }
           ],
           outputs: [

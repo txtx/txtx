@@ -35,37 +35,43 @@ lazy_static! {
                     documentation: "Description of the transaction",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 },
                 instructions: {
                     documentation: "The address and identifier of the contract to invoke.",
                     typing: Type::array(Type::addon("")),
                     optional: false,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 chain_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 }
             ],
             outputs: [

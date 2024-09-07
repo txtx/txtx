@@ -31,38 +31,38 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use crate::typing::SolanaValue;
 
 lazy_static! {
-    pub static ref SOLANA_MNEMONIC: SignerSpecification = define_signer! {
+    pub static ref SOLANA_SECRET_KEY: SignerSpecification = define_signer! {
         SolanaMnemonic => {
           name: "Mnemonic Signer",
-          matcher: "mnemonic",
+          matcher: "secret_key",
           documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
           inputs: [
             mnemonic: {
                 documentation: "The mnemonic phrase used to generate the secret key.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true,
+                tainting: true,
                 sensitive: true
             },
             derivation_path: {
                 documentation: "The derivation path used to generate the secret key.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 sensitive: true
             },
             is_encrypted: {
                 documentation: "Coming soon",
                 typing: Type::bool(),
                 optional: true,
-                interpolable: true,
+                tainting: false,
                 sensitive: false
             },
             password: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: false,
                 sensitive: true
             }
           ],
