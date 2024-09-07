@@ -1,0 +1,36 @@
+// Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
+// to understand the syntax and discover the powerful features of txtx.
+
+runtime "addon::solana" {
+  defaults {
+    network_id = env.solana_network_id
+    rpc_api_url = env.solana_api_url
+  }
+}
+
+signer "operator" "solana::secret_key" {
+  mnemonic = ""
+}
+
+action "deploy_hellosol" "solana::deploy_program" {
+  program = solana::get_contract_from_anchor_project(env.anchor_manifest_path, "hellosol")
+  signer = signer.operator
+}
+
+action "increment_counter" "solana::call_program" {
+  description = "Increment counter program of ${input.step}"
+  program_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.counter"
+  intructions = [{
+
+  }]
+  data = borsh_map({
+    key1: borsh_u8(1)
+  })
+  signer = signer.alice
+  confirmations = 1
+}
+
+output "counter_value" {
+  description = "Increment counter contract of ${input.step}"
+  value = action.increment_counter.tx_id
+}

@@ -1,0 +1,15 @@
+---
+name: hellosol
+id: hellosol
+runbooks:
+  - name: hellosol
+    id: hellosol
+    description: 
+    location: runbooks/maintenance/hellosol.tx
+environments:
+  devnet:
+    solana_network_id: devnet
+    solana_api_url: http://localhost:8999
+    anchor_manifest_path: ./Anchor.toml
+  testnet:
+  mainnet:
