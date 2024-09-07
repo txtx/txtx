@@ -48,91 +48,106 @@ lazy_static! {
                 documentation: "A description of the transaction.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             rpc_api_url: {
-              documentation: "The URL of the EVM API used to broadcast the transaction.",
-              typing: Type::string(),
-              optional: true,
-              interpolable: true
+                documentation: "The URL of the EVM API used to broadcast the transaction.",
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false
             },
             signer: {
                 documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             contract_address: {
                 documentation: "The address of the contract being called.",
                 typing: Type::addon(EVM_ADDRESS),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             contract_abi: {
                 documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
                 typing: Type::addon(EVM_ADDRESS),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             function_name: {
                 documentation: "The contract function to invoke.",
                 typing: Type::string(),
                 optional: false,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             function_args: {
                 documentation: "The contract function arguments",
                 typing: Type::array(Type::buffer()),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             amount: {
                 documentation: "The amount, in WEI, to transfer.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             type: {
                 documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             max_fee_per_gas: {
                 documentation: "Sets the max fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             max_priority_fee_per_gas: {
                 documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             chain_id: {
                 documentation: "The chain id.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true
+                tainting: true,
+                internal: false
             },
             nonce: {
                 documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             gas_limit: {
                 documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             },
             gas_price: {
                 documentation: "Sets the gas price for Legacy transactions.",
                 typing: Type::integer(),
                 optional: true,
-                interpolable: true
+                tainting: false,
+                internal: false
             }
           ],
           outputs: [

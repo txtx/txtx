@@ -12,11 +12,11 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
+use crate::codec::cv::{cv_to_value, decode_cv_bytes};
 use crate::constants::{
     DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN, RPC_API_URL,
 };
 use crate::rpc::StacksRpc;
-use crate::stacks_helpers::{clarity_value_to_value, parse_clarity_value};
 use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 
 lazy_static! {
@@ -32,49 +32,57 @@ lazy_static! {
                     documentation: "The address and identifier of the contract to invoke.",
                     typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 function_name: {
                     documentation: "The contract method to invoke.",
                     typing: Type::string(),
                     optional: false,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 function_args: {
                     documentation: "The function arguments for the contract call.",
                     typing: Type::array(Type::addon(STACKS_CV_GENERIC)),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 sender: {
                     documentation: "The simulated tx-sender to use.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 block_height: {
                     documentation: "Coming soon.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 }
             ],
             outputs: [
@@ -133,7 +141,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                     arg_value
                 ));
             };
-            let arg = parse_clarity_value(&data.bytes, &data.id)?;
+            let arg = decode_cv_bytes(&data.bytes).map_err(|e| diagnosed_error!("{e}"))?;
             function_args.push(arg);
         }
 
@@ -203,7 +211,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                 }
             }
 
-            let value = clarity_value_to_value(call_result)?;
+            let value = cv_to_value(call_result)?;
             result.outputs.insert("value".into(), value);
 
             Ok(result)

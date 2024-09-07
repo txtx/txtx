@@ -2,11 +2,14 @@ use std::time::Duration;
 
 use txtx_addon_kit::{
     channel::{Receiver, Sender},
+    futures::executor::block_on,
     helpers::fs::FileLocation,
-    types::frontend::{ActionItemRequest, ActionItemResponse, ActionItemStatus, BlockEvent},
     types::{
         block_id::BlockId,
-        frontend::{ActionPanelData, ModalPanelData, NormalizedActionItemRequestUpdate},
+        frontend::{
+            ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
+            ModalPanelData, NormalizedActionItemRequestUpdate,
+        },
         AuthorizationContext, RunbookId,
     },
     Addon,
@@ -179,6 +182,21 @@ impl TestHarness {
 
         event.expect_runbook_completed();
     }
+
+    pub fn assert_provide_signature_formatted_payload(
+        &self,
+        action: &ActionItemRequest,
+        formatted_payload: Option<String>,
+    ) {
+        let Some(action) = action.action_type.as_provide_signed_tx() else {
+            panic!("expected sign transaction payload, found {:?}", action);
+        };
+        assert_eq!(
+            action.formatted_payload, formatted_payload,
+            "mismatching payload for action {:?}",
+            action
+        );
+    }
 }
 
 pub fn setup_test(
@@ -198,14 +216,13 @@ pub fn setup_test(
 
     let mut runbook = Runbook::new(runbook_id, None);
     let authorization_context = AuthorizationContext::empty();
-    runbook
-        .build_contexts_from_sources(
-            runbook_sources,
-            runbook_inputs,
-            authorization_context,
-            available_addons,
-        )
-        .unwrap();
+    let future = runbook.build_contexts_from_sources(
+        runbook_sources,
+        runbook_inputs,
+        authorization_context,
+        available_addons,
+    );
+    let _ = block_on(future);
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, _action_item_updates_rx) =

@@ -128,6 +128,10 @@ impl Diagnostic {
     pub fn span_range(&self) -> Option<Range<usize>> {
         self.span_range.clone()
     }
+    pub fn set_diagnostic_span(mut self, span: Option<DiagnosticSpan>) -> Self {
+        self.span = span;
+        self
+    }
 }
 
 impl Display for Diagnostic {

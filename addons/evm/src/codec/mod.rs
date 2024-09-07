@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod foundry;
 
 use crate::commands::actions::get_expected_address;

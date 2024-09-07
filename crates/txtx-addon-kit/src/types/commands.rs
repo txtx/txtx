@@ -104,10 +104,11 @@ pub struct CommandInput {
     pub documentation: String,
     pub typing: Type,
     pub optional: bool,
-    pub interpolable: bool,
+    pub tainting: bool,
     pub check_required: bool,
     pub check_performed: bool,
     pub sensitive: bool,
+    pub internal: bool,
 }
 
 impl CommandInput {
@@ -235,7 +236,7 @@ pub struct CommandSpecification {
     pub default_inputs: Vec<CommandInput>,
     pub inputs: Vec<CommandInput>,
     pub outputs: Vec<CommandOutput>,
-    pub post_process_evaluated_inputs: PostInputEvaluationProcessor,
+    pub inputs_post_processing_closure: InputsPostProcessingClosure,
     pub check_instantiability: InstantiabilityChecker,
     pub check_executability: CommandCheckExecutabilityClosure,
     pub run_execution: CommandExecutionClosure,
@@ -256,19 +257,6 @@ pub struct CompositeCommandSpecification {
 }
 
 impl CommandSpecification {
-    pub fn set_input_as_sensitive(&mut self, input_name: &str) {
-        for input in self.inputs.iter_mut() {
-            if input.name.eq(input_name) {
-                input.sensitive = true;
-            }
-        }
-        for input in self.default_inputs.iter_mut() {
-            if input.name.eq(input_name) {
-                input.sensitive = true;
-            }
-        }
-    }
-
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
@@ -276,7 +264,8 @@ impl CommandSpecification {
                 documentation: "Allows you to describe and comment steps of your runbook".into(),
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
+                internal: false,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -286,7 +275,8 @@ impl CommandSpecification {
                 documentation: "Allows you to label steps of your runbook".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: true,
+                tainting: true,
+                internal: false,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -296,7 +286,8 @@ impl CommandSpecification {
                 documentation: "Only enable command for given environments (default: all)".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: false,
+                tainting: true,
+                internal: false,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -306,7 +297,8 @@ impl CommandSpecification {
                 documentation: "Never include value in logs".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: false,
+                tainting: true,
+                internal: true,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -316,7 +308,8 @@ impl CommandSpecification {
                 documentation: "Name used for grouping commands together".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: true,
+                tainting: true,
+                internal: true,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -326,7 +319,8 @@ impl CommandSpecification {
                 documentation: "Name used for grouping commands together".into(),
                 typing: Type::array(Type::string()),
                 optional: true,
-                interpolable: true,
+                tainting: false,
+                internal: false,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
@@ -363,10 +357,13 @@ impl Serialize for CompositeCommandSpecification {
 }
 
 pub type InstantiabilityChecker = fn(&CommandSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
-pub type PostInputEvaluationProcessor = fn(
-    &CommandSpecification,
-    CommandInputsEvaluationResult,
-) -> Result<CommandInputsEvaluationResult, Diagnostic>;
+
+pub type InputsPostProcessingClosure =
+    fn(&CommandSpecification, CommandInputsEvaluationResult) -> InputsPostProcessingFutureResult;
+pub type InputsPostProcessingFutureResult = Result<InputsPostProcessingFuture, Diagnostic>;
+pub type InputsPostProcessingFuture =
+    Pin<Box<dyn Future<Output = Result<CommandInputsEvaluationResult, Diagnostic>> + Send>>;
+
 pub type CommandExecutionFutureResult = Result<CommandExecutionFuture, Diagnostic>;
 pub type CommandExecutionFuture =
     Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>;
@@ -557,12 +554,14 @@ impl CommandInstance {
         }
     }
 
-    pub fn post_process_inputs_evaluations(
+    pub async fn post_process_inputs_evaluations(
         &self,
         inputs_evaluation: CommandInputsEvaluationResult,
     ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
         let spec = &self.specification;
-        (self.specification.post_process_evaluated_inputs)(spec, inputs_evaluation)
+        let future = (self.specification.inputs_post_processing_closure)(spec, inputs_evaluation)?;
+        let res = future.await?;
+        Ok(res)
     }
 
     pub fn get_expressions_referencing_commands_from_inputs(
@@ -873,7 +872,7 @@ impl CommandInstance {
     pub async fn check_signed_executability(
         &mut self,
         construct_did: &ConstructDid,
-        evaluated_inputs: &mut CommandInputsEvaluationResult,
+        evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         addon_defaults: AddonDefaults,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
@@ -1096,8 +1095,9 @@ pub trait CommandImplementation {
     fn post_process_evaluated_inputs(
         _ctx: &CommandSpecification,
         inputs: CommandInputsEvaluationResult,
-    ) -> Result<CommandInputsEvaluationResult, Diagnostic> {
-        return Ok(inputs);
+    ) -> InputsPostProcessingFutureResult {
+        let future = async move { Ok(inputs) };
+        Ok(Box::pin(future))
     }
 
     fn check_instantiability(

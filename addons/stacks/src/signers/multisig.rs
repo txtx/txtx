@@ -32,9 +32,7 @@ use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT,
-    RPC_API_URL,
+    ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUIRED_SIGNATURE_COUNT, RPC_API_URL
 };
 use crate::rpc::StacksRpc;
 
@@ -43,57 +41,57 @@ use super::get_addition_actions_for_address;
 lazy_static! {
     pub static ref STACKS_MULTISIG: SignerSpecification = define_signer! {
         StacksConnect => {
-          name: "Stacks Multisig",
-          matcher: "multisig",
-          documentation:txtx_addon_kit::indoc! {r#"The `multisig` signer creates an ordered, `n` of `n` multisig.
-          Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order."#},
-          inputs: [
-            signers: {
-              documentation: "A list of signers that make up the multisig.",
-                typing: Type::array(Type::string()),
-                optional: false,
-                interpolable: true,
-                sensitive: false
-            },
-            expected_address: {
-              documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.",
-                typing: Type::string(),
-                optional: true,
-                interpolable: true,
-                sensitive: false
-            },
-            required_signatures: {
-              documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
-                typing: Type::integer(),
-                optional: true,
-                interpolable: true,
-                sensitive: false
-            }
-          ],
-          outputs: [
-              public_key: {
-                documentation: "The public key of the generated multisig signer.",
-                typing: Type::array(Type::buffer())
-              },
-              signers: {
-                documentation: "The list of signers that make up the multisig.",
-                typing: Type::array(Type::string())
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-            signer "alice" "stacks::connect" {
-                expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
-            }
+            name: "Stacks Multisig",
+            matcher: "multisig",
+            documentation:txtx_addon_kit::indoc! {r#"The `multisig` signer creates an ordered, `n` of `n` multisig.
+            Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order."#},
+            inputs: [
+                signers: {
+                    documentation: "A list of signers that make up the multisig.",
+                    typing: Type::array(Type::string()),
+                    optional: false,
+                    tainting: true,
+                    sensitive: false
+                },
+                expected_address: {
+                    documentation: "The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: false
+                },
+                required_signatures: {
+                    documentation: "The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: false
+                }
+            ],
+            outputs: [
+                signers: {
+                    documentation: "The list of signers that make up the multisig.",
+                    typing: Type::array(Type::string())
+                },
+                address: {
+                    documentation: "The address of the account generated from the public key.",
+                    typing: Type::array(Type::string())
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                signer "alice" "stacks::connect" {
+                    expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+                }
 
-            signer "bob" "stacks::connect" {
-                expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
-            }
+                signer "bob" "stacks::connect" {
+                    expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+                }
 
-            signer "alice_and_bob" "stacks::multisig" {
-                signers = [signer.alice, signer.bob]
-            }
-    "#},
-      }
+                signer "alice_and_bob" "stacks::multisig" {
+                    signers = [signer.alice, signer.bob]
+                }
+            "#},
+        }
     };
 }
 
@@ -126,7 +124,7 @@ impl SignerImplementation for StacksConnect {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::types::frontend::ReviewInputRequest;
 
-        use crate::constants::RPC_API_AUTH_TOKEN;
+        use crate::constants::{EXPECTED_ADDRESS, RPC_API_AUTH_TOKEN};
 
         let root_construct_did = construct_did.clone();
         let multisig_signer_instances = get_multisig_signer_instances(args, signers_instances);
@@ -268,6 +266,8 @@ impl SignerImplementation for StacksConnect {
                 )
                 .map(|address| address.to_string())
                 {
+                    signer_state.insert(CHECKED_ADDRESS, Value::string(stacks_address.to_string()));
+
                     let mut actions = Actions::none();
                     if is_balance_check_required {
                         let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
@@ -342,6 +342,10 @@ impl SignerImplementation for StacksConnect {
             Ok(value) => value.clone(),
             Err(diag) => return Err((signers, signer_state, diag)),
         };
+        let address = match signer_state.get_expected_value(CHECKED_ADDRESS) {
+            Ok(value) => value.clone(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
         let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
@@ -390,6 +394,7 @@ impl SignerImplementation for StacksConnect {
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
             result.outputs.insert("public_key".into(), public_key);
+            result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))
         };
@@ -497,8 +502,19 @@ impl SignerImplementation for StacksConnect {
             );
 
             for (signer_uuid, signer_wallet_instance) in multisig_signer_instances.into_iter() {
-                let signer_wallet_state = signers.pop_signer_state(&signer_uuid).unwrap();
-                let payload = payloads.get(&signer_uuid).unwrap();
+                let mut signer_wallet_state = signers.pop_signer_state(&signer_uuid).unwrap();
+                let transaction = payloads.get(&signer_uuid).unwrap();
+                let mut bytes = vec![];
+                transaction.consensus_serialize(&mut bytes).unwrap();
+                let payload = Value::buffer(bytes);
+                let formatted_payload = transaction.format_for_display();
+
+                signer_wallet_state.insert_scoped_value(
+                    &origin_uuid.to_string(),
+                    FORMATTED_TRANSACTION,
+                    Value::string(formatted_payload),
+                );
+
                 let (mut updated_wallets, signer_wallet_state, mut actions) =
                     (signer_wallet_instance.specification.check_signability)(
                         &origin_uuid,
@@ -690,7 +706,7 @@ fn generate_ordered_multisig_payloads(
     tx: StacksTransaction,
     multisig_signer_instances: &Vec<(ConstructDid, SignerInstance)>,
     signers: &SignersState,
-) -> Result<(u64, u64, HashMap<ConstructDid, Value>), String> {
+) -> Result<(u64, u64, HashMap<ConstructDid, StacksTransaction>), String> {
     let mut payloads = HashMap::new();
     let mut signature_count = 0;
     let mut actions_count = 0;
@@ -756,10 +772,7 @@ fn generate_ordered_multisig_payloads(
         spending_condition.fields = fields;
         tx.auth =
             TransactionAuth::Standard(TransactionSpendingCondition::Multisig(spending_condition));
-        let mut bytes = vec![];
-        tx.consensus_serialize(&mut bytes).unwrap();
-        let payload = Value::buffer(bytes);
-        payloads.insert(this_signer_uuid.clone(), payload);
+        payloads.insert(this_signer_uuid.clone(), tx);
     }
 
     Ok((signature_count, actions_count, payloads))

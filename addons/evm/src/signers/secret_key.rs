@@ -1,13 +1,8 @@
 use alloy::consensus::Transaction;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
-use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::TransactionRequest;
-use alloy::signers::k256::ecdsa::SigningKey;
-use alloy_signer_local::coins_bip39::English;
-use alloy_signer_local::{LocalSigner, MnemonicBuilder};
 use std::collections::HashMap;
-use txtx_addon_kit::reqwest::Url;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
@@ -29,47 +24,56 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::{channel, AddonDefaults};
 
+use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
+use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
+use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
 
 use crate::constants::PUBLIC_KEYS;
-
-use super::DEFAULT_DERIVATION_PATH;
+use crate::signers::namespaced_err_fn;
 
 lazy_static! {
-    pub static ref EVM_MNEMONIC: SignerSpecification = define_signer! {
-        EVMMnemonic => {
-          name: "EVM Mnemonic Signer",
-          matcher: "mnemonic",
-          documentation:txtx_addon_kit::indoc! {r#"The `evm::mnemonic` signer can be used to synchronously sign a transaction."#},
+    pub static ref EVM_SECRET_KEY_SIGNER: SignerSpecification = define_signer! {
+        EvmSecretKeySigner => {
+          name: "EVM Secret Key Signer",
+          matcher: "secret_key",
+          documentation:txtx_addon_kit::indoc! {r#"The `evm::secret_key` signer can be used to synchronously sign a transaction."#},
           inputs: [
-            mnemonic: {
-                documentation: "The mnemonic phrase used to generate the secret key.",
+            secret_key: {
+                documentation: "The secret key used to sign messages and transactions.",
                 typing: Type::string(),
-                optional: false,
-                interpolable: true,
+                optional: true,
+                tainting: true,
+                sensitive: true
+            },
+            mnemonic: {
+                documentation: "The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
+                typing: Type::string(),
+                optional: true,
+                tainting: true,
                 sensitive: true
             },
             derivation_path: {
-                documentation: "The derivation path used to generate the secret key.",
+                documentation: "The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 sensitive: true
             },
             is_encrypted: {
                 documentation: "Coming soon",
                 typing: Type::bool(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 sensitive: false
             },
             password: {
                 documentation: "Coming soon",
                 typing: Type::string(),
                 optional: true,
-                interpolable: true,
+                tainting: true,
                 sensitive: true
             }
           ],
@@ -84,7 +88,7 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-        signer "bob" "evm::mnemonic" {
+        signer "bob" "evm::secret_key" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
         }
@@ -93,8 +97,8 @@ lazy_static! {
     };
 }
 
-pub struct EVMMnemonic;
-impl SignerImplementation for EVMMnemonic {
+pub struct EvmSecretKeySigner;
+impl SignerImplementation for EvmSecretKeySigner {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,
@@ -106,45 +110,49 @@ impl SignerImplementation for EVMMnemonic {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         args: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
+        _defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::codec::crypto::{
+            mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer,
+        };
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let mnemonic = args.get_expected_value("mnemonic").unwrap().clone();
-        let derivation_path = match args.get_value("derivation_path") {
-            Some(v) => v.clone(),
-            None => Value::string(DEFAULT_DERIVATION_PATH.into()),
-        };
-        let is_encrypted = match args.get_value("is_encrypted") {
-            Some(v) => v.clone(),
-            None => Value::bool(false),
-        };
-        // let network_id = args.get_defaulting_string(NETWORK_ID, defaults).unwrap();
+        let expected_signer =
+            if let Ok(secret_key_bytes) = args.get_expected_buffer_bytes("secret_key") {
+                secret_key_to_secret_key_signer(&secret_key_bytes)
+                    .map_err(|e| signer_err(&signers, &signer_state, e))?
+            } else {
+                let mnemonic = args
+                    .get_expected_string("mnemonic")
+                    .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                let derivation_path = args.get_string("derivation_path");
+                let is_encrypted = args.get_bool("is_encrypted");
+                let password = args.get_string("password");
+                mnemonic_to_secret_key_signer(mnemonic, derivation_path, is_encrypted, password)
+                    .map_err(|e| signer_err(&signers, &signer_state, e))?
+            };
 
-        signer_state.insert("mnemonic", mnemonic);
-        signer_state.insert("derivation_path", derivation_path);
-        signer_state.insert("is_encrypted", is_encrypted);
-
-        let expected_signer = match get_mnemonic_signer(args, defaults, &signer_state) {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
         let expected_address: Address = expected_signer.address();
+        signer_state.insert(
+            "signer_field_bytes",
+            EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
+        );
         signer_state.insert("signer_address", Value::string(expected_address.to_string()));
-        // signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-        // signer_state.insert(CHECKED_PUBLIC_KEY, Value::array(vec![public_key.clone()]));
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -168,18 +176,23 @@ impl SignerImplementation for EVMMnemonic {
 
     fn activate(
         _construct_id: &ConstructDid,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         _args: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
+        let signer_did = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(&spec, &signer_instance.name, namespaced_err_fn()));
+
         let mut result = CommandExecutionResult::new();
         let address = signer_state
             .get_expected_value("signer_address")
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
         result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
@@ -204,26 +217,40 @@ impl SignerImplementation for EVMMnemonic {
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         args: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
         let args = args.clone();
         let payload = payload.clone();
         let defaults = defaults.clone();
+        let signers_instances = signers_instances.clone();
+        let spec = spec.clone();
 
         let future = async move {
+            let signer_did = ConstructDid(signer_state.uuid.clone());
+            let signer_instance = signers_instances.get(&signer_did).unwrap();
+            let signer_err = signer_err_fn(signer_diag_with_ctx(
+                &spec,
+                &signer_instance.name,
+                namespaced_err_fn(),
+            ));
+
             let mut result = CommandExecutionResult::new();
 
             let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults).unwrap();
-            let mnemonic_signer = match get_mnemonic_signer(&args, &defaults, &signer_state) {
-                Ok(value) => value,
-                Err(diag) => return Err((signers, signer_state, diag)),
-            };
-            let eth_signer = EthereumWallet::from(mnemonic_signer);
+
+            let signer_field_bytes = signer_state
+                .get_expected_buffer_bytes("signer_field_bytes")
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+            let secret_key_signer = field_bytes_to_secret_key_signer(&signer_field_bytes)
+                .map_err(|e| signer_err(&signers, &signer_state, e))?;
+
+            let eth_signer = EthereumWallet::from(secret_key_signer);
 
             let payload_bytes = payload.expect_buffer_bytes();
 
@@ -233,46 +260,26 @@ impl SignerImplementation for EVMMnemonic {
                 tx.set_create();
             }
 
-            let tx_envelope = tx.build(&eth_signer).await.unwrap();
-            let tx_nonce = tx_envelope.nonce();
-
-            let url = Url::try_from(rpc_api_url.as_ref()).unwrap();
-            let provider =
-                ProviderBuilder::new().with_recommended_fillers().wallet(eth_signer).on_http(url);
-            let pending_tx = provider.send_tx_envelope(tx_envelope).await.map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("error signing transaction: {e}"),
+            let tx_envelope = tx.build(&eth_signer).await.map_err(|e| {
+                signer_err(
+                    &signers,
+                    &signer_state,
+                    format!("failed to build transaction envelope: {e}"),
                 )
             })?;
-            let tx_hash = pending_tx.tx_hash().0;
+            let tx_nonce = tx_envelope.nonce();
+
+            let rpc = EvmWalletRpc::new(&rpc_api_url, eth_signer)
+                .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            let tx_hash = rpc
+                .sign_and_send_tx(tx_envelope)
+                .await
+                .map_err(|e| signer_err(&signers, &signer_state, e.to_string()))?;
+
             result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
             signer_state.insert(NONCE, Value::integer(tx_nonce.into()));
             Ok((signers, signer_state, result))
         };
         Ok(Box::pin(future))
     }
-}
-
-type MnemonicSigner = LocalSigner<SigningKey>;
-pub fn get_mnemonic_signer(
-    _args: &ValueStore,
-    _defaults: &AddonDefaults,
-    signer_state: &ValueStore,
-) -> Result<MnemonicSigner, Diagnostic> {
-    let mnemonic = signer_state.get_expected_string("mnemonic")?;
-    let derivation_path =
-        signer_state.get_expected_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
-
-    let mut mnemonic_builder = MnemonicBuilder::<English>::default()
-        .phrase(mnemonic)
-        .derivation_path(derivation_path)
-        .unwrap();
-
-    if let Some(password) = signer_state.get_string("password") {
-        mnemonic_builder = mnemonic_builder.password(password)
-    }
-    let signer = mnemonic_builder.build().unwrap();
-    Ok(signer)
 }

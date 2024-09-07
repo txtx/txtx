@@ -1,11 +1,21 @@
-use txtx_addon_kit::types::signers::SignerSpecification;
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
+};
 
-pub mod mnemonic;
+pub mod secret_key;
 
-use mnemonic::EVM_MNEMONIC;
+use secret_key::EVM_SECRET_KEY_SIGNER;
+
+use crate::constants::NAMESPACE;
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 
 lazy_static! {
-    pub static ref WALLETS: Vec<SignerSpecification> = vec![EVM_MNEMONIC.clone()];
+    pub static ref WALLETS: Vec<SignerSpecification> = vec![EVM_SECRET_KEY_SIGNER.clone()];
+}
+
+pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
+    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
+    error_fn
 }

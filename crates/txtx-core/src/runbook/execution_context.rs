@@ -321,19 +321,12 @@ impl RunbookExecutionContext {
         pass_result
     }
 
-    pub fn simulate_inputs_execution(
+    pub async fn simulate_inputs_execution(
         &mut self,
         runtime_context: &RuntimeContext,
         workspace_context: &RunbookWorkspaceContext,
     ) {
         for (construct_did, command_instance) in self.commands_instances.iter() {
-            // Unused ???
-            // let addon_context_key = (
-            //     command_instance.package_id.did(),
-            //     command_instance.namespace.clone(),
-            // );
-            // let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
-
             let inputs_simulation_results =
                 self.commands_inputs_evaluation_results.get(&construct_did);
 
@@ -355,18 +348,28 @@ impl RunbookExecutionContext {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, diags) => {
-                        println!("{:?}", diags);
-                        results
-                    }
+                    CommandInputEvaluationStatus::Aborted(results, diags) => results,
                 },
                 Err(_d) => {
                     continue;
                 }
             };
 
+            let post_processed_inputs_res = command_instance
+                .post_process_inputs_evaluations(evaluated_inputs)
+                .await
+                .map_err(|d| vec![d]);
+
+            let post_processed_inputs = match post_processed_inputs_res {
+                Ok(result) => result,
+                Err(_d) => {
+                    continue;
+                }
+            };
+
             // Update the evaluated inputs
-            self.commands_inputs_evaluation_results.insert(construct_did.clone(), evaluated_inputs);
+            self.commands_inputs_evaluation_results
+                .insert(construct_did.clone(), post_processed_inputs);
         }
     }
 }

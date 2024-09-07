@@ -13,7 +13,7 @@ runtime "addon::evm" {
         rpc_api_url = "https://sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
     }
 }
-signer "alice" "evm::mnemonic" {
+signer "alice" "evm::secret_key" {
    mnemonic = "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
 }
 action "deploy_simple_storage" "evm::deploy_contract" {

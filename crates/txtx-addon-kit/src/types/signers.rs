@@ -17,7 +17,7 @@ use super::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
     },
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    ConstructDid, PackageId, ValueStore,
+    ConstructDid, Did, PackageId, ValueStore,
 };
 
 #[derive(Debug, Clone)]
@@ -290,6 +290,17 @@ impl SignerInstance {
         } else {
             Ok(diagnostics)
         }
+    }
+
+    pub fn compute_fingerprint(&self, evaluated_inputs: &CommandInputsEvaluationResult) -> Did {
+        let mut comps = vec![];
+        for input in self.specification.inputs.iter() {
+            let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else { continue };
+            if input.sensitive {
+                comps.push(value.to_bytes());
+            }
+        }
+        Did::from_components(comps)
     }
 
     pub fn get_expressions_referencing_commands_from_inputs(
@@ -619,4 +630,46 @@ pub trait SignerImplementation {
     ) -> SignerSignFutureResult {
         unimplemented!()
     }
+}
+
+pub fn signer_diag_with_namespace_ctx(
+    namespace: String,
+) -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
+    let signer_diag_with_ctx = move |signer_spec: &SignerSpecification,
+                                     signer_instance_name: &str,
+                                     e: String|
+          -> Diagnostic {
+        Diagnostic::error_from_string(format!(
+            "'{}:{}' signer '{}': {}",
+            namespace, signer_spec.matcher, signer_instance_name, e
+        ))
+    };
+    return signer_diag_with_ctx;
+}
+
+pub fn signer_diag_with_ctx<'a>(
+    signer_spec: &'a SignerSpecification,
+    signer_instance_name: &'a str,
+    signer_diag_with_ctx: impl Fn(&SignerSpecification, &str, String) -> Diagnostic + 'a,
+) -> impl Fn(String) -> Diagnostic + 'a {
+    let signer_diag_with_ctx = move |e: String| -> Diagnostic {
+        signer_diag_with_ctx(signer_spec, signer_instance_name, e)
+    };
+    return signer_diag_with_ctx;
+}
+
+pub fn signer_err_fn(
+    signer_diag_with_ctx: impl Fn(String) -> Diagnostic,
+) -> impl for<'a, 'b> Fn(
+    &'a SignersState,
+    &'b ValueStore,
+    String,
+) -> (SignersState, ValueStore, Diagnostic) {
+    let error_fn = move |signers: &SignersState,
+                         signer_state: &ValueStore,
+                         e: String|
+          -> (SignersState, ValueStore, Diagnostic) {
+        return (signers.clone(), signer_state.clone(), signer_diag_with_ctx(e));
+    };
+    error_fn
 }

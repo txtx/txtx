@@ -26,7 +26,9 @@ use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
+use kit::hcl::Span;
 use kit::types::block_id::BlockId;
+use kit::types::commands::CommandExecutionResult;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemRequestUpdate;
 use kit::types::frontend::ActionItemResponse;
@@ -44,6 +46,7 @@ use kit::types::frontend::ValidateBlockData;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
+use runbook::add_source_context_to_diagnostic;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
@@ -152,7 +155,20 @@ pub async fn start_unsupervised_runbook_runloop(
                                 .commands_execution_results
                                 .insert(construct_did, result);
                         }
-                        Err(diag) => {
+                        Err(mut diag) => {
+                            let construct_id = running_context
+                                .workspace_context
+                                .expect_construct_id(&construct_did);
+                            diag = diag.location(&construct_id.construct_location);
+                            if let Some(command_instance) = running_context
+                                .execution_context
+                                .commands_instances
+                                .get_mut(&construct_did)
+                            {
+                                diag = diag.set_span_range(command_instance.block.span());
+                                diag.span =
+                                    add_source_context_to_diagnostic(&diag, &runbook.sources);
+                            };
                             return Err(vec![diag]);
                         }
                     }
@@ -275,7 +291,8 @@ pub async fn start_supervised_runbook_runloop(
                         Panel::ProgressBar(vec![]),
                     )));
 
-                    let results = kit::futures::future::join_all(background_tasks_futures).await;
+                    let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
+                        kit::futures::future::join_all(background_tasks_futures).await;
                     for (construct_did, result) in
                         background_tasks_contructs_dids.into_iter().zip(results)
                     {
@@ -287,7 +304,21 @@ pub async fn start_supervised_runbook_runloop(
                                     .commands_execution_results
                                     .insert(construct_did, result);
                             }
-                            Err(diag) => {
+                            Err(mut diag) => {
+                                let running_context = runbook.running_contexts.first_mut().unwrap();
+                                let construct_id = running_context
+                                    .workspace_context
+                                    .expect_construct_id(&construct_did);
+                                diag = diag.location(&construct_id.construct_location);
+                                if let Some(command_instance) = running_context
+                                    .execution_context
+                                    .commands_instances
+                                    .get_mut(&construct_did)
+                                {
+                                    diag = diag.set_span_range(command_instance.block.span());
+                                    diag.span =
+                                        add_source_context_to_diagnostic(&diag, &runbook.sources);
+                                };
                                 let diags = vec![diag];
                                 let _ = block_tx.send(BlockEvent::Error(Block {
                                     uuid: Uuid::new_v4(),
@@ -539,7 +570,7 @@ pub async fn reset_runbook_execution(
         );
     };
 
-    let reset = runbook.update_inputs_selector(Some(environment_key.to_string()), true)?;
+    let reset = runbook.update_inputs_selector(Some(environment_key.to_string()), true).await?;
 
     if !reset {
         unimplemented!()

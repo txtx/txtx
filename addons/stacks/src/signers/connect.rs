@@ -26,8 +26,8 @@ use txtx_addon_kit::{channel, AddonDefaults};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, IS_SIGNABLE, NETWORK_ID,
-    PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, FORMATTED_TRANSACTION,
+    IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
 };
 
 use super::get_addition_actions_for_address;
@@ -45,14 +45,14 @@ lazy_static! {
                         documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
-                        interpolable: true,
+                        tainting: true,
                         sensitive: true
                     }
                 ],
                 outputs: [
-                    public_key: {
-                        documentation: "The public key of the connected signer.",
-                        typing: Type::array(Type::buffer())
+                    address: {
+                        documentation: "The address of the account generated from the public key.",
+                        typing: Type::array(Type::string())
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -225,7 +225,7 @@ impl SignerImplementation for StacksConnect {
         defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let result = CommandExecutionResult::new();
+        let mut result = CommandExecutionResult::new();
         let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
             Ok(value) => value,
             Err(diag) => {
@@ -246,6 +246,10 @@ impl SignerImplementation for StacksConnect {
         signer_state.insert("hash_flag", Value::integer(version.into()));
         signer_state.insert("multi_sig", Value::bool(false));
 
+        let address = args
+            .get_value(EXPECTED_ADDRESS)
+            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
+        result.outputs.insert("address".into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -289,6 +293,11 @@ impl SignerImplementation for StacksConnect {
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
 
+        let formatted_payload = signer_state
+            .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+            .and_then(|v| v.as_string())
+            .and_then(|v| Some(v.to_string()));
+
         let request = ActionItemRequest::new(
             &Some(construct_did.clone()),
             title,
@@ -303,6 +312,7 @@ impl SignerImplementation for StacksConnect {
             .skippable(skippable)
             .expected_signer_address(expected_signer_address)
             .check_expectation_action_uuid(construct_did)
+            .formatted_payload(formatted_payload)
             .to_action_type(),
             ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
         );

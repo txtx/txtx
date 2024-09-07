@@ -32,38 +32,44 @@ lazy_static! {
                   documentation: "The signed transaction bytes that will be broadcasted to the network.",
                   typing: Type::buffer(),
                   optional: false,
-                  interpolable: true
+                  tainting: true,
+                  internal: false
                 },
                 network_id: {
                     documentation: "The network id used to validate the transaction version.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
                     typing: Type::string(),
                     optional: true,
-                    interpolable: true
+                    tainting: true,
+                    internal: false
                 },
                 confirmations: {
                     documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
                     typing: Type::integer(),
                     optional: true,
-                    interpolable: true
+                    tainting: false,
+                    internal: false
                 }
                 // todo:
                 // success_required: {
                 //     documentation: "Success required.",
                 //     typing: Type::bool(),
                 //     optional: true,
-                //     interpolable: true
+                //     tainting: true,
+                // internal: false
                 // }
             ],
             outputs: [
@@ -163,11 +169,11 @@ impl CommandImplementation for BroadcastStacksTransaction {
         };
 
         use crate::{
+            codec::cv::txid_display_str,
             constants::{
                 DEFAULT_DEVNET_BACKOFF, DEFAULT_MAINNET_BACKOFF, NETWORK_ID, RPC_API_AUTH_TOKEN,
             },
             rpc::{RpcError, TransactionStatus},
-            stacks_helpers::txid_display_str,
         };
 
         let args = inputs.clone();

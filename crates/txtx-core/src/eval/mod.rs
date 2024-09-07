@@ -1,11 +1,12 @@
-use crate::runbook::{RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext};
+use crate::runbook::{
+    add_source_context_to_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext,
+};
 use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
 };
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
-use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
@@ -262,56 +263,7 @@ impl EvaluationPassResult {
 
     pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
         for diag in self.diagnostics.iter_mut() {
-            let Some(construct_location) = &diag.location else {
-                continue;
-            };
-            let Some(span_range) = &diag.span_range() else {
-                continue;
-            };
-
-            let Some((_, (_, raw_content))) =
-                runbook_sources.tree.iter().find(|(location, _)| location.eq(&construct_location))
-            else {
-                unimplemented!();
-            };
-            let mut bytes = vec![0u8; 2 * raw_content.len()];
-            txtx_addon_kit::hex::encode_to_slice(raw_content, &mut bytes).unwrap();
-            let mut lines = 1;
-            let mut cols = 1;
-            let mut span = DiagnosticSpan::new();
-
-            let mut chars = raw_content.chars().enumerate().peekable();
-            while let Some((i, ch)) = chars.next() {
-                if i == span_range.start {
-                    span.line_start = lines;
-                    span.column_start = cols;
-                }
-                if i == span_range.end {
-                    span.line_end = lines;
-                    span.column_end = cols;
-                }
-                match ch {
-                    '\n' => {
-                        lines += 1;
-                        cols = 1;
-                    }
-                    '\r' => {
-                        // check for \r\n
-                        if let Some((_, '\n')) = chars.peek() {
-                            // Skip the next character
-                            chars.next();
-                            lines += 1;
-                            cols = 1;
-                        } else {
-                            cols += 1;
-                        }
-                    }
-                    _ => {
-                        cols += 1;
-                    }
-                }
-            }
-            diag.span = Some(span)
+            diag.span = add_source_context_to_diagnostic(diag, runbook_sources);
         }
     }
 
@@ -660,7 +612,7 @@ pub async fn run_constructs_evaluation(
             let future = match future_res {
                 Ok(future) => future,
                 Err(diag) => {
-                    pass_result.diagnostics.push(diag);
+                    pass_result.push_diagnostic(&diag, construct_id);
                     return pass_result;
                 }
             };
@@ -1416,12 +1368,6 @@ pub fn perform_inputs_evaluation(
     if fatal_error {
         return Ok(CommandInputEvaluationStatus::Aborted(results, diags));
     }
-
-    let results = if simulation {
-        command_instance.post_process_inputs_evaluations(results).map_err(|d| vec![d])?
-    } else {
-        results
-    };
 
     let status = match (fatal_error, require_user_interaction) {
         (false, false) => CommandInputEvaluationStatus::Complete(results),
