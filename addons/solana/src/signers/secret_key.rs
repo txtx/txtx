@@ -32,7 +32,7 @@ use crate::typing::SolanaValue;
 
 lazy_static! {
     pub static ref SOLANA_SECRET_KEY: SignerSpecification = define_signer! {
-        SolanaMnemonic => {
+        SolanaSecretKey => {
           name: "Mnemonic Signer",
           matcher: "secret_key",
           documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
@@ -79,8 +79,8 @@ lazy_static! {
     };
 }
 
-pub struct SolanaMnemonic;
-impl SignerImplementation for SolanaMnemonic {
+pub struct SolanaSecretKey;
+impl SignerImplementation for SolanaSecretKey {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,

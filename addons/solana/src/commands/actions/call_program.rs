@@ -23,11 +23,11 @@ use crate::constants::{CHAIN_ID, CONTRACT_ID, TRANSACTION_PAYLOAD_BYTES};
 use super::sign_transaction::SignSolanaTransaction;
 
 lazy_static! {
-    pub static ref SEND_CONTRACT_CALL: PreCommandSpecification = define_command! {
+    pub static ref SEND_PROGRAM_CALL: PreCommandSpecification = define_command! {
         SendContractCall => {
             name: "Send Contract Call Transaction",
-            matcher: "call_contract",
-            documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+            matcher: "call_program",
+            documentation: "The `call_program` action encodes a program call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
