@@ -19,13 +19,15 @@ action "deploy_hellosol" "solana::deploy_program" {
 
 action "increment_counter" "solana::call_program" {
   description = "Increment counter program of ${input.step}"
-  program_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.counter"
-  intructions = [{
-
+  instructions = [{
+    solana::encode_instruction({
+      program_id = "BqbXap7GbJXfP42q59Ss2my1iwumLiZBT9fkLFPXwSR2",
+      accounts = [solana::encode_account(signer.alice, true, true)]
+      data = borsh_map({
+        key1: borsh_u8(1)
+      })
+    })
   }]
-  data = borsh_map({
-    key1: borsh_u8(1)
-  })
   signer = signer.alice
   confirmations = 1
 }
