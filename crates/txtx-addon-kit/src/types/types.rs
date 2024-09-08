@@ -274,7 +274,24 @@ impl Value {
                 })?;
                 bytes
             }
-            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
+            Value::Array(values) => {
+                let mut bytes = vec![];
+                for v in values.iter() {
+                    let Some(Ok(byte)) = v.as_uint() else {
+                        return Err(format!("unable to infer sequence of bytes"));
+                    };
+                    match u8::try_from(byte) {
+                        Ok(byte) => bytes.push(byte),
+                        Err(e) => {
+                            return Err(format!(
+                                "unable to infer sequence of bytes ({})",
+                                e.to_string()
+                            ))
+                        }
+                    }
+                }
+                bytes
+            }
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return Ok(None),
         };

@@ -326,7 +326,7 @@ impl ValueStore {
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve value for key '{}' from store '{}'",
+                "unable to retrieve value for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -405,7 +405,7 @@ impl ValueStore {
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve bool for key '{}' from store '{}'",
+                "unable to retrieve bool for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -421,7 +421,7 @@ impl ValueStore {
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve string for key '{}' from store '{}'",
+                "unable to retrieve string for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -437,7 +437,7 @@ impl ValueStore {
     pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve array for key '{}' from store '{}'",
+                "unable to retrieve array for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -453,7 +453,7 @@ impl ValueStore {
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve object for key '{}' from store '{}'",
+                "unable to retrieve object for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -469,7 +469,7 @@ impl ValueStore {
     pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve integer for key '{}' from store '{}'",
+                "unable to retrieve integer for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -485,7 +485,7 @@ impl ValueStore {
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve uint for key '{}' from store '{}'",
+                "unable to retrieve uint for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -506,7 +506,7 @@ impl ValueStore {
     pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
         let Some(value) = self.storage.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
-                "unable to retrieve buffer for key '{}' from store '{}'",
+                "unable to retrieve buffer for key '{}' from construct '{}'",
                 key, self.name,
             )));
         };
@@ -515,9 +515,19 @@ impl ValueStore {
             Value::Buffer(bytes) => bytes.clone(),
             Value::String(bytes) => {
                 let bytes = if bytes.starts_with("0x") {
-                    crate::hex::decode(&bytes[2..]).unwrap()
+                    crate::hex::decode(&bytes[2..]).map_err(|e| {
+                        Diagnostic::error_from_string(format!(
+                            "unable to decode hex value ({})",
+                            e.to_string()
+                        ))
+                    })?
                 } else {
-                    crate::hex::decode(&bytes).unwrap()
+                    crate::hex::decode(&bytes).map_err(|e| {
+                        Diagnostic::error_from_string(format!(
+                            "unable to decode hex value ({})",
+                            e.to_string()
+                        ))
+                    })?
                 };
                 bytes
             }
