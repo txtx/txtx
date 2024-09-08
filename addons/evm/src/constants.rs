@@ -1,5 +1,7 @@
 pub const NAMESPACE: &str = "evm";
 
+pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
+
 // Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
 pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";

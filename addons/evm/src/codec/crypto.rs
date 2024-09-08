@@ -2,7 +2,7 @@ use alloy::signers::k256::ecdsa::SigningKey;
 use alloy_signer_local::{coins_bip39::English, LocalSigner, MnemonicBuilder};
 use hmac::digest::generic_array::GenericArray;
 
-use crate::signers::DEFAULT_DERIVATION_PATH;
+use crate::constants::DEFAULT_DERIVATION_PATH;
 
 pub type SecretKeySigner = LocalSigner<SigningKey>;
 pub fn mnemonic_to_secret_key_signer(
