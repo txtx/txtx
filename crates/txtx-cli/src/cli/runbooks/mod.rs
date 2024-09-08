@@ -810,9 +810,7 @@ pub async fn handle_run_command(
             runbook_name
         );
 
-        let res =
-            start_unsupervised_runbook_runloop(&mut runbook, &progress_tx)
-                .await;
+        let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
         if let Err(diags) = res {
             println!("{} Execution aborted", red!("x"));
             for diag in diags.iter() {
@@ -920,7 +918,7 @@ pub async fn handle_run_command(
                             if let Some(ref desired_output) = cmd.output {
                                 if desired_output.eq(&key) && !values.is_empty() {
                                     println!("{}", values.first().unwrap());
-                                    return Ok(())
+                                    return Ok(());
                                 }
                             }
                             let mut rows = vec![];

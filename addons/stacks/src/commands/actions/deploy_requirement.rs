@@ -316,9 +316,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
                 .inputs
                 .insert("contract_instance_name", Value::string(contract_id.name.to_string()));
             evaluated_inputs.inputs.insert("contract_id", Value::string(contract_id.to_string()));
-            evaluated_inputs
-                .inputs
-                .insert("dependency_contract_ids", Value::array(dependencies));
+            evaluated_inputs.inputs.insert("dependency_contract_ids", Value::array(dependencies));
             evaluated_inputs
                 .inputs
                 .insert("lazy_dependency_contract_ids", Value::array(lazy_dependencies));
