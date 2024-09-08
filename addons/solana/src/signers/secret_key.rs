@@ -1,5 +1,12 @@
 use std::collections::HashMap;
 
+use serde::Deserialize;
+use solana_sdk::hash::Hash;
+use solana_sdk::instruction::CompiledInstruction;
+use solana_sdk::message::{Message, MessageHeader};
+use solana_sdk::signature::Keypair;
+use solana_sdk::signer::Signer;
+use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES,
 };
@@ -10,8 +17,9 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
-    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
-    SignerActivateFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
+    return_synchronous_result, signer_diag_with_ctx, signer_err_fn, CheckSignabilityOk,
+    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerInstance,
+    SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::{
@@ -23,59 +31,73 @@ use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, IS_SIGNABLE,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, CHECKED_ADDRESS,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, TRANSACTION_MESSAGE_BYTES,
+    UNSIGNED_TRANSACTION_BYTES,
 };
+use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
-use crate::typing::SolanaValue;
+use super::namespaced_err_fn;
 
 lazy_static! {
     pub static ref SOLANA_SECRET_KEY: SignerSpecification = define_signer! {
         SolanaSecretKey => {
-          name: "Mnemonic Signer",
-          matcher: "secret_key",
-          documentation:txtx_addon_kit::indoc! {r#"The `mnemonic` signer can be used to synchronously sign a transaction."#},
-          inputs: [
-            mnemonic: {
-                documentation: "The mnemonic phrase used to generate the secret key.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                sensitive: true
-            },
-            derivation_path: {
-                documentation: "The derivation path used to generate the secret key.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                sensitive: true
-            },
-            is_encrypted: {
-                documentation: "Coming soon",
-                typing: Type::bool(),
-                optional: true,
-                tainting: false,
-                sensitive: false
-            },
-            password: {
-                documentation: "Coming soon",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                sensitive: true
-            }
-          ],
-          outputs: [
-              public_key: {
-                documentation: "The public key of the account generated from the secret key.",
-                typing: Type::array(Type::buffer())
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
-    "#},
-      }
+            name: "Secret Key Signer",
+            matcher: "secret_key",
+            documentation:txtx_addon_kit::indoc! {r#"The `solana::secret_key` signer can be used to synchronously sign a transaction."#},
+            inputs: [
+                secret_key: {
+                    documentation: "The secret key used to sign messages and transactions.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                },
+                mnemonic: {
+                    documentation: "The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                },
+                derivation_path: {
+                    documentation: "The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                },
+                is_encrypted: {
+                    documentation: "Coming soon",
+                    typing: Type::bool(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: false
+                },
+                password: {
+                    documentation: "Coming soon",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                }
+            ],
+            outputs: [
+                public_key: {
+                    documentation: "The public key of the account generated from the secret key.",
+                    typing: Type::array(Type::buffer())
+                },
+                address: {
+                    documentation: "The address generated from the secret key.",
+                    typing: Type::array(Type::buffer())
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+            // Coming soon
+        "#},
+        }
     };
 }
 
@@ -92,18 +114,79 @@ impl SignerImplementation for SolanaSecretKey {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         args: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
+        _defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::{constants::DEFAULT_DERIVATION_PATH, signers::namespaced_err_fn};
+        use solana_sdk::{signature::Keypair, signer::Signer};
+        use txtx_addon_kit::{
+            crypto::secret_key_bytes_from_mnemonic,
+            types::signers::{signer_diag_with_ctx, signer_err_fn},
+        };
+
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
         let mut actions = Actions::none();
 
+        if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
+            return return_synchronous_actions(Ok((signers, signer_state, actions)));
+        }
+
+        let secret_key_bytes = match args.get_value("secret_key") {
+            None => {
+                let mnemonic = args
+                    .get_expected_string("mnemonic")
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+                let derivation_path =
+                    args.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
+                let is_encrypted = args.get_bool("is_encrypted").unwrap_or(false);
+                let password = args.get_string("password");
+                secret_key_bytes_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
+                    .map_err(|e| signer_err(&signers, &signer_state, e))?
+                    .to_vec()
+            }
+            Some(value) => match value
+                .try_get_buffer_bytes_result()
+                .map_err(|e| signer_err(&signers, &signer_state, e))?
+            {
+                Some(bytes) => bytes.clone(),
+                None => unreachable!(),
+            },
+        };
+
+        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
+
+        let expected_address = keypair.to_base58_string();
+        let public_key = Value::string(keypair.pubkey().to_string());
+        let secret_key = Value::buffer(secret_key_bytes);
+
+        signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
+        signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+        signer_state.insert("secret_key", secret_key);
+
+        if supervision_context.review_input_values {
+            actions.push_sub_group(
+                None,
+                vec![ActionItemRequest::new(
+                    &None,
+                    &format!("Check {} expected address", instance_name),
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "".into(),
+                        value: Value::string(expected_address.to_string()),
+                    }),
+                    ACTION_ITEM_CHECK_ADDRESS,
+                )],
+            );
+        }
         let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))
     }
@@ -118,7 +201,11 @@ impl SignerImplementation for SolanaSecretKey {
         _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let result = CommandExecutionResult::new();
+        let mut result = CommandExecutionResult::new();
+        let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
+        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
+        result.outputs.insert("address".into(), address.clone());
+        result.outputs.insert("public_key".into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -127,14 +214,54 @@ impl SignerImplementation for SolanaSecretKey {
         title: &str,
         description: &Option<String>,
         payload: &Value,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         args: &ValueStore,
-        signer_state: ValueStore,
+        mut signer_state: ValueStore,
         signers: SignersState,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
+        let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+
+        let secret_key_bytes = signer_state
+            .get_expected_buffer_bytes("secret_key")
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+        println!("{:?}", payload);
+
+        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
+
+        let mut instructions = vec![];
+        for instruction in payload.expect_array().iter() {
+            let instruction: CompiledInstruction = {
+                let instruction_bytes = &instruction.expect_addon_data().bytes;
+                bincode::deserialize(&instruction_bytes).unwrap()
+            };
+            instructions.push(instruction);
+        }
+        let message = Message {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 0,
+            },
+            account_keys: vec![keypair.pubkey()],
+            recent_blockhash: Hash::new_unique(),
+            instructions,
+        };
+
+        let payload = SolanaValue::message(message.serialize());
+
+        signer_state.insert_scoped_value(
+            &construct_did.to_string(),
+            TRANSACTION_MESSAGE_BYTES,
+            payload.clone(),
+        );
+
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
             if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
@@ -166,7 +293,7 @@ impl SignerImplementation for SolanaSecretKey {
                 ProvideSignedTransactionRequest::new(
                     &signer_state.uuid,
                     &payload,
-                    "stacks",
+                    "solana",
                     &chain_id,
                 )
                 .skippable(skippable)
@@ -186,32 +313,61 @@ impl SignerImplementation for SolanaSecretKey {
         Ok((signers, signer_state, actions))
     }
 
+    /// Signing will fail if
+    ///
+    /// - The transaction's [`Message`] is malformed such that the number of
+    ///   required signatures recorded in its header
+    ///   ([`num_required_signatures`]) is greater than the length of its
+    ///   account keys ([`account_keys`]). The error is
+    ///   [`SignerError::TransactionError`] where the interior
+    ///   [`TransactionError`] is [`TransactionError::InvalidAccountIndex`].
+    /// - Any of the provided signers in `keypairs` is not a required signer of
+    ///   the message. The error is [`SignerError::KeypairPubkeyMismatch`].
+    /// - Any of the signers is a [`Presigner`], and its provided signature is
+    ///   incorrect. The error is [`SignerError::PresignerError`] where the
+    ///   interior [`PresignerError`] is
+    ///   [`PresignerError::VerificationFailure`].
+    /// - The signer is a [`RemoteKeypair`] and
+    ///   - It does not understand the input provided ([`SignerError::InvalidInput`]).
+    ///   - The device cannot be found ([`SignerError::NoDeviceFound`]).
+    ///   - The user cancels the signing ([`SignerError::UserCancel`]).
+    ///   - An error was encountered connecting ([`SignerError::Connection`]).
+    ///   - Some device-specific protocol error occurs ([`SignerError::Protocol`]).
+    ///   - Some other error occurs ([`SignerError::Custom`]).
     fn sign(
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        _spec: &SignerSpecification,
+        spec: &SignerSpecification,
         args: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
+        let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
         let mut result = CommandExecutionResult::new();
 
-        let payload_bytes = match payload.try_get_buffer_bytes_result() {
-            Ok(bytes) => bytes,
-            Err(e) => return Err((signers, signer_state, diagnosed_error!("{e}"))),
-        }
-        .unwrap();
+        let secret_key_bytes = signer_state
+            .get_expected_buffer_bytes("secret_key")
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
-        let signed_transaction_bytes = vec![]; // solana_sdk::sign_transaction_with_mnemonic(payload_bytes, ..);
+        println!("{:?}", payload);
 
-        result.outputs.insert(
-            SIGNED_TRANSACTION_BYTES.to_string(),
-            SolanaValue::transaction(signed_transaction_bytes),
-        );
+        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
+        let message_bytes = &payload.expect_addon_data().bytes;
+        let message = bincode::deserialize(message_bytes).unwrap();
+        // let message = Message::deserialize(message_bytes).unwrap();
+        let mut transaction = Transaction::new_unsigned(message);
+        transaction.sign(&[keypair], Hash::new_unique());
 
+        println!("transaction: {:?}", transaction);
+        // Message::deserialize(deserializer)
+        // let transaction_bytes = payload.expect_addon_data();
+        // Transaction::deserialize(deserializer)
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 }

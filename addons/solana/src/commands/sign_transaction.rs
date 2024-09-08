@@ -1,26 +1,24 @@
+use solana_sdk::hash::Hash;
+use solana_sdk::instruction::CompiledInstruction;
+use solana_sdk::message::{Message, MessageHeader};
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::transaction::Transaction;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
     SignersState,
 };
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::{
-    commands::CommandSpecification,
-    diagnostics::Diagnostic,
-    types::{Type, Value},
-};
+use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::AddonDefaults;
 
-use crate::constants::{TRANSACTION_PAYLOAD_BYTES, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::{TRANSACTION_MESSAGE_BYTES, UNSIGNED_TRANSACTION_BYTES};
 
 use super::get_signer_did;
 
@@ -29,7 +27,7 @@ lazy_static! {
       SignSolanaTransaction => {
           name: "Sign Solana Transaction",
           matcher: "sign_transaction",
-          documentation: "The `solana::sign_transaction` is coming soon.",
+          documentation: "The `solana::send_transaction` is coming soon.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -43,7 +41,7 @@ lazy_static! {
             transaction_payload_bytes: {
                 documentation: "The transaction payload bytes, encoded as a clarity buffer.",
                 typing: Type::string(),
-                optional: false,
+                optional: true,
                 tainting: true,
                 internal: false
             },
@@ -106,9 +104,9 @@ impl CommandImplementation for SignSolanaTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+        use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
 
-        use crate::{constants::ACTION_ITEM_CHECK_NONCE, typing::SolanaValue};
+        use crate::{constants::CHECKED_PUBLIC_KEY, typing::SolanaValue};
 
         let signer_did = get_signer_did(args).unwrap();
         let signer = signers_instances.get(&signer_did).unwrap().clone();
@@ -122,7 +120,7 @@ impl CommandImplementation for SignSolanaTransaction {
 
         let future = async move {
             let mut actions = Actions::none();
-            let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if signer_state
                 .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
                 .is_some()
@@ -133,42 +131,16 @@ impl CommandImplementation for SignSolanaTransaction {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let nonce = args.get_value("nonce").map(|v| v.expect_uint().unwrap());
+            let transaction = build_transaction().unwrap();
+            let mut instructions = vec![];
+            for instruction in transaction.message.instructions.iter() {
+                let instruction_bytes = bincode::serialize(instruction).unwrap();
+                instructions.push(SolanaValue::instruction(instruction_bytes));
+            }
+            let payload = Value::array(instructions);
 
-            let transaction_payload_bytes =
-                match args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES) {
-                    Ok(bytes) => bytes,
-                    Err(e) => return Err((signers, signer_state, diagnosed_error!("{e}"))),
-                };
-
-            let payload = SolanaValue::transaction(transaction_payload_bytes);
-
-            signer_state.insert_scoped_value(
-                &construct_did.to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
-            );
             let description =
                 args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
-
-            if supervision_context.review_input_values {
-                actions.push_group(
-                    &description
-                        .clone()
-                        .unwrap_or("Review and sign the transactions from the list below".into()),
-                    vec![ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "".into(),
-                        Some(format!("Check account nonce")),
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "".into(),
-                            value: Value::integer(nonce.unwrap() as i128),
-                        }),
-                        ACTION_ITEM_CHECK_NONCE,
-                    )],
-                )
-            }
 
             let (signers, signer_state, mut signer_actions) =
                 (signer.specification.check_signability)(
@@ -185,7 +157,7 @@ impl CommandImplementation for SignSolanaTransaction {
                     &supervision_context,
                 )?;
             actions.append(&mut signer_actions);
-            Ok((signers, signer_state, actions))
+            return Ok((signers, signer_state, actions));
         };
         Ok(Box::pin(future))
     }
@@ -213,7 +185,7 @@ impl CommandImplementation for SignSolanaTransaction {
         let signer = signers_instances.get(&signer_did).unwrap();
 
         let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
+            .get_scoped_value(&construct_did.to_string(), TRANSACTION_MESSAGE_BYTES)
             .unwrap()
             .clone();
 
@@ -232,4 +204,26 @@ impl CommandImplementation for SignSolanaTransaction {
         );
         res
     }
+}
+
+pub fn build_transaction() -> Result<Transaction, Diagnostic> {
+    let tx = Transaction {
+        signatures: vec![],
+        message: Message {
+            header: MessageHeader {
+                num_required_signatures: 1,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 0,
+            },
+            account_keys: vec![],
+            recent_blockhash: Hash::new_unique(),
+            instructions: vec![CompiledInstruction {
+                program_id_index: 0,
+                accounts: vec![],
+                data: vec![],
+            }],
+        },
+    };
+
+    Ok(tx)
 }

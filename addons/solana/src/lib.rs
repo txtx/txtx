@@ -53,21 +53,10 @@ impl Addon for SolanaNetworkAddon {
     }
 
     fn get_actions(&self) -> Vec<PreCommandSpecification> {
-        commands::actions::ACTIONS.clone()
+        commands::ACTIONS.clone()
     }
 
     fn get_signers(&self) -> Vec<SignerSpecification> {
         signers::SIGNERS.clone()
-    }
-
-    fn get_domain_specific_commands_inputs_dependencies<'a>(
-        self: &Self,
-        _commands_instances: &'a Vec<(
-            ConstructDid,
-            &'a CommandInstance,
-            Option<&'a CommandInputsEvaluationResult>,
-        )>,
-    ) -> Result<AddonPostProcessingResult, Diagnostic> {
-        unimplemented!()
     }
 }
