@@ -8,8 +8,8 @@ use super::{commands::CommandInput, diagnostics::Diagnostic, types::Value, Did, 
 pub struct ValueStore {
     pub uuid: Did,
     pub name: String,
-    pub inputs: _ValueStore,
-    pub defaults: _ValueStore,
+    pub inputs: ValueMap,
+    pub defaults: ValueMap,
 }
 
 impl ValueStore {
@@ -17,26 +17,21 @@ impl ValueStore {
         ValueStore {
             name: name.to_string(),
             uuid: uuid.clone(),
-            inputs: _ValueStore::new(),
-            defaults: _ValueStore::new(),
+            inputs: ValueMap::new(),
+            defaults: ValueMap::new(),
         }
     }
     pub fn tmp() -> ValueStore {
         ValueStore {
             name: "".to_string(),
             uuid: Did::zero(),
-            inputs: _ValueStore::new(),
-            defaults: _ValueStore::new(),
+            inputs: ValueMap::new(),
+            defaults: ValueMap::new(),
         }
     }
 
-    pub fn new_with_defaults(name: &str, uuid: &Did, defaults: _ValueStore) -> ValueStore {
-        ValueStore {
-            name: name.to_string(),
-            uuid: uuid.clone(),
-            inputs: _ValueStore::new(),
-            defaults,
-        }
+    pub fn new_with_defaults(name: &str, uuid: &Did, defaults: ValueMap) -> ValueStore {
+        ValueStore { name: name.to_string(), uuid: uuid.clone(), inputs: ValueMap::new(), defaults }
     }
     pub fn with_inputs(mut self, inputs: &ValueStore) -> Self {
         for (key, value) in inputs.iter() {
@@ -209,21 +204,21 @@ impl ValueStore {
 pub struct AddonDefaults {
     pub uuid: Did,
     pub name: String,
-    pub store: _ValueStore,
+    pub store: ValueMap,
 }
 
 impl AddonDefaults {
     pub fn new(key: &str) -> AddonDefaults {
-        AddonDefaults { store: _ValueStore::new(), name: key.to_string(), uuid: Did::zero() }
+        AddonDefaults { store: ValueMap::new(), name: key.to_string(), uuid: Did::zero() }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct _ValueStore {
+pub struct ValueMap {
     pub store: IndexMap<String, Value>,
 }
-impl _ValueStore {
-    pub fn new() -> _ValueStore {
+impl ValueMap {
+    pub fn new() -> ValueMap {
         Self { store: IndexMap::new() }
     }
 
