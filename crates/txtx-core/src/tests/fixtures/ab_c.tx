@@ -1,14 +1,15 @@
-input "a" {
+var "a" {
     value = 1
     description = "a"
 }
 
-input "b" {
-    default = 1
+var "b" {
+    editable = true
+    value = 1
     description = "b"
 }
 
 output "c" {
-    value = input.a + input.b
+    value = var.a + var.b
     description = "c"
 }

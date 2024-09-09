@@ -1,16 +1,19 @@
 variable "package_2_variable_1" {
     description = "Variable 1 from Package 2 loading its value from outter txvars file"
-    default = "package_2_variable_1::default"
+    editable = true
+    value = "package_2_variable_1::default"
 }
 
 variable "package_2_variable_2" {
     description = "Variable 2 from Package 2 loading its value from txtx.json"
-    default = "package_2_variable_2::default"
+    editable = true
+    value = "package_2_variable_2::default"
 }
 
 variable "package_2_variable_3" {
     description = "Variable 3 from Package 2 loading its own value"
-    default = "package_2_variable_3::default"
+    editable = true
+    value = "package_2_variable_3::default"
     value = "package_2_variable_3::value"
 }
 
@@ -20,5 +23,6 @@ variable "package_2_variable_4" {
 
 variable "package_2_variable_5" {
     description = "Variable 5 from Package 2 loading its value from env var TX_VARS_package_2_variable_5"
-    default = "package_2_variable_5::default"
+    editable = true
+    value = "package_2_variable_5::default"
 }

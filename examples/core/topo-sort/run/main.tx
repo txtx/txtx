@@ -1,43 +1,51 @@
-input "A" {
-  description = "A"
-  type="uint"
-  default = 1
+var "A" {
+    description = "A"
+    type="uint"
+    editable = true
+    value = 1
 }
 
-  input "B" {
+  var "B" {
     description = "A -> B"
     type="uint"
-    default = input.A.value + 1
+    editable = true
+    value = var.A.value + 1
   }
 
-  input "C" {
+  var "C" {
     description = "A -> B -> C"
     type="uint"
-    default = input.B.value + 1
+    editable = true
+    value = var.B.value + 1
   }
-    input "E" {
+    var "E" {
       description = "A -> B -> C -> E"
       type="uint"
-      default = input.C.value + 1
+      editable = true
+    value = var.C.value + 1
     }
-      input "F" {
+      var "F" {
         description = "A -> B -> C -> E -> F"
         type="uint"
-        default = input.E.value + 1
+        editable = true
+         value = var.E.value + 1
       }
 
-  input "D" {
+  var "D" {
     description = "A -> B -> D"
     type="uint"
-    default = input.B.value + 1
+    editable = true
+    value = var.B.value + 1
   }
-  input "G" {
+  var "G" {
     description = "A -> B -> D -> G"
     type="uint"
-    default = input.D.value + 1
+    editable = true
+    value = var.D.value + 1
   }
-    input "H" {
+    var "H" {
       description = "A -> B -> D -> G -> H"
       type="uint"
-      default = input.G.value + 1
+      editable = true
+    value = var.G.value + 1
     }

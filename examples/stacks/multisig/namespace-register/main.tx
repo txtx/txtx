@@ -13,25 +13,25 @@ action "send_namespace_preorder" "stacks::call_contract" {
       stacks::cv_buff(
         ripemd160(sha256(
           [
-            encode_hex(input.namespace),
-            encode_hex(input.salt)
+            encode_hex(var.namespace),
+            encode_hex(var.salt)
           ]
         ))
       ),
-      stacks::cv_uint(input.cost_namespace), 
+      stacks::cv_uint(var.cost_namespace), 
   ]
   signer = signer.alice
-  post_conditions = [stacks::revert_if_account_sends_more_than("signer", input.cost_namespace)]
+  post_conditions = [stacks::revert_if_account_sends_more_than("signer", var.cost_namespace)]
   confirmations = 1
 }
 
 action "send_namespace_reveal" "stacks::call_contract" {
-  description = "Send Namespace Reveal ${input.namespace} transaction"
+  description = "Send Namespace Reveal ${var.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-reveal"
   function_args = [
-      stacks::cv_buff(encode_hex(input.namespace)),
-      stacks::cv_buff(encode_hex(input.salt)),
+      stacks::cv_buff(encode_hex(var.namespace)),
+      stacks::cv_buff(encode_hex(var.salt)),
       stacks::cv_uint(1),
       stacks::cv_uint(1),
       stacks::cv_uint(1),
@@ -61,11 +61,11 @@ action "send_namespace_reveal" "stacks::call_contract" {
 }
 
 action "send_namespace_ready" "stacks::call_contract" {
-  description = "Send Namespace Ready ${input.namespace} transaction"
+  description = "Send Namespace Ready ${var.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "namespace-ready"
   function_args = [
-      stacks::cv_buff(encode_hex(input.namespace))
+      stacks::cv_buff(encode_hex(var.namespace))
   ]
   signer = signer.alice
   confirmations = 1

@@ -3,22 +3,26 @@
 // }
 
 
-input "namespace" {
+var "namespace" {
   description = "TLD / Namespace"
-  default = "btc"
+  editable = true
+  value = "btc"
 }
 
-input "name" {
+var "name" {
   description = "Domain name to order"
-  default = "micaiah"
+  editable = true
+  value = "micaiah"
 }
 
-input "salt" {
+var "salt" {
   description = "Random salt to use for preventing front-running"
-  default = "00000000000000"
+  editable = true
+  value = "00000000000000"
 }
 
-input "zonefile" {
+var "zonefile" {
   description = "Zonefile to attach to the new domain"
-  default = "0000000000"
+  editable = true
+  value = "0000000000"
 }

@@ -10,22 +10,22 @@ action "get_name_price" "stacks::call_readonly_fn" {
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "get-name-price"
   function_args = [
-      stacks::cv_buff(encode_hex(input.namespace)),
-      stacks::cv_buff(encode_hex(input.name))
+      stacks::cv_buff(encode_hex(var.namespace)),
+      stacks::cv_buff(encode_hex(var.name))
   ]
   sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 }
 
 action "send_name_preorder" "stacks::call_contract" {
-  description = "Send Preorder ${input.name}.${input.namespace} transaction"
+  description = "Send Preorder ${var.name}.${var.namespace} transaction"
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "name-preorder"
   function_args = [
       stacks::cv_buff(
         ripemd160(sha256(
           [
-            encode_hex("${input.name}.${input.namespace}"),
-            encode_hex(input.salt)
+            encode_hex("${var.name}.${var.namespace}"),
+            encode_hex(var.salt)
           ]
         ))
       ),
@@ -41,10 +41,10 @@ action "send_name_register" "stacks::call_contract" {
   contract_id = "ST000000000000000000002AMW42H.bns"
   function_name = "name-register"
   function_args = [
-      stacks::cv_buff(encode_hex(input.namespace)),
-      stacks::cv_buff(encode_hex(input.name)),
-      stacks::cv_buff(encode_hex(input.salt)),
-      stacks::cv_buff(encode_hex(input.zonefile)),
+      stacks::cv_buff(encode_hex(var.namespace)),
+      stacks::cv_buff(encode_hex(var.name)),
+      stacks::cv_buff(encode_hex(var.salt)),
+      stacks::cv_buff(encode_hex(var.zonefile)),
   ]
   signer = signer.alice_and_bob
   confirmations = 1

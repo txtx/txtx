@@ -10,16 +10,16 @@ signer "alice" "stacks::secret_key" {
   // 02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33
 // }
 
-input "namespace" {
+var "namespace" {
   description = "TLD / Namespace"
   value = "btc"
 }
 
-input "salt" {
+var "salt" {
   description = "Random salt to use for preventing front-running"
   value = "00000000000000"
 }
 
-input "cost_namespace" {
+var "cost_namespace" {
   value = 64000000000
 }
