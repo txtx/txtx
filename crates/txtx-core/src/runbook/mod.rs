@@ -291,7 +291,7 @@ impl RunbookSources {
     }
 }
 
-pub fn add_source_context_to_diagnostic(
+pub fn get_source_context_for_diagnostic(
     diag: &Diagnostic,
     runbook_sources: &RunbookSources,
 ) -> Option<DiagnosticSpan> {
@@ -305,7 +305,7 @@ pub fn add_source_context_to_diagnostic(
     let Some((_, (_, raw_content))) =
         runbook_sources.tree.iter().find(|(location, _)| location.eq(&construct_location))
     else {
-        unimplemented!();
+        return None;
     };
     let mut bytes = vec![0u8; 2 * raw_content.len()];
     txtx_addon_kit::hex::encode_to_slice(raw_content, &mut bytes).unwrap();

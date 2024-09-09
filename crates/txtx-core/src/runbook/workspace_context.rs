@@ -4,6 +4,7 @@ use crate::std::commands;
 use crate::types::{Package, PreConstructData};
 use kit::hcl::expr::{Expression, TraversalOperator};
 use kit::hcl::structure::{Block, BlockLabel};
+use kit::hcl::Span;
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
@@ -14,7 +15,10 @@ use kit::types::types::Value;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 use txtx_addon_kit::hcl;
 
-use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, RuntimeContext};
+use super::{
+    get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
+    RunbookSources, RuntimeContext,
+};
 
 pub enum ConstructInstanceType {
     Executable(CommandInstance),
@@ -252,7 +256,14 @@ impl RunbookWorkspaceContext {
                                 );
                             }
                             Err(diagnostic) => {
-                                diagnostics.push(diagnostic);
+                                let span =
+                                    get_source_context_for_diagnostic(&diagnostic, runbook_sources);
+                                diagnostics.push(
+                                    diagnostic
+                                        .location(&location)
+                                        .set_span_range(block.span())
+                                        .set_diagnostic_span(span),
+                                );
                                 continue;
                             }
                         };

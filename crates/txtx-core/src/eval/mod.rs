@@ -1,5 +1,6 @@
 use crate::runbook::{
-    add_source_context_to_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext,
+    get_source_context_for_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext,
+    RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::constants::{
@@ -263,7 +264,7 @@ impl EvaluationPassResult {
 
     pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
         for diag in self.diagnostics.iter_mut() {
-            diag.span = add_source_context_to_diagnostic(diag, runbook_sources);
+            diag.span = get_source_context_for_diagnostic(diag, runbook_sources);
         }
     }
 
