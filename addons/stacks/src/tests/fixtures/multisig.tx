@@ -26,7 +26,6 @@ action "my_ref" "stacks::sign_transaction" {
   nonce = 0
   fee = 195
   signer = signer.alice_and_bob
-  network_id = "testnet"
 }
 
 output "my_output" {

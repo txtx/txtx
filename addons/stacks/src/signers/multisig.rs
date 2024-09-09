@@ -344,12 +344,11 @@ impl SignerImplementation for StacksConnect {
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
 
         let values = values.clone();
-
-        let public_key = values
+        let public_key = signer_state
             .get_expected_value(CHECKED_PUBLIC_KEY)
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?
             .to_owned();
-        let address = values
+        let address = signer_state
             .get_expected_value(CHECKED_ADDRESS)
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?
             .to_owned();
