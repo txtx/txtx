@@ -166,7 +166,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "input" => {
+                    "var" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
@@ -177,7 +177,7 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Input(block.clone()),
+                            PreConstructData::Variable(block.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
@@ -362,7 +362,7 @@ impl RunbookWorkspaceContext {
                     typing: CommandInstanceType::Module,
                 })
             }
-            PreConstructData::Input(block) => {
+            PreConstructData::Variable(block) => {
                 package.variables_dids.insert(construct_did.clone());
                 package.inputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
@@ -371,7 +371,7 @@ impl RunbookWorkspaceContext {
                     block: block.clone(),
                     package_id: package_id.clone(),
                     namespace: construct_name.clone(),
-                    typing: CommandInstanceType::Input,
+                    typing: CommandInstanceType::Variable,
                 })
             }
             PreConstructData::Addon(block) => {
@@ -523,8 +523,8 @@ impl RunbookWorkspaceContext {
                     }
                 }
 
-                // Look for inputs
-                if component.eq_ignore_ascii_case("input") {
+                // Look for variables
+                if component.eq_ignore_ascii_case("var") {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
                         continue;

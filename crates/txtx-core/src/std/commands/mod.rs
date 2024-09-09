@@ -78,36 +78,36 @@ impl CommandImplementation for Module {
 
 pub fn new_input_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
-        Input => {
-            name: "Input",
-            matcher: "input",
-            documentation: "Construct designed to store an input",
+        Variable => {
+            name: "Variable",
+            matcher: "var",
+            documentation: "A construct designed to store a variable.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
             inputs: [
                 value: {
-                    documentation: "Value of the input",
+                    documentation: "The value of the variable.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
-                default: {
-                    documentation: "Default value of the input, if value is omitted",
+                editable: {
+                    documentation: "Determines if the variable value is editable in the supervisor UI.",
                     typing: Type::string(),
                     optional: true,
-                    tainting: true,
+                    tainting: false,
                     internal: false
                 },
                 description: {
-                    documentation: "Description of the input",
+                    documentation: "A description of the variable.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
                     internal: false
                 },
                 type: {
-                    documentation: "The type of the input output. Can be inferred from `value` or `default` if provided.",
+                    documentation: "The type of the variable. This can usually be inferred from the `value` field.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
@@ -116,7 +116,7 @@ pub fn new_input_specification() -> CommandSpecification {
             ],
             outputs: [
                 value: {
-                    documentation: "Value of the input",
+                    documentation: "Value of the variable.",
                     typing: Type::string()
                 }
             ],
@@ -126,14 +126,14 @@ pub fn new_input_specification() -> CommandSpecification {
     match command {
         PreCommandSpecification::Atomic(command) => command,
         PreCommandSpecification::Composite(_) => {
-            panic!("input should not be composite command specification")
+            panic!("variable should not be composite command specification")
         }
     }
 }
 
-pub struct Input;
+pub struct Variable;
 
-impl CommandImplementation for Input {
+impl CommandImplementation for Variable {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -145,112 +145,77 @@ impl CommandImplementation for Input {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
-        let title = instance_name;
-        let description = args.get_string("description").and_then(|d| Some(d.to_string()));
-
+        let Some(value) = values.get_value("value") else {
+            return Err(diagnosed_error!(
+                "var {}: attribute 'value' must be present",
+                instance_name
+            ));
+        };
         if !supervision_context.review_input_values
             && !supervision_context.review_input_default_values
         {
-            let executable =
-                args.get_value("value").is_some() || args.get_value("default").is_some();
-            match executable {
-                true => return Ok(Actions::none()),
-                false => {
-                    return Err(diagnosed_error!(
-                        "input {}: attribute 'default' or 'value' must be present",
-                        instance_name
-                    ))
-                }
-            }
+            return Ok(Actions::none());
         }
-
-        if let Some(value) = args.get_value("value") {
-            for input_spec in spec.inputs.iter() {
-                if input_spec.name == "value" && input_spec.check_performed {
-                    return Ok(Actions::none());
-                }
-            }
-            if supervision_context.review_input_values {
-                return Ok(Actions::new_sub_group_of_items(
-                    None,
-                    vec![ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        &title,
-                        description,
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                            input_name: "value".to_string(),
-                            value: value.clone(),
-                        }),
-                        "check_input",
-                    )],
-                ));
-            } else {
+        for input_spec in spec.inputs.iter() {
+            if input_spec.name == "value" && input_spec.check_performed {
                 return Ok(Actions::none());
             }
         }
 
-        let (default_value, typing) = match args.get_value("default") {
-            Some(default_value) => {
-                for input_spec in spec.inputs.iter() {
-                    if input_spec.name == "default" && input_spec.check_performed {
-                        return Ok(Actions::none());
-                    }
-                }
-                (Some(default_value.clone()), default_value.get_type())
-            }
-            None => {
-                let typing = args.get_expected_value("type")?;
-                (
-                    None,
-                    Type::try_from(typing.as_string().unwrap_or("string").to_string()).map_err(
-                        |e| {
-                            diagnosed_error!(
-                                "input {}: attribute 'type' has invalid value: {}",
-                                instance_name,
-                                e
-                            )
-                        },
-                    )?,
-                )
+        let title = instance_name;
+        let description = values.get_string("description").and_then(|d| Some(d.to_string()));
+        let is_editable = values.get_bool("editable").unwrap_or(false);
+        let action = if is_editable {
+            let action = ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                &title,
+                description,
+                ActionItemStatus::Todo,
+                ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                    default_value: Some(value.to_owned()),
+                    input_name: "default".into(),
+                    typing: value.get_type(),
+                }),
+                "provide_input",
+            );
+            action
+        } else {
+            if supervision_context.review_input_values {
+                let action = ActionItemRequest::new(
+                    &Some(construct_did.clone()),
+                    &title,
+                    description,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                        input_name: "value".to_string(),
+                        value: value.clone(),
+                    }),
+                    "check_input",
+                );
+                action
+            } else {
+                return Ok(Actions::none());
             }
         };
-
-        let action = ActionItemRequest::new(
-            &Some(construct_did.clone()),
-            &title,
-            description,
-            ActionItemStatus::Todo,
-            ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                default_value,
-                input_name: "default".into(),
-                typing,
-            }),
-            "provide_input",
-        );
-
         return Ok(Actions::append_item(
             action,
-            Some("Review and check the inputs from the list below"),
-            Some("Inputs Review"),
+            Some("Review and check the variables from the list below"),
+            Some("Variables Review"),
         ));
     }
 
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
-        if let Some(value) = args.get_value("value") {
-            result.outputs.insert("value".to_string(), value.clone());
-        } else if let Some(default) = args.get_value("default") {
-            result.outputs.insert("value".to_string(), default.clone());
-        }
+        let value = values.get_expected_value("value")?;
+        result.outputs.insert("value".to_string(), value.clone());
         return_synchronous_result(Ok(result))
     }
 }
