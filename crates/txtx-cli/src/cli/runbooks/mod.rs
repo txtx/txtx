@@ -18,6 +18,7 @@ use txtx_addon_network_stacks::StacksNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
+use txtx_core::kit::types::stores::ValueStore;
 use txtx_core::{
     kit::{
         channel::{self, unbounded},
@@ -31,10 +32,11 @@ use txtx_core::{
                 ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
                 ProgressBarStatusColor,
             },
+            stores::AddonDefaults,
             types::Value,
-            AuthorizationContext, Did, PackageId, ValueStore,
+            AuthorizationContext, Did, PackageId,
         },
-        Addon, AddonDefaults,
+        Addon,
     },
     manifest::{
         file::{read_runbook_from_location, read_runbooks_from_manifest},

@@ -4,15 +4,15 @@ use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSp
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
 
 use crate::typing::StacksValue;
 
@@ -130,8 +130,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
@@ -141,8 +140,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let future = async move {
@@ -159,7 +157,6 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
@@ -186,15 +183,13 @@ impl CommandImplementation for BroadcastStacksTransaction {
             args.get_expected_integer("confirmations")
                 .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER as i128) as u64;
 
-        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err(diag),
-        };
+        let network_id = args.get_expected_string(NETWORK_ID)?.to_owned();
 
         let transaction_bytes = args.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES)?;
 
-        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
+        let rpc_api_url = args.get_expected_string(RPC_API_URL)?.to_owned();
+        let rpc_api_auth_token =
+            args.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
 
         let progress_tx = progress_tx.clone();
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
@@ -226,7 +221,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 Diagnostic::error_from_string(format!("Failed to serialize transaction bytes: {e}"))
             })?;
 
-            let client = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
+            let client = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {

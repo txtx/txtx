@@ -7,6 +7,7 @@ use solana_sdk::message::{Message, MessageHeader};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
+use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES,
 };
@@ -22,18 +23,17 @@ use txtx_addon_kit::types::signers::{
     SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NETWORK_ID, TRANSACTION_MESSAGE_BYTES,
-    UNSIGNED_TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, TRANSACTION_MESSAGE_BYTES,
 };
 use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -115,11 +115,10 @@ impl SignerImplementation for SolanaSecretKey {
         _construct_id: &ConstructDid,
         instance_name: &str,
         spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
@@ -128,7 +127,10 @@ impl SignerImplementation for SolanaSecretKey {
         use solana_sdk::{signature::Keypair, signer::Signer};
         use txtx_addon_kit::{
             crypto::secret_key_bytes_from_mnemonic,
-            types::signers::{signer_diag_with_ctx, signer_err_fn},
+            types::{
+                signers::{signer_diag_with_ctx, signer_err_fn},
+                stores::ValueStore,
+            },
         };
 
         let signer_err =
@@ -139,15 +141,15 @@ impl SignerImplementation for SolanaSecretKey {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let secret_key_bytes = match args.get_value("secret_key") {
+        let secret_key_bytes = match values.get_value("secret_key") {
             None => {
-                let mnemonic = args
+                let mnemonic = values
                     .get_expected_string("mnemonic")
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
                 let derivation_path =
-                    args.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
-                let is_encrypted = args.get_bool("is_encrypted").unwrap_or(false);
-                let password = args.get_string("password");
+                    values.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
+                let is_encrypted = values.get_bool("is_encrypted").unwrap_or(false);
+                let password = values.get_string("password");
                 secret_key_bytes_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
                     .to_vec()
@@ -194,11 +196,10 @@ impl SignerImplementation for SolanaSecretKey {
     fn activate(
         _construct_id: &ConstructDid,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
@@ -215,11 +216,10 @@ impl SignerImplementation for SolanaSecretKey {
         description: &Option<String>,
         payload: &Value,
         spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
@@ -268,7 +268,7 @@ impl SignerImplementation for SolanaSecretKey {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let chain_id = match args.get_defaulting_string(CHAIN_ID, defaults) {
+            let chain_id = match values.get_expected_string(CHAIN_ID) {
                 Ok(value) => value,
                 Err(diag) => return Err((signers, signer_state, diag)),
             };
@@ -339,11 +339,10 @@ impl SignerImplementation for SolanaSecretKey {
         _title: &str,
         payload: &Value,
         spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
         let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();

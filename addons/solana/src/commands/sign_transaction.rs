@@ -1,8 +1,10 @@
+use serde::de::value;
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::CompiledInstruction;
 use solana_sdk::message::{Message, MessageHeader};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
+use txtx_addon_kit::types::stores::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
@@ -15,8 +17,7 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
+use txtx_addon_kit::types::ConstructDid;
 
 use crate::constants::{TRANSACTION_MESSAGE_BYTES, UNSIGNED_TRANSACTION_BYTES};
 
@@ -98,8 +99,7 @@ impl CommandImplementation for SignSolanaTransaction {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -108,13 +108,12 @@ impl CommandImplementation for SignSolanaTransaction {
 
         use crate::{constants::CHECKED_PUBLIC_KEY, typing::SolanaValue};
 
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
         let signer = signers_instances.get(&signer_did).unwrap().clone();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let args = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
@@ -153,7 +152,6 @@ impl CommandImplementation for SignSolanaTransaction {
                     signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                     &supervision_context,
                 )?;
             actions.append(&mut signer_actions);
@@ -165,16 +163,15 @@ impl CommandImplementation for SignSolanaTransaction {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Ok(signed_transaction_bytes) = values.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
@@ -189,18 +186,17 @@ impl CommandImplementation for SignSolanaTransaction {
             .unwrap()
             .clone();
 
-        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
+        let title = values.get_expected_string("description").unwrap_or("New Transaction".into());
 
         let res = (signer.specification.sign)(
             construct_did,
             title,
             &payload,
             &signer.specification,
-            &args,
+            &values,
             signer_state,
             signers,
             signers_instances,
-            &defaults,
         );
         res
     }

@@ -8,6 +8,7 @@ use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecificati
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
 use crate::codec::codec::expect_stacks_public_key;
+use crate::signers::namespaced_err_fn;
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
@@ -15,21 +16,23 @@ use crate::{
     },
     constants::MESSAGE_BYTES,
 };
+use txtx_addon_kit::channel;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemStatus, Actions,
     BlockEvent, OpenModalData,
 };
 use txtx_addon_kit::types::signers::{
-    consolidate_signer_activate_result, consolidate_signer_result, CheckSignabilityOk,
-    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation,
-    SignerInstance, SignerSignFutureResult, SignerSpecification, SignersState,
+    consolidate_signer_activate_result, consolidate_signer_result, signer_diag_with_ctx,
+    signer_err_fn, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerImplementation, SignerInstance, SignerSignFutureResult,
+    SignerSpecification, SignersState,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
-use txtx_addon_kit::{channel, AddonDefaults};
+use txtx_addon_kit::types::{ConstructDid, Did};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_OPEN_MODAL, CHECKED_ADDRESS,
@@ -114,41 +117,30 @@ impl SignerImplementation for StacksConnect {
     fn check_activability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        _spec: &SignerSpecification,
-        args: &ValueStore,
+        spec: &SignerSpecification,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::types::frontend::ReviewInputRequest;
 
-        use crate::constants::{EXPECTED_ADDRESS, RPC_API_AUTH_TOKEN};
+        use crate::constants::RPC_API_AUTH_TOKEN;
 
         let root_construct_did = construct_did.clone();
-        let multisig_signer_instances = get_multisig_signer_instances(args, signers_instances);
+        let multisig_signer_instances = get_multisig_signer_instances(values, signers_instances);
 
-        let args = args.clone();
+        let values = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let supervision_context = supervision_context.clone();
         let instance_name = instance_name.to_string();
         let expected_address: Option<String> = None;
-        let rpc_api_url = match args.get_defaulting_string(RPC_API_URL, &defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, &defaults).ok();
-        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
 
         let signer_count = multisig_signer_instances.len() as u16;
-        let required_signature_count: u16 = args
+        let required_signature_count: u16 = values
             .get_uint("required_signatures")
             .unwrap()
             .and_then(|count| Some(count.try_into().unwrap_or(signer_count).max(1)))
@@ -157,7 +149,23 @@ impl SignerImplementation for StacksConnect {
         signer_state
             .insert(REQUIRED_SIGNATURE_COUNT, Value::integer(required_signature_count as i128));
 
+        let instance_name = instance_name.clone();
+        let spec = spec.clone();
         let future = async move {
+            let signer_err =
+                signer_err_fn(signer_diag_with_ctx(&spec, &instance_name, namespaced_err_fn()));
+
+            let rpc_api_url = values
+                .get_expected_string(RPC_API_URL)
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+            let rpc_api_auth_token =
+                values.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
+
+            let network_id = values
+                .get_expected_string(NETWORK_ID)
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
             let mut consolidated_actions = Actions::none();
 
             // Modal configuration
@@ -174,7 +182,7 @@ impl SignerImplementation for StacksConnect {
                 }),
                 ACTION_ITEM_PROVIDE_PUBLIC_KEY,
             )];
-            let mut additional_actions_res = get_addition_actions_for_address(
+            let ref mut res = get_addition_actions_for_address(
                 &expected_address,
                 &root_construct_did,
                 &instance_name,
@@ -185,13 +193,10 @@ impl SignerImplementation for StacksConnect {
                 is_balance_check_required,
                 false,
             )
-            .await;
-            match additional_actions_res {
-                Ok(ref mut res) => {
-                    open_modal_action.append(res);
-                }
-                Err(diag) => return Err((signers, signer_state, diag)),
-            }
+            .await
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+            open_modal_action.append(res);
 
             consolidated_actions.push_sub_group(None, open_modal_action);
             consolidated_actions.push_modal(modal);
@@ -204,11 +209,10 @@ impl SignerImplementation for StacksConnect {
                     &signer_did,
                     &signer_instance.name,
                     &signer_instance.specification,
-                    &args,
+                    &values,
                     signer_signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                     &supervision_context,
                     false,
                     true,
@@ -236,19 +240,13 @@ impl SignerImplementation for StacksConnect {
                     if let Some(public_key) = checked_public_keys.remove(signer_uuid) {
                         ordered_public_keys.push(public_key.clone());
                         let bytes = public_key.expect_buffer_bytes();
-                        let public_key = match Secp256k1PublicKey::from_slice(&bytes) {
-                            Ok(public_key) => public_key,
-                            Err(e) => {
-                                return Err((
-                                    signers,
-                                    signer_state,
-                                    diagnosed_error!(
-                                        "unable to parse public key {}",
-                                        e.to_string()
-                                    ),
-                                ));
-                            }
-                        };
+                        let public_key = Secp256k1PublicKey::from_slice(&bytes).map_err(|e| {
+                            signer_err(
+                                &signers,
+                                &signer_state,
+                                format!("unable to parse public key {}", e.to_string()),
+                            )
+                        })?;
                         ordered_parsed_public_keys.push(public_key);
                     }
                 }
@@ -272,7 +270,7 @@ impl SignerImplementation for StacksConnect {
 
                     let mut actions = Actions::none();
                     if is_balance_check_required {
-                        let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
+                        let stacks_rpc = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
                         let (status_update, value) =
                             match stacks_rpc.get_balance(&stacks_address).await {
                                 Ok(response) => (
@@ -330,34 +328,38 @@ impl SignerImplementation for StacksConnect {
         Ok(Box::pin(future))
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn activate(
         _construct_id: &ConstructDid,
-        _spec: &SignerSpecification,
-        args: &ValueStore,
+        spec: &SignerSpecification,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
-            Ok(value) => value.clone(),
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        let address = match signer_state.get_expected_value(CHECKED_ADDRESS) {
-            Ok(value) => value.clone(),
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        let network_id = match args.get_defaulting_string(NETWORK_ID, defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
+        let signer_did = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
 
-        let multisig_signer_instances = get_multisig_signer_instances(args, signers_instances);
+        let values = values.clone();
+        let public_key = signer_state
+            .get_expected_value(CHECKED_PUBLIC_KEY)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .to_owned();
+        let address = signer_state
+            .get_expected_value(CHECKED_ADDRESS)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .to_owned();
+        let network_id = values
+            .get_expected_string(NETWORK_ID)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .to_owned();
 
-        let args = args.clone();
+        let multisig_signer_instances = get_multisig_signer_instances(&values, signers_instances);
+
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let progress_tx = progress_tx.clone();
 
         #[cfg(not(feature = "wasm"))]
@@ -372,11 +374,10 @@ impl SignerImplementation for StacksConnect {
                 let future = (signer_instance.specification.activate)(
                     &signer_did,
                     &signer_instance.specification,
-                    &args,
+                    &values,
                     signer_signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                     &progress_tx,
                 )?;
                 let (updated_signers, _) =
@@ -395,14 +396,11 @@ impl SignerImplementation for StacksConnect {
             signer_state.insert("signers", Value::array(signers_uuids.clone()));
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
-            result.outputs.insert("public_key".into(), public_key);
+            result.outputs.insert("public_key".into(), public_key.clone());
             result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 
@@ -416,7 +414,6 @@ impl SignerImplementation for StacksConnect {
         mut signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let multisig_signer_instances =
@@ -528,7 +525,6 @@ impl SignerImplementation for StacksConnect {
                         signer_wallet_state.clone(),
                         signers,
                         &signers_instances,
-                        &defaults,
                         &supervision_context,
                     )?;
                 updated_wallets.push_signer_state(signer_wallet_state.clone());
@@ -555,11 +551,10 @@ impl SignerImplementation for StacksConnect {
         _title: &str,
         payload: &Value,
         _spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
         use txtx_addon_kit::{constants::SIGNED_MESSAGE_BYTES, futures::future};
 
@@ -578,9 +573,8 @@ impl SignerImplementation for StacksConnect {
 
         let multisig_signer_instances =
             get_multisig_signer_instances(&signer_state, signers_instances);
-        let args = args.clone();
+        let args = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
 
         let payload = payload.clone();
 
@@ -616,7 +610,6 @@ impl SignerImplementation for StacksConnect {
                     signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                 )?;
 
                 let (updated_signers, updated_results) =

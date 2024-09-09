@@ -14,6 +14,7 @@ use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ContractSourceTransform;
 use txtx_addon_kit::{
@@ -28,10 +29,9 @@ use txtx_addon_kit::{
             SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
         },
         types::{RunbookSupervisionContext, Type, Value},
-        ConstructDid, ValueStore,
+        ConstructDid,
     },
     uuid::Uuid,
-    AddonDefaults,
 };
 
 use crate::constants::TRANSACTION_POST_CONDITION_MODE_BYTES;
@@ -366,11 +366,10 @@ impl CommandImplementation for StacksDeployContract {
         if evaluated_inputs.inputs.get_string("contract_instance_name").is_none() {
             evaluated_inputs
                 .inputs
-                .storage
                 .insert("contract_instance_name".into(), Value::string(contract_name.to_string()));
         }
 
-        if let Some(Value::Object(obj)) = evaluated_inputs.inputs.storage.get_mut("contract") {
+        if let Some(Value::Object(obj)) = evaluated_inputs.inputs.get_mut("contract") {
             obj.insert("contract_source".into(), Value::string(contract_source));
         }
 
@@ -388,20 +387,19 @@ impl CommandImplementation for StacksDeployContract {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = match get_signer_did(args) {
+        let signer_did = match get_signer_did(values) {
             Ok(value) => value,
             Err(diag) => return Err((signers, ValueStore::tmp(), diag)),
         };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
+        let (contract_source, contract_name, clarity_version) = match values
             .get_expected_object("contract")
         {
             Ok(value) => {
@@ -416,7 +414,7 @@ impl CommandImplementation for StacksDeployContract {
                     }
                 };
                 let contract_name =
-                    match args.get_value("contract_instance_name").map(|v| v.as_string()) {
+                    match values.get_value("contract_instance_name").map(|v| v.as_string()) {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
@@ -437,8 +435,8 @@ impl CommandImplementation for StacksDeployContract {
 
         let empty_vec: Vec<Value> = vec![];
         let post_conditions_values =
-            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
+            values.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+        let post_condition_mode = values.get_string("post_condition_mode").unwrap_or("deny");
         let bytes = match encode_contract_deployment(
             spec,
             &contract_source,
@@ -450,13 +448,13 @@ impl CommandImplementation for StacksDeployContract {
         };
         signers.push_signer_state(signer_state);
 
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
+        let mut values = values.clone();
+        values.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        values.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
         );
-        args.insert(
+        values.insert(
             TRANSACTION_POST_CONDITION_MODE_BYTES,
             Value::string(post_condition_mode.to_string()),
         );
@@ -465,8 +463,7 @@ impl CommandImplementation for StacksDeployContract {
             construct_did,
             instance_name,
             spec,
-            &args,
-            defaults,
+            &values,
             supervision_context,
             signers_instances,
             signers,
@@ -476,17 +473,16 @@ impl CommandImplementation for StacksDeployContract {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
         // Extract network_id
-        let (contract_source, contract_name, clarity_version) = match args
+        let (contract_source, contract_name, clarity_version) = match values
             .get_expected_object("contract")
         {
             Ok(value) => {
@@ -502,7 +498,7 @@ impl CommandImplementation for StacksDeployContract {
                 };
 
                 let contract_name =
-                    match args.get_value("contract_instance_name").map(|v| v.as_string()) {
+                    match values.get_value("contract_instance_name").map(|v| v.as_string()) {
                         Some(Some(value)) => value.to_string(),
                         _ => {
                             return Err((
@@ -524,26 +520,25 @@ impl CommandImplementation for StacksDeployContract {
 
         let empty_vec = vec![];
         let post_conditions_values =
-            args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
-        let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
+            values.get_expected_array("post_conditions").unwrap_or(&empty_vec);
+        let post_condition_mode = values.get_string("post_condition_mode").unwrap_or("deny");
         let bytes =
             encode_contract_deployment(spec, &contract_source, &contract_name, clarity_version)
                 .unwrap();
 
-        let args = args.clone();
+        let args = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
-        args.insert(
+        let mut values = args.clone();
+        values.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        values.insert(
             TRANSACTION_POST_CONDITIONS_BYTES,
             Value::array(post_conditions_values.clone()),
         );
-        args.insert(
+        values.insert(
             TRANSACTION_POST_CONDITION_MODE_BYTES,
             Value::string(post_condition_mode.to_string()),
         );
@@ -552,8 +547,7 @@ impl CommandImplementation for StacksDeployContract {
             let run_signing_future = SignStacksTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
                 &signers_instances,
                 signers,
@@ -573,7 +567,7 @@ impl CommandImplementation for StacksDeployContract {
                     .unwrap();
             let sender_address = transaction.origin_address().to_string();
 
-            args.insert(
+            values.insert(
                 SIGNED_TRANSACTION_BYTES,
                 res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
@@ -581,8 +575,7 @@ impl CommandImplementation for StacksDeployContract {
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
             ) {
                 Ok(future) => match future.await {
@@ -608,7 +601,6 @@ impl CommandImplementation for StacksDeployContract {
         spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
@@ -618,7 +610,6 @@ impl CommandImplementation for StacksDeployContract {
             &spec,
             &inputs,
             &outputs,
-            &defaults,
             &progress_tx,
             &background_tasks_uuid,
             &supervision_context,

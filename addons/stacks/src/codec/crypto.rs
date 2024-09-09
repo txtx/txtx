@@ -24,7 +24,7 @@ pub fn version_from_network_id(network_id: &str) -> u8 {
 
 pub fn compute_keypair(
     secret_key: SecretKey,
-    network_id: String,
+    network_id: &str,
 ) -> Result<(Value, Value, StacksAddress), String> {
     let secret_key_bytes = secret_key.serialize().to_vec();
     let secret_key_hex = StacksValue::buffer(secret_key_bytes);

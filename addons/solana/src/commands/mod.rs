@@ -2,7 +2,8 @@ use crate::constants::SIGNER;
 use call_program::SEND_PROGRAM_CALL;
 use sign_transaction::SIGN_SOLANA_TRANSACTION;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
-use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did, ValueStore};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
 
 mod call_program;
 pub mod sign_transaction;

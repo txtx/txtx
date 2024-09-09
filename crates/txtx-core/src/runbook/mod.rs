@@ -1,8 +1,9 @@
 use kit::types::commands::CommandExecutionResult;
 use kit::types::diagnostics::DiagnosticSpan;
+use kit::types::stores::ValueStore;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{AuthorizationContext, Did, RunbookId, ValueStore};
+use kit::types::{AuthorizationContext, Did, RunbookId};
 use kit::Addon;
 use std::collections::HashMap;
 use txtx_addon_kit::helpers::fs::FileLocation;

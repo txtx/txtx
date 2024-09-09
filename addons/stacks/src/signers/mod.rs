@@ -50,7 +50,7 @@ pub async fn get_addition_actions_for_address(
 ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
-    let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token.clone());
+    let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(

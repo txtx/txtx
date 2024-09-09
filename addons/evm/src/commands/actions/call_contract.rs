@@ -14,7 +14,7 @@ use txtx_addon_kit::types::frontend::{
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
-use txtx_addon_kit::types::ValueStore;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -23,7 +23,6 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
-use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
@@ -182,8 +181,7 @@ impl CommandImplementation for SignEVMContractCall {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -199,13 +197,12 @@ impl CommandImplementation for SignEVMContractCall {
             typing::EvmValue,
         };
 
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
 
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
@@ -217,7 +214,7 @@ impl CommandImplementation for SignEVMContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let transaction = build_unsigned_contract_call(&signer_state, &spec, &args, &defaults)
+            let transaction = build_unsigned_contract_call(&signer_state, &spec, &values)
                 .await
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
@@ -232,8 +229,8 @@ impl CommandImplementation for SignEVMContractCall {
 
             let payload = EvmValue::transaction(bytes);
 
-            let mut args = args.clone();
-            args.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
+            let mut values = values.clone();
+            values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
 
             // todo: is this necessary? not happening in deploy_contract
             signer_state.insert_scoped_value(
@@ -243,7 +240,7 @@ impl CommandImplementation for SignEVMContractCall {
             );
             signers.push_signer_state(signer_state);
             let description =
-                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_panel("Transaction Signing", "");
@@ -280,8 +277,7 @@ impl CommandImplementation for SignEVMContractCall {
                 &construct_did,
                 &instance_name,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &supervision_context,
                 &signers_instances,
                 signers,
@@ -302,22 +298,20 @@ impl CommandImplementation for SignEVMContractCall {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let mut args = args.clone();
+        let mut values = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
         let mut signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
-        let signer_did = get_signer_did(&args).unwrap();
+        let signer_did = get_signer_did(&values).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         let future = async move {
             // if this contract has already been deployed, we'll skip signing and confirming
@@ -325,8 +319,7 @@ impl CommandImplementation for SignEVMContractCall {
             let run_signing_future = SignEVMTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
                 &signers_instances,
                 signers,
@@ -339,13 +332,12 @@ impl CommandImplementation for SignEVMContractCall {
                 Err(err) => return Err(err),
             };
             result.append(&mut res_signing);
-            args.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
+            values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
 
             let mut res = match CheckEVMConfirmations::run_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
             ) {
                 Ok(future) => match future.await {
@@ -367,8 +359,7 @@ impl CommandImplementation for SignEVMContractCall {
 async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
-    args: &ValueStore,
-    defaults: &AddonDefaults,
+    values: &ValueStore,
 ) -> Result<TransactionRequest, Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
@@ -381,14 +372,13 @@ async fn build_unsigned_contract_call(
 
     let from = signer_state.get_expected_value("signer_address")?;
 
-    // let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
-    let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let chain_id = args.get_defaulting_uint(CHAIN_ID, &defaults)?;
+    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
+    let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
-    let contract_address = args.get_expected_value(CONTRACT_ADDRESS)?;
-    let contract_abi = args.get_string(CONTRACT_ABI);
-    let function_name = args.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = args
+    let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
+    let contract_abi = values.get_string(CONTRACT_ABI);
+    let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
+    let function_args: Vec<DynSolValue> = values
         .get_value(CONTRACT_FUNCTION_ARGS)
         .map(|v| {
             v.expect_array()
@@ -401,7 +391,7 @@ async fn build_unsigned_contract_call(
         })
         .unwrap_or(Ok(vec![]))?;
 
-    let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(args)
+    let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(values)
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
     if nonce.is_none() {
         if let Some(signer_nonce) = signer_state
@@ -414,7 +404,7 @@ async fn build_unsigned_contract_call(
         }
     }
 
-    let tx_type = TransactionType::from_some_value(args.get_string(TRANSACTION_TYPE))?;
+    let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
     let rpc = EVMRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
@@ -439,7 +429,7 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc, args, common)
+    let tx = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {e}"))?;
     Ok(tx)

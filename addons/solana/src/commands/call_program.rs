@@ -11,14 +11,14 @@ use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::encode_contract_call;
 use crate::commands::get_signer_did;
-use crate::constants::{CHAIN_ID, PROGRAM_ID, TRANSACTION_MESSAGE_BYTES};
+use crate::constants::{CHAIN_ID, TRANSACTION_MESSAGE_BYTES};
 
 use super::sign_transaction::SignSolanaTransaction;
 
@@ -96,7 +96,6 @@ impl CommandImplementation for SendContractCall {
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -104,8 +103,8 @@ impl CommandImplementation for SendContractCall {
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
-        let chain_id: String = match args.get_defaulting_string(CHAIN_ID, defaults) {
-            Ok(value) => value,
+        let chain_id: String = match args.get_expected_string(CHAIN_ID) {
+            Ok(value) => value.into(),
             Err(diag) => return Err((signers, signer_state, diag)),
         };
         let instructions = args
@@ -127,7 +126,6 @@ impl CommandImplementation for SendContractCall {
             instance_name,
             spec,
             &args,
-            defaults,
             supervision_context,
             signers_instances,
             signers,
@@ -138,12 +136,11 @@ impl CommandImplementation for SendContractCall {
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let chain_id: String = args.get_defaulting_string(CHAIN_ID, defaults).unwrap();
+        let chain_id: String = args.get_expected_string(CHAIN_ID).unwrap().into();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
         let function_args_values = args.get_expected_array("function_args").unwrap();
@@ -152,7 +149,6 @@ impl CommandImplementation for SendContractCall {
         let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
@@ -165,7 +161,6 @@ impl CommandImplementation for SendContractCall {
                 &construct_did,
                 &spec,
                 &args,
-                &defaults,
                 &progress_tx,
                 &signers_instances,
                 signers,
@@ -208,7 +203,6 @@ impl CommandImplementation for SendContractCall {
         spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,

@@ -9,9 +9,9 @@ use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::Diagnostic;
 use kit::types::signers::SignerInstance;
+use kit::types::stores::AddonDefaults;
 use kit::types::types::Value;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
-use kit::AddonDefaults;
 use txtx_addon_kit::hcl;
 
 use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, RuntimeContext};

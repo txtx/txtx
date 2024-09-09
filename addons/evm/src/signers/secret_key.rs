@@ -3,6 +3,7 @@ use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
+use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
@@ -13,7 +14,7 @@ use txtx_addon_kit::types::signers::{
     SignerActivateFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
-use txtx_addon_kit::types::ValueStore;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -22,7 +23,6 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
-use txtx_addon_kit::{channel, AddonDefaults};
 
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
@@ -111,11 +111,10 @@ impl SignerImplementation for EvmSecretKeySigner {
         _construct_id: &ConstructDid,
         instance_name: &str,
         spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
@@ -133,16 +132,16 @@ impl SignerImplementation for EvmSecretKeySigner {
         }
 
         let expected_signer =
-            if let Ok(secret_key_bytes) = args.get_expected_buffer_bytes("secret_key") {
+            if let Ok(secret_key_bytes) = values.get_expected_buffer_bytes("secret_key") {
                 secret_key_to_secret_key_signer(&secret_key_bytes)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
             } else {
-                let mnemonic = args
+                let mnemonic = values
                     .get_expected_string("mnemonic")
                     .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
-                let derivation_path = args.get_string("derivation_path");
-                let is_encrypted = args.get_bool("is_encrypted");
-                let password = args.get_string("password");
+                let derivation_path = values.get_string("derivation_path");
+                let is_encrypted = values.get_bool("is_encrypted");
+                let password = values.get_string("password");
                 mnemonic_to_secret_key_signer(mnemonic, derivation_path, is_encrypted, password)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
             };
@@ -177,11 +176,10 @@ impl SignerImplementation for EvmSecretKeySigner {
     fn activate(
         _construct_id: &ConstructDid,
         spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let signer_did = ConstructDid(signer_state.uuid.clone());
@@ -203,11 +201,10 @@ impl SignerImplementation for EvmSecretKeySigner {
         _description: &Option<String>,
         _payload: &Value,
         _spec: &SignerSpecification,
-        _args: &ValueStore,
+        _values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         Ok((signers, signer_state, Actions::none()))
@@ -218,15 +215,13 @@ impl SignerImplementation for EvmSecretKeySigner {
         _title: &str,
         payload: &Value,
         spec: &SignerSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        defaults: &AddonDefaults,
     ) -> SignerSignFutureResult {
-        let args = args.clone();
+        let values = values.clone();
         let payload = payload.clone();
-        let defaults = defaults.clone();
         let signers_instances = signers_instances.clone();
         let spec = spec.clone();
 
@@ -241,7 +236,9 @@ impl SignerImplementation for EvmSecretKeySigner {
 
             let mut result = CommandExecutionResult::new();
 
-            let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults).unwrap();
+            let rpc_api_url = values
+                .get_expected_string(RPC_API_URL)
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
             let signer_field_bytes = signer_state
                 .get_expected_buffer_bytes("signer_field_bytes")

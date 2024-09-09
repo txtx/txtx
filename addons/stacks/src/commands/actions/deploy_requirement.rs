@@ -11,6 +11,7 @@ use txtx_addon_kit::indexmap::indexmap;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::{
     types::{
@@ -24,10 +25,9 @@ use txtx_addon_kit::{
             SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
         },
         types::{RunbookSupervisionContext, Type, Value},
-        ConstructDid, ValueStore,
+        ConstructDid,
     },
     uuid::Uuid,
-    AddonDefaults,
 };
 
 use super::deploy_contract::StacksDeployContract;
@@ -220,7 +220,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
             // TODO
 
             // Fetch remote otherwise
-            let client = StacksRpc::new(&rpc_api_url_source, None);
+            let client = StacksRpc::new(&rpc_api_url_source, &None);
             let res = client
                 .get_contract_source(&contract_id.issuer.to_string(), &contract_id.name.to_string())
                 .await;
@@ -336,8 +336,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
@@ -346,8 +345,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
             construct_did,
             instance_name,
             spec,
-            &args,
-            defaults,
+            &values,
             supervision_context,
             signers_instances,
             signers,
@@ -357,8 +355,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
@@ -366,8 +363,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
         StacksDeployContract::run_signed_execution(
             construct_did,
             spec,
-            args,
-            defaults,
+            values,
             progress_tx,
             signers_instances,
             signers,
@@ -379,7 +375,6 @@ impl CommandImplementation for StacksDeployContractRequirement {
         spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
@@ -389,7 +384,6 @@ impl CommandImplementation for StacksDeployContractRequirement {
             &spec,
             &inputs,
             &outputs,
-            &defaults,
             &progress_tx,
             &background_tasks_uuid,
             &supervision_context,

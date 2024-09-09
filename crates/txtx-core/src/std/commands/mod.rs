@@ -1,8 +1,8 @@
 pub mod actions;
 
 use kit::types::frontend::{Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest};
+use kit::types::stores::ValueStore;
 use kit::types::types::RunbookSupervisionContext;
-use kit::types::ValueStore;
 use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
@@ -19,7 +19,6 @@ use txtx_addon_kit::{
         types::Type,
         ConstructDid,
     },
-    AddonDefaults,
 };
 
 use crate::constants::ACTION_ITEM_CHECK_OUTPUT;
@@ -60,8 +59,7 @@ impl CommandImplementation for Module {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
@@ -70,8 +68,7 @@ impl CommandImplementation for Module {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
@@ -149,7 +146,6 @@ impl CommandImplementation for Input {
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
-        _defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let title = instance_name;
@@ -247,7 +243,6 @@ impl CommandImplementation for Input {
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
-        _defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
@@ -316,7 +311,6 @@ impl CommandImplementation for Output {
         instance_name: &str,
         _spec: &CommandSpecification,
         args: &ValueStore,
-        _defaults: &AddonDefaults,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
@@ -342,7 +336,6 @@ impl CommandImplementation for Output {
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
-        _defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         let value = args.get_expected_value("value")?;
@@ -396,8 +389,7 @@ impl CommandImplementation for Runtime {
         _construct_did: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
@@ -406,8 +398,7 @@ impl CommandImplementation for Runtime {
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()

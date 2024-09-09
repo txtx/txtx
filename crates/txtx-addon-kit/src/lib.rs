@@ -12,14 +12,11 @@ pub use hex;
 // pub use hiro_system_kit;
 pub use indoc::formatdoc;
 pub use indoc::indoc;
-pub use rust_fsm as fsm;
 use types::commands::CommandInputsEvaluationResult;
 use types::commands::CommandInstance;
 use types::diagnostics::Diagnostic;
 use types::AddonPostProcessingResult;
 use types::ConstructDid;
-use types::Did;
-use types::ValueStore;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 pub use futures;
@@ -121,16 +118,5 @@ pub trait Addon: Debug + Sync + Send {
         )>,
     ) -> Result<AddonPostProcessingResult, Diagnostic> {
         Ok(AddonPostProcessingResult::new())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AddonDefaults {
-    pub store: ValueStore,
-}
-
-impl AddonDefaults {
-    pub fn new(key: &str) -> AddonDefaults {
-        AddonDefaults { store: ValueStore::new(key, &Did::zero()) }
     }
 }

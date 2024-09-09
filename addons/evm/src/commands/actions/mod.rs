@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification, diagnostics::Diagnostic, types::Value, ConstructDid, Did,
-    ValueStore,
 };
 
 pub mod call_contract;
