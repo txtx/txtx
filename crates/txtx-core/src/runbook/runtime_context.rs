@@ -1,3 +1,5 @@
+use kit::types::stores::AddonDefaults;
+use kit::types::stores::ValueStore;
 use kit::{
     hcl::structure::{Block, BlockLabel},
     helpers::fs::FileLocation,
@@ -12,9 +14,9 @@ use kit::{
         signers::{SignerInstance, SignerSpecification},
         types::Value,
         AuthorizationContext, ConstructDid, ContractSourceTransform, Did, PackageDid, PackageId,
-        RunbookId, ValueStore,
+        RunbookId,
     },
-    Addon, AddonDefaults,
+    Addon,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};

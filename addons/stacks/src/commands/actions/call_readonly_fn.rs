@@ -3,14 +3,14 @@ use clarity::vm::types::QualifiedContractIdentifier;
 use clarity::vm::Value;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
     types::Type,
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
 
 use crate::codec::cv::{cv_to_value, decode_cv_bytes};
 use crate::constants::{
@@ -110,21 +110,20 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         _construct_id: &ConstructDid,
         _instance_name: &str,
         _spec: &CommandSpecification,
-        _args: &ValueStore,
-        _defaults: &AddonDefaults,
+        _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }
 
+    #[cfg(not(feature = "wasm"))]
     fn run_execution(
         _construct_id: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        let args = args.clone();
+        let args = values.clone();
         let contract_id_arg = args.get_expected_string("contract_id")?;
         let contract_id = QualifiedContractIdentifier::parse(contract_id_arg)
             .map_err(|e| diagnosed_error!("unable to parse contract_id: {}", e.to_string()))?;
@@ -145,12 +144,10 @@ impl CommandImplementation for CallReadonlyStacksFunction {
             function_args.push(arg);
         }
 
-        let rpc_api_url = args.get_defaulting_string(RPC_API_URL, defaults)?;
-        let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
-        let network_id = match args.get_defaulting_string(NETWORK_ID, &defaults) {
-            Ok(value) => value,
-            Err(diag) => return Err(diag),
-        };
+        let rpc_api_url = args.get_expected_string(RPC_API_URL)?.to_owned();
+        let rpc_api_auth_token =
+            args.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
+        let network_id = args.get_expected_string(NETWORK_ID)?.to_owned();
 
         let sender = args
             .get_expected_string("sender")
@@ -167,7 +164,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
                 DEFAULT_MAINNET_BACKOFF
             };
 
-            let client = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
+            let client = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
             let mut retry_count = 4;
             let call_result = loop {
                 // if block_height provided, retrieve and provide block hash in the subsequent request
@@ -216,9 +213,6 @@ impl CommandImplementation for CallReadonlyStacksFunction {
 
             Ok(result)
         };
-        #[cfg(feature = "wasm")]
-        panic!("async commands are not enabled for wasm");
-        #[cfg(not(feature = "wasm"))]
         Ok(Box::pin(future))
     }
 }

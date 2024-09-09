@@ -31,12 +31,13 @@ use deploy_requirement::DEPLOY_STACKS_REQUIREMENT;
 use encode_contract_call::ENCODE_STACKS_CONTRACT_CALL;
 use send_stx::SEND_STX_TRANSFER;
 use sign_transaction::SIGN_STACKS_TRANSACTION;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::{CommandSpecification, PreCommandSpecification},
     diagnostics::Diagnostic,
     types::Value,
 };
-use txtx_addon_kit::types::{ConstructDid, Did, ValueStore};
+use txtx_addon_kit::types::{ConstructDid, Did};
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![

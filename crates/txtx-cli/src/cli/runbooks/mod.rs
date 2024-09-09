@@ -17,6 +17,7 @@ use txtx_addon_network_stacks::StacksNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
+use txtx_core::kit::types::stores::ValueStore;
 use txtx_core::{
     kit::{
         channel::{self, unbounded},
@@ -30,10 +31,11 @@ use txtx_core::{
                 ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
                 ProgressBarStatusColor,
             },
+            stores::AddonDefaults,
             types::Value,
-            AuthorizationContext, Did, PackageId, ValueStore,
+            AuthorizationContext, Did, PackageId,
         },
-        Addon, AddonDefaults,
+        Addon,
     },
     manifest::{
         file::{read_runbook_from_location, read_runbooks_from_manifest},
@@ -808,9 +810,7 @@ pub async fn handle_run_command(
             runbook_name
         );
 
-        let res =
-            start_unsupervised_runbook_runloop(&mut runbook, &progress_tx)
-                .await;
+        let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
         if let Err(diags) = res {
             println!("{} Execution aborted", red!("x"));
             for diag in diags.iter() {
@@ -918,7 +918,7 @@ pub async fn handle_run_command(
                             if let Some(ref desired_output) = cmd.output {
                                 if desired_output.eq(&key) && !values.is_empty() {
                                     println!("{}", values.first().unwrap());
-                                    return Ok(())
+                                    return Ok(());
                                 }
                             }
                             let mut rows = vec![];

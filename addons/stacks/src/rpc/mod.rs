@@ -173,7 +173,7 @@ pub struct FeeEstimation {
 }
 
 impl StacksRpc {
-    pub fn new(url: &str, auth_token: Option<String>) -> Self {
+    pub fn new(url: &str, auth_token: &Option<String>) -> Self {
         let mut default_headers = HeaderMap::new();
         if let Some(auth_token) = auth_token {
             default_headers

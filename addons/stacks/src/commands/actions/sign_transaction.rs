@@ -22,14 +22,14 @@ use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
     SignersState,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
-use txtx_addon_kit::types::{ConstructDid, ValueStore};
-use txtx_addon_kit::AddonDefaults;
 
 use crate::constants::{
     NETWORK_ID, PUBLIC_KEYS, RPC_API_URL, TRANSACTION_PAYLOAD_BYTES, UNSIGNED_TRANSACTION_BYTES,
@@ -140,7 +140,6 @@ impl CommandImplementation for SignStacksTransaction {
         instance_name: &str,
         spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -156,8 +155,7 @@ impl CommandImplementation for SignStacksTransaction {
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
-        let args = args.clone();
-        let defaults = defaults.clone();
+        let values = args.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
@@ -174,15 +172,15 @@ impl CommandImplementation for SignStacksTransaction {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let nonce = args.get_value("nonce").map(|v| v.expect_uint().unwrap());
-            let fee = args.get_value("fee").map(|v| v.expect_uint().unwrap());
-            let fee_strategy = args.get_string("fee_strategy");
-            let post_conditions = match args.get_value("post_conditions") {
+            let nonce = values.get_value("nonce").map(|v| v.expect_uint().unwrap());
+            let fee = values.get_value("fee").map(|v| v.expect_uint().unwrap());
+            let fee_strategy = values.get_string("fee_strategy");
+            let post_conditions = match values.get_value("post_conditions") {
                 Some(Value::Addon(v)) => vec![Value::Addon(v.clone())],
                 Some(Value::Array(data)) => *data.clone(),
                 _ => vec![],
             };
-            let post_condition_mode = match args.get_value("post_condition_mode") {
+            let post_condition_mode = match values.get_value("post_condition_mode") {
                 Some(Value::String(v)) => Value::string(v.into()),
                 _ => Value::string("deny".into()),
             };
@@ -196,8 +194,7 @@ impl CommandImplementation for SignStacksTransaction {
                 nonce,
                 post_conditions,
                 post_condition_mode,
-                &args,
-                &defaults,
+                &values,
             )
             .await
             {
@@ -224,7 +221,7 @@ impl CommandImplementation for SignStacksTransaction {
             );
             signers.push_signer_state(signer_state);
             let description =
-                args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
                 actions.push_group(
@@ -267,11 +264,10 @@ impl CommandImplementation for SignStacksTransaction {
                     &description,
                     &payload,
                     &signer.specification,
-                    &args,
+                    &values,
                     signer_state,
                     signers,
                     &signers_instances,
-                    &defaults,
                     &supervision_context,
                 )?;
             actions.append(&mut signer_actions);
@@ -284,7 +280,6 @@ impl CommandImplementation for SignStacksTransaction {
         construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         args: &ValueStore,
-        defaults: &AddonDefaults,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
@@ -318,7 +313,6 @@ impl CommandImplementation for SignStacksTransaction {
             signer_state,
             signers,
             signers_instances,
-            &defaults,
         );
         res
     }
@@ -334,13 +328,12 @@ async fn build_unsigned_transaction(
     nonce: Option<u64>,
     post_conditions: Vec<Value>,
     post_condition_mode: Value,
-    args: &ValueStore,
-    defaults: &AddonDefaults,
+    values: &ValueStore,
 ) -> Result<StacksTransaction, Diagnostic> {
     use crate::constants::REQUIRED_SIGNATURE_COUNT;
 
     use crate::constants::RPC_API_AUTH_TOKEN;
-    let transaction_payload_bytes = args.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
+    let transaction_payload_bytes = values.get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)?;
     let transaction_payload =
         match TransactionPayload::consensus_deserialize(&mut &transaction_payload_bytes[..]) {
             Ok(res) => res,
@@ -348,16 +341,17 @@ async fn build_unsigned_transaction(
                 todo!("transaction payload invalid, return diagnostic ({})", e.to_string())
             }
         };
-    let network_id = args.get_defaulting_string(NETWORK_ID, defaults)?;
+
+    let network_id = values.get_expected_string(NETWORK_ID)?;
     let default_payload = {
-        let boot_address = match network_id.as_str() {
+        let boot_address = match network_id {
             "mainnet" => "SP000000000000000000002Q6VF78",
             "testnet" => "ST000000000000000000002AMW42H",
             "devnet" => "ST000000000000000000002AMW42H",
             _ => {
                 return Err(diagnosed_error!(
                     "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
-                    network_id.as_str()
+                    network_id
                 ))
             }
         };
@@ -369,8 +363,8 @@ async fn build_unsigned_transaction(
         })
     };
 
-    let rpc_api_url = args.get_defaulting_string(RPC_API_URL, &defaults)?;
-    let rpc_api_auth_token = args.get_defaulting_string(RPC_API_AUTH_TOKEN, defaults).ok();
+    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
+    let rpc_api_auth_token = values.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
 
     let fee = match fee {
         Some(fee) => fee,
@@ -381,7 +375,7 @@ async fn build_unsigned_transaction(
                 Some("high") => 2,
                 _ => 1,
             };
-            let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token.clone());
+            let rpc = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
             let fee = rpc
                 .estimate_transaction_fee(&transaction_payload, fee_strategy, &default_payload)
                 .await
@@ -393,14 +387,14 @@ async fn build_unsigned_transaction(
     };
 
     // Extract network_id
-    let transaction_version = match network_id.as_str() {
+    let transaction_version = match network_id {
         "mainnet" => TransactionVersion::Mainnet,
         "testnet" => TransactionVersion::Testnet,
         "devnet" => TransactionVersion::Testnet,
         _ => {
             return Err(diagnosed_error!(
                 "Network {} unknown ('mainnet', 'testnet' or 'devnet')",
-                network_id.as_str()
+                network_id
             ))
         }
     };
@@ -439,7 +433,7 @@ async fn build_unsigned_transaction(
         None => match signer_state.get_autoincremented_nonce(&construct_did.to_string()) {
             Some(value) => value.try_into().unwrap(),
             None => {
-                let rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
+                let rpc = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
                 let nonce = rpc
                     .get_nonce(&address.to_string())
                     .await

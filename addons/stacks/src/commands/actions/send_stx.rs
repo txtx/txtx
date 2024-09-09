@@ -2,22 +2,20 @@ use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::signers::SignerActionsFutureResult;
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_kit::{
-    types::{
-        commands::{
-            CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
-            PreCommandSpecification,
-        },
-        diagnostics::Diagnostic,
-        frontend::BlockEvent,
-        signers::{SignerInstance, SignerSignFutureResult, SignersState},
-        types::Type,
-        ConstructDid, ValueStore,
+use txtx_addon_kit::types::{
+    commands::{
+        CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+        PreCommandSpecification,
     },
-    AddonDefaults,
+    diagnostics::Diagnostic,
+    frontend::BlockEvent,
+    signers::{SignerInstance, SignerSignFutureResult, SignersState},
+    types::Type,
+    ConstructDid,
 };
+use txtx_addon_kit::uuid::Uuid;
 
 use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::STACKS_CV_PRINCIPAL};
 
@@ -144,28 +142,27 @@ impl CommandImplementation for SendStxTransfer {
         construct_did: &ConstructDid,
         instance_name: &str,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
-        let network_id: String = match args.get_defaulting_string("network_id", defaults) {
+        let network_id: String = match values.get_expected_string("network_id") {
+            Ok(value) => value.to_owned(),
+            Err(diag) => return Err((signers, signer_state, diag)),
+        };
+        let recipient = match values.get_expected_value("recipient") {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let recipient = match args.get_expected_value("recipient") {
+        let amount = match values.get_expected_uint("amount") {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let amount = match args.get_expected_uint("amount") {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        let memo = args.get_value("memo");
+        let memo = values.get_value("memo");
 
         let bytes = match encode_stx_transfer(spec, recipient, amount, &memo, &network_id) {
             Ok(value) => value,
@@ -173,15 +170,14 @@ impl CommandImplementation for SendStxTransfer {
         };
         signers.push_signer_state(signer_state);
 
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        let mut values = values.clone();
+        values.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
         SignStacksTransaction::check_signed_executability(
             construct_did,
             instance_name,
             spec,
-            &args,
-            defaults,
+            &values,
             supervision_context,
             signers_instances,
             signers,
@@ -191,36 +187,33 @@ impl CommandImplementation for SendStxTransfer {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
-        defaults: &AddonDefaults,
+        values: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let network_id: String = args.get_defaulting_string("network_id", defaults).unwrap();
+        let network_id: String = values.get_expected_string("network_id").unwrap().to_owned();
 
-        let recipient = args.get_expected_value("recipient").unwrap();
-        let memo = args.get_value("memo");
-        let amount = args.get_expected_uint("amount").unwrap();
+        let recipient = values.get_expected_value("recipient").unwrap();
+        let memo = values.get_value("memo");
+        let amount = values.get_expected_uint("amount").unwrap();
 
         let bytes = encode_stx_transfer(spec, recipient, amount, &memo, &network_id).unwrap();
         let progress_tx = progress_tx.clone();
-        let args = args.clone();
+        let args = values.clone();
         let signers_instances = signers_instances.clone();
-        let defaults = defaults.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
-        let mut args = args.clone();
-        args.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
+        let mut values = args.clone();
+        values.insert(TRANSACTION_PAYLOAD_BYTES, bytes);
 
         let future = async move {
             let run_signing_future = SignStacksTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
                 &signers_instances,
                 signers,
@@ -233,15 +226,14 @@ impl CommandImplementation for SendStxTransfer {
                 Err(err) => return Err(err),
             };
 
-            args.insert(
+            values.insert(
                 SIGNED_TRANSACTION_BYTES,
                 res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,
                 &spec,
-                &args,
-                &defaults,
+                &values,
                 &progress_tx,
             ) {
                 Ok(future) => match future.await {
@@ -263,7 +255,6 @@ impl CommandImplementation for SendStxTransfer {
         spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
@@ -273,7 +264,6 @@ impl CommandImplementation for SendStxTransfer {
             &spec,
             &inputs,
             &outputs,
-            &defaults,
             &progress_tx,
             &background_tasks_uuid,
             &supervision_context,
