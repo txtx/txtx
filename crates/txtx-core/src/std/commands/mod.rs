@@ -176,7 +176,7 @@ impl CommandImplementation for Variable {
                 ActionItemStatus::Todo,
                 ActionItemRequestType::ProvideInput(ProvideInputRequest {
                     default_value: Some(value.to_owned()),
-                    input_name: "default".into(),
+                    input_name: "value".into(),
                     typing: value.get_type(),
                 }),
                 "provide_input",
