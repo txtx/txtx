@@ -202,9 +202,9 @@ pub struct ConstructId {
     pub package_id: PackageId,
     /// Location of the file enclosing the construct
     pub construct_location: FileLocation,
-    /// Type of construct (e.g. `var` in `var.value``)
+    /// Type of construct (e.g. `variable` in `variable.value``)
     pub construct_type: String,
-    /// Name of construct (e.g. `value` in `var.value``)
+    /// Name of construct (e.g. `value` in `variable.value``)
     pub construct_name: String,
 }
 

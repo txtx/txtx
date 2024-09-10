@@ -170,7 +170,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "var" => {
+                    "variable" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
@@ -535,7 +535,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for variables
-                if component.eq_ignore_ascii_case("var") {
+                if component.eq_ignore_ascii_case("variable") {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
                         continue;

@@ -80,7 +80,7 @@ pub fn new_input_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
         Variable => {
             name: "Variable",
-            matcher: "var",
+            matcher: "variable",
             documentation: "A construct designed to store a variable.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
@@ -150,7 +150,7 @@ impl CommandImplementation for Variable {
     ) -> Result<Actions, Diagnostic> {
         let Some(value) = values.get_value("value") else {
             return Err(diagnosed_error!(
-                "var {}: attribute 'value' must be present",
+                "variable {}: attribute 'value' must be present",
                 instance_name
             ));
         };

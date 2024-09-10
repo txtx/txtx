@@ -19,7 +19,7 @@ impl PreConstructData {
     pub fn construct_type(&self) -> &str {
         match &self {
             PreConstructData::Import(_) => "import",
-            PreConstructData::Variable(_) => "var",
+            PreConstructData::Variable(_) => "variable",
             PreConstructData::Output(_) => "output",
             PreConstructData::Module(_) => "module",
             PreConstructData::Action(_) => "action",
