@@ -4,6 +4,7 @@ use crate::std::commands;
 use crate::types::{Package, PreConstructData};
 use kit::hcl::expr::{Expression, TraversalOperator};
 use kit::hcl::structure::{Block, BlockLabel};
+use kit::hcl::Span;
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
@@ -14,7 +15,10 @@ use kit::types::types::Value;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 use txtx_addon_kit::hcl;
 
-use super::{RunbookExecutionContext, RunbookGraphContext, RunbookSources, RuntimeContext};
+use super::{
+    get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
+    RunbookSources, RuntimeContext,
+};
 
 pub enum ConstructInstanceType {
     Executable(CommandInstance),
@@ -166,7 +170,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "input" => {
+                    "variable" => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
@@ -177,7 +181,7 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Input(block.clone()),
+                            PreConstructData::Variable(block.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
@@ -252,7 +256,14 @@ impl RunbookWorkspaceContext {
                                 );
                             }
                             Err(diagnostic) => {
-                                diagnostics.push(diagnostic);
+                                let span =
+                                    get_source_context_for_diagnostic(&diagnostic, runbook_sources);
+                                diagnostics.push(
+                                    diagnostic
+                                        .location(&location)
+                                        .set_span_range(block.span())
+                                        .set_diagnostic_span(span),
+                                );
                                 continue;
                             }
                         };
@@ -362,7 +373,7 @@ impl RunbookWorkspaceContext {
                     typing: CommandInstanceType::Module,
                 })
             }
-            PreConstructData::Input(block) => {
+            PreConstructData::Variable(block) => {
                 package.variables_dids.insert(construct_did.clone());
                 package.inputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
@@ -371,7 +382,7 @@ impl RunbookWorkspaceContext {
                     block: block.clone(),
                     package_id: package_id.clone(),
                     namespace: construct_name.clone(),
-                    typing: CommandInstanceType::Input,
+                    typing: CommandInstanceType::Variable,
                 })
             }
             PreConstructData::Addon(block) => {
@@ -523,8 +534,8 @@ impl RunbookWorkspaceContext {
                     }
                 }
 
-                // Look for inputs
-                if component.eq_ignore_ascii_case("input") {
+                // Look for variables
+                if component.eq_ignore_ascii_case("variable") {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
                         continue;

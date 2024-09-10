@@ -38,10 +38,10 @@ fn test_ab_c_runbook_no_env() {
     // Review inputs assertions
     {
         let inputs_panel_data =
-            harness.expect_action_panel(None, "inputs review", vec![vec![1, 1, 1]]);
+            harness.expect_action_panel(None, "variables review", vec![vec![2, 1]]);
 
         let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
-        let input_a_action = &inputs_panel_data.groups[0].sub_groups[1].action_items[0];
+        let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
 
         assert_eq!(&input_a_action.internal_key, "check_input");
         assert_eq!(&input_b_action.internal_key, "provide_input");
@@ -66,7 +66,7 @@ fn test_ab_c_runbook_no_env() {
             action_item_id: input_b_action.id.clone(),
             payload: ActionItemResponseType::ProvideInput(ProvidedInputResponse {
                 updated_value: Value::integer(5),
-                input_name: "default".into(),
+                input_name: "value".into(),
             }),
         });
         // review input b and expect action item update
@@ -75,7 +75,7 @@ fn test_ab_c_runbook_no_env() {
                 action_item_id: input_b_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                     value_checked: true,
-                    input_name: "default".into(),
+                    input_name: "value".into(),
                 }),
             },
             vec![(&input_b_action.id, Some(ActionItemStatus::Success(None)))],

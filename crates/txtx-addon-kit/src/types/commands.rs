@@ -445,7 +445,7 @@ pub trait CompositeCommandImplementation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CommandInstanceType {
-    Input,
+    Variable,
     Output,
     Action,
     Prompt,

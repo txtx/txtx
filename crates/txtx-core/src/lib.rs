@@ -46,7 +46,7 @@ use kit::types::frontend::ValidateBlockData;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
-use runbook::add_source_context_to_diagnostic;
+use runbook::get_source_context_for_diagnostic;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
@@ -167,7 +167,7 @@ pub async fn start_unsupervised_runbook_runloop(
                             {
                                 diag = diag.set_span_range(command_instance.block.span());
                                 diag.span =
-                                    add_source_context_to_diagnostic(&diag, &runbook.sources);
+                                    get_source_context_for_diagnostic(&diag, &runbook.sources);
                             };
                             return Err(vec![diag]);
                         }
@@ -317,7 +317,7 @@ pub async fn start_supervised_runbook_runloop(
                                 {
                                     diag = diag.set_span_range(command_instance.block.span());
                                     diag.span =
-                                        add_source_context_to_diagnostic(&diag, &runbook.sources);
+                                        get_source_context_for_diagnostic(&diag, &runbook.sources);
                                 };
                                 let diags = vec![diag];
                                 let _ = block_tx.send(BlockEvent::Error(Block {
