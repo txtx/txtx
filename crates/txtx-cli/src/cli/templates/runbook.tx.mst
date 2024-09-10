@@ -12,23 +12,23 @@ signer "alice" "stacks::connect" {
   expected_address = env.stacks_operator_address
 }
 
-var "step" {
+variable "step" {
   description = "Amount of steps to increment"
   value = 1
 }
 
 action "increment_counter" "stacks::call_contract" {
-  description = "Increment counter contract of ${var.step}"
+  description = "Increment counter contract of ${variable.step}"
   contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.counter"
   function_name = "increment"
   function_args = [
-      stacks::cv_uint(var.step),
+      stacks::cv_uint(variable.step),
   ]
   signer = signer.alice
   confirmations = 1
 }
 
 output "counter_value" {
-  description = "Increment counter contract of ${var.step}"
+  description = "Increment counter contract of ${variable.step}"
   value = action.increment_counter.tx_id
 }

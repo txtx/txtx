@@ -23,7 +23,7 @@ signer "deployer" "evm::secret_key" {
 
 action "fibonacci_proof" "sp1::create_proof" {
     program = sp1::get_elf_from_sp1_project("program/elf/riscv32im-succinct-zkvm-elf")
-    inputs = [var.n]
+    inputs = [variable.n]
     sp1_private_key = env.sp1_private_key
 }
 
@@ -43,7 +43,7 @@ action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
 action "verify_fibonacci_execution" "evm::call_contract" {
     description = "Call the Fibonacci verifier contract with the proof results"
     contract_address = env.verifier_contract_address
-    contract_abi = var.fibonacci_contract.abi
+    contract_abi = variable.fibonacci_contract.abi
     function_name = "verifyFibonacciProof"
     function_args = [
         evm::bytes(action.fibonacci_proof.public_values),

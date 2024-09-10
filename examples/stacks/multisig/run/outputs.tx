@@ -1,5 +1,5 @@
 output "bns_name" {
-  value = "Registering ${var.name}.${var.namespace}"
+  value = "Registering ${variable.name}.${variable.namespace}"
 }
 
 output "name_price" {

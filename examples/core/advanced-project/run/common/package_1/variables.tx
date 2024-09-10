@@ -22,7 +22,7 @@ variable "package_1_variable_4" {
 }
 
 variable "package_1_variable_5" {
-    description = "Variable 5 from Package 1 loading its value from env var TX_VARS_package_1_variable_5"
+    description = "Variable 5 from Package 1 loading its value from env variable TX_VARS_package_1_variable_5"
     editable = true
     value = "package_1_variable_5::default"
 }

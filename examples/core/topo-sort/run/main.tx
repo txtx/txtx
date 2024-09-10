@@ -1,51 +1,51 @@
-var "A" {
+variable "A" {
     description = "A"
     type="uint"
     editable = true
     value = 1
 }
 
-  var "B" {
+  variable "B" {
     description = "A -> B"
     type="uint"
     editable = true
-    value = var.A.value + 1
+    value = variable.A.value + 1
   }
 
-  var "C" {
+  variable "C" {
     description = "A -> B -> C"
     type="uint"
     editable = true
-    value = var.B.value + 1
+    value = variable.B.value + 1
   }
-    var "E" {
+    variable "E" {
       description = "A -> B -> C -> E"
       type="uint"
       editable = true
-    value = var.C.value + 1
+    value = variable.C.value + 1
     }
-      var "F" {
+      variable "F" {
         description = "A -> B -> C -> E -> F"
         type="uint"
         editable = true
-         value = var.E.value + 1
+         value = variable.E.value + 1
       }
 
-  var "D" {
+  variable "D" {
     description = "A -> B -> D"
     type="uint"
     editable = true
-    value = var.B.value + 1
+    value = variable.B.value + 1
   }
-  var "G" {
+  variable "G" {
     description = "A -> B -> D -> G"
     type="uint"
     editable = true
-    value = var.D.value + 1
+    value = variable.D.value + 1
   }
-    var "H" {
+    variable "H" {
       description = "A -> B -> D -> G -> H"
       type="uint"
       editable = true
-    value = var.G.value + 1
+    value = variable.G.value + 1
     }

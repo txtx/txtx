@@ -1,4 +1,4 @@
-var "fruit" {
+variable "fruit" {
     description = "The argument to pass to the contract"
     editable = true
     value = "🍊"
@@ -10,5 +10,5 @@ prompt "vote_transaction" "stacks::call_contract" {
     network_id = "testnet" 
     contract_id = "ST39MJ145BR6S8C315AG2BD61SJ16E208P1FDK3AK.example-fruit-vote-contract"
     function_name = "vote"
-    function_args = [stacks::cv_string_utf8(var.fruit.value)]
+    function_args = [stacks::cv_string_utf8(variable.fruit.value)]
 }

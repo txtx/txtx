@@ -2,13 +2,13 @@ signer "alice" "stacks::connect" {
     expected_address = "a"
 }
 
-var "b" {
+variable "b" {
     editable = true
     value = 1
     description = "b"
 }
 
 output "c" {
-    value = var.a + var.b
+    value = variable.a + variable.b
     description = "c"
 }

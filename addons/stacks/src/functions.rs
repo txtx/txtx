@@ -527,14 +527,14 @@ lazy_static! {
                 name: "decode_response",
                 documentation: "`stacks::decode_response` returns the inner value of a Clarity Response as a Clarity buffer.",
                 example: indoc! {r#"
-                var "ok_uint" {
+                variable "ok_uint" {
                     value = stacks::cv_ok(1)
                 }
                 output "ok" {
-                    value = var.ok_uint
+                    value = variable.ok_uint
                 }
                 output "decoded_ok" {
-                    value = stacks::decode_response(var.ok_uint)
+                    value = stacks::decode_response(variable.ok_uint)
                 } 
                 // > ok: 0x070100000000000000000000000000000001
                 // > decoded_ok: 0x0100000000000000000000000000000001
