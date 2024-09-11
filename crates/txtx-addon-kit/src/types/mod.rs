@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use diagnostics::Diagnostic;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -176,6 +177,20 @@ impl PackageId {
             package_location: FileLocation::working_dir(),
             package_name: "".into(),
         }
+    }
+    pub fn from_file(
+        location: &FileLocation,
+        runbook_id: &RunbookId,
+        package_name: &str,
+    ) -> Result<Self, Diagnostic> {
+        let package_location = location.get_parent_location().map_err(|e| {
+            Diagnostic::error_from_string(format!("{}", e.to_string())).location(&location)
+        })?;
+        Ok(PackageId {
+            runbook_id: runbook_id.clone(),
+            package_location: package_location.clone(),
+            package_name: package_name.to_string(),
+        })
     }
 }
 
