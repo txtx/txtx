@@ -210,7 +210,7 @@ impl ValueStore {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddonDefaults {
     pub uuid: Did,
     pub name: String,
@@ -229,7 +229,7 @@ impl AddonDefaults {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValueMap {
     pub store: IndexMap<String, Value>,
 }

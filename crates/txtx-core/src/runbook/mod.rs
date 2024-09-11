@@ -218,10 +218,10 @@ impl Runbook {
         Ok(true)
     }
 
-    pub fn find_expected_running_context_mut(&mut self, key: &str) -> &mut FlowContext {
-        for running_context in self.flow_contexts.iter_mut() {
-            if running_context.top_level_inputs.name.eq(key) {
-                return running_context;
+    pub fn find_expected_flow_context_mut(&mut self, key: &str) -> &mut FlowContext {
+        for flow_context in self.flow_contexts.iter_mut() {
+            if flow_context.name.eq(key) {
+                return flow_context;
             }
         }
         unreachable!()

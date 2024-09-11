@@ -1,4 +1,4 @@
-use super::{FlowContext, RunbookExecutionMode};
+use super::{FlowContext, RunbookExecutionMode, RunbookTopLevelInputsMap};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
@@ -25,13 +25,17 @@ pub struct RunbookExecutionSnapshot {
     /// Schema version
     version: u32,
     /// Executed flows
-    flows: IndexMap<String, RunbookRunSnapshot>,
+    flows: IndexMap<String, RunbookFlowSnapshot>,
+    /// Snapshot of the inputs provided by the manifest and CLI
+    top_level_inputs_fingerprints: IndexMap<String, Did>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunbookRunSnapshot {
-    ///
-    pub inputs: IndexMap<String, Value>,
+pub struct RunbookFlowSnapshot {
+    /// Snapshot of the evaluated flow inputs
+    pub flow_inputs_fingerprints: IndexMap<String, Did>,
+    /// Snapshot of the evaluated runbook defaults, indexed by package did and addon id
+    pub addon_defaults_fingerprints: IndexMap<PackageDid, IndexMap<String, IndexMap<String, Did>>>,
     /// Snapshot of the packages pulled by the runbook
     pub packages: IndexMap<PackageDid, PackageSnapshot>,
     /// Snapshot of the signing commands evaluations
@@ -41,8 +45,9 @@ pub struct RunbookRunSnapshot {
 }
 
 impl RunbookExecutionSnapshot {
-    pub fn new(runbook_id: &RunbookId) -> Self {
+    pub fn new(runbook_id: &RunbookId, top_level_inputs_map: &RunbookTopLevelInputsMap) -> Self {
         let ended_at = now_as_string();
+        let top_level_inputs = top_level_inputs_map.current_top_level_inputs().inputs.store;
         Self {
             org: runbook_id.org.clone(),
             workspace: runbook_id.workspace.clone(),
@@ -50,6 +55,10 @@ impl RunbookExecutionSnapshot {
             ended_at,
             version: 1,
             flows: IndexMap::new(),
+            top_level_inputs_fingerprints: top_level_inputs
+                .into_iter()
+                .map(|(k, v)| (k, v.compute_fingerprint()))
+                .collect(),
         }
     }
 }
@@ -109,15 +118,19 @@ impl RunbookSnapshotContext {
     pub fn snapshot_runbook_execution(
         &self,
         runbook_id: &RunbookId,
-        running_contexts: &Vec<FlowContext>,
+        flow_contexts: &Vec<FlowContext>,
         previous_snapshot: Option<RunbookExecutionSnapshot>,
+        top_level_inputs_map: &RunbookTopLevelInputsMap,
     ) -> Result<RunbookExecutionSnapshot, Diagnostic> {
         // &runbook.workspace_context,
         // workspace_context: &RunbookWorkspaceContext,
 
-        let mut snapshot = RunbookExecutionSnapshot::new(&runbook_id);
+        let mut snapshot = RunbookExecutionSnapshot::new(&runbook_id, top_level_inputs_map);
 
-        for flow_context in running_contexts.iter() {
+        let mut flow_contexts = flow_contexts.clone();
+        flow_contexts.sort_by(|a, b| a.name.cmp(&b.name));
+
+        for flow_context in flow_contexts.iter() {
             let run_id = flow_context.name.clone();
             let (mut run, constructs_ids_to_consider) =
                 match &flow_context.execution_context.execution_mode {
@@ -135,11 +148,13 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::Full => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = flow_context.top_level_inputs.inputs.store.clone();
-                        inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
-                        let run = RunbookRunSnapshot {
-                            inputs,
+                        let run = RunbookFlowSnapshot {
+                            flow_inputs_fingerprints: flow_context
+                                .sorted_evaluated_inputs_fingerprints(),
+                            addon_defaults_fingerprints: flow_context
+                                .workspace_context
+                                .sorted_addons_defaults_fingerprints(),
                             packages: IndexMap::new(),
                             signers: IndexMap::new(),
                             commands: IndexMap::new(),
@@ -148,11 +163,13 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::FullFailed => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = flow_context.top_level_inputs.inputs.store.clone();
-                        inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
-                        let run = RunbookRunSnapshot {
-                            inputs,
+                        let run = RunbookFlowSnapshot {
+                            flow_inputs_fingerprints: flow_context
+                                .sorted_evaluated_inputs_fingerprints(),
+                            addon_defaults_fingerprints: flow_context
+                                .workspace_context
+                                .sorted_addons_defaults_fingerprints(),
                             packages: IndexMap::new(),
                             signers: IndexMap::new(),
                             commands: IndexMap::new(),
@@ -283,7 +300,7 @@ impl RunbookSnapshotContext {
                     .is_some();
 
                 let command_to_update = match run.commands.get_mut(construct_did) {
-                    Some(signer) => signer,
+                    Some(snapshot) => snapshot,
                     None => {
                         let new_command = CommandSnapshot {
                             package_did: command_instance.package_id.did(),
@@ -318,32 +335,30 @@ impl RunbookSnapshotContext {
                         let critical =
                             flow_context.execution_context.signed_commands.contains(construct_did)
                                 && input.tainting;
-                        match command_instance.get_expression_from_input(input) {
-                            Ok(Some(entry)) => {
-                                let input_name = &input.name;
-                                match command_to_update.inputs.get_mut(input_name) {
-                                    Some(input) => {
-                                        input.value_pre_evaluation =
-                                            Some(entry.to_string().trim().to_string());
-                                        input.value_post_evaluation = value.clone();
-                                        input.critical = critical;
-                                    }
-                                    None => {
-                                        command_to_update.inputs.insert(
-                                            input_name.clone(),
-                                            CommandInputSnapshot {
-                                                value_pre_evaluation: Some(
-                                                    entry.to_string().trim().to_string(),
-                                                ),
-                                                value_post_evaluation: value.clone(),
-                                                critical,
-                                            },
-                                        );
-                                    }
-                                }
+
+                        let value_pre_evaluation = command_instance
+                            .get_expression_from_input(input)
+                            .ok()
+                            .map(|entry| entry.map(|expr| expr.to_string().trim().to_string()))
+                            .unwrap_or(None);
+                        let input_name = &input.name;
+                        match command_to_update.inputs.get_mut(input_name) {
+                            Some(input) => {
+                                input.value_pre_evaluation = value_pre_evaluation;
+                                input.value_post_evaluation = value.clone();
+                                input.critical = critical;
                             }
-                            _ => {}
-                        };
+                            None => {
+                                command_to_update.inputs.insert(
+                                    input_name.clone(),
+                                    CommandInputSnapshot {
+                                        value_pre_evaluation,
+                                        value_post_evaluation: value.clone(),
+                                        critical,
+                                    },
+                                );
+                            }
+                        }
                     }
                 }
 
@@ -583,9 +598,9 @@ impl RunbookSnapshotContext {
 }
 
 pub fn diff_command_snapshots(
-    old_run: &RunbookRunSnapshot,
+    old_run: &RunbookFlowSnapshot,
     old_construct_dids: &Vec<ConstructDid>,
-    new_run: &RunbookRunSnapshot,
+    new_run: &RunbookFlowSnapshot,
     new_construct_dids: &Vec<ConstructDid>,
     visited_constructs: &mut HashSet<ConstructDid>,
 ) -> ConsolidatedPlanChanges {

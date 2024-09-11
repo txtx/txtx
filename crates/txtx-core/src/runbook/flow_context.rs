@@ -119,4 +119,10 @@ impl FlowContext {
         // result.outputs.insert(key.into(), value);
         self.execution_context.commands_execution_results.insert(construct_id.did(), result);
     }
+
+    pub fn sorted_evaluated_inputs_fingerprints(&self) -> IndexMap<String, Did> {
+        let mut inputs_store = self.evaluated_inputs.inputs.store.clone();
+        inputs_store.sort_keys();
+        inputs_store.into_iter().map(|(k, v)| (k, v.compute_fingerprint())).collect()
+    }
 }

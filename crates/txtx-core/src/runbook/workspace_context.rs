@@ -8,6 +8,7 @@ use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
+use kit::indexmap::IndexMap;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::Diagnostic;
 use kit::types::signers::SignerInstance;
@@ -38,7 +39,7 @@ pub struct RunbookWorkspaceContext {
     pub top_level_inputs_did_lookup: BTreeMap<String, ConstructDid>,
     /// Lookup: Retrieve a value given an environment variable construct did
     pub top_level_inputs_values: BTreeMap<ConstructDid, Value>,
-
+    /// Lookup: Retrieve an addon's defaults given a package and addon id
     pub addons_defaults: HashMap<(PackageDid, String), AddonDefaults>,
 
     std_defaults: AddonDefaults,
@@ -59,6 +60,31 @@ impl RunbookWorkspaceContext {
 
     pub fn get_addon_defaults(&self, key: &(PackageDid, String)) -> &AddonDefaults {
         self.addons_defaults.get(key).unwrap_or(&self.std_defaults)
+    }
+
+    pub fn sorted_addons_defaults_fingerprints(
+        &self,
+    ) -> IndexMap<PackageDid, IndexMap<String, IndexMap<String, Did>>> {
+        let mut addon_defaults: IndexMap<PackageDid, IndexMap<String, IndexMap<String, Did>>> =
+            self.addons_defaults
+                .clone()
+                .into_iter()
+                .map(|((package_did, addon_id), defaults)| {
+                    let mut addon_defaults_values = IndexMap::from([(
+                        addon_id,
+                        defaults
+                            .store
+                            .store
+                            .into_iter()
+                            .map(|(k, v)| (k, v.compute_fingerprint()))
+                            .collect(),
+                    )]);
+                    addon_defaults_values.sort_keys();
+                    (package_did, addon_defaults_values)
+                })
+                .collect();
+        addon_defaults.sort_by(|a, _, b, _| a.0.cmp(&b.0));
+        addon_defaults
     }
 
     pub fn build_from_sources(

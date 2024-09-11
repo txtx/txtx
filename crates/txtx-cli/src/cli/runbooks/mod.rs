@@ -224,7 +224,12 @@ pub async fn handle_check_command(
             }
             runbook.enable_full_execution_mode();
             let new = ctx
-                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.flow_contexts, None)
+                .snapshot_runbook_execution(
+                    &runbook.runbook_id,
+                    &runbook.flow_contexts,
+                    None,
+                    &runbook.top_level_inputs_map,
+                )
                 .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
@@ -554,7 +559,12 @@ pub async fn handle_run_command(
             }
 
             let new = ctx
-                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.flow_contexts, None)
+                .snapshot_runbook_execution(
+                    &runbook.runbook_id,
+                    &runbook.flow_contexts,
+                    None,
+                    &runbook.top_level_inputs_map,
+                )
                 .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
@@ -569,12 +579,11 @@ pub async fn handle_run_command(
             let mut actions_to_re_execute = IndexMap::new();
             let mut actions_to_execute = IndexMap::new();
 
-            for running_context_key in consolidated_changes.new_plans_to_add.iter() {
-                let running_context =
-                    runbook.find_expected_running_context_mut(&running_context_key);
+            for flow_context_key in consolidated_changes.new_plans_to_add.iter() {
+                let running_context = runbook.find_expected_flow_context_mut(&flow_context_key);
                 running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
                 let pristine_execution_context =
-                    execution_context_backups.remove(running_context_key).unwrap();
+                    execution_context_backups.remove(flow_context_key).unwrap();
                 running_context.execution_context = pristine_execution_context;
             }
 
@@ -589,8 +598,7 @@ pub async fn handle_run_command(
                 let mut unexecuted =
                     changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
 
-                let running_context =
-                    runbook.find_expected_running_context_mut(&running_context_key);
+                let running_context = runbook.find_expected_flow_context_mut(&running_context_key);
 
                 if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
                     running_context.execution_context.execution_mode =
@@ -829,6 +837,7 @@ pub async fn handle_run_command(
                         &runbook.runbook_id,
                         &runbook.flow_contexts,
                         previous_snapshot,
+                        &runbook.top_level_inputs_map,
                     )
                     .map_err(|e| e.message)?;
                 lock_file
@@ -890,6 +899,7 @@ pub async fn handle_run_command(
                     &runbook.runbook_id,
                     &runbook.flow_contexts,
                     previous_snapshot,
+                    &runbook.top_level_inputs_map,
                 )
                 .map_err(|e| e.message)?;
             state_file_location
