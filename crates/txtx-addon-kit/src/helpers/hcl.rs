@@ -201,6 +201,9 @@ pub fn collect_constructs_references_from_expression<'a>(
 #[derive(Debug, Clone)]
 pub struct RawHclContent(String);
 impl RawHclContent {
+    pub fn from_string(s: String) -> Self {
+        RawHclContent(s)
+    }
     pub fn from_file_location(file_location: &FileLocation) -> Result<Self, Diagnostic> {
         file_location
             .read_content_as_utf8()

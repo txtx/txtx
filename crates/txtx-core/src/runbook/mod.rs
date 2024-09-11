@@ -1,4 +1,5 @@
-use kit::hcl::structure::{Attribute, Block, BlockLabel};
+use flow_context::FlowContext;
+use kit::hcl::structure::BlockLabel;
 use kit::helpers::hcl::RawHclContent;
 use kit::types::commands::CommandExecutionResult;
 use kit::types::diagnostics::DiagnosticSpan;
@@ -12,6 +13,7 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 
 mod diffing_context;
 mod execution_context;
+mod flow_context;
 mod graph_context;
 mod runtime_context;
 mod workspace_context;
@@ -22,8 +24,6 @@ pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
 pub use runtime_context::{AddonConstructFactory, RuntimeContext};
 pub use workspace_context::RunbookWorkspaceContext;
-
-use crate::eval::{self, ExpressionEvaluationStatus};
 
 #[derive(Debug)]
 pub struct Runbook {
@@ -138,11 +138,18 @@ impl Runbook {
         }
 
         // next we need to index the packages for each flow and evaluate the flow inputs
-        for (flow_name, (flow_context, attributes)) in flow_map.iter_mut() {
+        for (_, (flow_context, attributes)) in flow_map.iter_mut() {
             for package_id in package_ids.iter() {
                 flow_context.workspace_context.index_package(package_id);
                 flow_context.graph_context.index_package(package_id);
-                flow_context.index_flow_inputs_from_attributes(attributes).map_err(|e| vec![e])?;
+                flow_context.index_flow_inputs_from_attributes(
+                    attributes,
+                    &dependencies_execution_results,
+                    package_id,
+                    &dummy_workspace_context,
+                    &dummy_execution_context,
+                    runtime_context,
+                )?;
                 flow_contexts.push(flow_context.to_owned());
             }
         }
@@ -232,7 +239,10 @@ impl Runbook {
         // Ensure that the selector exists
         if let Some(ref entry) = selector {
             if !self.inputs_map.environments.contains(entry) {
-                return Err(vec![diagnosed_error!("input '{}' unknown from inputs map", entry)]);
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "input '{}' unknown from inputs map",
+                    entry
+                ))]);
             }
         }
         // Rebuild contexts
@@ -256,102 +266,6 @@ impl Runbook {
 
     pub fn get_active_inputs_selector(&self) -> Option<String> {
         self.inputs_map.current_environment.clone()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FlowContext {
-    /// The name of the flow
-    pub name: String,
-    /// The resolution context contains all the data related to source code analysis and DAG construction
-    pub graph_context: RunbookGraphContext,
-    /// The execution context contains all the data related to the execution of the runbook
-    pub execution_context: RunbookExecutionContext,
-    /// The workspace context keeps track of packages and constructs reachable
-    pub workspace_context: RunbookWorkspaceContext,
-    /// The set of environment variables used during the execution
-    pub top_level_inputs: ValueStore,
-}
-
-impl FlowContext {
-    pub fn new(name: &str, runbook_id: &RunbookId, top_level_inputs: &ValueStore) -> Self {
-        let workspace_context = RunbookWorkspaceContext::new(runbook_id.clone());
-        let graph_context = RunbookGraphContext::new();
-        let execution_context = RunbookExecutionContext::new();
-        let mut running_context = Self {
-            name: name.to_string(),
-            workspace_context,
-            graph_context,
-            execution_context,
-            top_level_inputs: top_level_inputs.clone(),
-        };
-        running_context.index_top_level_inputs(top_level_inputs);
-        running_context
-    }
-
-    pub fn is_enabled(&self) -> bool {
-        !self.execution_context.execution_mode.eq(&RunbookExecutionMode::Ignored)
-    }
-
-    /// Each key/value pair in the provided [ValueStore] is indexed in the [FlowContext]'s [RunbookWorkspaceContext],
-    /// [RunbookGraphContext], and [RunbookExecutionContext]' `command_execution_results`.
-    pub fn index_top_level_inputs(&mut self, inputs_set: &ValueStore) {
-        for (key, value) in inputs_set.iter() {
-            let construct_did = self.workspace_context.index_top_level_input(key, value);
-            self.graph_context.index_top_level_input(&construct_did);
-            let mut result = CommandExecutionResult::new();
-            result.outputs.insert("value".into(), value.clone());
-            self.execution_context.commands_execution_results.insert(construct_did, result);
-        }
-    }
-
-    pub fn index_flow_inputs_from_attributes(
-        &mut self,
-        attributes: &Vec<Attribute>,
-    ) -> Result<(), Diagnostic> {
-        for attr in attributes.into_iter() {
-            let res = eval::eval_expression(
-                &attr.value,
-                &dependencies_execution_results,
-                &package_id,
-                &dummy_workspace_context,
-                &dummy_execution_context,
-                &runtime_context,
-            )
-            .map_err(|e| e)?;
-            match res {
-                ExpressionEvaluationStatus::CompleteOk(value) => {
-                    flow_context.index_flow_input(&attr.key, value, &package_id);
-                }
-                ExpressionEvaluationStatus::DependencyNotComputed => {
-                    return Err(diagnosed_error!(
-                        "flow '{}': unable to evaluate input {}",
-                        flow_name,
-                        attr.key.to_string()
-                    ))
-                }
-                ExpressionEvaluationStatus::CompleteErr(e) => {
-                    return Err(diagnosed_error!(
-                        "flow '{}': unable to evaluate input {}: {}",
-                        flow_name,
-                        attr.key.to_string(),
-                        e.message
-                    ))
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn index_flow_input(&mut self, key: &str, value: Value, package_id: &PackageId) {
-        let construct_id =
-            self.workspace_context.index_flow_input(key, package_id, &mut self.graph_context);
-        // self.graph_context.index_top_level_input(&construct_did);
-        let mut result = CommandExecutionResult::new();
-        result.outputs.insert("value".into(), value);
-
-        // result.outputs.insert(key.into(), value);
-        self.execution_context.commands_execution_results.insert(construct_id.did(), result);
     }
 }
 
@@ -429,7 +343,7 @@ impl RunbookSources {
     }
 
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
-        self.tree.insert(location, (name, RawHclContent(content)));
+        self.tree.insert(location, (name, RawHclContent::from_string(content)));
     }
 
     pub fn to_vec_dequeue(&self) -> VecDeque<(FileLocation, String, RawHclContent)> {
