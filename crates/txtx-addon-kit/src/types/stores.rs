@@ -45,6 +45,12 @@ impl ValueStore {
         }
         self
     }
+    pub fn with_inputs_from_vec(mut self, inputs: &Vec<(String, Value)>) -> Self {
+        for (k, v) in inputs.iter() {
+            self.inputs.insert(k, v.clone());
+        }
+        self
+    }
 
     pub fn with_checked_inputs(
         mut self,
@@ -198,6 +204,14 @@ impl ValueStore {
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.inputs.get_mut(key)
     }
+
+    pub fn append_no_override(&mut self, other: &ValueStore) {
+        for (key, value) in &other.inputs.store {
+            if self.inputs.get_value(&key).is_none() {
+                self.inputs.insert(&key, value.clone());
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +224,12 @@ pub struct AddonDefaults {
 impl AddonDefaults {
     pub fn new(key: &str) -> AddonDefaults {
         AddonDefaults { store: ValueMap::new(), name: key.to_string(), uuid: Did::zero() }
+    }
+    pub fn insert(&mut self, key: &str, value: Value) {
+        self.store.insert(key, value);
+    }
+    pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
+        self.store.iter()
     }
 }
 
