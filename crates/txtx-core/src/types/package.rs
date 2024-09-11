@@ -6,8 +6,10 @@ use txtx_addon_kit::types::ConstructDid;
 pub struct Package {
     /// Id of the Package
     pub package_id: PackageId,
+    pub flow_inputs_dids: HashSet<ConstructDid>,
+    pub flow_inputs_did_lookup: HashMap<String, ConstructDid>,
     pub variables_dids: HashSet<ConstructDid>,
-    pub inputs_did_lookup: HashMap<String, ConstructDid>,
+    pub variables_did_lookup: HashMap<String, ConstructDid>,
     pub outputs_dids: HashSet<ConstructDid>,
     pub outputs_did_lookup: HashMap<String, ConstructDid>,
     pub modules_dids: HashSet<ConstructDid>,
@@ -24,8 +26,10 @@ impl Package {
     pub fn new(package_id: &PackageId) -> Self {
         Self {
             package_id: package_id.clone(),
+            flow_inputs_dids: HashSet::new(),
+            flow_inputs_did_lookup: HashMap::new(),
             variables_dids: HashSet::new(),
-            inputs_did_lookup: HashMap::new(),
+            variables_did_lookup: HashMap::new(),
             outputs_dids: HashSet::new(),
             outputs_did_lookup: HashMap::new(),
             modules_dids: HashSet::new(),

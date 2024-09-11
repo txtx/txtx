@@ -306,7 +306,7 @@ pub async fn run_constructs_evaluation(
 
     let mut unexecutable_nodes: HashSet<ConstructDid> = HashSet::new();
 
-    let environments_variables = runbook_workspace_context.environment_variables_values.clone();
+    let environments_variables = runbook_workspace_context.top_level_inputs_values.clone();
     for (env_variable_uuid, value) in environments_variables.into_iter() {
         let mut res = CommandExecutionResult::new();
         res.outputs.insert("value".into(), value);

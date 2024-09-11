@@ -1,4 +1,4 @@
-use crate::runbook::RunbookInputsMap;
+use crate::runbook::RunbookTopLevelInputsMap;
 use kit::helpers::fs::{FileAccessor, FileLocation};
 use kit::indexmap::IndexMap;
 use kit::serde::{Deserialize, Serialize};
@@ -114,14 +114,14 @@ impl WorkspaceManifest {
         selector: &Option<String>,
         cli_inputs: &Vec<String>,
         buffer_stdin: Option<String>,
-    ) -> Result<RunbookInputsMap, String> {
+    ) -> Result<RunbookTopLevelInputsMap, String> {
         if let Some(selector) = selector {
             if self.environments.get(selector).is_none() {
                 return Err(format!("environment '{}' unknown from manifest", selector));
             }
         }
 
-        let mut inputs_map = RunbookInputsMap::new();
+        let mut inputs_map = RunbookTopLevelInputsMap::new();
         for (selector, inputs) in self.environments.iter() {
             let mut values = vec![];
             for (key, value) in inputs.iter() {

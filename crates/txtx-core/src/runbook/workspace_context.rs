@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+use crate::runbook::RawHclContent;
 use crate::std::commands;
 use crate::types::{Package, PreConstructData};
 use kit::hcl::expr::{Expression, TraversalOperator};
-use kit::hcl::structure::{Block, BlockLabel};
+use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use kit::helpers::hcl::visit_required_string_literal_attribute;
@@ -13,7 +14,6 @@ use kit::types::signers::SignerInstance;
 use kit::types::stores::AddonDefaults;
 use kit::types::types::Value;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
-use txtx_addon_kit::hcl;
 
 use super::{
     get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
@@ -34,10 +34,10 @@ pub struct RunbookWorkspaceContext {
     pub packages: HashMap<PackageId, Package>,
     /// Map of constructs. A construct refers to root level objects (input, action, output, signer, import, ...)
     pub constructs: HashMap<ConstructDid, ConstructId>,
-    /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
-    pub environment_variables_did_lookup: BTreeMap<String, ConstructDid>,
-    /// Lookup: Retrieve a construct did, given an environment name (mainnet, testnet, etc)
-    pub environment_variables_values: BTreeMap<ConstructDid, Value>,
+    /// Lookup: Retrieve a construct did, given an environment variable name ('name' in env.name)
+    pub top_level_inputs_did_lookup: BTreeMap<String, ConstructDid>,
+    /// Lookup: Retrieve a value given an environment variable construct did
+    pub top_level_inputs_values: BTreeMap<ConstructDid, Value>,
 
     pub addons_defaults: HashMap<(PackageDid, String), AddonDefaults>,
 
@@ -50,8 +50,8 @@ impl RunbookWorkspaceContext {
             runbook_id,
             packages: HashMap::new(),
             constructs: HashMap::new(),
-            environment_variables_did_lookup: BTreeMap::new(),
-            environment_variables_values: BTreeMap::new(),
+            top_level_inputs_did_lookup: BTreeMap::new(),
+            top_level_inputs_values: BTreeMap::new(),
             addons_defaults: HashMap::new(),
             std_defaults: AddonDefaults::new("std"),
         }
@@ -79,21 +79,12 @@ impl RunbookWorkspaceContext {
         }
 
         while let Some((location, package_name, raw_content)) = sources.pop_front() {
-            let content = hcl::parser::parse_body(&raw_content).map_err(|e| {
-                vec![diagnosed_error!("parsing error: {}", e.to_string()).location(&location)]
-            })?;
-            let package_location = location
-                .get_parent_location()
-                .map_err(|e| vec![diagnosed_error!("{}", e.to_string()).location(&location)])?;
-            let package_id = PackageId {
-                runbook_id: self.runbook_id.clone(),
-                package_location: package_location.clone(),
-                package_name: package_name.clone(),
-            };
-            self.index_package(&package_id);
-            graph_context.index_package(&package_id);
+            let package_id = PackageId::from_file(&location, &self.runbook_id, &package_name)
+                .map_err(|e| vec![e])?;
 
-            let mut blocks = content.into_blocks().into_iter().collect::<VecDeque<Block>>();
+            let mut blocks =
+                raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+
             while let Some(block) = blocks.pop_front() {
                 match block.ident.value().as_str() {
                     "import" => {
@@ -131,10 +122,8 @@ impl RunbookWorkspaceContext {
                                     let file_location = FileLocation::from_path(file_path);
                                     if !files_visited.contains(&file_location) {
                                         let raw_content =
-                                            file_location.read_content_as_utf8().map_err(|e| {
-                                                vec![diagnosed_error!("{}", e.to_string())
-                                                    .location(&file_location)]
-                                            })?;
+                                            RawHclContent::from_file_location(&file_location)
+                                                .map_err(|diag| vec![diag])?;
                                         let module_name = name.to_string();
                                         sources.push_back((
                                             file_location,
@@ -146,11 +135,8 @@ impl RunbookWorkspaceContext {
                             }
                             Err(_) => {
                                 if !files_visited.contains(&imported_package_location) {
-                                    let raw_content =
-                                        location.read_content_as_utf8().map_err(|e| {
-                                            vec![diagnosed_error!("{}", e.to_string())
-                                                .location(&location)]
-                                        })?;
+                                    let raw_content = RawHclContent::from_file_location(&location)
+                                        .map_err(|diag| vec![diag])?;
                                     let module_name = name.to_string();
                                     sources.push_back((
                                         imported_package_location.clone(),
@@ -301,7 +287,7 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "runtime" => {}
+                    "flow" | "addon" => {}
                     unknown => {
                         diagnostics.push(
                             Diagnostic::error_from_string(format!("unknown construct {}", unknown))
@@ -319,15 +305,18 @@ impl RunbookWorkspaceContext {
         }
     }
 
-    pub fn index_environment_variable(&mut self, key: &String, value: &Value) -> ConstructDid {
+    /// Creates a [ConstructDid] from the provided `key`. Indexes the `value` in the `top_level_inputs_values` map by the [ConstructDid].
+    /// Indexes the [ConstructDid] in the `top_level_inputs_did_lookup` by the `key`.
+    /// Returns the new [ConstructDid]
+    pub fn index_top_level_input(&mut self, key: &str, value: &Value) -> ConstructDid {
         let construct_did =
             ConstructDid(Did::from_components(vec!["runbook_input".as_bytes(), key.as_bytes()]));
-        self.environment_variables_values.insert(construct_did.clone(), value.clone());
-        self.environment_variables_did_lookup.insert(key.clone(), construct_did.clone());
+        self.top_level_inputs_values.insert(construct_did.clone(), value.clone());
+        self.top_level_inputs_did_lookup.insert(key.to_string(), construct_did.clone());
         construct_did
     }
 
-    fn index_package(&mut self, package_id: &PackageId) {
+    pub fn index_package(&mut self, package_id: &PackageId) {
         loop {
             if let Some(_) = self.packages.get(&package_id) {
                 break;
@@ -336,6 +325,27 @@ impl RunbookWorkspaceContext {
             self.packages.insert(package_id.clone(), package);
             continue;
         }
+    }
+
+    pub fn index_flow_input(
+        &mut self,
+        input_name: &str,
+        package_id: &PackageId,
+        graph_context: &mut RunbookGraphContext,
+    ) -> ConstructId {
+        let package =
+            self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
+        let construct_id = ConstructId {
+            package_id: package_id.clone(),
+            construct_type: "flow_input".into(),
+            construct_location: package_id.package_location.clone(),
+            construct_name: input_name.to_string(),
+        };
+        let construct_did = construct_id.did();
+        package.flow_inputs_dids.insert(construct_did.clone());
+        package.flow_inputs_did_lookup.insert(input_name.to_string(), construct_did.clone());
+        graph_context.index_construct(&construct_did);
+        construct_id
     }
 
     fn index_construct(
@@ -375,7 +385,7 @@ impl RunbookWorkspaceContext {
             }
             PreConstructData::Variable(block) => {
                 package.variables_dids.insert(construct_did.clone());
-                package.inputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
+                package.variables_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_input_specification(),
                     name: construct_name.clone(),
@@ -493,13 +503,13 @@ impl RunbookWorkspaceContext {
             // Look for modules
             if is_root {
                 // Look for env variables
-                if component.eq_ignore_ascii_case("env") {
+                if component.eq_ignore_ascii_case("input") {
                     let Some(env_variable_name) = components.pop_front() else {
                         continue;
                     };
 
                     if let Some(construct_did) =
-                        self.environment_variables_did_lookup.get(&env_variable_name)
+                        self.top_level_inputs_did_lookup.get(&env_variable_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
@@ -540,7 +550,8 @@ impl RunbookWorkspaceContext {
                     let Some(input_name) = components.pop_front() else {
                         continue;
                     };
-                    if let Some(construct_did) = current_package.inputs_did_lookup.get(&input_name)
+                    if let Some(construct_did) =
+                        current_package.variables_did_lookup.get(&input_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
@@ -568,6 +579,19 @@ impl RunbookWorkspaceContext {
                     };
                     if let Some(construct_did) =
                         current_package.signers_did_lookup.get(&signer_name)
+                    {
+                        return Ok(Some((construct_did.clone(), components, subpath)));
+                    }
+                }
+
+                // Look for flows
+                if component.eq_ignore_ascii_case("flow") {
+                    is_root = false;
+                    let Some(flow_input_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_did) =
+                        current_package.flow_inputs_did_lookup.get(&flow_input_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }

@@ -43,7 +43,7 @@ use txtx_core::{
     },
     runbook::{
         AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot,
-        RunbookInputsMap, SynthesizedChange,
+        RunbookTopLevelInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
@@ -210,7 +210,7 @@ pub async fn handle_check_command(
         Some(RunbookState::File(state_file_location)) => {
             let ctx = RunbookSnapshotContext::new();
             let old = load_runbook_execution_snapshot(state_file_location, true)?;
-            for run in runbook.running_contexts.iter_mut() {
+            for run in runbook.flow_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let _res = run
                     .execution_context
@@ -224,7 +224,7 @@ pub async fn handle_check_command(
             }
             runbook.enable_full_execution_mode();
             let new = ctx
-                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.flow_contexts, None)
                 .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
@@ -544,7 +544,7 @@ pub async fn handle_run_command(
 
             let mut execution_context_backups = HashMap::new();
 
-            for run in runbook.running_contexts.iter_mut() {
+            for run in runbook.flow_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let execution_context_backup = run.execution_context.clone();
                 let _res = run
@@ -557,11 +557,11 @@ pub async fn handle_run_command(
                     )
                     .await;
                 execution_context_backups
-                    .insert(run.inputs_set.name.clone(), execution_context_backup);
+                    .insert(run.top_level_inputs.name.clone(), execution_context_backup);
             }
 
             let new = ctx
-                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.running_contexts, None)
+                .snapshot_runbook_execution(&runbook.runbook_id, &runbook.flow_contexts, None)
                 .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
@@ -750,7 +750,7 @@ pub async fn handle_run_command(
         for (location, _) in runbook.sources.tree.iter() {
             println!("Loading {}", location);
         }
-        for running_context in runbook.running_contexts.iter_mut() {
+        for running_context in runbook.flow_contexts.iter_mut() {
             // running_context.execution_context.simulate_inputs_execution(&runbook.runtime_context, &running_context.workspace_context);
             let sorted_commands = &running_context.execution_context.order_for_commands_execution;
             for c in sorted_commands.iter() {
@@ -817,7 +817,7 @@ pub async fn handle_run_command(
                 println!("{}", red!(format!("- {}", diag)));
             }
 
-            for running_context in runbook.running_contexts.iter_mut() {
+            for running_context in runbook.flow_contexts.iter_mut() {
                 running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
             }
 
@@ -834,7 +834,7 @@ pub async fn handle_run_command(
                 let snapshot = diff
                     .snapshot_runbook_execution(
                         &runbook.runbook_id,
-                        &runbook.running_contexts,
+                        &runbook.flow_contexts,
                         previous_snapshot,
                     )
                     .map_err(|e| e.message)?;
@@ -848,10 +848,10 @@ pub async fn handle_run_command(
 
         let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<String>>> =
             IndexMap::new();
-        for running_context in runbook.running_contexts.iter() {
+        for flow_context in runbook.flow_contexts.iter() {
             let mut running_context_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
             let grouped_actions_items =
-                running_context.execution_context.collect_outputs_constructs_results();
+                flow_context.execution_context.collect_outputs_constructs_results();
 
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
@@ -876,8 +876,7 @@ pub async fn handle_run_command(
                     }
                 }
             }
-            collected_outputs
-                .insert(running_context.inputs_set.name.clone(), running_context_outputs);
+            collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
         }
 
         if let Some(RunbookState::File(state_file_location)) = runbook_state {
@@ -896,7 +895,7 @@ pub async fn handle_run_command(
             let snapshot = diff
                 .snapshot_runbook_execution(
                     &runbook.runbook_id,
-                    &runbook.running_contexts,
+                    &runbook.flow_contexts,
                     previous_snapshot,
                 )
                 .map_err(|e| e.message)?;
@@ -1152,14 +1151,14 @@ pub async fn load_runbook_from_manifest(
         runbooks.into_iter()
     {
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
-            let inputs_map =
+            let top_level_inputs_map =
                 manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
             let res = runbook
                 .build_contexts_from_sources(
                     runbook_sources,
-                    inputs_map,
+                    top_level_inputs_map,
                     authorization_context,
                     available_addons,
                 )
@@ -1186,7 +1185,7 @@ pub async fn load_runbook_from_file_path(
         read_runbook_from_location(&location, &None, &None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
-    let mut inputs_map = RunbookInputsMap::new();
+    let mut inputs_map = RunbookTopLevelInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
     let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);

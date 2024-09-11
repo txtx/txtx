@@ -1,4 +1,4 @@
-use super::{RunbookExecutionMode, RunningContext};
+use super::{FlowContext, RunbookExecutionMode};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
@@ -109,7 +109,7 @@ impl RunbookSnapshotContext {
     pub fn snapshot_runbook_execution(
         &self,
         runbook_id: &RunbookId,
-        running_contexts: &Vec<RunningContext>,
+        running_contexts: &Vec<FlowContext>,
         previous_snapshot: Option<RunbookExecutionSnapshot>,
     ) -> Result<RunbookExecutionSnapshot, Diagnostic> {
         // &runbook.workspace_context,
@@ -118,7 +118,7 @@ impl RunbookSnapshotContext {
         let mut snapshot = RunbookExecutionSnapshot::new(&runbook_id);
 
         for running_context in running_contexts.iter() {
-            let run_id = running_context.inputs_set.name.clone();
+            let run_id = running_context.top_level_inputs.name.clone();
             let (mut run, constructs_ids_to_consider) =
                 match &running_context.execution_context.execution_mode {
                     RunbookExecutionMode::Ignored => {
@@ -135,7 +135,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::Full => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.inputs_set.inputs.store.clone();
+                        let mut inputs = running_context.top_level_inputs.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {
@@ -148,7 +148,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::FullFailed => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.inputs_set.inputs.store.clone();
+                        let mut inputs = running_context.top_level_inputs.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {
