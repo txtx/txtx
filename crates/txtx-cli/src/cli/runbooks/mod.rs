@@ -452,7 +452,7 @@ pub async fn run_action(
         .create_command_instance(&command_id, namespace, command_name, &block, &package_id)
         .unwrap();
 
-    let mut inputs = ValueStore::new("inputs", &construct_did);
+    let mut inputs = ValueStore::new("inputs", &construct_did).with_defaults(&addon_defaults.store);
 
     for input in raw_inputs.iter() {
         let Some((input_name, input_value)) = input.split_once("=") else {
@@ -468,14 +468,7 @@ pub async fn run_action(
     let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
-        .perform_execution(
-            &ConstructDid(construct_did),
-            &evaluated_inputs,
-            addon_defaults,
-            &mut vec![],
-            &None,
-            &tx,
-        )
+        .perform_execution(&ConstructDid(construct_did), &evaluated_inputs, &mut vec![], &None, &tx)
         .await?;
     Ok(())
 }

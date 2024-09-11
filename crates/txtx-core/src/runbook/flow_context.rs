@@ -1,8 +1,9 @@
 use kit::hcl::structure::Attribute;
+use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionResult;
 use kit::types::stores::ValueStore;
 use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{ConstructDid, PackageId, RunbookId};
+use kit::types::{ConstructDid, Did, PackageId, RunbookId};
 use std::collections::HashMap;
 
 use crate::eval::{self, ExpressionEvaluationStatus};
@@ -24,6 +25,8 @@ pub struct FlowContext {
     pub workspace_context: RunbookWorkspaceContext,
     /// The set of environment variables used during the execution
     pub top_level_inputs: ValueStore,
+    /// The evaluated inputs to this flow
+    pub evaluated_inputs: ValueStore,
 }
 
 impl FlowContext {
@@ -37,6 +40,7 @@ impl FlowContext {
             graph_context,
             execution_context,
             top_level_inputs: top_level_inputs.clone(),
+            evaluated_inputs: ValueStore::new(name, &Did::zero()),
         };
         running_context.index_top_level_inputs(top_level_inputs);
         running_context
@@ -107,6 +111,7 @@ impl FlowContext {
     pub fn index_flow_input(&mut self, key: &str, value: Value, package_id: &PackageId) {
         let construct_id =
             self.workspace_context.index_flow_input(key, package_id, &mut self.graph_context);
+        self.evaluated_inputs.insert(key.into(), value.clone());
         // self.graph_context.index_top_level_input(&construct_did);
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".into(), value);

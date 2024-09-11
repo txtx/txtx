@@ -29,14 +29,12 @@ impl ValueStore {
             defaults: ValueMap::new(),
         }
     }
-
-    pub fn new_with_defaults(name: &str, uuid: &Did, defaults: ValueMap) -> ValueStore {
-        ValueStore { name: name.to_string(), uuid: uuid.clone(), inputs: ValueMap::new(), defaults }
+    pub fn with_inputs(mut self, inputs: &ValueMap) -> Self {
+        self.inputs = inputs.clone();
+        self
     }
-    pub fn with_inputs(mut self, inputs: &ValueStore) -> Self {
-        for (key, value) in inputs.iter() {
-            self.inputs.insert(key, value.clone());
-        }
+    pub fn with_defaults(mut self, defaults: &ValueMap) -> Self {
+        self.defaults = defaults.clone();
         self
     }
     pub fn with_inputs_from_map(mut self, inputs: &HashMap<String, Value>) -> Self {
@@ -52,15 +50,14 @@ impl ValueStore {
         self
     }
 
-    pub fn with_checked_inputs(
-        mut self,
+    pub fn check(
+        self,
         instance_name: &str,
-        inputs: &ValueStore,
         spec_inputs: &Vec<CommandInput>,
     ) -> Result<Self, Diagnostic> {
         for input in spec_inputs.iter() {
-            let value = match inputs.get_value(&input.name) {
-                Some(value) => value.clone(),
+            match self.inputs.get_value(&input.name) {
+                Some(_) => {}
                 None => match input.optional {
                     true => continue,
                     false => {
@@ -71,7 +68,6 @@ impl ValueStore {
                     }
                 },
             };
-            self.inputs.insert(&input.name, value);
         }
         Ok(self)
     }
