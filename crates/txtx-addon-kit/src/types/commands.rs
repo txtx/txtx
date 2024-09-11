@@ -64,6 +64,14 @@ impl CommandExecutionResult {
             self.outputs.insert(key, value);
         }
     }
+
+    pub fn from_value_store(store: &ValueStore) -> Self {
+        let mut outputs = HashMap::new();
+        for (key, value) in store.iter() {
+            outputs.insert(key.clone(), value.clone());
+        }
+        Self { outputs }
+    }
 }
 
 #[derive(Clone, Debug)]
