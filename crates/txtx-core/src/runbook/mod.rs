@@ -39,7 +39,8 @@ pub struct Runbook {
     pub supervision_context: RunbookSupervisionContext,
     /// Source files
     pub sources: RunbookSources,
-    pub inputs_map: RunbookTopLevelInputsMap, // the store that will contain _all_ of the environment variables (mainnet,testnet,etc), consolidated with the CLI inputs
+    // The store that will contain _all_ of the environment variables (mainnet,testnet,etc), consolidated with the CLI inputs
+    pub top_level_inputs_map: RunbookTopLevelInputsMap,
 }
 
 impl Runbook {
@@ -51,7 +52,7 @@ impl Runbook {
             runtime_context: RuntimeContext::new(vec![], AuthorizationContext::empty()),
             sources: RunbookSources::new(),
             supervision_context: RunbookSupervisionContext::new(),
-            inputs_map: RunbookTopLevelInputsMap::new(),
+            top_level_inputs_map: RunbookTopLevelInputsMap::new(),
         }
     }
 
@@ -213,7 +214,7 @@ impl Runbook {
         self.flow_contexts = flow_contexts;
         self.runtime_context = runtime_context;
         self.sources = sources;
-        self.inputs_map = top_level_inputs_map;
+        self.top_level_inputs_map = top_level_inputs_map;
         Ok(true)
     }
 
@@ -232,13 +233,13 @@ impl Runbook {
         force: bool,
     ) -> Result<bool, Vec<Diagnostic>> {
         // Ensure that the value of the selector is changing
-        if !force && selector.eq(&self.inputs_map.current_environment) {
+        if !force && selector.eq(&self.top_level_inputs_map.current_environment) {
             return Ok(false);
         }
 
         // Ensure that the selector exists
         if let Some(ref entry) = selector {
-            if !self.inputs_map.environments.contains(entry) {
+            if !self.top_level_inputs_map.environments.contains(entry) {
                 return Err(vec![Diagnostic::error_from_string(format!(
                     "input '{}' unknown from inputs map",
                     entry
@@ -246,7 +247,7 @@ impl Runbook {
             }
         }
         // Rebuild contexts
-        let mut inputs_map = self.inputs_map.clone();
+        let mut inputs_map = self.top_level_inputs_map.clone();
         inputs_map.current_environment = selector;
         let available_addons = self.runtime_context.collect_available_addons();
         let authorization_context: AuthorizationContext =
@@ -261,11 +262,11 @@ impl Runbook {
     }
 
     pub fn get_inputs_selectors(&self) -> Vec<String> {
-        self.inputs_map.environments.clone()
+        self.top_level_inputs_map.environments.clone()
     }
 
     pub fn get_active_inputs_selector(&self) -> Option<String> {
-        self.inputs_map.current_environment.clone()
+        self.top_level_inputs_map.current_environment.clone()
     }
 }
 

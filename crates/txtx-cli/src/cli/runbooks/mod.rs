@@ -544,20 +544,20 @@ pub async fn handle_run_command(
 
             let mut execution_context_backups = HashMap::new();
 
-            for run in runbook.flow_contexts.iter_mut() {
+            for flow_context in runbook.flow_contexts.iter_mut() {
                 let frontier = HashSet::new();
-                let execution_context_backup = run.execution_context.clone();
-                let _res = run
+                let execution_context_backup = flow_context.execution_context.clone();
+                let _res = flow_context
                     .execution_context
                     .simulate_execution(
                         &runbook.runtime_context,
-                        &run.workspace_context,
+                        &flow_context.workspace_context,
                         &runbook.supervision_context,
                         &frontier,
                     )
                     .await;
                 execution_context_backups
-                    .insert(run.top_level_inputs.name.clone(), execution_context_backup);
+                    .insert(flow_context.name.clone(), execution_context_backup);
             }
 
             let new = ctx

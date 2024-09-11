@@ -117,10 +117,10 @@ impl RunbookSnapshotContext {
 
         let mut snapshot = RunbookExecutionSnapshot::new(&runbook_id);
 
-        for running_context in running_contexts.iter() {
-            let run_id = running_context.top_level_inputs.name.clone();
+        for flow_context in running_contexts.iter() {
+            let run_id = flow_context.name.clone();
             let (mut run, constructs_ids_to_consider) =
-                match &running_context.execution_context.execution_mode {
+                match &flow_context.execution_context.execution_mode {
                     RunbookExecutionMode::Ignored => {
                         // Runbook was fully executed, the source of truth is the snapshoted context
                         let previous_flow = previous_snapshot
@@ -135,7 +135,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::Full => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.top_level_inputs.inputs.store.clone();
+                        let mut inputs = flow_context.top_level_inputs.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {
@@ -148,7 +148,7 @@ impl RunbookSnapshotContext {
                     }
                     RunbookExecutionMode::FullFailed => {
                         // Runbook was fully executed, the source of truth is the new running context
-                        let mut inputs = running_context.top_level_inputs.inputs.store.clone();
+                        let mut inputs = flow_context.top_level_inputs.inputs.store.clone();
                         inputs.sort_keys();
                         let constructs_ids_to_consider = vec![];
                         let run = RunbookRunSnapshot {
@@ -175,7 +175,7 @@ impl RunbookSnapshotContext {
 
             // Order packages
             let mut packages =
-                running_context.workspace_context.packages.keys().into_iter().collect::<Vec<_>>();
+                flow_context.workspace_context.packages.keys().into_iter().collect::<Vec<_>>();
             packages.sort_by_key(|k| k.did().0);
 
             for package_id in packages {
@@ -199,13 +199,13 @@ impl RunbookSnapshotContext {
 
             // Signing commands
             for (signer_did, downstream_constructs_dids) in
-                running_context.execution_context.signers_downstream_dependencies.iter()
+                flow_context.execution_context.signers_downstream_dependencies.iter()
             {
                 let command_instance =
-                    running_context.execution_context.signers_instances.get(&signer_did).unwrap();
+                    flow_context.execution_context.signers_instances.get(&signer_did).unwrap();
 
                 let signing_construct_id =
-                    running_context.workspace_context.constructs.get(signer_did).unwrap();
+                    flow_context.workspace_context.constructs.get(signer_did).unwrap();
 
                 let downstream_constructs_dids =
                     downstream_constructs_dids.iter().map(|c| c.clone()).collect();
@@ -223,7 +223,7 @@ impl RunbookSnapshotContext {
                 run.signers.insert(signer_did.clone(), new_command);
                 let command_to_update = run.signers.get_mut(signer_did).unwrap();
 
-                if let Some(inputs_evaluations) = running_context
+                if let Some(inputs_evaluations) = flow_context
                     .execution_context
                     .commands_inputs_evaluation_results
                     .get(signer_did)
@@ -233,7 +233,7 @@ impl RunbookSnapshotContext {
                 }
 
                 if let Some(outputs_results) =
-                    running_context.execution_context.commands_execution_results.get(signer_did)
+                    flow_context.execution_context.commands_execution_results.get(signer_did)
                 {
                     for output in command_instance.specification.outputs.iter() {
                         let Some(value) = outputs_results.outputs.get(&output.name) else {
@@ -244,8 +244,7 @@ impl RunbookSnapshotContext {
                 }
             }
 
-            for construct_did in
-                running_context.execution_context.order_for_commands_execution.iter()
+            for construct_did in flow_context.execution_context.order_for_commands_execution.iter()
             {
                 if !constructs_ids_to_consider.is_empty()
                     && !constructs_ids_to_consider.contains(construct_did)
@@ -253,35 +252,31 @@ impl RunbookSnapshotContext {
                     continue;
                 }
 
-                let command_instance = match running_context
-                    .execution_context
-                    .commands_instances
-                    .get(&construct_did)
-                {
-                    Some(entry) => entry,
-                    None => {
-                        continue;
-                    }
-                };
+                let command_instance =
+                    match flow_context.execution_context.commands_instances.get(&construct_did) {
+                        Some(entry) => entry,
+                        None => {
+                            continue;
+                        }
+                    };
 
                 let construct_id =
-                    running_context.workspace_context.constructs.get(construct_did).unwrap();
+                    flow_context.workspace_context.constructs.get(construct_did).unwrap();
 
                 let mut upstream_constructs_dids = vec![];
-                if let Some(deps) = running_context
+                if let Some(deps) = flow_context
                     .execution_context
                     .signed_commands_upstream_dependencies
                     .get(construct_did)
                 {
                     for construct_did in deps.iter() {
-                        if running_context.workspace_context.constructs.get(construct_did).is_some()
-                        {
+                        if flow_context.workspace_context.constructs.get(construct_did).is_some() {
                             upstream_constructs_dids.push(construct_did.clone());
                         }
                     }
                 }
 
-                let executed = running_context
+                let executed = flow_context
                     .execution_context
                     .commands_execution_results
                     .get(construct_did)
@@ -306,7 +301,7 @@ impl RunbookSnapshotContext {
                     }
                 };
 
-                if let Some(inputs_evaluations) = running_context
+                if let Some(inputs_evaluations) = flow_context
                     .execution_context
                     .commands_inputs_evaluation_results
                     .get(construct_did)
@@ -320,11 +315,9 @@ impl RunbookSnapshotContext {
                         if input.sensitive {
                             continue;
                         }
-                        let critical = running_context
-                            .execution_context
-                            .signed_commands
-                            .contains(construct_did)
-                            && input.tainting;
+                        let critical =
+                            flow_context.execution_context.signed_commands.contains(construct_did)
+                                && input.tainting;
                         match command_instance.get_expression_from_input(input) {
                             Ok(Some(entry)) => {
                                 let input_name = &input.name;
@@ -357,10 +350,8 @@ impl RunbookSnapshotContext {
                 if let Some(ref critical_output) =
                     command_instance.specification.create_critical_output
                 {
-                    if let Some(outputs_results) = running_context
-                        .execution_context
-                        .commands_execution_results
-                        .get(construct_did)
+                    if let Some(outputs_results) =
+                        flow_context.execution_context.commands_execution_results.get(construct_did)
                     {
                         let mut sorted_outputs = command_instance.specification.outputs.clone();
                         sorted_outputs.sort_by(|a, b| a.name.cmp(&b.name));

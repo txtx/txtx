@@ -306,11 +306,11 @@ pub async fn run_constructs_evaluation(
 
     let mut unexecutable_nodes: HashSet<ConstructDid> = HashSet::new();
 
-    let environments_variables = runbook_workspace_context.top_level_inputs_values.clone();
-    for (env_variable_uuid, value) in environments_variables.into_iter() {
+    let top_level_inputs = runbook_workspace_context.top_level_inputs_values.clone();
+    for (input_uuid, value) in top_level_inputs.into_iter() {
         let mut res = CommandExecutionResult::new();
         res.outputs.insert("value".into(), value);
-        runbook_execution_context.commands_execution_results.insert(env_variable_uuid, res);
+        runbook_execution_context.commands_execution_results.insert(input_uuid, res);
     }
 
     for signer_states in runbook_execution_context.signers_state.iter_mut() {
