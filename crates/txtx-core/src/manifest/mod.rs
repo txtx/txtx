@@ -131,7 +131,8 @@ impl WorkspaceManifest {
             inputs_map.values.insert(Some(selector.to_string()), values);
         }
         inputs_map.values.insert(None, vec![]);
-        inputs_map.current = inputs_map.environments.get(0).map(|v| v.to_string());
+        inputs_map.current_environment =
+            selector.clone().or(inputs_map.environments.get(0).map(|v| v.to_string()));
         inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
         Ok(inputs_map)
     }
