@@ -884,7 +884,7 @@ impl CommandInstance {
             }
             None => {}
         }
-        println!("values before checking signed executability {:?}", values);
+
         let spec = &self.specification;
         let future = (spec.check_signed_executability)(
             &construct_did,

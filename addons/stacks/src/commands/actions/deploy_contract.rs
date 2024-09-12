@@ -374,7 +374,6 @@ impl CommandImplementation for StacksDeployContract {
         if let Some(Value::Object(obj)) = evaluated_inputs.inputs.get_mut("contract") {
             obj.insert("contract_source".into(), Value::string(contract_source));
         }
-        println!("evaluated_inputs after post processing: {:?}", evaluated_inputs);
 
         Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
     }

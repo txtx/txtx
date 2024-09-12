@@ -441,10 +441,6 @@ pub async fn run_constructs_evaluation(
                 &construct_did,
                 &action_item_responses.get(&construct_did),
             );
-            println!(
-                "evaluated inputs before checking signed executability {:?}",
-                evaluated_inputs
-            );
             let res = command_instance
                 .check_signed_executability(
                     &construct_did,
