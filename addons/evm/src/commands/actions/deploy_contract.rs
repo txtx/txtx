@@ -17,12 +17,12 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::get_typed_transaction_bytes;
+use crate::codec::{get_typed_transaction_bytes, verify::DeploymentArtifacts};
 
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
-    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
-    TX_HASH,
+    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT,
+    EXPLORER_VERIFICATION_OPTS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EVMRpc;
 use crate::typing::CONTRACT_METADATA;
@@ -147,13 +147,26 @@ lazy_static! {
                 tainting: true,
                 internal: false
             },
-            block_explorer_api_key: {
+            explorer_verification_opts: {
                 documentation: "The URL of the block explorer used to verify the contract.",
-                typing: Type::string(),
+                typing: Type::array(define_object_type!{
+                    key: {
+                        documentation: "The block explorer API key.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    },
+                    url: {
+                        documentation: "The block explorer contract verification URL (default Etherscan).",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true
+                    }
+                }),
                 optional: true,
-                tainting: false,
+                tainting: true,
                 internal: false
-            }
+            },
           ],
           outputs: [
               tx_hash: {
@@ -359,10 +372,15 @@ impl CommandImplementation for EVMDeployContract {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
+            let do_verify = inputs
+                .get_bool(DO_VERIFY_CONTRACT)
+                .unwrap_or(inputs.get_array(EXPLORER_VERIFICATION_OPTS).is_some());
             if do_verify {
                 let contract_artifacts = inputs.get_expected_value("contract")?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
+                if let Some(opts) = inputs.get_value(EXPLORER_VERIFICATION_OPTS) {
+                    inputs.insert(EXPLORER_VERIFICATION_OPTS, opts.clone());
+                }
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
@@ -440,7 +458,9 @@ async fn build_unsigned_contract_deploy(
 }
 
 pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
-    let contract = args.get_expected_object("contract").map_err(|e| e.to_string())?;
+    let artifacts = DeploymentArtifacts::from_value(
+        args.get_expected_value("contract").map_err(|e| e.to_string())?,
+    )?;
     let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
         let sol_args = function_args
             .expect_array()
@@ -452,16 +472,12 @@ pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
         None
     };
 
-    let Some(bytecode) =
-        contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
-    else {
-        return Err(format!("contract missing required bytecode"));
-    };
+    let bytecode = artifacts.bytecode;
 
     // if we have an abi available in the contract, parse it out
-    let json_abi: Option<JsonAbi> = match contract.get("abi") {
+    let json_abi: Option<JsonAbi> = match artifacts.abi {
         Some(abi_string) => {
-            let abi = serde_json::from_str(&abi_string.expect_string())
+            let abi = serde_json::from_str(&abi_string)
                 .map_err(|e| format!("failed to decode contract abi: {e}"))?;
             Some(abi)
         }

@@ -1,4 +1,9 @@
 use alloy::json_abi::JsonAbi;
+use forge_verify::Config as FoundryConfig;
+use foundry_config::figment::{
+    providers::{Format, Toml},
+    Figment,
+};
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -16,11 +21,11 @@ pub struct FoundryCompiledOutputJson {
 }
 
 impl FoundryCompiledOutputJson {
-    pub fn get_contract_source(
+    pub fn get_contract_path(
         &self,
         base_path: &FileLocation,
         contract_name: &str,
-    ) -> Result<String, String> {
+    ) -> Result<PathBuf, String> {
         let mut path = PathBuf::from(&base_path.expect_path_buf());
         path.pop();
         let Some(contract_path) = self
@@ -34,7 +39,15 @@ impl FoundryCompiledOutputJson {
             return Err(format!("could not find compilation target {contract_name}"));
         };
         path.push(&contract_path);
+        Ok(path)
+    }
 
+    pub fn get_contract_source(
+        &self,
+        base_path: &FileLocation,
+        contract_name: &str,
+    ) -> Result<String, String> {
+        let path = self.get_contract_path(base_path, contract_name)?;
         let source = std::fs::read_to_string(&path).map_err(|e| {
             format!("invalid contract location {}: {}", path.to_str().unwrap_or(""), e)
         })?;
@@ -102,31 +115,35 @@ pub struct FoundryProfile {
     pub out: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct FoundryToml {
-    pub profile: HashMap<String, FoundryProfile>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FoundryConfig {
-    pub toml: FoundryToml,
+    pub figment: Figment,
     pub toml_path: String,
 }
 
-impl FoundryConfig {
+impl FoundryToml {
+    pub fn get_foundry_config(&self, profile_name: Option<&str>) -> Result<FoundryConfig, String> {
+        let profile_name = profile_name.unwrap_or("default");
+        let figment = self.figment.clone();
+
+        let foundry_config: FoundryConfig = figment
+            .select(profile_name)
+            .extract()
+            .map_err(|e| format!("foundry.toml does not include profile {profile_name}: {}", e))?;
+        Ok(foundry_config)
+    }
+
     pub fn get_compiled_output(
         &self,
         contract_filename: &str,
         contract_name: &str,
         profile_name: Option<&str>,
     ) -> Result<FoundryCompiledOutputJson, String> {
-        let profile_name = profile_name.unwrap_or("default");
-        let Some(profile) = self.toml.profile.get(profile_name) else {
-            return Err(format!("foundry.toml does not include profile {profile_name}",));
-        };
+        let foundry_config = self.get_foundry_config(profile_name)?;
+
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
-        path.push(&format!("{}", profile.out));
+        path.push(&format!("{}", foundry_config.out.to_str().unwrap_or("out")));
         path.push(&format!("{}.sol", contract_filename));
         path.push(&format!("{}.json", contract_name));
 
@@ -135,21 +152,16 @@ impl FoundryConfig {
         })?;
 
         let config: FoundryCompiledOutputJson = serde_json::from_slice(&bytes).map_err(|e| {
-            format!("invalid foundry.toml at location {}: {}", &path.to_str().unwrap_or(""), e)
+            format!("invalid compiled output at location {}: {}", &path.to_str().unwrap_or(""), e)
         })?;
         Ok(config)
     }
 
-    pub fn get_from_path(foundry_toml_path: &FileLocation) -> Result<Self, String> {
-        let bytes = foundry_toml_path
-            .read_content()
-            .map_err(|e| format!("invalid foundry.toml location {}: {}", foundry_toml_path, e))?;
+    pub fn new(foundry_toml_path: &FileLocation) -> Result<Self, String> {
+        let figment =
+            FoundryConfig::figment().merge(Toml::file_exact(foundry_toml_path.expect_path_buf()));
 
-        let toml: FoundryToml = toml::from_slice(&bytes).map_err(|e| {
-            format!("invalid foundry.toml at location {}: {}", foundry_toml_path, e)
-        })?;
-
-        let config = FoundryConfig { toml, toml_path: foundry_toml_path.to_string() };
+        let config = FoundryToml { figment, toml_path: foundry_toml_path.to_string() };
         Ok(config)
     }
 }
