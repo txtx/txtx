@@ -1,5 +1,5 @@
 [alias]
-txtx-install = "install --path crates/txtx-cli --locked --force"
+txtx-install = "install --path crates/txtx-cli --features web_ui --locked --force"
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
