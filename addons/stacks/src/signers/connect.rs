@@ -39,8 +39,8 @@ lazy_static! {
         let mut signer = define_signer! {
             StacksConnect => {
                 name: "Stacks Connect",
-                matcher: "connect",
-                documentation:txtx_addon_kit::indoc! {r#"The `connect` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                matcher: "web_wallet",
+                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
                 This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
@@ -58,7 +58,7 @@ lazy_static! {
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "stacks::connect" {
+                signer "alice" "stacks::web_wallet" {
                     expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
                 }
                 "#},

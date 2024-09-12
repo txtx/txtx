@@ -1367,7 +1367,7 @@ When the `connect` action is successfully executed, the following outputs are at
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "alice" "stacks::connect" {
+wallet "alice" "stacks::web_wallet" {
     expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
 }
 
@@ -1436,11 +1436,11 @@ When the `multisig` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-wallet "alice" "stacks::connect" {
+wallet "alice" "stacks::web_wallet" {
     expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 }
 
-wallet "bob" "stacks::connect" {
+wallet "bob" "stacks::web_wallet" {
     expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
 }
 
