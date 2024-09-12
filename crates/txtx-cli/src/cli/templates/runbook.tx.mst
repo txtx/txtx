@@ -8,7 +8,7 @@ runtime "addon::stacks" {
   }
 }
 
-signer "alice" "stacks::connect" {
+signer "alice" "stacks::web_wallet" {
   expected_address = env.stacks_operator_address
 }
 
