@@ -42,7 +42,7 @@ pub struct RunbookMetadataFile {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunbookStateFile {
-    pub file: Option<String>,
+    pub location: Option<String>,
 }
 
 pub fn read_runbooks_from_manifest(
@@ -67,6 +67,7 @@ pub fn read_runbooks_from_manifest(
             &package_location,
             &runbook_metadata.description,
             environment_selector,
+            Some(&runbook_metadata.id),
         )?;
 
         runbooks.insert(
@@ -81,8 +82,11 @@ pub fn read_runbook_from_location(
     location: &FileLocation,
     description: &Option<String>,
     environment_selector: &Option<String>,
+    runbook_id: Option<&str>,
 ) -> Result<(String, Runbook, RunbookSources), String> {
-    let runbook_name = location.get_file_name().unwrap_or(location.to_string());
+    let runbook_name = runbook_id
+        .and_then(|id| Some(id.to_string()))
+        .unwrap_or(location.get_file_name().unwrap_or(location.to_string()));
     let mut runbook_sources = RunbookSources::new();
     let package_location = location.clone();
     match std::fs::read_dir(package_location.to_string()) {
@@ -92,15 +96,15 @@ pub fn read_runbook_from_location(
             for file_path in files.into_iter() {
                 let location = FileLocation::from_path(file_path);
                 let file_content = location.read_content_as_utf8()?;
-                runbook_sources.add_source(runbook_name.to_string(), location, file_content);
+                runbook_sources.add_source(runbook_name.clone(), location, file_content);
             }
         }
         Err(_) => {
             let file_content = package_location.read_content_as_utf8()?;
-            runbook_sources.add_source(runbook_name.to_string(), package_location, file_content);
+            runbook_sources.add_source(runbook_name.clone(), package_location, file_content);
         }
     }
 
-    let runbook_id = RunbookId { org: None, workspace: None, name: runbook_name.to_string() };
+    let runbook_id = RunbookId { org: None, workspace: None, name: runbook_name.clone() };
     Ok((runbook_name, Runbook::new(runbook_id, description.clone()), runbook_sources))
 }

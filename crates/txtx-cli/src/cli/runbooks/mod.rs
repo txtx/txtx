@@ -91,8 +91,10 @@ pub fn get_lock_file(state_file_location: &FileLocation) -> Option<FileLocation>
 }
 
 pub fn load_runbook_execution_snapshot(
-    state_file_location: &FileLocation,
+    state_file_location: &RunbookState,
     load_lock_file_if_exists: bool,
+    runbook_id: &str,
+    environment_selector: &str,
 ) -> Result<RunbookExecutionSnapshot, String> {
     // Are we resuming an interrupted workflow or excuting from scratch?
     // If we're resuming a stateful workflow, we need to:
@@ -101,6 +103,8 @@ pub fn load_runbook_execution_snapshot(
     // - taint the executed nodes
     // - execute
 
+    let state_file_location =
+        state_file_location.get_location_for_ctx(runbook_id, Some(environment_selector));
     let file_to_load = if load_lock_file_if_exists {
         match get_lock_file(&state_file_location) {
             Some(location) => location,
@@ -207,9 +211,14 @@ pub async fn handle_check_command(
     .await?;
 
     match &runbook_state {
-        Some(RunbookState::File(state_file_location)) => {
+        Some(state_file_location) => {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_runbook_execution_snapshot(state_file_location, true)?;
+            let old = load_runbook_execution_snapshot(
+                state_file_location,
+                true,
+                &runbook.runbook_id.name,
+                &runbook.top_level_inputs_map.current_top_level_input_name(),
+            )?;
             for run in runbook.flow_contexts.iter_mut() {
                 let frontier = HashSet::new();
                 let _res = run
@@ -521,18 +530,22 @@ pub async fn handle_run_command(
         }
     };
 
-    let previous_state_opt =
-        if let Some(RunbookState::File(state_file_location)) = runbook_state.clone() {
-            match load_runbook_execution_snapshot(&state_file_location, true) {
-                Ok(snapshot) => Some(snapshot),
-                Err(e) => {
-                    println!("{} {}", red!("x"), e);
-                    None
-                }
+    let previous_state_opt = if let Some(state_file_location) = runbook_state.clone() {
+        match load_runbook_execution_snapshot(
+            &state_file_location,
+            true,
+            &runbook.runbook_id.name,
+            &runbook.top_level_inputs_map.current_top_level_input_name(),
+        ) {
+            Ok(snapshot) => Some(snapshot),
+            Err(e) => {
+                println!("{} {}", red!("x"), e);
+                None
             }
-        } else {
-            None
-        };
+        }
+    } else {
+        None
+    };
 
     runbook.enable_full_execution_mode();
 
@@ -822,14 +835,21 @@ pub async fn handle_run_command(
                 running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
             }
 
-            if let Some(RunbookState::File(state_file_location)) = runbook_state {
-                let previous_snapshot =
-                    match load_runbook_execution_snapshot(&state_file_location, false) {
-                        Ok(snapshot) => Some(snapshot),
-                        Err(_e) => None,
-                    };
+            if let Some(state_file_location) = runbook_state {
+                let previous_snapshot = match load_runbook_execution_snapshot(
+                    &state_file_location,
+                    false,
+                    &runbook.runbook_id.name,
+                    &runbook.top_level_inputs_map.current_top_level_input_name(),
+                ) {
+                    Ok(snapshot) => Some(snapshot),
+                    Err(_e) => None,
+                };
 
-                let lock_file = get_lock_file_location(&state_file_location);
+                let lock_file = get_lock_file_location(&state_file_location.get_location_for_ctx(
+                    &runbook.runbook_id.name,
+                    Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
+                ));
                 println!("{} Saving transient state to {}", yellow!("!"), lock_file);
                 let diff = RunbookSnapshotContext::new();
                 let snapshot = diff
@@ -881,13 +901,21 @@ pub async fn handle_run_command(
             collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
         }
 
-        if let Some(RunbookState::File(state_file_location)) = runbook_state {
-            let previous_snapshot =
-                match load_runbook_execution_snapshot(&state_file_location, false) {
-                    Ok(snapshot) => Some(snapshot),
-                    Err(_e) => None,
-                };
+        if let Some(state_file_location) = runbook_state {
+            let previous_snapshot = match load_runbook_execution_snapshot(
+                &state_file_location,
+                false,
+                &runbook.runbook_id.name,
+                &runbook.top_level_inputs_map.current_top_level_input_name(),
+            ) {
+                Ok(snapshot) => Some(snapshot),
+                Err(_e) => None,
+            };
 
+            let state_file_location = state_file_location.get_location_for_ctx(
+                &runbook.runbook_id.name,
+                Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
+            );
             if let Some(lock_file) = get_lock_file(&state_file_location) {
                 let _ = std::fs::remove_file(&lock_file.to_string());
             }
@@ -1185,7 +1213,7 @@ pub async fn load_runbook_from_file_path(
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
-        read_runbook_from_location(&location, &None, &None)?;
+        read_runbook_from_location(&location, &None, &None, None)?;
 
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookTopLevelInputsMap::new();
