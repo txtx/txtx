@@ -262,16 +262,9 @@ impl CommandImplementation for StacksDeployContract {
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
-        println!("evaluated_inputs before post processing: {:?}", evaluated_inputs);
-        if let Some(diag) = evaluated_inputs.unevaluated_inputs.get("contract") {
-            println!("found unevaluated input for contract: {:?}", diag);
-            if let Some(diag) = diag {
-                return Err(diag.clone());
-            } else {
-                unreachable!("I hope this works");
-            }
-        }
-        let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
+        let contract =
+            evaluated_inputs.get_if_not_unevaluated("contract", ValueStore::get_expected_object)?;
+
         let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_source'")),

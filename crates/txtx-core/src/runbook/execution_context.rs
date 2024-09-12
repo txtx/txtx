@@ -328,6 +328,7 @@ impl RunbookExecutionContext {
             let cached_dependency_execution_results = HashMap::new();
 
             let package_id = command_instance.package_id.clone();
+            let construct_id = &workspace_context.expect_construct_id(&construct_did);
             let addon_context_key = (package_id.did(), command_instance.namespace.clone());
             let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
 
@@ -351,7 +352,6 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::Aborted(results, diags) => results,
                 },
                 Err(_d) => {
-                    println!("simulation input evaluation failed");
                     continue;
                 }
             };
@@ -360,7 +360,7 @@ impl RunbookExecutionContext {
                 .post_process_inputs_evaluations(evaluated_inputs.clone())
                 .await
                 .map_err(|d| {
-                    d.location(&package_id.package_location)
+                    d.location(&construct_id.construct_location)
                         .set_span_range(command_instance.block.span())
                 })?;
 
