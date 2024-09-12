@@ -226,8 +226,8 @@ impl CommandImplementation for BroadcastStacksTransaction {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
-                    Err(RpcError::ContractAlreadyExists(data)) => {
-                        result.outputs.insert("contract_id".into(), Value::string(data.unwrap()));
+                    Err(RpcError::IdenticalContractAlreadyExists(data)) => {
+                        result.outputs.insert("contract_id".into(), Value::string(data));
                         return Ok(result);
                     }
                     Err(e) => {
