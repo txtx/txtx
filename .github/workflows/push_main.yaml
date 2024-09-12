@@ -228,6 +228,12 @@ jobs:
       - name: List Directory
         run: ls -la
 
+      - name: Pack artifacts
+        run: | 
+          tar -czvf txtx-linux-x64.tar.gz txtx-linux-x64
+          tar -czvf txtx-darwin-x64.tar.gz txtx-darwin-x64
+          tar -czvf txtx-darwin-arm64.tar.gz txtx-darwin-arm64
+
       - name: Upload to S3 (Darwin x64)
         uses: hkusu/s3-upload-action@v2
         with:
