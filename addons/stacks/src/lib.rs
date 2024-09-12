@@ -124,9 +124,8 @@ impl Addon for StacksNetworkAddon {
                     consolidated_dependencies.push(construct.clone());
                 }
 
-                let dependencies = simulated_inputs
-                    .inputs
-                    .get_expected_array("lazy_dependency_contract_ids")?;
+                let dependencies =
+                    simulated_inputs.inputs.get_expected_array("lazy_dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
