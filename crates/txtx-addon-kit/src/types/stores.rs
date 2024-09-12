@@ -29,14 +29,12 @@ impl ValueStore {
             defaults: ValueMap::new(),
         }
     }
-
-    pub fn new_with_defaults(name: &str, uuid: &Did, defaults: ValueMap) -> ValueStore {
-        ValueStore { name: name.to_string(), uuid: uuid.clone(), inputs: ValueMap::new(), defaults }
+    pub fn with_inputs(mut self, inputs: &ValueMap) -> Self {
+        self.inputs = inputs.clone();
+        self
     }
-    pub fn with_inputs(mut self, inputs: &ValueStore) -> Self {
-        for (key, value) in inputs.iter() {
-            self.inputs.insert(key, value.clone());
-        }
+    pub fn with_defaults(mut self, defaults: &ValueMap) -> Self {
+        self.defaults = defaults.clone();
         self
     }
     pub fn with_inputs_from_map(mut self, inputs: &HashMap<String, Value>) -> Self {
@@ -45,16 +43,21 @@ impl ValueStore {
         }
         self
     }
+    pub fn with_inputs_from_vec(mut self, inputs: &Vec<(String, Value)>) -> Self {
+        for (k, v) in inputs.iter() {
+            self.inputs.insert(k, v.clone());
+        }
+        self
+    }
 
-    pub fn with_checked_inputs(
-        mut self,
+    pub fn check(
+        self,
         instance_name: &str,
-        inputs: &ValueStore,
         spec_inputs: &Vec<CommandInput>,
     ) -> Result<Self, Diagnostic> {
         for input in spec_inputs.iter() {
-            let value = match inputs.get_value(&input.name) {
-                Some(value) => value.clone(),
+            match self.inputs.get_value(&input.name) {
+                Some(_) => {}
                 None => match input.optional {
                     true => continue,
                     false => {
@@ -65,7 +68,6 @@ impl ValueStore {
                     }
                 },
             };
-            self.inputs.insert(&input.name, value);
         }
         Ok(self)
     }
@@ -198,9 +200,17 @@ impl ValueStore {
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.inputs.get_mut(key)
     }
+
+    pub fn append_no_override(&mut self, other: &ValueStore) {
+        for (key, value) in &other.inputs.store {
+            if self.inputs.get_value(&key).is_none() {
+                self.inputs.insert(&key, value.clone());
+            }
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddonDefaults {
     pub uuid: Did,
     pub name: String,
@@ -211,9 +221,15 @@ impl AddonDefaults {
     pub fn new(key: &str) -> AddonDefaults {
         AddonDefaults { store: ValueMap::new(), name: key.to_string(), uuid: Did::zero() }
     }
+    pub fn insert(&mut self, key: &str, value: Value) {
+        self.store.insert(key, value);
+    }
+    pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
+        self.store.iter()
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValueMap {
     pub store: IndexMap<String, Value>,
 }

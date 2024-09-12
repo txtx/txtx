@@ -1,8 +1,6 @@
-runtime "addon::stacks" {
-  defaults {
-    network_id = "testnet"
-    rpc_api_url = "https://api.testnet.hiro.so"
-  }
+addon "stacks" {
+  network_id = "testnet"
+  rpc_api_url = "https://api.testnet.hiro.so"
 }
 
 signer "alice" "stacks::connect" {

@@ -1,4 +1,4 @@
-use crate::runbook::RunbookInputsMap;
+use crate::runbook::{RunbookTopLevelInputsMap, DEFAULT_TOP_LEVEL_INPUTS_NAME};
 use kit::helpers::fs::{FileAccessor, FileLocation};
 use kit::indexmap::IndexMap;
 use kit::serde::{Deserialize, Serialize};
@@ -89,7 +89,7 @@ impl WorkspaceManifest {
                         .state
                         .as_ref()
                         .map(|s| {
-                            s.file.clone().map(|f| {
+                            s.location.clone().map(|f| {
                                 let mut location = manifest_location.clone();
                                 location = location
                                     .get_parent_location()
@@ -97,7 +97,7 @@ impl WorkspaceManifest {
                                 location
                                     .append_path(&f)
                                     .expect("unable to create state destination path");
-                                RunbookState::File(location)
+                                RunbookState::Location(location)
                             })
                         })
                         .unwrap_or(None),
@@ -114,14 +114,14 @@ impl WorkspaceManifest {
         selector: &Option<String>,
         cli_inputs: &Vec<String>,
         buffer_stdin: Option<String>,
-    ) -> Result<RunbookInputsMap, String> {
+    ) -> Result<RunbookTopLevelInputsMap, String> {
         if let Some(selector) = selector {
             if self.environments.get(selector).is_none() {
                 return Err(format!("environment '{}' unknown from manifest", selector));
             }
         }
 
-        let mut inputs_map = RunbookInputsMap::new();
+        let mut inputs_map = RunbookTopLevelInputsMap::new();
         for (selector, inputs) in self.environments.iter() {
             let mut values = vec![];
             for (key, value) in inputs.iter() {
@@ -131,7 +131,8 @@ impl WorkspaceManifest {
             inputs_map.values.insert(Some(selector.to_string()), values);
         }
         inputs_map.values.insert(None, vec![]);
-        inputs_map.current = inputs_map.environments.get(0).map(|v| v.to_string());
+        inputs_map.current_environment =
+            selector.clone().or(inputs_map.environments.get(0).map(|v| v.to_string()));
         inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
         Ok(inputs_map)
     }
@@ -146,7 +147,29 @@ fn normalize_user_input(input: &str) -> String {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum RunbookState {
-    File(FileLocation),
+    Location(FileLocation),
+}
+
+impl RunbookState {
+    pub fn get_location_for_ctx(
+        &self,
+        runbook_id: &str,
+        environment: Option<&str>,
+    ) -> FileLocation {
+        match &self {
+            RunbookState::Location(location) => {
+                let mut location = location.clone();
+                location
+                    .append_path(&format!(
+                        "{}.{}.tx-state.json",
+                        runbook_id,
+                        environment.unwrap_or(&DEFAULT_TOP_LEVEL_INPUTS_NAME.to_ascii_lowercase())
+                    ))
+                    .expect("unable to create state destination path");
+                location
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

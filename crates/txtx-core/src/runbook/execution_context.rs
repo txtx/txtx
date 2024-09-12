@@ -210,6 +210,7 @@ impl RunbookExecutionContext {
                 command_instance,
                 &cached_dependency_execution_results,
                 &input_evaluation_results,
+                &addon_defaults,
                 &None,
                 &command_instance.package_id,
                 workspace_context,
@@ -256,7 +257,6 @@ impl RunbookExecutionContext {
             match command_instance.check_executability(
                 &construct_did,
                 &mut evaluated_inputs,
-                addon_defaults.clone(),
                 &mut self.signers_instances,
                 &None,
                 supervision_context,
@@ -282,14 +282,7 @@ impl RunbookExecutionContext {
 
             let execution_result = {
                 command_instance
-                    .perform_execution(
-                        &construct_did,
-                        &evaluated_inputs,
-                        addon_defaults.clone(),
-                        &mut vec![],
-                        &None,
-                        &tx,
-                    )
+                    .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
                     .await
             };
 
@@ -332,10 +325,15 @@ impl RunbookExecutionContext {
 
             let cached_dependency_execution_results = HashMap::new();
 
+            let package_id = command_instance.package_id.clone();
+            let addon_context_key = (package_id.did(), command_instance.namespace.clone());
+            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
             let evaluated_inputs_res = perform_inputs_evaluation(
                 command_instance,
                 &cached_dependency_execution_results,
                 &inputs_simulation_results,
+                &addon_defaults,
                 &None,
                 &command_instance.package_id,
                 workspace_context,
