@@ -29,6 +29,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
         signers::SignerSpecification,
+        stores::ValueStore,
         AddonPostProcessingResult, ConstructDid, ContractSourceTransform,
     },
     Addon,
@@ -79,7 +80,7 @@ impl Addon for StacksNetworkAddon {
             &'a CommandInstance,
             Option<&'a CommandInputsEvaluationResult>,
         )>,
-    ) -> Result<AddonPostProcessingResult, Diagnostic> {
+    ) -> Result<AddonPostProcessingResult, (Diagnostic, ConstructDid)> {
         // Isolate all the contract deployments
         // - Loop 1: For each construct did, compute the contract address, create a lookup: address -> (construct_did, action.name)
         // - Loop 2: For each construct that has some contract_ids_dependencies (lazy or not),
@@ -96,7 +97,11 @@ impl Addon for StacksNetworkAddon {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
-                let contract_id = simulated_inputs.inputs.get_expected_string("contract_id")?;
+
+                let contract_id = simulated_inputs
+                    .get_if_not_unevaluated("contract_id", ValueStore::get_expected_string)
+                    .map_err(|e| (e, construct_did.clone()))?;
+
                 contracts_lookup.insert(contract_id.to_string(), construct_did.clone());
             }
         }
@@ -110,8 +115,13 @@ impl Addon for StacksNetworkAddon {
                     continue;
                 };
 
-                let dependencies =
-                    simulated_inputs.inputs.get_expected_array("dependency_contract_ids")?;
+                let dependencies = simulated_inputs
+                    .get_if_not_unevaluated(
+                        "dependency_contract_ids",
+                        ValueStore::get_expected_array,
+                    )
+                    .map_err(|e| (e, construct_did.clone()))?;
+
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {
@@ -125,8 +135,12 @@ impl Addon for StacksNetworkAddon {
                 }
 
                 let dependencies = simulated_inputs
-                    .inputs
-                    .get_expected_array("lazy_dependency_contract_ids")?;
+                    .get_if_not_unevaluated(
+                        "lazy_dependency_contract_ids",
+                        ValueStore::get_expected_array,
+                    )
+                    .map_err(|e| (e, construct_did.clone()))?;
+
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {

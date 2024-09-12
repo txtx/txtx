@@ -11,8 +11,8 @@ use alloy::network::TransactionBuilder;
 use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::types::Value;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionType {

@@ -86,7 +86,7 @@ impl RuntimeContext {
     pub fn perform_addon_processing(
         &self,
         runbook_execution_context: &mut RunbookExecutionContext,
-    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
+    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, (Diagnostic, ConstructDid)> {
         let mut consolidated_dependencies = HashMap::new();
         let mut grouped_commands: HashMap<
             String,
