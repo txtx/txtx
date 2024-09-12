@@ -18,19 +18,23 @@ pub enum RpcError {
     Generic,
     StatusCode(u16),
     Message(String),
-    IdenticalContractAlreadyExists(String),
-    PriorContractAlreadyExists(String),
+    ContractAlreadyDeployed(String),
+    ContractIdAlreadyUsed(String),
 }
 
 impl std::fmt::Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             RpcError::Message(e) => write!(f, "{}", e),
-            RpcError::IdenticalContractAlreadyExists(e) => {
-                write!(f, "contract already exists {:?}", e)
+            RpcError::ContractAlreadyDeployed(e) => {
+                write!(f, "contract already deployed {:?}", e)
             }
-            RpcError::PriorContractAlreadyExists(e) => {
-                write!(f, "prior contract already exists with identical contract_id {:?}", e)
+            RpcError::ContractIdAlreadyUsed(e) => {
+                write!(
+                    f,
+                    "a different contract with the same contract identifier already exists {:?}",
+                    e
+                )
             }
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
@@ -300,9 +304,9 @@ impl StacksRpc {
 
                             // Compare
                             if res.source.eq(&source.code_body.clone().to_string()) {
-                                RpcError::IdenticalContractAlreadyExists(contract_identifier_src)
+                                RpcError::ContractAlreadyDeployed(contract_identifier_src)
                             } else {
-                                RpcError::PriorContractAlreadyExists(contract_identifier_src)
+                                RpcError::ContractIdAlreadyUsed(contract_identifier_src)
                             }
                         } else {
                             RpcError::Message(format!(
