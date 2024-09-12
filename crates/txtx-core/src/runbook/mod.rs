@@ -197,7 +197,12 @@ impl Runbook {
             flow_context
                 .execution_context
                 .simulate_inputs_execution(&runtime_context, &flow_context.workspace_context)
-                .await;
+                .await
+                .map_err(|diag| {
+                    vec![diag
+                        .clone()
+                        .set_diagnostic_span(get_source_context_for_diagnostic(&diag, &sources))]
+                })?;
             // Step 4: let addons build domain aware dependencies
             let domain_specific_dependencies = runtime_context
                 .perform_addon_processing(&mut flow_context.execution_context)

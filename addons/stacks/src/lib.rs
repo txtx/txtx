@@ -96,6 +96,13 @@ impl Addon for StacksNetworkAddon {
                 let Some(simulated_inputs) = inputs_simulation else {
                     continue;
                 };
+                if let Some(diag) = simulated_inputs.unevaluated_inputs.get("contract_id") {
+                    if let Some(diag) = diag {
+                        return Err(diag.clone());
+                    } else {
+                        unreachable!("I hope this works");
+                    }
+                }
                 let contract_id = simulated_inputs.inputs.get_expected_string("contract_id")?;
                 contracts_lookup.insert(contract_id.to_string(), construct_did.clone());
             }
@@ -110,6 +117,15 @@ impl Addon for StacksNetworkAddon {
                     continue;
                 };
 
+                if let Some(diag) =
+                    simulated_inputs.unevaluated_inputs.get("dependency_contract_ids")
+                {
+                    if let Some(diag) = diag {
+                        return Err(diag.clone());
+                    } else {
+                        unreachable!("I hope this works");
+                    }
+                }
                 let dependencies =
                     simulated_inputs.inputs.get_expected_array("dependency_contract_ids")?;
                 for dep in dependencies.iter() {
@@ -124,9 +140,17 @@ impl Addon for StacksNetworkAddon {
                     consolidated_dependencies.push(construct.clone());
                 }
 
-                let dependencies = simulated_inputs
-                    .inputs
-                    .get_expected_array("lazy_dependency_contract_ids")?;
+                if let Some(diag) =
+                    simulated_inputs.unevaluated_inputs.get("lazy_dependency_contract_ids")
+                {
+                    if let Some(diag) = diag {
+                        return Err(diag.clone());
+                    } else {
+                        unreachable!("I hope this works");
+                    }
+                }
+                let dependencies =
+                    simulated_inputs.inputs.get_expected_array("lazy_dependency_contract_ids")?;
                 for dep in dependencies.iter() {
                     let contract_id = dep.expect_string();
                     let construct = match contracts_lookup.get(contract_id) {

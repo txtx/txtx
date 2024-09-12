@@ -262,6 +262,15 @@ impl CommandImplementation for StacksDeployContract {
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
+        println!("evaluated_inputs before post processing: {:?}", evaluated_inputs);
+        if let Some(diag) = evaluated_inputs.unevaluated_inputs.get("contract") {
+            println!("found unevaluated input for contract: {:?}", diag);
+            if let Some(diag) = diag {
+                return Err(diag.clone());
+            } else {
+                unreachable!("I hope this works");
+            }
+        }
         let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
         let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
@@ -372,6 +381,7 @@ impl CommandImplementation for StacksDeployContract {
         if let Some(Value::Object(obj)) = evaluated_inputs.inputs.get_mut("contract") {
             obj.insert("contract_source".into(), Value::string(contract_source));
         }
+        println!("evaluated_inputs after post processing: {:?}", evaluated_inputs);
 
         Ok(Box::pin(future::ready(Ok(evaluated_inputs))))
     }

@@ -478,7 +478,7 @@ pub async fn run_action(
         let new_value = Value::parse_and_default_to_string(&input_value);
         inputs.insert(input_name, new_value);
     }
-    let unevaluated_inputs = vec![];
+    let unevaluated_inputs = IndexMap::new();
     let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command

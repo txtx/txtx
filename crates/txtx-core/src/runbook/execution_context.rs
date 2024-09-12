@@ -1,5 +1,7 @@
 use kit::channel::unbounded;
+use kit::hcl::Span;
 use kit::indexmap::IndexMap;
+use kit::types::diagnostics::Diagnostic;
 use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
@@ -318,7 +320,7 @@ impl RunbookExecutionContext {
         &mut self,
         runtime_context: &RuntimeContext,
         workspace_context: &RunbookWorkspaceContext,
-    ) {
+    ) -> Result<(), Diagnostic> {
         for (construct_did, command_instance) in self.commands_instances.iter() {
             let inputs_simulation_results =
                 self.commands_inputs_evaluation_results.get(&construct_did);
@@ -349,25 +351,22 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::Aborted(results, diags) => results,
                 },
                 Err(_d) => {
+                    println!("simulation input evaluation failed");
                     continue;
                 }
             };
 
-            let post_processed_inputs_res = command_instance
-                .post_process_inputs_evaluations(evaluated_inputs)
+            let post_processed_inputs = command_instance
+                .post_process_inputs_evaluations(evaluated_inputs.clone())
                 .await
-                .map_err(|d| vec![d]);
+                .map_err(|d| {
+                    d.location(&package_id.package_location)
+                        .set_span_range(command_instance.block.span())
+                })?;
 
-            let post_processed_inputs = match post_processed_inputs_res {
-                Ok(result) => result,
-                Err(_d) => {
-                    continue;
-                }
-            };
-
-            // Update the evaluated inputs
             self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), post_processed_inputs);
         }
+        Ok(())
     }
 }

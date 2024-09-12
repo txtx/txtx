@@ -441,6 +441,10 @@ pub async fn run_constructs_evaluation(
                 &construct_did,
                 &action_item_responses.get(&construct_did),
             );
+            println!(
+                "evaluated inputs before checking signed executability {:?}",
+                evaluated_inputs
+            );
             let res = command_instance
                 .check_signed_executability(
                     &construct_did,
@@ -1095,14 +1099,16 @@ pub fn perform_inputs_evaluation(
         None => {}
     }
 
+    println!("{:?}", results.unevaluated_inputs);
     for input in inputs.into_iter() {
         if simulation {
+            // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec
             if input.name.eq("signer") {
-                results.unevaluated_inputs.push("signer".into());
+                results.unevaluated_inputs.insert("signer".into(), None);
                 continue;
             }
         } else {
-            if !results.unevaluated_inputs.contains(&input.name) {
+            if !results.unevaluated_inputs.get(&input.name).is_some() {
                 continue;
             }
         }
@@ -1127,21 +1133,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1163,21 +1169,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1205,21 +1211,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1267,21 +1273,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };
@@ -1304,21 +1310,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };
@@ -1341,21 +1347,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };

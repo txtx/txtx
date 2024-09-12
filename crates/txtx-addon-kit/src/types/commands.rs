@@ -11,6 +11,7 @@ use std::{
 use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block, Span};
+use indexmap::IndexMap;
 
 use crate::types::stores::ValueStore;
 use crate::{
@@ -77,7 +78,7 @@ impl CommandExecutionResult {
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: ValueStore,
-    pub unevaluated_inputs: Vec<String>,
+    pub unevaluated_inputs: IndexMap<String, Option<Diagnostic>>,
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -98,7 +99,7 @@ impl CommandInputsEvaluationResult {
         Self {
             inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero())
                 .with_defaults(defaults),
-            unevaluated_inputs: vec![],
+            unevaluated_inputs: IndexMap::new(),
         }
     }
 
@@ -843,7 +844,7 @@ impl CommandInstance {
             }
             None => {}
         }
-
+        println!("values before checking signed executability {:?}", values);
         let spec = &self.specification;
         let future = (spec.check_signed_executability)(
             &construct_did,
