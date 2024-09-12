@@ -233,7 +233,6 @@ jobs:
       
       - name: Upload to S3 (Darwin x64)
         uses: hkusu/s3-upload-action@v2
-        id: upload_linux
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -247,7 +246,6 @@ jobs:
           
       - name: Upload to S3 (Darwin arm64)
         uses: hkusu/s3-upload-action@v2
-        id: upload_linux
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -261,7 +259,6 @@ jobs:
           
       - name: Upload to S3 (Linux x64)
         uses: hkusu/s3-upload-action@v2
-        id: upload_linux
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
