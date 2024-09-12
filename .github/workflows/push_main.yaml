@@ -225,6 +225,9 @@ jobs:
           tag: ${{ needs.get_release_info.outputs.tag }}
           commit: ${{ env.GITHUB_SHA }}      
       
+      - name: List Directory
+        run: ls -la
+
       - name: Upload to S3 (Darwin x64)
         uses: hkusu/s3-upload-action@v2
         with:
@@ -232,7 +235,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: 'us-east-2'
           aws-bucket: txtx-public
-          file-path: txtx-darwin-x64.tar.gz
+          file-path: ./txtx-darwin-x64.tar.gz
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
@@ -245,7 +248,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: 'us-east-2'
           aws-bucket: txtx-public
-          file-path: txtx-darwin-arm64.tar.gz
+          file-path: ./txtx-darwin-arm64.tar.gz
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
@@ -258,7 +261,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: 'us-east-2'
           aws-bucket: txtx-public
-          file-path: txtx-linux-x64.tar.gz
+          file-path: ./txtx-linux-x64.tar.gz
           output-file-url: 'true' 
           destination-dir: /releases
           bucket-root: /
