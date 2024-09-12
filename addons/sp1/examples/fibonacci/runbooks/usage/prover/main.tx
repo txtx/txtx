@@ -6,43 +6,41 @@ runtime "batch" {
         }
     ]
 }
-runtime "addon::sp1" { 
-    defaults {
-    } 
+
+addon "sp1" { 
 }
-runtime "addon::evm" {
-    defaults {
-        chain_id = env.evm_defaults.chain_id
-        rpc_api_url = env.evm_defaults.rpc_api_url
-    }
+
+addon "evm" {
+    chain_id = input.evm_defaults.chain_id
+    rpc_api_url = input.evm_defaults.rpc_api_url
 }
 
 signer "deployer" "evm::secret_key" {
-    mnemonic = env.mnemonic
+    mnemonic = input.mnemonic
 }
 
 action "fibonacci_proof" "sp1::create_proof" {
     program = sp1::get_elf_from_sp1_project("program/elf/riscv32im-succinct-zkvm-elf")
     inputs = [variable.n]
-    sp1_private_key = env.sp1_private_key
+    sp1_private_key = input.sp1_private_key
 }
 
 action "fibonacci_verifier_contract" "evm::deploy_contract_create2" {
     description = "Deploy the Fibonacci verifier contract"
     contract = evm::get_contract_from_foundry_project("contracts/foundry.toml", "Fibonacci")
     constructor_args = [
-        evm::address(env.sp1_verifier_address), 
+        evm::address(input.sp1_verifier_address), 
         evm::bytes32(action.fibonacci_proof.verification_key)
     ]
 
-    expected_contract_address = env.verifier_contract_address
-    salt = env.fibonacci_salt
+    expected_contract_address = input.verifier_contract_address
+    salt = input.fibonacci_salt
     signer = signer.deployer
 }
 
 action "verify_fibonacci_execution" "evm::call_contract" {
     description = "Call the Fibonacci verifier contract with the proof results"
-    contract_address = env.verifier_contract_address
+    contract_address = input.verifier_contract_address
     contract_abi = variable.fibonacci_contract.abi
     function_name = "verifyFibonacciProof"
     function_args = [
