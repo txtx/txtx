@@ -217,12 +217,6 @@ jobs:
 
       - name: Download pre-built dists
         uses: actions/download-artifact@v4
-      
-      - name: Unpack the artifact
-        run: |
-          for file in *.zip; do
-            unzip "$file";
-          done
 
       - name: Tag and Release
         uses: ncipollo/release-action@v1
