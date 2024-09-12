@@ -78,7 +78,47 @@ impl CommandExecutionResult {
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: ValueStore,
-    pub unevaluated_inputs: IndexMap<String, Option<Diagnostic>>,
+    pub unevaluated_inputs: UnevaluatedInputsMap,
+}
+
+impl CommandInputsEvaluationResult {
+    pub fn get_if_not_unevaluated<'a, ReturnType>(
+        &'a self,
+        key: &str,
+        getter: impl Fn(&'a ValueStore, &str) -> Result<ReturnType, Diagnostic>,
+    ) -> Result<ReturnType, Diagnostic> {
+        self.unevaluated_inputs.check_for_diagnostic(key)?;
+        getter(&self.inputs, key)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnevaluatedInputsMap {
+    pub map: IndexMap<String, Option<Diagnostic>>,
+}
+impl UnevaluatedInputsMap {
+    pub fn new() -> Self {
+        Self { map: IndexMap::new() }
+    }
+
+    pub fn insert(&mut self, key: String, value: Option<Diagnostic>) {
+        self.map.insert(key, value);
+    }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.map.contains_key(key)
+    }
+
+    pub fn check_for_diagnostic(&self, key: &str) -> Result<(), Diagnostic> {
+        match self.map.get(key) {
+            Some(diag) => match diag {
+                Some(diag) => Err(diag.clone()),
+                None => {
+                    Err(Diagnostic::error_from_string(format!("input {} was not evaluated", key)))
+                }
+            },
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -99,7 +139,7 @@ impl CommandInputsEvaluationResult {
         Self {
             inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero())
                 .with_defaults(defaults),
-            unevaluated_inputs: IndexMap::new(),
+            unevaluated_inputs: UnevaluatedInputsMap::new(),
         }
     }
 

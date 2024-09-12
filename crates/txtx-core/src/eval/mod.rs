@@ -1099,7 +1099,6 @@ pub fn perform_inputs_evaluation(
         None => {}
     }
 
-    println!("{:?}", results.unevaluated_inputs);
     for input in inputs.into_iter() {
         if simulation {
             // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec
@@ -1108,7 +1107,7 @@ pub fn perform_inputs_evaluation(
                 continue;
             }
         } else {
-            if !results.unevaluated_inputs.get(&input.name).is_some() {
+            if !results.unevaluated_inputs.contains_key(&input.name) {
                 continue;
             }
         }

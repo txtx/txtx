@@ -17,7 +17,7 @@ use txtx_addon_network_stacks::StacksNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
-use txtx_core::kit::types::stores::ValueStore;
+use txtx_core::kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore};
 use txtx_core::{
     kit::{
         channel::{self, unbounded},
@@ -478,7 +478,7 @@ pub async fn run_action(
         let new_value = Value::parse_and_default_to_string(&input_value);
         inputs.insert(input_name, new_value);
     }
-    let unevaluated_inputs = IndexMap::new();
+    let unevaluated_inputs = UnevaluatedInputsMap::new();
     let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
