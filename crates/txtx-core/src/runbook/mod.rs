@@ -1,5 +1,6 @@
 use flow_context::FlowContext;
 use kit::hcl::structure::BlockLabel;
+use kit::hcl::Span;
 use kit::helpers::hcl::RawHclContent;
 use kit::types::commands::CommandExecutionResult;
 use kit::types::diagnostics::DiagnosticSpan;
@@ -197,11 +198,30 @@ impl Runbook {
             flow_context
                 .execution_context
                 .simulate_inputs_execution(&runtime_context, &flow_context.workspace_context)
-                .await;
+                .await
+                .map_err(|diag| {
+                    vec![diag
+                        .clone()
+                        .set_diagnostic_span(get_source_context_for_diagnostic(&diag, &sources))]
+                })?;
             // Step 4: let addons build domain aware dependencies
             let domain_specific_dependencies = runtime_context
                 .perform_addon_processing(&mut flow_context.execution_context)
-                .map_err(|e| vec![e])?;
+                .map_err(|(diag, construct_did)| {
+                    let construct_id =
+                        &flow_context.workspace_context.expect_construct_id(&construct_did);
+                    let command_instance = flow_context
+                        .execution_context
+                        .commands_instances
+                        .get(&construct_did)
+                        .unwrap();
+                    let diag = diag
+                        .location(&construct_id.construct_location)
+                        .set_span_range(command_instance.block.span());
+                    vec![diag
+                        .clone()
+                        .set_diagnostic_span(get_source_context_for_diagnostic(&diag, &sources))]
+                })?;
             // Step 5: identify and index all the relationships between the constructs (edges)
             flow_context.graph_context.build(
                 &mut flow_context.execution_context,
