@@ -349,7 +349,7 @@ impl RunbookExecutionContext {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
                     CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, diags) => results,
+                    CommandInputEvaluationStatus::Aborted(results, _diags) => results,
                 },
                 Err(_d) => {
                     continue;

@@ -18,7 +18,6 @@ mod tests;
 
 use ::std::collections::BTreeMap;
 use ::std::thread::sleep;
-use ::std::time;
 use ::std::time::Duration;
 
 use constants::ACTION_ITEM_ENV;

@@ -222,12 +222,20 @@ impl CommandImplementation for BroadcastStacksTransaction {
             })?;
 
             let client = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
+
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
-                    Err(RpcError::ContractAlreadyExists(data)) => {
-                        result.outputs.insert("contract_id".into(), Value::string(data.unwrap()));
+                    Err(RpcError::ContractAlreadyDeployed(data)) => {
+                        result.outputs.insert("contract_id".into(), Value::string(data));
+                        status_update.update_status(&ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Complete",
+                            &format!("Contract deployed"),
+                        ));
+                        let _ =
+                            progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update));
                         return Ok(result);
                     }
                     Err(e) => {

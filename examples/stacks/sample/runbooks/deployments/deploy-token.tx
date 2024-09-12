@@ -1,0 +1,29 @@
+// Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
+// to understand the syntax and discover the powerful features of txtx.
+
+addon "stacks" {
+  network_id = input.stacks_network_id
+  rpc_api_url = input.stacks_api_url
+}
+
+signer "proxy" "stacks::secret_key" {
+    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+}
+
+signer "operator" "stacks::secret_key" {
+    mnemonic = "cycle puppy glare enroll cost improve round trend wrist mushroom scorpion tower claim oppose clever elephant dinosaur eight problem before frozen dune wagon high"
+}
+
+action "deploy_contract_a" "stacks::deploy_contract" {
+    description = "Deploy contract-a"
+    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "token")
+    signer = signer.operator
+}
+
+action "sip10_trait_1_requirement" "stacks::deploy_requirement" {
+    description = "Deploy SIP10 trait (1) contract"
+    contract_id = "SPQC38PW542EQJ5M11CR25P7BS1CA6QT4TBXGB3M.sip-010-trait-ft-standard"
+    rpc_api_url_source = "https://api.hiro.so"
+    rpc_api_url = input.stacks_api_url
+    signer = signer.proxy
+}
