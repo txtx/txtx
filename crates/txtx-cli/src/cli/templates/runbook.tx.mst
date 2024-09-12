@@ -1,15 +1,13 @@
 // Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
 // to understand the syntax and discover the powerful features of txtx.
 
-runtime "addon::stacks" {
-  defaults {
-    network_id = env.stacks_network_id
-    rpc_api_url = env.stacks_api_url
-  }
+addon "stacks" {
+  network_id = input.stacks_network_id
+  rpc_api_url = input.stacks_api_url
 }
 
-signer "alice" "stacks::connect" {
-  expected_address = env.stacks_operator_address
+signer "alice" "stacks::web_wallet" {
+  expected_address = input.stacks_operator_address
 }
 
 variable "step" {

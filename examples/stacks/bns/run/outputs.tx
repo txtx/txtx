@@ -7,7 +7,7 @@ output "name_price" {
 }
 
 output "name_preorder_tx_link" {
-  value = "https://explorer.hiro.so/txid/${action.send_name_preorder.tx_id}?chain=${env.stacks_network_id}"
+  value = "https://explorer.hiro.so/txid/${action.send_name_preorder.tx_id}?chain=${input.stacks_network_id}"
 }
 
 output "name_preorder_result" {
@@ -15,7 +15,7 @@ output "name_preorder_result" {
 }
 
 output "name_register_tx_link" {
-  value = "https://explorer.hiro.so/txid/${action.send_name_register.tx_id}?chain=${env.stacks_network_id}"
+  value = "https://explorer.hiro.so/txid/${action.send_name_register.tx_id}?chain=${input.stacks_network_id}"
 }
 
 output "name_register_result" {

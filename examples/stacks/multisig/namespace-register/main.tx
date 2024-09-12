@@ -1,8 +1,6 @@
-runtime "addon::stacks" {
-    defaults {
-        network_id = env.stacks_network_id
-        rpc_api_url = env.stacks_api_url
-    }
+addon "stacks" {
+  network_id = input.stacks_network_id
+  rpc_api_url = input.stacks_api_url
 }
 
 action "send_namespace_preorder" "stacks::call_contract" {
