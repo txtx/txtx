@@ -9,13 +9,13 @@ use txtx_addon_kit::types::{
     ConstructDid,
 };
 
-mod connect;
 mod multisig;
 mod secret_key;
+mod web_wallet;
 
-use connect::STACKS_CONNECT;
 use multisig::STACKS_MULTISIG;
 use secret_key::STACKS_SECRET_KEY;
+use web_wallet::STACKS_WEB_WALLET;
 
 use crate::{
     constants::{
@@ -29,7 +29,7 @@ pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
 
 lazy_static! {
     pub static ref WALLETS: Vec<SignerSpecification> =
-        vec![STACKS_SECRET_KEY.clone(), STACKS_CONNECT.clone(), STACKS_MULTISIG.clone()];
+        vec![STACKS_SECRET_KEY.clone(), STACKS_WEB_WALLET.clone(), STACKS_MULTISIG.clone()];
 }
 
 pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {

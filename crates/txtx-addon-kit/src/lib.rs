@@ -116,7 +116,7 @@ pub trait Addon: Debug + Sync + Send {
             &'a CommandInstance,
             Option<&'a CommandInputsEvaluationResult>,
         )>,
-    ) -> Result<AddonPostProcessingResult, Diagnostic> {
+    ) -> Result<AddonPostProcessingResult, (Diagnostic, ConstructDid)> {
         Ok(AddonPostProcessingResult::new())
     }
 }

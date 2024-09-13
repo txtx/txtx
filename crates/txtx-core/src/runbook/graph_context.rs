@@ -52,33 +52,29 @@ impl RunbookGraphContext {
         workspace_context: &RunbookWorkspaceContext,
         domain_specific_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     ) -> Result<(), Vec<Diagnostic>> {
-        // let environment_variables = &runtime_context.get_active_environment_variables();
-        // runbook.index_environment_variables(environment_variables);
-
         let mut constructs_edges = vec![];
-        // let packages_edges = vec![];
+
         let mut diags = vec![];
 
         let packages = workspace_context.packages.clone();
 
-        for (package_did, package) in packages.iter() {
-            for construct_did in package.imports_dids.iter() {
-                let construct = execution_context.commands_instances.get(construct_did).unwrap();
-                for _dep in construct.collect_dependencies().iter() {} // todo
-            }
+        for (package_id, package) in packages.iter() {
             for construct_did in package.variables_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
-                        .try_resolve_construct_reference_in_expression(package_did, dep);
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
-                        diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in input '{}'",
-                            dep,
-                            construct.name,
-                        ));
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in input '{}'",
+                                dep,
+                                construct.name,
+                            )
+                            .location(&package_id.package_location),
+                        );
                     }
                 }
             }
@@ -86,15 +82,18 @@ impl RunbookGraphContext {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
-                        .try_resolve_construct_reference_in_expression(package_did, dep);
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
-                        diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in module '{}'",
-                            dep,
-                            construct.name,
-                        ));
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in module '{}'",
+                                dep,
+                                construct.name,
+                            )
+                            .location(&package_id.package_location),
+                        );
                     }
                 }
             }
@@ -102,15 +101,18 @@ impl RunbookGraphContext {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
                     let result = workspace_context
-                        .try_resolve_construct_reference_in_expression(package_did, dep);
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
-                        diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in output '{}'",
-                            dep,
-                            construct.name,
-                        ));
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in output '{}'",
+                                dep,
+                                construct.name,
+                            )
+                            .location(&package_id.package_location),
+                        );
                     }
                 }
             }
@@ -129,7 +131,7 @@ impl RunbookGraphContext {
 
                 for (_input, dep) in command_instance.collect_dependencies().iter() {
                     let result = workspace_context
-                        .try_resolve_construct_reference_in_expression(package_did, dep);
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
@@ -139,11 +141,14 @@ impl RunbookGraphContext {
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
-                        diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in action '{}'",
-                            dep,
-                            command_instance.name,
-                        ));
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in action '{}'",
+                                dep,
+                                command_instance.name,
+                            )
+                            .location(&package_id.package_location),
+                        );
                     }
                 }
             }
@@ -153,7 +158,7 @@ impl RunbookGraphContext {
                     execution_context.signers_instances.get(construct_did).unwrap();
                 for (_input, dep) in signer_instance.collect_dependencies().iter() {
                     let result = workspace_context
-                        .try_resolve_construct_reference_in_expression(package_did, dep);
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         if !instantiated_signers.contains(&resolved_construct_did) {
                             signers.push_front((resolved_construct_did.clone(), false))
@@ -164,11 +169,14 @@ impl RunbookGraphContext {
                         );
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
-                        diags.push(diagnosed_error!(
-                            "unable to resolve '{}' in signer '{}'",
-                            dep,
-                            signer_instance.name,
-                        ));
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in signer '{}'",
+                                dep,
+                                signer_instance.name,
+                            )
+                            .location(&package_id.package_location),
+                        );
                     }
                 }
             }
@@ -268,7 +276,9 @@ impl RunbookGraphContext {
         self.constructs_dag_node_lookup.insert(construct_did.clone(), node_index);
     }
 
-    pub fn index_environment_variable(&mut self, construct_did: &ConstructDid) {
+    /// Adds the provided [ConstructDid] to the `constructs_dag` of the [RunbookGraphContext].
+    /// Then, the construct's [NodeIndex] is added to the `constructs_dag_node_lookup`.
+    pub fn index_top_level_input(&mut self, construct_did: &ConstructDid) {
         let (_, node_index) =
             self.constructs_dag.add_child(self.graph_root.clone(), 100, construct_did.clone());
         self.constructs_dag_node_lookup.insert(construct_did.clone(), node_index);

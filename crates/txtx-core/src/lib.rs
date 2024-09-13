@@ -18,7 +18,6 @@ mod tests;
 
 use ::std::collections::BTreeMap;
 use ::std::thread::sleep;
-use ::std::time;
 use ::std::time::Duration;
 
 use constants::ACTION_ITEM_ENV;
@@ -46,7 +45,7 @@ use kit::types::frontend::ValidateBlockData;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
-use runbook::add_source_context_to_diagnostic;
+use runbook::get_source_context_for_diagnostic;
 use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
@@ -78,8 +77,8 @@ pub async fn start_unsupervised_runbook_runloop(
         review_input_values: false,
         is_supervised: false,
     };
-    for running_context in runbook.running_contexts.iter_mut() {
-        if !running_context.is_enabled() {
+    for flow_context in runbook.flow_contexts.iter_mut() {
+        if !flow_context.is_enabled() {
             continue;
         }
 
@@ -87,8 +86,8 @@ pub async fn start_unsupervised_runbook_runloop(
         let action_item_responses = BTreeMap::new();
 
         let pass_results = run_signers_evaluation(
-            &running_context.workspace_context,
-            &mut running_context.execution_context,
+            &flow_context.workspace_context,
+            &mut flow_context.execution_context,
             &runbook.runtime_context,
             &runbook.supervision_context,
             &mut action_item_requests,
@@ -115,8 +114,8 @@ pub async fn start_unsupervised_runbook_runloop(
         loop {
             let mut pass_results = run_constructs_evaluation(
                 &uuid,
-                &running_context.workspace_context,
-                &mut running_context.execution_context,
+                &flow_context.workspace_context,
+                &mut flow_context.execution_context,
                 &mut runbook.runtime_context,
                 &runbook.supervision_context,
                 &mut action_item_requests,
@@ -142,7 +141,7 @@ pub async fn start_unsupervised_runbook_runloop(
             }
 
             if background_tasks_futures.is_empty() {
-                sleep(time::Duration::from_secs(3));
+                // sleep(time::Duration::from_secs(3));
             } else {
                 let results = kit::futures::future::join_all(background_tasks_futures).await;
                 for (construct_did, result) in
@@ -150,24 +149,23 @@ pub async fn start_unsupervised_runbook_runloop(
                 {
                     match result {
                         Ok(result) => {
-                            running_context
+                            flow_context
                                 .execution_context
                                 .commands_execution_results
                                 .insert(construct_did, result);
                         }
                         Err(mut diag) => {
-                            let construct_id = running_context
-                                .workspace_context
-                                .expect_construct_id(&construct_did);
+                            let construct_id =
+                                flow_context.workspace_context.expect_construct_id(&construct_did);
                             diag = diag.location(&construct_id.construct_location);
-                            if let Some(command_instance) = running_context
+                            if let Some(command_instance) = flow_context
                                 .execution_context
                                 .commands_instances
                                 .get_mut(&construct_did)
                             {
                                 diag = diag.set_span_range(command_instance.block.span());
                                 diag.span =
-                                    add_source_context_to_diagnostic(&diag, &runbook.sources);
+                                    get_source_context_for_diagnostic(&diag, &runbook.sources);
                             };
                             return Err(vec![diag]);
                         }
@@ -298,14 +296,14 @@ pub async fn start_supervised_runbook_runloop(
                     {
                         match result {
                             Ok(result) => {
-                                let running_context = runbook.running_contexts.first_mut().unwrap();
+                                let running_context = runbook.flow_contexts.first_mut().unwrap();
                                 running_context
                                     .execution_context
                                     .commands_execution_results
                                     .insert(construct_did, result);
                             }
                             Err(mut diag) => {
-                                let running_context = runbook.running_contexts.first_mut().unwrap();
+                                let running_context = runbook.flow_contexts.first_mut().unwrap();
                                 let construct_id = running_context
                                     .workspace_context
                                     .expect_construct_id(&construct_did);
@@ -317,7 +315,7 @@ pub async fn start_supervised_runbook_runloop(
                                 {
                                     diag = diag.set_span_range(command_instance.block.span());
                                     diag.span =
-                                        add_source_context_to_diagnostic(&diag, &runbook.sources);
+                                        get_source_context_for_diagnostic(&diag, &runbook.sources);
                                 };
                                 let diags = vec![diag];
                                 let _ = block_tx.send(BlockEvent::Error(Block {
@@ -350,7 +348,7 @@ pub async fn start_supervised_runbook_runloop(
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
-                let running_context = runbook.running_contexts.first_mut().unwrap();
+                let running_context = runbook.flow_contexts.first_mut().unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -447,7 +445,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map = BTreeMap::new();
                 map.insert(signer_construct_did, scoped_requests);
 
-                let running_context = runbook.running_contexts.first_mut().unwrap();
+                let running_context = runbook.flow_contexts.first_mut().unwrap();
                 let pass_result = run_signers_evaluation(
                     &running_context.workspace_context,
                     &mut running_context.execution_context,
@@ -485,7 +483,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_did, scoped_requests);
 
-                let running_context = runbook.running_contexts.first_mut().unwrap();
+                let running_context = runbook.flow_contexts.first_mut().unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -621,7 +619,7 @@ pub async fn build_genesis_panel(
         );
         actions.push_sub_group(None, vec![action_request]);
     }
-    let running_context = runbook.running_contexts.first_mut().unwrap();
+    let running_context = runbook.flow_contexts.first_mut().unwrap();
     let mut pass_result = run_signers_evaluation(
         &running_context.workspace_context,
         &mut running_context.execution_context,

@@ -15,7 +15,7 @@ use txtx_addon_kit::{
     Addon,
 };
 use txtx_core::{
-    runbook::RunbookInputsMap,
+    runbook::RunbookTopLevelInputsMap,
     start_supervised_runbook_runloop,
     types::{Runbook, RunbookSources},
 };
@@ -118,7 +118,7 @@ impl TestHarness {
             action_panel_data
         );
         let ctx = format!(
-            "=> response triggering panel: {:?}\n=> actual panel group: {:?}",
+            "\n=> response triggering panel: {:?}\n=> actual panel group: {:?}",
             response, action_panel_data.groups
         );
         assert_eq!(action_panel_data.groups.len(), expected_group_lengths.len(), "{}", ctx);
@@ -210,7 +210,7 @@ pub fn setup_test(
         FileLocation::from_path_string(".").unwrap(),
         fixture.into(),
     );
-    let runbook_inputs = RunbookInputsMap::new();
+    let runbook_inputs = RunbookTopLevelInputsMap::new();
 
     let runbook_id = RunbookId { org: None, workspace: None, name: "test".into() };
 

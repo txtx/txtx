@@ -1,0 +1,43 @@
+[project]
+name = 'sample'
+description = ''
+authors = []
+telemetry = false
+cache_dir = './.cache'
+
+[[project.requirements]]
+contract_id = "SPQC38PW542EQJ5M11CR25P7BS1CA6QT4TBXGB3M.sip-010-trait-ft-standard"
+
+[contracts.contract-a]
+path = 'contracts/contract-a.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.contract-b]
+path = 'contracts/contract-b.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.contract-c]
+path = 'contracts/contract-c.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.contract-d]
+path = 'contracts/contract-d.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.token]
+path = 'contracts/token.clar'
+clarity_version = 2
+epoch = 2.5
+
+[repl.analysis]
+passes = ['check_checker']
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false

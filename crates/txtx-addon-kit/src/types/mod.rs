@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use diagnostics::Diagnostic;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -177,6 +178,20 @@ impl PackageId {
             package_name: "".into(),
         }
     }
+    pub fn from_file(
+        location: &FileLocation,
+        runbook_id: &RunbookId,
+        package_name: &str,
+    ) -> Result<Self, Diagnostic> {
+        let package_location = location.get_parent_location().map_err(|e| {
+            Diagnostic::error_from_string(format!("{}", e.to_string())).location(&location)
+        })?;
+        Ok(PackageId {
+            runbook_id: runbook_id.clone(),
+            package_location: package_location.clone(),
+            package_name: package_name.to_string(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Ord, PartialOrd)]
@@ -202,9 +217,9 @@ pub struct ConstructId {
     pub package_id: PackageId,
     /// Location of the file enclosing the construct
     pub construct_location: FileLocation,
-    /// Type of construct (e.g. `input` in `input.value``)
+    /// Type of construct (e.g. `variable` in `variable.value``)
     pub construct_type: String,
-    /// Name of construct (e.g. `value` in `input.value``)
+    /// Name of construct (e.g. `value` in `variable.value``)
     pub construct_name: String,
 }
 

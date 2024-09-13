@@ -5,7 +5,7 @@ use txtx_addon_kit::{
 
 #[derive(Debug)]
 pub enum PreConstructData {
-    Input(Block),
+    Variable(Block),
     Module(Block),
     Output(Block),
     Import(Block),
@@ -19,7 +19,7 @@ impl PreConstructData {
     pub fn construct_type(&self) -> &str {
         match &self {
             PreConstructData::Import(_) => "import",
-            PreConstructData::Input(_) => "input",
+            PreConstructData::Variable(_) => "variable",
             PreConstructData::Output(_) => "output",
             PreConstructData::Module(_) => "module",
             PreConstructData::Action(_) => "action",
@@ -38,7 +38,7 @@ impl PreConstructData {
 
     pub fn as_input(&self) -> Option<&Block> {
         match self {
-            PreConstructData::Input(data) => Some(&data),
+            PreConstructData::Variable(data) => Some(&data),
             _ => None,
         }
     }

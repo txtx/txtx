@@ -1,24 +1,28 @@
-// signer "alice" "stacks::connect" {
+// signer "alice" "stacks::web_wallet" {
 //   expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 // }
 
 
-input "namespace" {
+variable "namespace" {
   description = "TLD / Namespace"
-  default = "btc"
+  editable = true
+  value = "btc"
 }
 
-input "name" {
+variable "name" {
   description = "Domain name to order"
-  default = "micaiah"
+  editable = true
+  value = "micaiah"
 }
 
-input "salt" {
+variable "salt" {
   description = "Random salt to use for preventing front-running"
-  default = "00000000000000"
+  editable = true
+  value = "00000000000000"
 }
 
-input "zonefile" {
+variable "zonefile" {
   description = "Zonefile to attach to the new domain"
-  default = "0000000000"
+  editable = true
+  value = "0000000000"
 }

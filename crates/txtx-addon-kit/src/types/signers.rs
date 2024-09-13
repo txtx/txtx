@@ -1,7 +1,6 @@
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
-use crate::types::stores::AddonDefaults;
 use crate::types::stores::ValueStore;
 use futures::future;
 use hcl_edit::{expr::Expression, structure::Block, Span};
@@ -366,23 +365,20 @@ impl SignerInstance {
     pub async fn check_activability(
         &self,
         construct_did: &ConstructDid,
-        evaluated_inputs: &mut CommandInputsEvaluationResult,
+        evaluated_inputs: &CommandInputsEvaluationResult,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        addon_defaults: &AddonDefaults,
         _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
-        let mut values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_checked_inputs(&self.name, &evaluated_inputs.inputs, &self.specification.inputs)
-        .map_err(|e| (signers.clone(), e))?;
+        let mut values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .check(&self.name, &self.specification.inputs)
+            .map_err(|e| (signers.clone(), e))?;
 
         match action_item_responses {
             Some(responses) => {
@@ -463,15 +459,11 @@ impl SignerInstance {
         evaluated_inputs: &CommandInputsEvaluationResult,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        addon_defaults: &AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
-        let values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_inputs(&evaluated_inputs.inputs);
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
 
         let signer_state = signers.pop_signer_state(construct_did).unwrap();
         let future = (&self.specification.activate)(

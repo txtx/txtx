@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use hcl_edit::expr::Object;
 
 use crate::{
@@ -193,5 +195,38 @@ pub fn collect_constructs_references_from_expression<'a>(
         Expression::UnaryOp(op) => {
             collect_constructs_references_from_expression(&op.expr, input, dependencies);
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RawHclContent(String);
+impl RawHclContent {
+    pub fn from_string(s: String) -> Self {
+        RawHclContent(s)
+    }
+    pub fn from_file_location(file_location: &FileLocation) -> Result<Self, Diagnostic> {
+        file_location
+            .read_content_as_utf8()
+            .map_err(|e| {
+                Diagnostic::error_from_string(format!("{}", e.to_string())).location(&file_location)
+            })
+            .map(|s| RawHclContent(s))
+    }
+
+    pub fn into_blocks(&self) -> Result<VecDeque<Block>, Diagnostic> {
+        let content = crate::hcl::parser::parse_body(&self.0).map_err(|e| {
+            Diagnostic::error_from_string(format!("parsing error: {}", e.to_string()))
+        })?;
+        Ok(content.into_blocks().into_iter().collect::<VecDeque<Block>>())
+    }
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
+        let mut bytes = vec![0u8; 2 * self.0.len()];
+        crate::hex::encode_to_slice(self.0.clone(), &mut bytes).map_err(|e| {
+            Diagnostic::error_from_string(format!("failed to encode raw content: {e}"))
+        })?;
+        Ok(bytes)
+    }
+    pub fn to_string(&self) -> String {
+        self.0.clone()
     }
 }

@@ -1,5 +1,6 @@
 use crate::runbook::{
-    add_source_context_to_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext,
+    get_source_context_for_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext,
+    RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::constants::{
@@ -12,6 +13,7 @@ use kit::types::frontend::{
     BlockEvent, ErrorPanelData, Panel,
 };
 use kit::types::signers::SignersState;
+use kit::types::stores::AddonDefaults;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::{ConstructId, PackageId};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -62,7 +64,7 @@ pub async fn run_signers_evaluation(
 
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
-        let (evaluated_inputs_res, _group, addon_defaults) =
+        let (evaluated_inputs_res, _group) =
             match runbook_execution_context.signers_instances.get(&construct_did) {
                 None => continue,
                 Some(signer_instance) => {
@@ -112,16 +114,17 @@ pub async fn run_signers_evaluation(
                         &signer_instance,
                         &cached_dependency_execution_results,
                         &input_evaluation_results,
+                        addon_defaults,
                         &package_id,
                         &runbook_workspace_context,
                         &runbook_execution_context,
                         runtime_context,
                     );
                     let group = signer_instance.get_group();
-                    (res, group, addon_defaults)
+                    (res, group)
                 }
             };
-        let mut evaluated_inputs = match evaluated_inputs_res {
+        let evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
                 CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
@@ -146,10 +149,9 @@ pub async fn run_signers_evaluation(
         let res = signer
             .check_activability(
                 &construct_did,
-                &mut evaluated_inputs,
+                &evaluated_inputs,
                 signers_state,
                 signers_instances,
-                &addon_defaults,
                 &action_item_requests.get(&construct_did),
                 &action_item_responses.get(&construct_did),
                 supervision_context,
@@ -193,7 +195,6 @@ pub async fn run_signers_evaluation(
                 &evaluated_inputs,
                 signers_state,
                 signers_instances,
-                &addon_defaults,
                 progress_tx,
             )
             .await;
@@ -263,7 +264,7 @@ impl EvaluationPassResult {
 
     pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
         for diag in self.diagnostics.iter_mut() {
-            diag.span = add_source_context_to_diagnostic(diag, runbook_sources);
+            diag.span = get_source_context_for_diagnostic(diag, runbook_sources);
         }
     }
 
@@ -305,11 +306,11 @@ pub async fn run_constructs_evaluation(
 
     let mut unexecutable_nodes: HashSet<ConstructDid> = HashSet::new();
 
-    let environments_variables = runbook_workspace_context.environment_variables_values.clone();
-    for (env_variable_uuid, value) in environments_variables.into_iter() {
+    let top_level_inputs = runbook_workspace_context.top_level_inputs_values.clone();
+    for (input_uuid, value) in top_level_inputs.into_iter() {
         let mut res = CommandExecutionResult::new();
         res.outputs.insert("value".into(), value);
-        runbook_execution_context.commands_execution_results.insert(env_variable_uuid, res);
+        runbook_execution_context.commands_execution_results.insert(input_uuid, res);
     }
 
     for signer_states in runbook_execution_context.signers_state.iter_mut() {
@@ -403,6 +404,7 @@ pub async fn run_constructs_evaluation(
             command_instance,
             &cached_dependency_execution_results,
             &input_evaluation_results,
+            addon_defaults,
             &action_item_responses.get(&construct_did),
             &package_id,
             runbook_workspace_context,
@@ -444,7 +446,6 @@ pub async fn run_constructs_evaluation(
                     &construct_did,
                     &mut evaluated_inputs,
                     signers,
-                    addon_defaults.clone(),
                     &mut runbook_execution_context.signers_instances,
                     &action_item_responses.get(&construct_did),
                     &action_item_requests.get(&construct_did),
@@ -490,7 +491,6 @@ pub async fn run_constructs_evaluation(
                     &construct_did,
                     &evaluated_inputs,
                     signers,
-                    addon_defaults.clone(),
                     &runbook_execution_context.signers_instances,
                     action_items_requests,
                     &action_items_response,
@@ -521,7 +521,6 @@ pub async fn run_constructs_evaluation(
             match command_instance.check_executability(
                 &construct_did,
                 &mut evaluated_inputs,
-                addon_defaults.clone(),
                 &mut runbook_execution_context.signers_instances,
                 &action_item_responses.get(&construct_did),
                 supervision_context,
@@ -560,7 +559,6 @@ pub async fn run_constructs_evaluation(
                     .perform_execution(
                         &construct_did,
                         &evaluated_inputs,
-                        addon_defaults.clone(),
                         action_items_requests,
                         &action_items_response,
                         progress_tx,
@@ -604,7 +602,6 @@ pub async fn run_constructs_evaluation(
                 &construct_did,
                 &evaluated_inputs,
                 &execution_result,
-                addon_defaults.clone(),
                 progress_tx,
                 &pass_result.background_tasks_uuid,
                 supervision_context,
@@ -1066,6 +1063,7 @@ pub fn perform_inputs_evaluation(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
+    addon_defaults: &AddonDefaults,
     action_item_response: &Option<&Vec<ActionItemResponse>>,
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
@@ -1075,7 +1073,7 @@ pub fn perform_inputs_evaluation(
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = match *input_evaluation_results {
         Some(evaluated_inputs) => evaluated_inputs.clone(),
-        None => CommandInputsEvaluationResult::new(&command_instance.name),
+        None => CommandInputsEvaluationResult::new(&command_instance.name, &addon_defaults.store),
     };
     let mut require_user_interaction = false;
     let mut diags = vec![];
@@ -1099,12 +1097,13 @@ pub fn perform_inputs_evaluation(
 
     for input in inputs.into_iter() {
         if simulation {
+            // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec
             if input.name.eq("signer") {
-                results.unevaluated_inputs.push("signer".into());
+                results.unevaluated_inputs.insert("signer".into(), None);
                 continue;
             }
         } else {
-            if !results.unevaluated_inputs.contains(&input.name) {
+            if !results.unevaluated_inputs.contains_key(&input.name) {
                 continue;
             }
         }
@@ -1129,21 +1128,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1165,21 +1164,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1207,21 +1206,21 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Err(e) => {
                         if e.is_error() {
                             fatal_error = true;
                         }
+                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                         diags.push(e);
-                        results.unevaluated_inputs.push(input.name.clone());
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.push(input.name.clone());
+                        results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
                     }
                 };
@@ -1269,21 +1268,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };
@@ -1306,21 +1305,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };
@@ -1343,21 +1342,21 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Err(e) => {
                     if e.is_error() {
                         fatal_error = true;
                     }
+                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
                     diags.push(e);
-                    results.unevaluated_inputs.push(input.name.clone());
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.push(input.name.clone());
+                    results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
                 }
             };
@@ -1383,12 +1382,14 @@ pub fn perform_signer_inputs_evaluation(
         Result<&CommandExecutionResult, &Diagnostic>,
     >,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
+    addon_defaults: &AddonDefaults,
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_context: &RuntimeContext,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
-    let mut results = CommandInputsEvaluationResult::new(&signer_instance.name);
+    let mut results =
+        CommandInputsEvaluationResult::new(&signer_instance.name, &addon_defaults.store);
     let mut require_user_interaction = false;
     let mut diags = vec![];
     let inputs = signer_instance.specification.inputs.clone();

@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
 use super::diagnostics::Diagnostic;
+use super::Did;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value", rename_all = "lowercase")]
@@ -443,7 +444,18 @@ impl Value {
                 bytes
             }
             Value::Addon(data) => data.bytes.clone(),
-            _ => unimplemented!(),
+            Value::Integer(value) => value.to_be_bytes().to_vec(),
+            Value::Float(value) => value.to_be_bytes().to_vec(),
+            Value::Bool(value) => vec![*value as u8],
+            Value::Null => vec![],
+            Value::Object(values) => {
+                let mut joined = vec![];
+                for (key, value) in values.iter() {
+                    joined.extend(key.as_bytes());
+                    joined.extend(value.to_bytes());
+                }
+                joined
+            }
         }
     }
 
@@ -465,6 +477,11 @@ impl Value {
             }
         };
         value
+    }
+
+    pub fn compute_fingerprint(&self) -> Did {
+        let bytes = self.to_bytes();
+        Did::from_components(vec![bytes])
     }
 }
 

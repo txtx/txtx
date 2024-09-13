@@ -84,11 +84,11 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "stacks::connect" {
+                signer "alice" "stacks::web_wallet" {
                     expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
                 }
 
-                signer "bob" "stacks::connect" {
+                signer "bob" "stacks::web_wallet" {
                     expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
                 }
 

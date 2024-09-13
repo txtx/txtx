@@ -11,8 +11,8 @@ use std::{
 use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block, Span};
+use indexmap::IndexMap;
 
-use crate::types::stores::AddonDefaults;
 use crate::types::stores::ValueStore;
 use crate::{
     constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
@@ -33,6 +33,7 @@ use super::{
         consolidate_signer_activate_future_result, consolidate_signer_future_result,
         SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
+    stores::ValueMap,
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, Did, PackageId,
 };
@@ -64,12 +65,60 @@ impl CommandExecutionResult {
             self.outputs.insert(key, value);
         }
     }
+
+    pub fn from_value_store(store: &ValueStore) -> Self {
+        let mut outputs = HashMap::new();
+        for (key, value) in store.iter() {
+            outputs.insert(key.clone(), value.clone());
+        }
+        Self { outputs }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: ValueStore,
-    pub unevaluated_inputs: Vec<String>,
+    pub unevaluated_inputs: UnevaluatedInputsMap,
+}
+
+impl CommandInputsEvaluationResult {
+    pub fn get_if_not_unevaluated<'a, ReturnType>(
+        &'a self,
+        key: &str,
+        getter: impl Fn(&'a ValueStore, &str) -> Result<ReturnType, Diagnostic>,
+    ) -> Result<ReturnType, Diagnostic> {
+        self.unevaluated_inputs.check_for_diagnostic(key)?;
+        getter(&self.inputs, key)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnevaluatedInputsMap {
+    pub map: IndexMap<String, Option<Diagnostic>>,
+}
+impl UnevaluatedInputsMap {
+    pub fn new() -> Self {
+        Self { map: IndexMap::new() }
+    }
+
+    pub fn insert(&mut self, key: String, value: Option<Diagnostic>) {
+        self.map.insert(key, value);
+    }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.map.contains_key(key)
+    }
+
+    pub fn check_for_diagnostic(&self, key: &str) -> Result<(), Diagnostic> {
+        match self.map.get(key) {
+            Some(diag) => match diag {
+                Some(diag) => Err(diag.clone()),
+                None => {
+                    Err(Diagnostic::error_from_string(format!("input {} was not evaluated", key)))
+                }
+            },
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -86,10 +135,11 @@ impl Serialize for CommandInputsEvaluationResult {
 }
 
 impl CommandInputsEvaluationResult {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, defaults: &ValueMap) -> Self {
         Self {
-            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero()),
-            unevaluated_inputs: vec![],
+            inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero())
+                .with_defaults(defaults),
+            unevaluated_inputs: UnevaluatedInputsMap::new(),
         }
     }
 
@@ -445,7 +495,7 @@ pub trait CompositeCommandImplementation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CommandInstanceType {
-    Input,
+    Variable,
     Output,
     Action,
     Prompt,
@@ -636,16 +686,15 @@ impl CommandInstance {
         &mut self,
         construct_did: &ConstructDid,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
-        addon_defaults: AddonDefaults,
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<Actions, Diagnostic> {
-        let mut values = ValueStore::new_with_defaults(
+        let mut values = ValueStore::new(
             &format!("{}_inputs", self.specification.matcher),
             &construct_did.value(),
-            addon_defaults.store.clone(),
-        );
+        )
+        .with_defaults(&evaluated_inputs.inputs.defaults);
 
         let mut consolidated_actions = Actions::none();
         match action_item_response {
@@ -707,11 +756,9 @@ impl CommandInstance {
             }
             None => {}
         }
-        let values = values.with_checked_inputs(
-            &self.name,
-            &evaluated_inputs.inputs,
-            &self.specification.inputs,
-        )?;
+        let values = values
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .check(&self.name, &self.specification.inputs)?;
 
         let spec = &self.specification;
         if spec.matcher != "output" {
@@ -731,17 +778,13 @@ impl CommandInstance {
         &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        addon_defaults: AddonDefaults,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
-        let values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_inputs(&evaluated_inputs.inputs);
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
 
         let spec = &self.specification;
         let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?
@@ -786,18 +829,14 @@ impl CommandInstance {
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
-        addon_defaults: AddonDefaults,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
-        let values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_inputs(&evaluated_inputs.inputs);
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
 
         // TODO
         let mut consolidated_actions = Actions::none();
@@ -870,18 +909,14 @@ impl CommandInstance {
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
-        addon_defaults: AddonDefaults,
         signer_instances: &HashMap<ConstructDid, SignerInstance>,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
-        let values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_inputs(&evaluated_inputs.inputs);
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
 
         let spec = &self.specification;
         let future = (spec.run_signed_execution)(
@@ -931,19 +966,15 @@ impl CommandInstance {
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         execution_result: &CommandExecutionResult,
-        addon_defaults: AddonDefaults,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        let values = ValueStore::new_with_defaults(
-            &self.name,
-            &construct_did.value(),
-            addon_defaults.store.clone(),
-        )
-        .with_inputs(&evaluated_inputs.inputs)
-        .with_inputs_from_map(&execution_result.outputs);
-        let mut outputs = ValueStore::new(&self.name, &construct_did.value())
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .with_inputs_from_map(&execution_result.outputs);
+        let outputs = ValueStore::new(&self.name, &construct_did.value())
             .with_inputs_from_map(&execution_result.outputs);
 
         let spec = &self.specification;
