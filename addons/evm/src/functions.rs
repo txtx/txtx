@@ -6,29 +6,43 @@ use alloy::{
     primitives::{Bytes, B256},
 };
 use alloy_chains::ChainKind;
-use txtx_addon_kit::{helpers::fs::FileLocation, indexmap};
+use txtx_addon_kit::{
+    helpers::fs::FileLocation,
+    indexmap,
+    types::functions::{arg_checker_with_ctx, fn_diag_with_ctx},
+};
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
-        types::{Type, Value},
+        types::{ObjectType, Type, Value},
         AuthorizationContext,
     },
 };
 
 use crate::{
     codec::{
-        foundry::FoundryConfig, generate_create2_address, string_to_address, value_to_sol_value,
+        foundry::FoundryConfig, generate_create2_address, hardhat::HardhatBuildArtifacts,
+        string_to_address, value_to_sol_value,
     },
     commands::actions::deploy_contract::create_init_code,
-    constants::DEFAULT_CREATE2_FACTORY_ADDRESS,
+    constants::{DEFAULT_CREATE2_FACTORY_ADDRESS, NAMESPACE},
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
         EVM_INIT_CODE,
     },
 };
 const INFURA_API_KEY: &str = "";
+
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+    checker(fn_spec, args)
+}
+pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
+    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    error_fn(fn_spec, e)
+}
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -128,6 +142,45 @@ lazy_static! {
                     input: {
                         documentation: "Coming Soon",
                         typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
+                },
+            }
+        },
+        define_function! {
+            GetHardhatDeploymentArtifacts => {
+                name: "get_contract_from_hardhat_project",
+                documentation: "Coming soon",
+                example: indoc! {r#"
+                variable "contract" {
+                    value = evm::get_contract_from_hardhat_project(
+                        "path/to/hardhat/artifacts",
+                        "contracts/MyContract.sol",
+                        "MyContract"
+                    )
+                }
+                output "abi" {
+                    value = variable.contract.abi
+                } 
+                "#},
+                inputs: [
+                    artifacts_path: {
+                        documentation: "The path to the Hardhat artifacts directory.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    contract_source_path: {
+                        documentation: "The path, relative to the Hardhat project root, to the contract source file.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    contract_name: {
+                        documentation: "The name of the contract being deployed.",
+                        typing: vec![Type::string()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -445,6 +498,91 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             obj_props.insert("via_ir".to_string(), via_ir);
         }
         Ok(Value::object(obj_props))
+    }
+}
+
+#[derive(Clone)]
+pub struct GetHardhatDeploymentArtifacts;
+impl FunctionImplementation for GetHardhatDeploymentArtifacts {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let artifacts_path_str = args.get(0).unwrap().as_string().unwrap();
+        let contract_source_path_str = args.get(1).unwrap().as_string().unwrap();
+        let contract_name = args.get(2).unwrap().as_string().unwrap();
+
+        let artifacts_path = Path::new(artifacts_path_str);
+        let artifacts_path = if artifacts_path.is_absolute() {
+            FileLocation::from_path(artifacts_path.to_path_buf())
+        } else {
+            let mut workspace_loc = auth_ctx
+                .workspace_location
+                .get_parent_location()
+                .map_err(|e| to_diag(fn_spec, format!("unable to read workspace location: {e}")))?;
+
+            workspace_loc
+                .append_path(&artifacts_path_str.to_string())
+                .map_err(|e| to_diag(fn_spec, format!("invalid hardhat config path: {}", e)))?;
+            workspace_loc
+        };
+
+        let HardhatBuildArtifacts { compiled_contract_path, artifacts, build_info } =
+            HardhatBuildArtifacts::new(
+                artifacts_path.expect_path_buf(),
+                &contract_source_path_str,
+                &contract_name,
+            )
+            .map_err(|e| to_diag(fn_spec, e))?;
+
+        let abi_string = serde_json::to_string(&artifacts.abi)
+            .map_err(|e| to_diag(fn_spec, format!("failed to serialize abi: {}", e)))?;
+
+        let source = build_info.input.sources.get(&artifacts.source_name).ok_or(to_diag(
+            fn_spec,
+            format!(
+                "hardhat project output missing contract source for {}",
+                contract_source_path_str
+            ),
+        ))?;
+
+        let bytecode = Value::string(artifacts.bytecode);
+        let abi = Value::string(abi_string);
+        let source = Value::string(source.content.clone());
+        let compiler_version = Value::string(build_info.solc_long_version);
+        let contract_name = Value::string(contract_name.to_string());
+        let contract_target_path = Value::string(artifacts.source_name);
+        let optimizer_enabled = Value::bool(build_info.input.settings.optimizer.enabled);
+        let optimizer_runs = Value::integer(build_info.input.settings.optimizer.runs as i128);
+        let evm_version = Value::string(build_info.input.settings.evm_version);
+        let project_root = Value::string(compiled_contract_path.to_string());
+        // let foundry_config = Value::buffer(serde_json::to_vec(&config).unwrap());
+
+        let obj_props = ObjectType::from(vec![
+            ("bytecode", bytecode),
+            ("abi", abi),
+            ("source", source),
+            ("compiler_version", compiler_version),
+            ("contract_name", contract_name),
+            ("contract_target_path", contract_target_path),
+            ("optimizer_enabled", optimizer_enabled),
+            ("optimizer_runs", optimizer_runs),
+            ("evm_version", evm_version),
+            ("project_root", project_root),
+            // ("foundry_config", foundry_config),
+        ]);
+
+        Ok(Value::object(obj_props.inner()))
     }
 }
 

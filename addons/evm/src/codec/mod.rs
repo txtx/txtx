@@ -1,5 +1,6 @@
 pub mod crypto;
 pub mod foundry;
+pub mod hardhat;
 
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
