@@ -109,7 +109,12 @@ impl CommandImplementation for SendTransaction {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
+
+
+
         let future = async move {
+
+
             let result = CommandExecutionResult::new();
             Ok(result)
         };

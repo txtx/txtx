@@ -8,11 +8,9 @@ pub const IS_SIGNABLE: &str = "is_signable";
 
 // Defaults keys
 pub const CHAIN_ID: &str = "chain_id";
-pub const NETWORK_ID: &str = "network_id";
 pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
 pub const TRANSACTION_MESSAGE_BYTES: &str = "transaction_message_bytes";
-pub const UNSIGNED_TRANSACTION_BYTES: &str = "unsigned_transaction_bytes";
 
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
 pub const CHECKED_ADDRESS: &str = "checked_address";

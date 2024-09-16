@@ -1,4 +1,4 @@
-use txtx_addon_kit::types::types::{Type, Value};
+use txtx_addon_kit::types::types::Value;
 
 pub const SOLANA_ADDRESS: &str = "solana::address";
 pub const SOLANA_BYTES: &str = "solana::bytes";

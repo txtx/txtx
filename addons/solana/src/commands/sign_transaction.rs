@@ -1,4 +1,4 @@
-use crate::{commands::get_signers_did, constants::CHECKED_PUBLIC_KEY, typing::SolanaValue};
+use crate::{commands::get_signers_did, typing::SolanaValue};
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::CompiledInstruction;
 use solana_sdk::message::{Message, MessageHeader};
@@ -18,7 +18,7 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
-use crate::constants::{TRANSACTION_MESSAGE_BYTES, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::TRANSACTION_MESSAGE_BYTES;
 
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
@@ -95,13 +95,12 @@ impl CommandImplementation for SignTransaction {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use serde::Deserialize;
         use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
 
         let signers_did = get_signers_did(values).unwrap();
@@ -131,7 +130,7 @@ impl CommandImplementation for SignTransaction {
             let message_bytes = args.get_expected_buffer_bytes(TRANSACTION_MESSAGE_BYTES).unwrap();
 
             let message = bincode::deserialize(&message_bytes).unwrap();
-            let mut transaction = Transaction::new_unsigned(message);
+            let transaction = Transaction::new_unsigned(message);
             let mut instructions = vec![];
             for instruction in transaction.message.instructions.iter() {
                 let instruction_bytes = bincode::serialize(instruction).unwrap();
@@ -203,26 +202,4 @@ impl CommandImplementation for SignTransaction {
         );
         res
     }
-}
-
-pub fn build_transaction() -> Result<Transaction, Diagnostic> {
-    let tx = Transaction {
-        signatures: vec![],
-        message: Message {
-            header: MessageHeader {
-                num_required_signatures: 1,
-                num_readonly_signed_accounts: 0,
-                num_readonly_unsigned_accounts: 0,
-            },
-            account_keys: vec![],
-            recent_blockhash: Hash::new_unique(),
-            instructions: vec![CompiledInstruction {
-                program_id_index: 0,
-                accounts: vec![],
-                data: vec![],
-            }],
-        },
-    };
-
-    Ok(tx)
 }

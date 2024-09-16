@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::CompiledInstruction;
 use solana_sdk::message::{Message, MessageHeader};
@@ -127,10 +126,7 @@ impl SignerImplementation for SolanaSecretKey {
         use solana_sdk::{signature::Keypair, signer::Signer};
         use txtx_addon_kit::{
             crypto::secret_key_bytes_from_mnemonic,
-            types::{
-                signers::{signer_diag_with_ctx, signer_err_fn},
-                stores::ValueStore,
-            },
+            types::signers::{signer_diag_with_ctx, signer_err_fn},
         };
 
         let signer_err =
@@ -337,7 +333,7 @@ impl SignerImplementation for SolanaSecretKey {
         _title: &str,
         payload: &Value,
         spec: &SignerSpecification,
-        values: &ValueStore,
+        _values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,

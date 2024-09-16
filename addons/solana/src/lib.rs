@@ -15,11 +15,9 @@ pub mod typing;
 use constants::NAMESPACE;
 use txtx_addon_kit::{
     types::{
-        commands::{CommandInputsEvaluationResult, CommandInstance, PreCommandSpecification},
-        diagnostics::Diagnostic,
+        commands::PreCommandSpecification,
         functions::FunctionSpecification,
         signers::SignerSpecification,
-        AddonPostProcessingResult, ConstructDid,
     },
     Addon,
 };

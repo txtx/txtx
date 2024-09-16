@@ -22,7 +22,7 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::encode_contract_call;
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::TRANSACTION_MESSAGE_BYTES;
+use crate::constants::{PROGRAM_ID, TRANSACTION_MESSAGE_BYTES};
 use crate::typing::SOLANA_ACCOUNT;
 
 use super::get_signers_did;
@@ -117,7 +117,7 @@ impl CommandImplementation for ProcessInstructions {
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        mut signers: SignersState,
+        signers: SignersState,
     ) -> SignerActionsFutureResult {
         let signers_did = get_signers_did(args).unwrap();
 
@@ -131,7 +131,7 @@ impl CommandImplementation for ProcessInstructions {
             .collect::<Vec<_>>();
 
         for instruction_data in instructions_data.iter() {
-            let program_id = instruction_data.get("program_id").unwrap().expect_string();
+            let program_id = instruction_data.get(PROGRAM_ID).unwrap().expect_string();
             let accounts = instruction_data
                 .get("accounts")
                 .unwrap()
