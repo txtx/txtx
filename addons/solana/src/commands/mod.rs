@@ -1,20 +1,30 @@
-use crate::constants::SIGNER;
-use call_program::SEND_PROGRAM_CALL;
-use sign_transaction::SIGN_SOLANA_TRANSACTION;
+use crate::constants::SIGNERS;
+// use encode_instruction::ENCODE_INSTRUCTION;
+use process_instructions::PROCESS_INSTRUCTIONS;
+use send_transaction::SEND_TRANSACTION;
+use sign_transaction::SIGN_TRANSACTION;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
 
-mod call_program;
+pub mod process_instructions;
+pub mod send_transaction;
 pub mod sign_transaction;
 
-fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
-    let signer = args.get_expected_string(SIGNER)?;
-    let signer_did = ConstructDid(Did::from_hex_string(signer));
-    Ok(signer_did)
+fn get_signers_did(args: &ValueStore) -> Result<Vec<ConstructDid>, Diagnostic> {
+    let signers = args.get_expected_array(SIGNERS)?;
+    let mut res = vec![];
+    for signer in signers.iter() {
+        res.push(ConstructDid(Did::from_hex_string(signer.expect_string())));
+    }
+    Ok(res)
 }
 
 lazy_static! {
-    pub static ref ACTIONS: Vec<PreCommandSpecification> =
-        vec![SEND_PROGRAM_CALL.clone(), SIGN_SOLANA_TRANSACTION.clone()];
+    pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
+        SIGN_TRANSACTION.clone(),
+        // ENCODE_INSTRUCTION.clone(),
+        SEND_TRANSACTION.clone(),
+        PROCESS_INSTRUCTIONS.clone()
+    ];
 }

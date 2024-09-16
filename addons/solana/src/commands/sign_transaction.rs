@@ -1,10 +1,8 @@
-use serde::de::value;
+use crate::{commands::get_signers_did, constants::CHECKED_PUBLIC_KEY, typing::SolanaValue};
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::CompiledInstruction;
 use solana_sdk::message::{Message, MessageHeader};
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
-use txtx_addon_kit::types::stores::ValueStore;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
@@ -15,17 +13,16 @@ use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
     SignersState,
 };
+use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
 use crate::constants::{TRANSACTION_MESSAGE_BYTES, UNSIGNED_TRANSACTION_BYTES};
 
-use super::get_signer_did;
-
 lazy_static! {
-    pub static ref SIGN_SOLANA_TRANSACTION: PreCommandSpecification = define_command! {
-      SignSolanaTransaction => {
+    pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
+      SignTransaction => {
           name: "Sign Solana Transaction",
           matcher: "sign_transaction",
           documentation: "The `solana::send_transaction` is coming soon.",
@@ -85,8 +82,8 @@ lazy_static! {
     };
 }
 
-pub struct SignSolanaTransaction;
-impl CommandImplementation for SignSolanaTransaction {
+pub struct SignTransaction;
+impl CommandImplementation for SignTransaction {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -106,20 +103,20 @@ impl CommandImplementation for SignSolanaTransaction {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
 
-        use crate::{constants::CHECKED_PUBLIC_KEY, typing::SolanaValue};
-
-        let signer_did = get_signer_did(values).unwrap();
-        let signer = signers_instances.get(&signer_did).unwrap().clone();
+        let signers_did = get_signers_did(values).unwrap();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
-        let spec = spec.clone();
         let args = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
-            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+
+            let first_signer_did = signers_did.first().unwrap();
+            let first_signer = signers_instances.get(&first_signer_did).unwrap();
+            let signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
+
             if signer_state
                 .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
                 .is_some()
@@ -142,12 +139,12 @@ impl CommandImplementation for SignSolanaTransaction {
                 args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             let (signers, signer_state, mut signer_actions) =
-                (signer.specification.check_signability)(
+                (first_signer.specification.check_signability)(
                     &construct_did,
                     &instance_name,
                     &description,
                     &payload,
-                    &signer.specification,
+                    &first_signer.specification,
                     &args,
                     signer_state,
                     signers,
@@ -168,20 +165,22 @@ impl CommandImplementation for SignSolanaTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(values).unwrap();
-        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+        let signers_did = get_signers_did(values).unwrap();
+        let first_signer_did = signers_did.first().unwrap();
+
+        let first_signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
 
         if let Ok(signed_transaction_bytes) = values.get_expected_value(SIGNED_TRANSACTION_BYTES) {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
                 .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
-            return return_synchronous_ok(signers, signer_state, result);
+            return return_synchronous_ok(signers, first_signer_state, result);
         }
 
-        let signer = signers_instances.get(&signer_did).unwrap();
+        let signer = signers_instances.get(&first_signer_did).unwrap();
 
-        let payload = signer_state
+        let payload = first_signer_state
             .get_scoped_value(&construct_did.to_string(), TRANSACTION_MESSAGE_BYTES)
             .unwrap()
             .clone();
@@ -194,7 +193,7 @@ impl CommandImplementation for SignSolanaTransaction {
             &payload,
             &signer.specification,
             &values,
-            signer_state,
+            first_signer_state,
             signers,
             signers_instances,
         );

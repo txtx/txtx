@@ -12,22 +12,23 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::encode_contract_call;
-use crate::commands::get_signer_did;
 use crate::constants::{CHAIN_ID, TRANSACTION_MESSAGE_BYTES};
+use crate::typing::SOLANA_ACCOUNT;
 
-use super::sign_transaction::SignSolanaTransaction;
+use super::get_signers_did;
+use super::sign_transaction::SignTransaction;
 
 lazy_static! {
-    pub static ref SEND_PROGRAM_CALL: PreCommandSpecification = define_command! {
-        SendContractCall => {
-            name: "Send Contract Call Transaction",
-            matcher: "call_program",
-            documentation: "The `call_program` action encodes a program call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+    pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
+        ProcessInstructions => {
+            name: "Process Solana Instructions",
+            matcher: "process_instructions",
+            documentation: "The `process_instructions` action encode instructions, build, sign and broadcast a transaction",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -38,39 +39,51 @@ lazy_static! {
                     tainting: false,
                     internal: false
                 },
-                program_id: {
-                    documentation: "The program identifier to invoke.",
-                    typing: Type::array(Type::addon("")),
+                instruction: {
+                    documentation: "Instructions to process",
+                    typing: Type::map(vec![
+                        ObjectProperty {
+                            name: "description".into(),
+                            documentation: "Description of the instruction".into(),
+                            typing: Type::string(),
+                            optional: true,
+                            tainting: false,
+                            internal: false
+                        },
+                        ObjectProperty {
+                            name: "program_id".into(),
+                            documentation: "Specifies the program being invoked".into(),
+                            typing: Type::string(),
+                            optional: false,
+                            tainting: true,
+                            internal: false
+                        },
+                        ObjectProperty {
+                            name: "accounts".into(),
+                            documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
+                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())),
+                            optional: false,
+                            tainting: true,
+                            internal: false
+                        },
+                        ObjectProperty {
+                            name: "data".into(),
+                            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler (function arguments)".into(),
+                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())),
+                            optional: false,
+                            tainting: true,
+                            internal: false
+                        }
+                    ]),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
-                chain_id: {
-                    documentation: "The network id used to validate the transaction version.",
-                    typing: Type::string(),
-                    optional: true,
+                signers: {
+                    documentation: "Set of references to a signer construct, which will be used to sign the transaction.",
+                    typing: Type::array(Type::string()),
+                    optional: false,
                     tainting: true,
-                    internal: false
-                },
-                rpc_api_url: {
-                    documentation: "The URL to use when making API requests.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false
-                },
-                rpc_api_auth_token: {
-                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false
-                },
-                confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::integer(),
-                    optional: true,
-                    tainting: false,
                     internal: false
                 }
             ],
@@ -82,8 +95,8 @@ lazy_static! {
     };
 }
 
-pub struct SendContractCall;
-impl CommandImplementation for SendContractCall {
+pub struct ProcessInstructions;
+impl CommandImplementation for ProcessInstructions {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -100,28 +113,29 @@ impl CommandImplementation for SendContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
-        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-        // Extract network_id
-        let chain_id: String = match args.get_expected_string(CHAIN_ID) {
-            Ok(value) => value.into(),
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
-        let instructions = args
-            .get_expected_array("instructions")
-            .unwrap()
-            .iter()
-            .map(|i| i.expect_buffer_bytes())
-            .collect::<Vec<Vec<u8>>>();
+        let signers_did = get_signers_did(args).unwrap();
 
-        let bytes = encode_contract_call(&instructions)
-            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
-        signers.push_signer_state(signer_state);
+        // TODO: revisit pattern and leverage `check_instantiability` instead`.
+        for signer_did in signers_did.iter() {
+            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            // Extract network_id
 
-        let mut args = args.clone();
-        args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
+            let instructions = args
+                .get_expected_array("instruction")
+                .unwrap()
+                .iter()
+                .map(|i| i.expect_buffer_bytes())
+                .collect::<Vec<Vec<u8>>>();
 
-        SignSolanaTransaction::check_signed_executability(
+            let bytes = encode_contract_call(&instructions)
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
+
+            let mut args = args.clone();
+            args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
+
+            signers.push_signer_state(signer_state);
+        }
+        SignTransaction::check_signed_executability(
             construct_did,
             instance_name,
             spec,
@@ -157,7 +171,7 @@ impl CommandImplementation for SendContractCall {
         args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
 
         let future = async move {
-            let run_signing_future = SignSolanaTransaction::run_signed_execution(
+            let run_signing_future = SignTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
                 &args,

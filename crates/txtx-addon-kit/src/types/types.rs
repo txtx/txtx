@@ -617,6 +617,7 @@ pub enum Type {
     Object(Vec<ObjectProperty>),
     Addon(String),
     Array(Box<Type>),
+    Map(Vec<ObjectProperty>),
 }
 
 impl Type {
@@ -637,6 +638,9 @@ impl Type {
     }
     pub fn object(props: Vec<ObjectProperty>) -> Type {
         Type::Object(props)
+    }
+    pub fn map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(props)
     }
     pub fn buffer() -> Type {
         Type::Buffer
@@ -661,6 +665,7 @@ impl Type {
             Type::Object(_) => "object".into(),
             Type::Addon(addon) => format!("addon({})", addon),
             Type::Array(typing) => format!("array[{}]", typing.to_string()),
+            Type::Map(_) => "map".into(),
         }
     }
 }
@@ -712,6 +717,7 @@ impl Serialize for Type {
             Type::Object(_) => serializer.serialize_str("object"), // todo: add properties
             Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
             Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
+            Type::Map(_) => serializer.serialize_str("map"), // todo: add properties
         }
     }
 }

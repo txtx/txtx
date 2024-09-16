@@ -1,18 +1,16 @@
 // Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
 // to understand the syntax and discover the powerful features of txtx.
 
-runtime "addon::solana" {
-  defaults {
-    network_id = env.solana_network_id
-    rpc_api_url = env.solana_api_url
-  }
+addon "solana" {
+  network_id = input.solana_network_id
+  rpc_api_url = input.solana_api_url
 }
 
 signer "operator" "solana::secret_key" {
   secret_key = [181,11,10,238,32,124,15,199,160,13,193,34,197,38,133,225,68,2,167,183,172,225,186,25,5,169,251,180,189,2,32,156,14,192,194,100,14,47,65,105,189,128,211,200,123,17,198,211,187,96,110,38,248,59,76,244,4,34,242,215,130,33,40,58]
 }
 
-input "in" {
+variable "in" {
   value = 1
 }
 
@@ -20,8 +18,19 @@ output "out" {
   value = signer.operator.address
 }
 
-action "deploy_hellosol" "solana::sign_transaction" {
-  signer = signer.operator
+action "call_hellosol" "solana::process_instructions" {
+  description = "Invoke instructions"
+  instruction {
+    program_id = "BqbXap7GbJXfP42q59Ss2my1iwumLiZBT9fkLFPXwSR2"
+    accounts = [
+      solana::account(signer.operator.address, true, true),
+      solana::account(signer.operator.address, false, false),
+    ]
+    data = "0x0000000000"
+  }
+  signers = [
+    signer.operator
+  ]
 }
 
 // tx.new/arkadiko
