@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use solana_sdk::hash::Hash;
 use solana_sdk::instruction::CompiledInstruction;
 use solana_sdk::message::{Message, MessageHeader};
@@ -231,8 +231,6 @@ impl SignerImplementation for SolanaSecretKey {
             .get_expected_buffer_bytes("secret_key")
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
-        println!("{:?}", payload);
-
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
 
         let mut instructions = vec![];
@@ -354,8 +352,6 @@ impl SignerImplementation for SolanaSecretKey {
             .get_expected_buffer_bytes("secret_key")
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
-        println!("{:?}", payload);
-
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
         let message_bytes = &payload.expect_addon_data().bytes;
         let message = bincode::deserialize(message_bytes).unwrap();
@@ -363,10 +359,11 @@ impl SignerImplementation for SolanaSecretKey {
         let mut transaction = Transaction::new_unsigned(message);
         transaction.sign(&[keypair], Hash::new_unique());
 
-        println!("transaction: {:?}", transaction);
-        // Message::deserialize(deserializer)
-        // let transaction_bytes = payload.expect_addon_data();
-        // Transaction::deserialize(deserializer)
+        result.outputs.insert(
+            SIGNED_TRANSACTION_BYTES.into(),
+            SolanaValue::transaction(bincode::serialize(&transaction).unwrap()),
+        );
+
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 }

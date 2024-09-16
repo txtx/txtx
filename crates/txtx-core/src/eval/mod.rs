@@ -1298,8 +1298,7 @@ pub fn perform_inputs_evaluation(
             for block in blocks.iter() {
                 let mut object_values = IndexMap::new();
                 for prop in object_props.iter() {
-                    let Some(expr) =
-                        command_instance.get_expression_from_block(&block, &prop)?
+                    let Some(expr) = command_instance.get_expression_from_block(&block, &prop)?
                     else {
                         continue;
                     };
@@ -1334,7 +1333,7 @@ pub fn perform_inputs_evaluation(
                             continue;
                         }
                     };
-    
+
                     match value.clone() {
                         Value::Object(obj) => {
                             for (k, v) in obj.into_iter() {

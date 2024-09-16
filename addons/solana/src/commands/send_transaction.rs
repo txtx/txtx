@@ -1,4 +1,5 @@
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -91,8 +92,6 @@ impl CommandImplementation for SendTransaction {
         _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::types::commands::CommandExecutionResult;
-
         let future = async move {
             let result = CommandExecutionResult::new();
             Ok(result)
@@ -110,16 +109,11 @@ impl CommandImplementation for SendTransaction {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        // BroadcastStacksTransaction::build_background_task(
-        //     &construct_did,
-        //     &spec,
-        //     &inputs,
-        //     &outputs,
-        //     &defaults,
-        //     &progress_tx,
-        //     &background_tasks_uuid,
-        //     &supervision_context,
-        // )
-        unimplemented!()
+        let future = async move {
+            let result = CommandExecutionResult::new();
+            Ok(result)
+        };
+
+        Ok(Box::pin(future))
     }
 }

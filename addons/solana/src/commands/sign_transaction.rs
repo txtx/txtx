@@ -101,6 +101,7 @@ impl CommandImplementation for SignTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
+        use serde::Deserialize;
         use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
 
         let signers_did = get_signers_did(values).unwrap();
@@ -127,7 +128,10 @@ impl CommandImplementation for SignTransaction {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction = build_transaction().unwrap();
+            let message_bytes = args.get_expected_buffer_bytes(TRANSACTION_MESSAGE_BYTES).unwrap();
+
+            let message = bincode::deserialize(&message_bytes).unwrap();
+            let mut transaction = Transaction::new_unsigned(message);
             let mut instructions = vec![];
             for instruction in transaction.message.instructions.iter() {
                 let instruction_bytes = bincode::serialize(instruction).unwrap();

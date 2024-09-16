@@ -664,18 +664,15 @@ impl CommandInstance {
         group.value.to_string()
     }
 
-    pub fn get_blocks_for_map(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Vec<Block>, Vec<Diagnostic>> {
-        let mut entries = vec![]; 
+    pub fn get_blocks_for_map(&self, input: &CommandInput) -> Result<Vec<Block>, Vec<Diagnostic>> {
+        let mut entries = vec![];
 
         match &input.typing {
             Type::Map(_) => {
                 for block in self.block.body.get_blocks(&input.name) {
                     entries.push(block.clone());
-                }                
-            },
+                }
+            }
             _ => {
                 unreachable!()
             }
@@ -1165,7 +1162,7 @@ pub trait CommandImplementation {
     }
 
     fn build_background_task(
-        _construct_id: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _outputs: &ValueStore,

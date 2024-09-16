@@ -1,5 +1,9 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
+use solana_sdk::instruction::{AccountMeta, Instruction};
+use solana_sdk::pubkey::Pubkey;
+use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
@@ -17,7 +21,8 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::encode_contract_call;
-use crate::constants::{CHAIN_ID, TRANSACTION_MESSAGE_BYTES};
+use crate::commands::send_transaction::SendTransaction;
+use crate::constants::TRANSACTION_MESSAGE_BYTES;
 use crate::typing::SOLANA_ACCOUNT;
 
 use super::get_signers_did;
@@ -61,7 +66,7 @@ lazy_static! {
                         ObjectProperty {
                             name: "accounts".into(),
                             documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
-                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())),
+                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())), // TODO - should be an object
                             optional: false,
                             tainting: true,
                             internal: false
@@ -69,8 +74,8 @@ lazy_static! {
                         ObjectProperty {
                             name: "data".into(),
                             documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler (function arguments)".into(),
-                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())),
-                            optional: false,
+                            typing: Type::buffer(),
+                            optional: true,
                             tainting: true,
                             internal: false
                         }
@@ -88,6 +93,7 @@ lazy_static! {
                 }
             ],
             outputs: [
+
             ],
             example: txtx_addon_kit::indoc! {r#"
     "#},
@@ -116,25 +122,43 @@ impl CommandImplementation for ProcessInstructions {
         let signers_did = get_signers_did(args).unwrap();
 
         // TODO: revisit pattern and leverage `check_instantiability` instead`.
-        for signer_did in signers_did.iter() {
-            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            // Extract network_id
+        let mut instructions = vec![];
+        let instructions_data = args
+            .get_expected_array("instruction")
+            .unwrap()
+            .iter()
+            .map(|i| i.expect_object())
+            .collect::<Vec<_>>();
 
-            let instructions = args
-                .get_expected_array("instruction")
+        for instruction_data in instructions_data.iter() {
+            let program_id = instruction_data.get("program_id").unwrap().expect_string();
+            let accounts = instruction_data
+                .get("accounts")
                 .unwrap()
+                .expect_array()
                 .iter()
-                .map(|i| i.expect_buffer_bytes())
-                .collect::<Vec<Vec<u8>>>();
-
-            let bytes = encode_contract_call(&instructions)
-                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
-
-            let mut args = args.clone();
-            args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
-
-            signers.push_signer_state(signer_state);
+                .map(|a| {
+                    let account = a.expect_object();
+                    let pubkey = account.get("public_key").unwrap().expect_string();
+                    let is_signer = account.get("is_signer").unwrap().expect_bool();
+                    let is_writable = account.get("is_writable").unwrap().expect_bool();
+                    AccountMeta {
+                        pubkey: Pubkey::try_from(txtx_addon_kit::hex::decode(pubkey).unwrap())
+                            .unwrap(),
+                        is_signer,
+                        is_writable,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let data = instruction_data.get("data").unwrap().expect_buffer_bytes();
+            let instruction =
+                Instruction { program_id: Pubkey::from_str(program_id).unwrap(), accounts, data };
+            instructions.push(instruction);
         }
+        let bytes = encode_contract_call(&instructions).unwrap();
+        let mut args = args.clone();
+        args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
+
         SignTransaction::check_signed_executability(
             construct_did,
             instance_name,
@@ -154,12 +178,6 @@ impl CommandImplementation for ProcessInstructions {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let chain_id: String = args.get_expected_string(CHAIN_ID).unwrap().into();
-        let contract_id_value = args.get_expected_value("contract_id").unwrap();
-        let function_name = args.get_expected_string("function_name").unwrap();
-        let function_args_values = args.get_expected_array("function_args").unwrap();
-
-        let bytes = encode_contract_call(&vec![]).unwrap();
         let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
@@ -168,8 +186,6 @@ impl CommandImplementation for ProcessInstructions {
         let progress_tx = progress_tx.clone();
 
         let mut args = args.clone();
-        args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
-
         let future = async move {
             let run_signing_future = SignTransaction::run_signed_execution(
                 &construct_did,
@@ -186,27 +202,11 @@ impl CommandImplementation for ProcessInstructions {
                 },
                 Err(err) => return Err(err),
             };
-
-            args.insert(
-                SIGNED_TRANSACTION_BYTES,
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
-            );
-            // let mut res = match BroadcastStacksTransaction::run_execution(
-            //     &construct_did,
-            //     &spec,
-            //     &args,
-            //     &defaults,
-            //     &progress_tx,
-            // ) {
-            //     Ok(future) => match future.await {
-            //         Ok(res) => res,
-            //         Err(diag) => return Err((signers, signer_state, diag)),
-            //     },
-            //     Err(data) => return Err((signers, signer_state, data)),
-            // };
-
-            // res_signing.append(&mut res);
-
+            let transaction_bytes = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes.clone());
+            let transaction: Transaction =
+                bincode::deserialize(&transaction_bytes.expect_buffer_bytes()).unwrap();
+            let res = transaction.verify_and_hash_message().unwrap();
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
@@ -215,22 +215,20 @@ impl CommandImplementation for ProcessInstructions {
     fn build_background_task(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        inputs: &ValueStore,
+        values: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        // BroadcastStacksTransaction::build_background_task(
-        //     &construct_did,
-        //     &spec,
-        //     &inputs,
-        //     &outputs,
-        //     &defaults,
-        //     &progress_tx,
-        //     &background_tasks_uuid,
-        //     &supervision_context,
-        // )
-        unimplemented!()
+        SendTransaction::build_background_task(
+            &construct_did,
+            &spec,
+            &values,
+            &outputs,
+            &progress_tx,
+            &background_tasks_uuid,
+            &supervision_context,
+        )
     }
 }
