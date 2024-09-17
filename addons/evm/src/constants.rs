@@ -49,6 +49,7 @@ pub const DO_VERIFY_CONTRACT: &str = "verify";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
 pub const ALREADY_DEPLOYED: &str = "already_deployed";
+pub const TRANSACTION_COST: &str = "transaction_cost";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;

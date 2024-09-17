@@ -161,7 +161,7 @@ impl CommandImplementation for SignEVMTransfer {
 
         use crate::{
             codec::get_typed_transaction_bytes,
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_COST},
             typing::EvmValue,
         };
 
@@ -184,11 +184,11 @@ impl CommandImplementation for SignEVMTransfer {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction = build_unsigned_transfer(&signer_state, &spec, &values)
-                .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let (transaction, transaction_cost) =
+                build_unsigned_transfer(&signer_state, &spec, &values)
+                    .await
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
-            println!("unsigned evm tx: {:?}", transaction);
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
                     signers.clone(),
@@ -201,9 +201,9 @@ impl CommandImplementation for SignEVMTransfer {
             let payload = EvmValue::transaction(bytes);
 
             signer_state.insert_scoped_value(
-                &construct_did.value().to_string(),
-                SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
+                &construct_did.to_string(),
+                TRANSACTION_COST,
+                Value::integer(transaction_cost),
             );
             signers.push_signer_state(signer_state);
             let description =
@@ -228,8 +228,8 @@ impl CommandImplementation for SignEVMTransfer {
                         ),
                         ActionItemRequest::new(
                             &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
+                            "Wei".into(),
+                            Some(format!("Check transaction cost")),
                             ActionItemStatus::Todo,
                             ReviewInputRequest::new(
                                 "",
@@ -310,7 +310,7 @@ async fn build_unsigned_transfer(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<TransactionRequest, Diagnostic> {
+) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
@@ -345,9 +345,9 @@ async fn build_unsigned_transfer(
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc, values, common)
+    let res = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::sign_transfer': {e}"))?;
 
-    Ok(tx)
+    Ok(res)
 }

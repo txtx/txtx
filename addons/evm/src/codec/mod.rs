@@ -71,7 +71,7 @@ pub async fn build_unsigned_transaction(
     rpc: EVMRpc,
     args: &ValueStore,
     fields: CommonTransactionFields,
-) -> Result<TransactionRequest, String> {
+) -> Result<(TransactionRequest, i128), String> {
     let from = get_expected_address(&fields.from)
         .map_err(|e| format!("failed to parse to address: {e}"))?;
     let to = if let Some(to) = fields.to {
@@ -115,7 +115,11 @@ pub async fn build_unsigned_transaction(
 
     // set gas limit _after_ all other fields have been set to get an accurate estimate
     tx = set_gas_limit(&rpc, tx, fields.gas_limit).await?;
-    Ok(tx)
+
+    let typed_transaction =
+        tx.clone().build_unsigned().map_err(|e| format!("failed to build transaction: {e}"))?;
+    let cost = get_transaction_cost(&typed_transaction, &rpc).await?;
+    Ok((tx, cost))
 }
 
 async fn build_unsigned_legacy_transaction(
@@ -368,4 +372,26 @@ pub fn format_access_list_for_display(access_list: &AccessList) -> Vec<JsonValue
             ]))
         })
         .collect::<Vec<JsonValue>>()
+}
+
+pub async fn get_transaction_cost(
+    transaction: &TypedTransaction,
+    rpc: &EVMRpc,
+) -> Result<i128, String> {
+    let effective_gas_price = match &transaction {
+        TypedTransaction::Legacy(tx) => tx.gas_price,
+        TypedTransaction::Eip2930(tx) => tx.gas_price,
+        TypedTransaction::Eip1559(tx) => {
+            let base_fee = rpc.get_base_fee_per_gas().await.map_err(|e| e.to_string())?;
+            tx.effective_gas_price(Some(base_fee as u64))
+        }
+        TypedTransaction::Eip4844(_tx) => unimplemented!("EIP-4844 is not supported"),
+    };
+    let gas_limit = transaction.gas_limit();
+    let cost: i128 = effective_gas_price as i128 * gas_limit as i128;
+    Ok(cost)
+}
+
+pub fn format_transaction_cost(cost: i128) -> Result<String, String> {
+    format_units(cost, "wei").map_err(|e| format!("failed to format cost: {e}"))
 }

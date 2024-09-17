@@ -265,7 +265,7 @@ async fn build_eth_call(
         input: Some(input),
         deploy_code: None,
     };
-    let tx = build_unsigned_transaction(rpc.clone(), values, common)
+    let (tx, _) = build_unsigned_transaction(rpc.clone(), values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
 

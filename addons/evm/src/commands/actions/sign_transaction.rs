@@ -19,7 +19,7 @@ use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 
-use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
+use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, ALREADY_DEPLOYED};
 
 use crate::constants::SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES;
 use crate::typing::EvmValue;
@@ -88,10 +88,12 @@ impl CommandImplementation for SignEVMTransaction {
         };
 
         use crate::{
-            codec::{format_transaction_for_display, typed_transaction_bytes},
+            codec::{
+                format_transaction_cost, format_transaction_for_display, typed_transaction_bytes,
+            },
             constants::{
-                ALREADY_DEPLOYED, FORMATTED_TRANSACTION, TRANSACTION_PAYLOAD_BYTES,
-                WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
+                ALREADY_DEPLOYED, FORMATTED_TRANSACTION, TRANSACTION_COST,
+                TRANSACTION_PAYLOAD_BYTES, WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
             },
         };
 
@@ -170,37 +172,39 @@ impl CommandImplementation for SignEVMTransaction {
                     Value::string(display_payload),
                 );
 
+                let mut action_items = vec![ActionItemRequest::new(
+                    &Some(construct_did.clone()),
+                    "".into(),
+                    Some(format!("Check account nonce")),
+                    ActionItemStatus::Todo,
+                    ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
+                        .to_action_type(),
+                    ACTION_ITEM_CHECK_NONCE,
+                )];
+
+                if let Some(tx_cost) =
+                    signer_state.get_scoped_integer(&construct_did.to_string(), TRANSACTION_COST)
+                {
+                    let formatted_cost = format_transaction_cost(tx_cost).map_err(|e| {
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("failed to format transaction cost: {e}"),
+                        )
+                    })?;
+                    action_items.push(ActionItemRequest::new(
+                        &Some(construct_did.clone()),
+                        "Wei".into(),
+                        Some(format!("Check transaction cost")),
+                        ActionItemStatus::Todo,
+                        ReviewInputRequest::new("", &Value::string(formatted_cost))
+                            .to_action_type(),
+                        ACTION_ITEM_CHECK_FEE,
+                    ));
+                }
                 if supervision_context.review_input_values {
                     actions.push_panel("Transaction Execution", "");
-                    actions.push_sub_group(
-                        description.clone(),
-                        vec![
-                            ActionItemRequest::new(
-                                &Some(construct_did.clone()),
-                                "".into(),
-                                Some(format!("Check account nonce")),
-                                ActionItemStatus::Todo,
-                                ReviewInputRequest::new(
-                                    "",
-                                    &Value::integer(transaction.nonce().into()),
-                                )
-                                .to_action_type(),
-                                ACTION_ITEM_CHECK_NONCE,
-                            ),
-                            ActionItemRequest::new(
-                                &Some(construct_did.clone()),
-                                "µSTX".into(),
-                                Some(format!("Check transaction fee")),
-                                ActionItemStatus::Todo,
-                                ReviewInputRequest::new(
-                                    "",
-                                    &Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                                )
-                                .to_action_type(),
-                                ACTION_ITEM_CHECK_FEE,
-                            ),
-                        ],
-                    )
+                    actions.push_sub_group(description.clone(), action_items)
                 }
             }
 
@@ -233,13 +237,26 @@ impl CommandImplementation for SignEVMTransaction {
     ) -> SignerSignFutureResult {
         let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+
+        let already_deployed = signer_state
+            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
+            .unwrap_or(false);
         if let Some(tx_hash) =
             signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
         {
             let mut result = CommandExecutionResult::new();
-            let tx_hash = EvmValue::tx_hash(tx_hash.expect_buffer_bytes());
-            result.outputs.insert(TX_HASH.into(), tx_hash.clone());
-            result.outputs.insert(TX_HASH.into(), tx_hash);
+            if !already_deployed {
+                let tx_hash_bytes = tx_hash.expect_buffer_bytes_result().map_err(|e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to get tx hash bytes: {e}"),
+                    )
+                })?;
+                let tx_hash = EvmValue::tx_hash(tx_hash_bytes);
+                result.outputs.insert(TX_HASH.into(), tx_hash.clone());
+                result.outputs.insert(TX_HASH.into(), tx_hash.clone());
+            }
             return return_synchronous_ok(signers, signer_state, result);
         }
 

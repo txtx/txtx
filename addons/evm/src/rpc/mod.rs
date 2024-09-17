@@ -7,10 +7,13 @@ use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
 use alloy::transports::http::Http;
 use alloy_provider::fillers::{FillProvider, JoinFill, WalletFiller};
+use alloy_provider::utils::{
+    EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
+};
 use alloy_provider::Identity;
 use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
-use alloy_rpc_types::BlockId;
 use alloy_rpc_types::BlockNumberOrTag::Latest;
+use alloy_rpc_types::{BlockId, BlockNumberOrTag, FeeHistory};
 use txtx_addon_kit::reqwest::{Client, Url};
 
 #[derive(Debug)]
@@ -94,6 +97,28 @@ impl EVMRpc {
         self.provider.estimate_eip1559_fees(None).await.map_err(|e| {
             RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
         })
+    }
+
+    pub async fn get_fee_history(&self) -> Result<FeeHistory, RpcError> {
+        self.provider
+            .get_fee_history(
+                EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                BlockNumberOrTag::Latest,
+                &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+            )
+            .await
+            .map_err(|e| RpcError::Message(format!("error getting fee history: {}", e.to_string())))
+    }
+
+    pub async fn get_base_fee_per_gas(&self) -> Result<u128, RpcError> {
+        let fee_history = self
+            .get_fee_history()
+            .await
+            .map_err(|e| RpcError::Message(format!("error getting base fee per gas: {}", e)))?;
+
+        fee_history
+            .latest_block_base_fee()
+            .ok_or(RpcError::Message(format!("error getting latest base fee")))
     }
 
     pub async fn get_balance(&self, address: &Address) -> Result<Uint<256, 4>, RpcError> {

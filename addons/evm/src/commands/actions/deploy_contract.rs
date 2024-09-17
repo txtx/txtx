@@ -186,9 +186,12 @@ impl CommandImplementation for EVMDeployContract {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
+        use txtx_addon_kit::{helpers::build_diag_context_fn, types::types::Value};
 
-        use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
+        use crate::{
+            constants::{TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
+            typing::EvmValue,
+        };
 
         let signer_did = get_signer_did(values).unwrap();
 
@@ -210,7 +213,7 @@ impl CommandImplementation for EVMDeployContract {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction = build_unsigned_contract_deploy(
+            let (transaction, transaction_cost) = build_unsigned_contract_deploy(
                 &mut signer_state,
                 &spec,
                 &values,
@@ -230,6 +233,12 @@ impl CommandImplementation for EVMDeployContract {
             let payload = EvmValue::transaction(bytes);
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
+
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                TRANSACTION_COST,
+                Value::integer(transaction_cost),
+            );
             signers.push_signer_state(signer_state);
 
             let future_result = SignEVMTransaction::check_signed_executability(
@@ -390,7 +399,7 @@ async fn build_unsigned_contract_deploy(
     _spec: &CommandSpecification,
     values: &ValueStore,
     to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
-) -> Result<TransactionRequest, Diagnostic> {
+) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
@@ -432,10 +441,10 @@ async fn build_unsigned_contract_deploy(
         input: None,
         deploy_code: Some(init_code),
     };
-    let tx = build_unsigned_transaction(rpc, values, common)
+    let res = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {e}"))?;
-    Ok(tx)
+    Ok(res)
 }
 
 pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
