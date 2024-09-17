@@ -98,6 +98,8 @@ impl SignerImplementation for StacksWebWallet {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+
         use crate::constants::RPC_API_AUTH_TOKEN;
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
@@ -134,7 +136,9 @@ impl SignerImplementation for StacksWebWallet {
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?
             .to_owned();
 
-        if let Ok(public_key_bytes) = values.get_expected_buffer_bytes("public_key") {
+        if let Ok(public_key_bytes) =
+            values.get_expected_buffer_bytes(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
+        {
             let version = if network_id.eq("mainnet") {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
             } else {

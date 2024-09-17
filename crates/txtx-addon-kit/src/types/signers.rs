@@ -1,3 +1,4 @@
+use crate::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
@@ -385,7 +386,10 @@ impl SignerInstance {
                 for ActionItemResponse { payload, .. } in responses.iter() {
                     match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
-                            values.insert("public_key", Value::string(update.public_key.clone()));
+                            values.insert(
+                                PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+                                Value::string(update.public_key.clone()),
+                            );
 
                             let signer_state = signers.pop_signer_state(construct_did).unwrap();
                             let res = ((&self.specification).check_activability)(
