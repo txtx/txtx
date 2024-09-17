@@ -280,10 +280,11 @@ impl SignerImplementation for EvmWebWallet {
         let already_deployed = signer_state
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
-        // the tx hash won't actually be used in the path where the contract is already deployed, but we need
-        // this value set in order to prevent re-adding the same action item every time we get to this fn
-        signer_state.insert_scoped_value(&construct_did_str, TX_HASH, Value::null());
         let actions = if already_deployed {
+            // the tx hash won't actually be used in the path where the contract is already deployed, but we need
+            // this value set in order to prevent re-adding the same action item every time we get to this fn
+            signer_state.insert_scoped_value(&construct_did_str, TX_HASH, Value::null());
+
             let contract_address = signer_state
                 .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
                 .unwrap();
