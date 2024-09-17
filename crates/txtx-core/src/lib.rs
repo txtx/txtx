@@ -17,6 +17,8 @@ pub mod types;
 mod tests;
 
 use ::std::collections::BTreeMap;
+use ::std::future::Future;
+use ::std::pin::Pin;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 
@@ -277,68 +279,15 @@ pub async fn start_supervised_runbook_runloop(
             ActionItemResponseType::ValidateBlock => {
                 // Handle background tasks
                 if !background_tasks_futures.is_empty() {
-                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                        NormalizedActionItemRequestUpdate {
-                            id: action_item_id.clone(),
-                            action_status: Some(ActionItemStatus::Success(None)),
-                            action_type: None,
-                        },
-                    ]));
-                    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
-                        &background_tasks_handle_uuid,
-                        Panel::ProgressBar(vec![]),
-                    )));
-
-                    let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
-                        kit::futures::future::join_all(background_tasks_futures).await;
-                    for (construct_did, result) in
-                        background_tasks_contructs_dids.into_iter().zip(results)
-                    {
-                        match result {
-                            Ok(result) => {
-                                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                                running_context
-                                    .execution_context
-                                    .commands_execution_results
-                                    .insert(construct_did, result);
-                            }
-                            Err(mut diag) => {
-                                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                                let construct_id = running_context
-                                    .workspace_context
-                                    .expect_construct_id(&construct_did);
-                                diag = diag.location(&construct_id.construct_location);
-                                if let Some(command_instance) = running_context
-                                    .execution_context
-                                    .commands_instances
-                                    .get_mut(&construct_did)
-                                {
-                                    diag = diag.set_span_range(command_instance.block.span());
-                                    diag.span =
-                                        get_source_context_for_diagnostic(&diag, &runbook.sources);
-                                };
-                                let diags = vec![diag];
-                                let _ = block_tx.send(BlockEvent::Error(Block {
-                                    uuid: Uuid::new_v4(),
-                                    visible: true,
-                                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
-                                        &diags,
-                                    )),
-                                }));
-                                let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-                                    ProgressBarVisibilityUpdate::new(
-                                        &background_tasks_handle_uuid,
-                                        false,
-                                    ),
-                                ));
-                                return Err(diags);
-                            }
-                        }
-                    }
-
-                    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-                        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
-                    ));
+                    process_background_tasks(
+                        block_tx.clone(),
+                        background_tasks_handle_uuid,
+                        background_tasks_contructs_dids,
+                        background_tasks_futures,
+                        runbook,
+                        &action_item_id,
+                    )
+                    .await?;
                     background_tasks_futures = vec![];
                     background_tasks_contructs_dids = vec![];
                 }
@@ -470,6 +419,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
             }
             ActionItemResponseType::ProvideSignedTransaction(_)
+            | ActionItemResponseType::SendTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((signing_action_construct_did, scoped_requests)) =
@@ -665,4 +615,66 @@ pub async fn build_genesis_panel(
     // assert_eq!(panels.len(), 1);
 
     Ok(panels)
+}
+
+pub async fn process_background_tasks(
+    block_tx: Sender<BlockEvent>,
+    background_tasks_handle_uuid: Uuid,
+    background_tasks_contructs_dids: Vec<ConstructDid>,
+    background_tasks_futures: Vec<
+        Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>,
+    >,
+    runbook: &mut Runbook,
+    action_item_id: &BlockId,
+) -> Result<(), Vec<Diagnostic>> {
+    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![NormalizedActionItemRequestUpdate {
+        id: action_item_id.clone(),
+        action_status: Some(ActionItemStatus::Success(None)),
+        action_type: None,
+    }]));
+    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
+        &background_tasks_handle_uuid,
+        Panel::ProgressBar(vec![]),
+    )));
+
+    let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
+        kit::futures::future::join_all(background_tasks_futures).await;
+    for (construct_did, result) in background_tasks_contructs_dids.into_iter().zip(results) {
+        match result {
+            Ok(result) => {
+                let running_context = runbook.flow_contexts.first_mut().unwrap();
+                running_context
+                    .execution_context
+                    .commands_execution_results
+                    .insert(construct_did, result);
+            }
+            Err(mut diag) => {
+                let running_context = runbook.flow_contexts.first_mut().unwrap();
+                let construct_id =
+                    running_context.workspace_context.expect_construct_id(&construct_did);
+                diag = diag.location(&construct_id.construct_location);
+                if let Some(command_instance) =
+                    running_context.execution_context.commands_instances.get_mut(&construct_did)
+                {
+                    diag = diag.set_span_range(command_instance.block.span());
+                    diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
+                };
+                let diags = vec![diag];
+                let _ = block_tx.send(BlockEvent::Error(Block {
+                    uuid: Uuid::new_v4(),
+                    visible: true,
+                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&diags)),
+                }));
+                let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+                    ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+                ));
+                return Err(diags);
+            }
+        }
+    }
+
+    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+    ));
+    Ok(())
 }
