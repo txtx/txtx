@@ -27,10 +27,10 @@ use txtx_addon_kit::types::{
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
 use crate::commands::actions::sign_transaction::SignEVMTransaction;
-use crate::constants::{RPC_API_URL, TX_HASH, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::{RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
 
@@ -209,8 +209,8 @@ impl CommandImplementation for SignEVMContractCall {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -235,7 +235,7 @@ impl CommandImplementation for SignEVMContractCall {
             // todo: is this necessary? not happening in deploy_contract
             signer_state.insert_scoped_value(
                 &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
+                SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
                 payload.clone(),
             );
             signers.push_signer_state(signer_state);
@@ -243,7 +243,7 @@ impl CommandImplementation for SignEVMContractCall {
                 values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             if supervision_context.review_input_values {
-                actions.push_panel("Transaction Signing", "");
+                actions.push_panel("Transaction Execution", "");
                 actions.push_sub_group(
                     description.clone(),
                     vec![
@@ -314,7 +314,6 @@ impl CommandImplementation for SignEVMContractCall {
         let signer_did = get_signer_did(&values).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         let future = async move {
-            // if this contract has already been deployed, we'll skip signing and confirming
             signers.push_signer_state(signer_state);
             let run_signing_future = SignEVMTransaction::run_signed_execution(
                 &construct_did,

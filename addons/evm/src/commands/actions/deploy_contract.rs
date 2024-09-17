@@ -26,7 +26,7 @@ use crate::constants::{
 };
 use crate::rpc::EVMRpc;
 use crate::typing::CONTRACT_METADATA;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::check_confirmations::CheckEVMConfirmations;
 use super::get_signer_did;
@@ -205,8 +205,8 @@ impl CommandImplementation for EVMDeployContract {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }

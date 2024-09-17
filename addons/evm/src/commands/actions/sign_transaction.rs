@@ -22,8 +22,9 @@ use txtx_addon_kit::types::{
 
 use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE};
 
-use crate::constants::UNSIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use crate::constants::SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES;
+use crate::typing::EvmValue;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
 
@@ -87,7 +88,13 @@ impl CommandImplementation for SignEVMTransaction {
             network::TransactionBuilder, primitives::TxKind, rpc::types::TransactionRequest,
         };
 
-        use crate::constants::TRANSACTION_PAYLOAD_BYTES;
+        use crate::{
+            codec::{format_transaction_for_display, typed_transaction_bytes},
+            constants::{
+                ALREADY_DEPLOYED, FORMATTED_TRANSACTION, TRANSACTION_PAYLOAD_BYTES,
+                WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
+            },
+        };
 
         let signer_did = get_signer_did(values).unwrap();
 
@@ -101,82 +108,109 @@ impl CommandImplementation for SignEVMTransaction {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let payload = values
-                .get_expected_value(TRANSACTION_PAYLOAD_BYTES)
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-            let transaction_bytes = payload.expect_buffer_bytes();
-
-            let mut transaction: TransactionRequest =
-                serde_json::from_slice(&transaction_bytes[..]).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("error deserializing transaction: {e}"),
-                    )
-                })?;
-
-            // The transaction kind isn't serialized as part of the tx, so we need to ensure that the tx kind
-            // is Create if there is no to address. maybe we should consider some additional checks here to
-            // ensure we aren't errantly setting it to create
-            if None == transaction.to {
-                transaction = transaction.with_kind(TxKind::Create);
-            }
-            let transaction = transaction.build_unsigned().unwrap();
-
-            signer_state.insert_scoped_value(
-                &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
-            );
-            signers.push_signer_state(signer_state);
             let description =
                 values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
-            if supervision_context.review_input_values {
-                actions.push_panel("Transaction Signing", "");
-                actions.push_sub_group(
-                    description.clone(),
-                    vec![
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "".into(),
-                            Some(format!("Check account nonce")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
-                            ACTION_ITEM_CHECK_NONCE,
-                        ),
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
-                            ACTION_ITEM_CHECK_FEE,
-                        ),
-                    ],
-                )
-            }
+            let already_deployed = signer_state
+                .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
+                .unwrap_or(false);
+            // if this transaction is a contract deployment that's already been done,
+            // the signer may still want to have some action items, but we won't build a transaction
+            if already_deployed {
+                if supervision_context.review_input_values {
+                    actions.push_panel("Transaction Execution", "");
+                    actions.push_sub_group(description.clone(), vec![]);
+                }
+            } else {
+                let transaction_request_bytes = values
+                    .get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
-            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+                let mut transaction: TransactionRequest =
+                    serde_json::from_slice(&transaction_request_bytes[..]).map_err(|e| {
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("error deserializing transaction: {e}"),
+                        )
+                    })?;
+
+                // The transaction kind isn't serialized as part of the tx, so we need to ensure that the tx kind
+                // is Create if there is no to address. maybe we should consider some additional checks here to
+                // ensure we aren't errantly setting it to create
+                if None == transaction.to {
+                    transaction = transaction.with_kind(TxKind::Create);
+                }
+                let transaction = transaction.build_unsigned().unwrap();
+
+                let web_wallet_payload_bytes = typed_transaction_bytes(&transaction);
+                let web_wallet_payload = Value::buffer(web_wallet_payload_bytes);
+
+                // the secret key wallet and web wallet need the transaction in slightly different formats,
+                // so we'll store them in separate keys and allow the signer to choose which one it needs
+                signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+                    Value::buffer(transaction_request_bytes),
+                );
+                signer_state.insert_scoped_value(
+                    &construct_did.value().to_string(),
+                    WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
+                    web_wallet_payload.clone(),
+                );
+                let display_payload = format_transaction_for_display(&transaction);
+                signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    FORMATTED_TRANSACTION,
+                    Value::string(display_payload),
+                );
+
+                if supervision_context.review_input_values {
+                    actions.push_panel("Transaction Execution", "");
+                    actions.push_sub_group(
+                        description.clone(),
+                        vec![
+                            ActionItemRequest::new(
+                                &Some(construct_did.clone()),
+                                "".into(),
+                                Some(format!("Check account nonce")),
+                                ActionItemStatus::Todo,
+                                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                    input_name: "".into(),
+                                    value: Value::integer(transaction.nonce().into()),
+                                }),
+                                ACTION_ITEM_CHECK_NONCE,
+                            ),
+                            ActionItemRequest::new(
+                                &Some(construct_did.clone()),
+                                "µSTX".into(),
+                                Some(format!("Check transaction fee")),
+                                ActionItemStatus::Todo,
+                                ActionItemRequestType::ReviewInput(ReviewInputRequest {
+                                    input_name: "".into(),
+                                    value: Value::integer(
+                                        transaction.gas_limit().try_into().unwrap(),
+                                    ),
+                                }),
+                                ACTION_ITEM_CHECK_FEE,
+                            ),
+                        ],
+                    )
+                }
+            }
 
             let (signers, signer_state, mut signer_actions) =
                 (signer.specification.check_signability)(
                     &construct_did,
                     &instance_name,
                     &description,
-                    &payload,
+                    &Value::null(), // null payload because we want to signer to pull the appropriate one from the state
                     &signer.specification,
                     &values,
                     signer_state,
@@ -193,36 +227,33 @@ impl CommandImplementation for SignEVMTransaction {
     fn run_signed_execution(
         construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signer_did = get_signer_did(args).unwrap();
+        let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Some(tx_hash) =
+            signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
+        {
             let mut result = CommandExecutionResult::new();
-            result
-                .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
+            let tx_hash = EvmValue::tx_hash(tx_hash.expect_buffer_bytes());
+            result.outputs.insert(TX_HASH.into(), tx_hash.clone());
+            result.outputs.insert(TX_HASH.into(), tx_hash);
             return return_synchronous_ok(signers, signer_state, result);
         }
 
         let signer = signers_instances.get(&signer_did).unwrap();
-        let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
-            .unwrap()
-            .clone();
 
-        let title = args.get_expected_string("description").unwrap_or("New Transaction".into());
+        let title = values.get_expected_string("description").unwrap_or("New Transaction".into());
 
         let res = (signer.specification.sign)(
             construct_did,
             title,
-            &payload,
+            &Value::null(),
             &signer.specification,
-            &args,
+            &values,
             signer_state,
             signers,
             signers_instances,

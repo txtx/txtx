@@ -3,16 +3,20 @@ use txtx_addon_kit::types::{
     signers::{signer_diag_with_namespace_ctx, SignerSpecification},
 };
 
-pub mod secret_key;
+pub mod common;
+mod secret_key;
+mod web_wallet;
 
 use secret_key::EVM_SECRET_KEY_SIGNER;
+use web_wallet::EVM_WEB_WALLET;
 
 use crate::constants::NAMESPACE;
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
 
 lazy_static! {
-    pub static ref WALLETS: Vec<SignerSpecification> = vec![EVM_SECRET_KEY_SIGNER.clone()];
+    pub static ref WALLETS: Vec<SignerSpecification> =
+        vec![EVM_SECRET_KEY_SIGNER.clone(), EVM_WEB_WALLET.clone()];
 }
 
 pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
