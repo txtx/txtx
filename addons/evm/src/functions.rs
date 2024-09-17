@@ -27,7 +27,10 @@ use crate::{
         string_to_address, value_to_sol_value,
     },
     commands::actions::deploy_contract::create_init_code,
-    constants::{DEFAULT_CREATE2_FACTORY_ADDRESS, NAMESPACE},
+    constants::{
+        DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR,
+        NAMESPACE,
+    },
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
         EVM_INIT_CODE,
@@ -167,20 +170,20 @@ lazy_static! {
                 } 
                 "#},
                 inputs: [
-                    artifacts_path: {
-                        documentation: "The path to the Hardhat artifacts directory.",
-                        typing: vec![Type::string()],
-                        optional: false
-                    },
-                    contract_source_path: {
-                        documentation: "The path, relative to the Hardhat project root, to the contract source file.",
-                        typing: vec![Type::string()],
-                        optional: false
-                    },
                     contract_name: {
                         documentation: "The name of the contract being deployed.",
                         typing: vec![Type::string()],
                         optional: false
+                    },
+                    contract_source_path: {
+                        documentation: "The path, relative to the Hardhat project root, to the contract source file. Defaults to `./contracts/<ContractName>.sol`.",
+                        typing: vec![Type::string()],
+                        optional: true
+                    },
+                    artifacts_path: {
+                        documentation: "The path to the Hardhat artifacts directory. Defaults to `./artifacts`.",
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -518,9 +521,12 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let artifacts_path_str = args.get(0).unwrap().as_string().unwrap();
-        let contract_source_path_str = args.get(1).unwrap().as_string().unwrap();
-        let contract_name = args.get(2).unwrap().as_string().unwrap();
+        let contract_name = args.get(0).unwrap().as_string().unwrap();
+        let default_source_path = format!("{}/{}.sol", DEFAULT_HARDHAT_SOURCE_DIR, contract_name);
+        let contract_source_path_str =
+            args.get(1).and_then(|v| v.as_string()).unwrap_or(&default_source_path);
+        let artifacts_path_str =
+            args.get(2).and_then(|v| v.as_string()).unwrap_or(DEFAULT_HARDHAT_ARTIFACTS_DIR);
 
         let artifacts_path = Path::new(artifacts_path_str);
         let artifacts_path = if artifacts_path.is_absolute() {

@@ -55,6 +55,8 @@ pub const TRANSACTION_COST: &str = "transaction_cost";
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
+pub const DEFAULT_HARDHAT_ARTIFACTS_DIR: &str = "artifacts";
+pub const DEFAULT_HARDHAT_SOURCE_DIR: &str = "contracts";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
