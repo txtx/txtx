@@ -5,6 +5,7 @@ use crate::runbook::{
 use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+    TX_HASH,
 };
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
@@ -1024,6 +1025,20 @@ pub fn update_signer_instances_from_action_response(
                                     }
                                 },
                             }
+                            signers.push_signer_state(signer_state.clone());
+                        }
+                    }
+                    ActionItemResponseType::SendTransaction(response) => {
+                        if let Some(mut signer_state) =
+                            signers.pop_signer_state(&response.signer_uuid)
+                        {
+                            let did = &construct_did.to_string();
+                            signer_state.insert_scoped_value(
+                                &did,
+                                TX_HASH,
+                                Value::string(response.transaction_hash.clone()),
+                            );
+
                             signers.push_signer_state(signer_state.clone());
                         }
                     }
