@@ -5,9 +5,7 @@ use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemStatus, ReviewInputRequest};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
@@ -164,10 +162,8 @@ impl SignerImplementation for EvmSecretKeySigner {
                     &format!("Check {} expected address", instance_name),
                     None,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(),
-                        value: Value::string(expected_address.to_string()),
-                    }),
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
             );

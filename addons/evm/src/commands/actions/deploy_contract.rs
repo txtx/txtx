@@ -22,7 +22,6 @@ use crate::codec::get_typed_transaction_bytes;
 use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
     ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
-    TX_HASH,
 };
 use crate::rpc::EVMRpc;
 use crate::typing::CONTRACT_METADATA;

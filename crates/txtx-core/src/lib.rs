@@ -297,11 +297,11 @@ pub async fn start_supervised_runbook_runloop(
                 // Retrieve the previous requests sent and update their statuses.
                 let mut runbook_completed = false;
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
+                let flow_context = runbook.flow_contexts.first_mut().unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
-                    &running_context.workspace_context,
-                    &mut running_context.execution_context,
+                    &flow_context.workspace_context,
+                    &mut flow_context.execution_context,
                     &mut runbook.runtime_context,
                     &runbook.supervision_context,
                     &mut map,
@@ -310,15 +310,21 @@ pub async fn start_supervised_runbook_runloop(
                 )
                 .await;
 
+                // if there were errors, return them to complete execution
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
                     return Err(pass_results.with_spans_filled(&runbook.sources));
-                } else if !pass_results.actions.has_pending_actions()
+                }
+
+                // if there are no pending actions and no background tasks, the runbook could be completed
+                if !pass_results.actions.has_pending_actions()
                     && background_tasks_contructs_dids.is_empty()
                 {
                     runbook_completed = true;
+
+                    let flow_context = runbook.flow_contexts.first_mut().unwrap();
                     let grouped_actions_items =
-                        running_context.execution_context.collect_outputs_constructs_results();
+                        flow_context.execution_context.collect_outputs_constructs_results();
                     let mut actions = Actions::new_panel("output review", "");
                     for (key, action_items) in grouped_actions_items.into_iter() {
                         actions.push_group(key.as_str(), action_items);
@@ -367,7 +373,9 @@ pub async fn start_supervised_runbook_runloop(
             ActionItemResponseType::PickInputOption(_) => {}
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                value_checked, ..
+                value_checked,
+                force_execution,
+                ..
             }) => {
                 let new_status = match value_checked {
                     true => ActionItemStatus::Success(None),
@@ -379,6 +387,39 @@ pub async fn start_supervised_runbook_runloop(
                         .normalize(&action_item_requests)
                         .unwrap(),
                 ]));
+                if *force_execution {
+                    let running_context = runbook.flow_contexts.first_mut().unwrap();
+                    let mut pass_results = run_constructs_evaluation(
+                        &background_tasks_handle_uuid,
+                        &running_context.workspace_context,
+                        &mut running_context.execution_context,
+                        &mut runbook.runtime_context,
+                        &runbook.supervision_context,
+                        &mut BTreeMap::new(),
+                        &action_item_responses,
+                        &block_tx.clone(),
+                    )
+                    .await;
+                    let mut updated_actions = vec![];
+                    for action in pass_results
+                        .actions
+                        .compile_actions_to_item_updates(&action_item_requests)
+                        .into_iter()
+                    {
+                        updated_actions.push(action.normalize(&action_item_requests).unwrap())
+                    }
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+
+                    if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
+                        background_tasks_futures
+                            .append(&mut pass_results.pending_background_tasks_futures);
+                        background_tasks_contructs_dids
+                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    }
+                    if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                        let _ = block_tx.send(BlockEvent::Error(error_event));
+                    }
+                }
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
                 // Retrieve the previous requests sent and update their statuses.

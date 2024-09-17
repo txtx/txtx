@@ -1421,7 +1421,9 @@ impl ActionItemRequestType {
     ///
     pub fn get_block_id_string(&self) -> String {
         match self {
-            ActionItemRequestType::ReviewInput(val) => format!("ReviewInput({})", val.input_name),
+            ActionItemRequestType::ReviewInput(val) => {
+                format!("ReviewInput({}-{})", val.input_name, val.force_execution)
+            }
             ActionItemRequestType::ProvideInput(val) => format!(
                 "ProvideInput({}-{})",
                 val.input_name,
@@ -1507,6 +1509,9 @@ impl ActionItemRequestType {
                 if new.value != existing.value {
                     if new.input_name != existing.input_name {
                         unreachable!("cannot change review input request input_name")
+                    }
+                    if new.force_execution != existing.force_execution {
+                        unreachable!("cannot change review input request force_execution")
                     }
                     Some(new_type.clone())
                 } else {
@@ -1645,11 +1650,20 @@ impl ActionItemRequestType {
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
+    pub force_execution: bool,
 }
 
 impl ReviewInputRequest {
     pub fn new(input_name: &str, value: &Value) -> Self {
-        ReviewInputRequest { input_name: input_name.to_string(), value: value.clone() }
+        ReviewInputRequest {
+            input_name: input_name.to_string(),
+            value: value.clone(),
+            force_execution: false,
+        }
+    }
+    pub fn force_execution(&mut self) -> &mut Self {
+        self.force_execution = true;
+        self
     }
     pub fn to_action_type(&self) -> ActionItemRequestType {
         ActionItemRequestType::ReviewInput(self.clone())
@@ -1868,6 +1882,7 @@ impl ActionItemResponseType {
 pub struct ReviewedInputResponse {
     pub input_name: String,
     pub value_checked: bool,
+    pub force_execution: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
