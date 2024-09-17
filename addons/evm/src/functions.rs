@@ -574,7 +574,6 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
         let optimizer_runs = Value::integer(build_info.input.settings.optimizer.runs as i128);
         let evm_version = Value::string(build_info.input.settings.evm_version);
         let project_root = Value::string(compiled_contract_path.to_string());
-        // let foundry_config = Value::buffer(serde_json::to_vec(&config).unwrap());
 
         let obj_props = ObjectType::from(vec![
             ("bytecode", bytecode),
@@ -587,7 +586,6 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
             ("optimizer_runs", optimizer_runs),
             ("evm_version", evm_version),
             ("project_root", project_root),
-            // ("foundry_config", foundry_config),
         ]);
 
         Ok(Value::object(obj_props.inner()))
