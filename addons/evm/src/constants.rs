@@ -57,6 +57,8 @@ pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
 pub const DEFAULT_HARDHAT_ARTIFACTS_DIR: &str = "artifacts";
 pub const DEFAULT_HARDHAT_SOURCE_DIR: &str = "contracts";
+pub const DEFAULT_FOUNDRY_MANIFEST_PATH: &str = "foundry.toml";
+pub const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
