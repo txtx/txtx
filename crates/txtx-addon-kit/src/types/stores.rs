@@ -172,6 +172,28 @@ impl ValueStore {
         }
     }
 
+    pub fn get_expected_scoped_value(&self, scope: &str, key: &str) -> Result<&Value, Diagnostic> {
+        match self.inputs.get_expected_value(&format!("{}:{}", scope, key)) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_value(&format!("{}:{}", scope, key)).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
+    pub fn get_expected_scoped_buffer_bytes(
+        &self,
+        scope: &str,
+        key: &str,
+    ) -> Result<Vec<u8>, Diagnostic> {
+        match self.inputs.get_expected_buffer_bytes(&format!("{}:{}", scope, key)) {
+            Ok(val) => Ok(val),
+            Err(e) => {
+                self.defaults.get_expected_buffer_bytes(&format!("{}:{}", scope, key)).or(Err(e))
+            }
+        }
+        .map_err(|e| e)
+    }
+
     // Nonce helpers
     pub fn clear_autoincrementable_nonce(&mut self) {
         self.inputs.clear_autoincrementable_nonce();
