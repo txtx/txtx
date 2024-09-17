@@ -189,10 +189,7 @@ impl CommandImplementation for Variable {
                     &title,
                     description,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "value".to_string(),
-                        value: value.clone(),
-                    }),
+                    ReviewInputRequest::new("value", &value).to_action_type(),
                     "check_input",
                 );
                 action

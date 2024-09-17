@@ -4,8 +4,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
@@ -220,10 +219,11 @@ impl CommandImplementation for SignEVMTransfer {
                             "".into(),
                             Some(format!("Check account nonce")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.nonce().into()),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_NONCE,
                         ),
                         ActionItemRequest::new(
@@ -231,10 +231,11 @@ impl CommandImplementation for SignEVMTransfer {
                             "µSTX".into(),
                             Some(format!("Check transaction fee")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.gas_limit().try_into().unwrap()),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_FEE,
                         ),
                     ],
@@ -281,7 +282,10 @@ impl CommandImplementation for SignEVMTransfer {
         let signer = signers_instances.get(&signer_did).unwrap();
 
         let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES)
+            .get_scoped_value(
+                &construct_did.to_string(),
+                SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+            )
             .unwrap()
             .clone();
 

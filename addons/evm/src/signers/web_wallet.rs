@@ -291,8 +291,8 @@ impl SignerImplementation for EvmWebWallet {
                 &Some(construct_did.clone()),
                 title,
                 description.clone(),
-                ActionItemStatus::Success(None),
-                ReviewInputRequest::new("", contract_address).to_action_type(),
+                ActionItemStatus::Todo,
+                ReviewInputRequest::new("", contract_address).force_execution().to_action_type(),
                 "action_item_review_deployed_contract",
             );
             Actions::append_item(

@@ -75,10 +75,8 @@ pub async fn get_addition_actions_for_address(
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value: Value::string(expected_address.to_owned()),
-                }),
+                ReviewInputRequest::new("", &Value::string(expected_address.to_owned()))
+                    .to_action_type(),
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
@@ -101,10 +99,7 @@ pub async fn get_addition_actions_for_address(
                 "Check signer balance",
                 None,
                 action_status,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value,
-                }),
+                ReviewInputRequest::new("", &value).to_action_type(),
                 ACTION_ITEM_CHECK_BALANCE,
             );
             action_items.push(check_balance);
@@ -116,10 +111,7 @@ pub async fn get_addition_actions_for_address(
                 "Check signer balance",
                 None,
                 ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value: Value::string("N/A".to_string()),
-                }),
+                ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
                 ACTION_ITEM_CHECK_BALANCE,
             );
             action_items.push(check_balance);

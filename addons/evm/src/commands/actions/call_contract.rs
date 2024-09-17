@@ -8,8 +8,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
@@ -252,10 +251,11 @@ impl CommandImplementation for SignEVMContractCall {
                             "".into(),
                             Some(format!("Check account nonce")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.nonce().into()),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_NONCE,
                         ),
                         ActionItemRequest::new(
@@ -263,10 +263,11 @@ impl CommandImplementation for SignEVMContractCall {
                             "µSTX".into(),
                             Some(format!("Check transaction fee")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_FEE,
                         ),
                     ],

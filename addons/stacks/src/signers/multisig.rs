@@ -293,10 +293,7 @@ impl SignerImplementation for StacksConnect {
                                 &root_construct_did,
                                 ACTION_ITEM_CHECK_BALANCE,
                             )
-                            .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value,
-                            }))
+                            .set_type(ReviewInputRequest::new("", &value).to_action_type())
                             .set_status(status_update),
                         );
                     }

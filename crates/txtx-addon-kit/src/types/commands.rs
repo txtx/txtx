@@ -704,6 +704,7 @@ impl CommandInstance {
                         ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                             input_name,
                             value_checked,
+                            ..
                         }) => {
                             for input in self.specification.inputs.iter_mut() {
                                 if &input.name == input_name {

@@ -15,8 +15,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
@@ -234,10 +233,11 @@ impl CommandImplementation for SignStacksTransaction {
                             "".into(),
                             Some(format!("Check account nonce")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.get_origin_nonce() as i128),
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.get_origin_nonce() as i128),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_NONCE,
                         ),
                         ActionItemRequest::new(
@@ -245,10 +245,11 @@ impl CommandImplementation for SignStacksTransaction {
                             "µSTX".into(),
                             Some(format!("Check transaction fee")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.get_tx_fee() as i128),
-                            }),
+                            ReviewInputRequest::new(
+                                "".into(),
+                                &Value::integer(transaction.get_tx_fee() as i128),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_FEE,
                         ),
                     ],
