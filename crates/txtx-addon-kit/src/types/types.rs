@@ -246,6 +246,10 @@ impl Value {
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }
+
+    pub fn expect_buffer_bytes_result(&self) -> Result<Vec<u8>, String> {
+        self.try_get_buffer_bytes_result()?.ok_or("unable to retrieve bytes".into())
+    }
     pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
         let bytes = match &self {
             Value::Buffer(value) => value.clone(),
