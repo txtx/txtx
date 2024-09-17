@@ -148,7 +148,13 @@ impl CommandImplementation for SignEVMTransaction {
                 if None == transaction.to {
                     transaction = transaction.with_kind(TxKind::Create);
                 }
-                let transaction = transaction.build_unsigned().unwrap();
+                let transaction = transaction.build_unsigned().map_err(|e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("error building unsigned transaction: {e}"),
+                    )
+                })?;
 
                 let web_wallet_payload_bytes = typed_transaction_bytes(&transaction);
                 let web_wallet_payload = Value::buffer(web_wallet_payload_bytes);
