@@ -116,8 +116,8 @@ pub struct FoundryConfig {
 impl FoundryConfig {
     pub fn get_compiled_output(
         &self,
-        contract_filename: &str,
         contract_name: &str,
+        contract_filename: &str,
         profile_name: Option<&str>,
     ) -> Result<FoundryCompiledOutputJson, String> {
         let profile_name = profile_name.unwrap_or("default");
@@ -127,7 +127,7 @@ impl FoundryConfig {
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
         path.push(&format!("{}", profile.out));
-        path.push(&format!("{}.sol", contract_filename));
+        path.push(contract_filename);
         path.push(&format!("{}.json", contract_name));
 
         let bytes = std::fs::read(&path).map_err(|e| {

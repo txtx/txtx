@@ -28,8 +28,8 @@ use crate::{
     },
     commands::actions::deploy_contract::create_init_code,
     constants::{
-        DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR,
-        NAMESPACE,
+        DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_FOUNDRY_MANIFEST_PATH, DEFAULT_FOUNDRY_PROFILE,
+        DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR, NAMESPACE,
     },
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
@@ -137,14 +137,35 @@ lazy_static! {
         define_function! {
             GetFoundryDeploymentArtifacts => {
                 name: "get_contract_from_foundry_project",
-                documentation: "Coming soon",
+                documentation: "`evm::get_contract_from_foundry_project` retrieves the deployment artifacts for a contract in a Foundry project.",
                 example: indoc! {r#"
-                        // Coming Soon
-                        "#},
+                variable "contract" {
+                    value = evm::get_contract_from_foundry_project("MyContract")
+                }
+                output "abi" {
+                    value = variable.contract.abi
+                }        
+                "#},
                 inputs: [
-                    input: {
-                        documentation: "Coming Soon",
-                        typing: vec![Type::string()]
+                    contract_name: {
+                        documentation: "The name of the contract being deployed.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    contract_filename: {
+                        documentation: "The `.sol` file that the contract is located in. Defaults to `<ContractName>.sol`.",
+                        typing: vec![Type::string()],
+                        optional: true
+                    },
+                    foundry_manifest_path: {
+                        documentation: "The location of the Foundry.toml. Defaults to `./foundry.toml`.",
+                        typing: vec![Type::string()],
+                        optional: true
+                    },
+                    foundry_profile: {
+                        documentation: "The foundry profile that should be used to find the compiled output. Defaults to `default`.",
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -156,14 +177,10 @@ lazy_static! {
         define_function! {
             GetHardhatDeploymentArtifacts => {
                 name: "get_contract_from_hardhat_project",
-                documentation: "Coming soon",
+                documentation: "`evm::get_contract_from_hardhat_project` retrieves the deployment artifacts for a contract in a Hardhat project.",
                 example: indoc! {r#"
                 variable "contract" {
-                    value = evm::get_contract_from_hardhat_project(
-                        "path/to/hardhat/artifacts",
-                        "contracts/MyContract.sol",
-                        "MyContract"
-                    )
+                    value = evm::get_contract_from_hardhat_project("MyContract")
                 }
                 output "abi" {
                     value = variable.contract.abi
@@ -417,63 +434,48 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let prefix = "command 'evm::get_contract_from_foundry_project'";
-        let manifest_file_path = match args.get(0) {
-            Some(Value::String(manifest_path)) => {
-                let path = Path::new(manifest_path);
-                if path.is_absolute() {
-                    FileLocation::from_path(path.to_path_buf())
-                } else {
-                    let mut workspace_loc =
-                        auth_ctx.workspace_location.get_parent_location().map_err(|e| {
-                            diagnosed_error!(
-                                "{}: unable to read workspace location: {}",
-                                prefix,
-                                e.to_string()
-                            )
-                        })?;
-                    workspace_loc.append_path(&manifest_path.to_string()).map_err(|e| {
-                        diagnosed_error!("{}: invalid foundry manifest path: {}", prefix, e)
-                    })?;
-                    workspace_loc
-                }
-            }
-            other => return Err(format_fn_error(&prefix, 1, "string", other)),
-        };
-        let contract_filename = match args.get(1) {
-            Some(Value::String(val)) => val.clone(),
-            other => return Err(format_fn_error(&prefix, 2, "string", other)),
+        arg_checker(fn_spec, args)?;
+        let contract_name = args.get(0).unwrap().as_string().unwrap();
+        let default_contract_filename = format!("{}.sol", contract_name);
+        let contract_filename =
+            args.get(1).and_then(|v| v.as_string()).unwrap_or(&default_contract_filename);
+        let manifest_path_str =
+            args.get(2).and_then(|v| v.as_string()).unwrap_or(DEFAULT_FOUNDRY_MANIFEST_PATH);
+        let foundry_profile =
+            args.get(3).and_then(|v| v.as_string()).unwrap_or(DEFAULT_FOUNDRY_PROFILE);
+
+        let manifest_path = Path::new(manifest_path_str);
+        let manifest_path = if manifest_path.is_absolute() {
+            FileLocation::from_path(manifest_path.to_path_buf())
+        } else {
+            let mut workspace_loc = auth_ctx
+                .workspace_location
+                .get_parent_location()
+                .map_err(|e| to_diag(fn_spec, format!("unable to read workspace location: {e}")))?;
+
+            workspace_loc
+                .append_path(&manifest_path_str.to_string())
+                .map_err(|e| to_diag(fn_spec, format!("invalid foundry manifest path: {}", e)))?;
+            workspace_loc
         };
 
-        let contract_name = match args.get(2) {
-            Some(Value::String(val)) => val.clone(),
-            None => contract_filename.clone(),
-            other => return Err(format_fn_error(&prefix, 3, "string", other)),
-        };
-
-        let foundry_profile = match args.get(3) {
-            Some(Value::String(val)) => val.clone(),
-            None => "default".into(),
-            other => return Err(format_fn_error(&prefix, 4, "string", other)),
-        };
-
-        let foundry_config = FoundryConfig::get_from_path(&manifest_file_path)
-            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
+        let foundry_config =
+            FoundryConfig::get_from_path(&manifest_path).map_err(|e| to_diag(fn_spec, e))?;
 
         let compiled_output = foundry_config
-            .get_compiled_output(&contract_filename, &contract_name, Some(&foundry_profile))
-            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
+            .get_compiled_output(&contract_name, &contract_filename, Some(&foundry_profile))
+            .map_err(|e| to_diag(fn_spec, e))?;
 
         let abi_string = serde_json::to_string(&compiled_output.abi)
-            .map_err(|e| diagnosed_error!("{}: failed to serialize abi: {}", prefix, e))?;
+            .map_err(|e| to_diag(fn_spec, format!("failed to serialize abi: {}", e)))?;
 
         let source = compiled_output
-            .get_contract_source(&manifest_file_path, &contract_filename)
-            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
+            .get_contract_source(&manifest_path, &contract_name)
+            .map_err(|e| to_diag(fn_spec, e))?;
 
         let abi = Value::string(abi_string);
         let bytecode = Value::string(compiled_output.bytecode.object.clone());
