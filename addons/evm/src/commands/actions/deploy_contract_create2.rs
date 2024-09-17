@@ -237,7 +237,10 @@ impl CommandImplementation for EVMDeployContractCreate2 {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::helpers::build_diag_context_fn;
 
-        use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
+        use crate::{
+            constants::{TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
+            typing::EvmValue,
+        };
 
         let signer_did = get_signer_did(values).unwrap();
 
@@ -285,11 +288,16 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     );
                     Value::null()
                 }
-                Create2DeploymentResult::NotDeployed((tx, contract_address)) => {
+                Create2DeploymentResult::NotDeployed((tx, tx_cost, contract_address)) => {
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
                         CONTRACT_ADDRESS,
                         EvmValue::address(contract_address.0 .0.to_vec()),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        TRANSACTION_COST,
+                        Value::integer(tx_cost),
                     );
                     let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
                         (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
@@ -483,7 +491,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
 
 enum Create2DeploymentResult {
     AlreadyDeployed(Address),
-    NotDeployed((TransactionRequest, Address)),
+    NotDeployed((TransactionRequest, i128, Address)),
 }
 
 #[cfg(not(feature = "wasm"))]
@@ -622,7 +630,7 @@ async fn build_unsigned_create2_deployment(
         deploy_code: None,
     };
 
-    let tx =
+    let (tx, tx_cost) =
         build_unsigned_transaction(rpc.clone(), values, common).await.map_err(to_diag_with_ctx)?;
 
     let actual_contract_address = rpc
@@ -646,7 +654,7 @@ async fn build_unsigned_create2_deployment(
             )));
         }
     }
-    Ok(Create2DeploymentResult::NotDeployed((tx, actual)))
+    Ok(Create2DeploymentResult::NotDeployed((tx, tx_cost, actual)))
 }
 
 fn encode_default_create2_proxy_args(
