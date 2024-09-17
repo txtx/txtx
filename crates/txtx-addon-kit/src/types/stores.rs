@@ -164,6 +164,10 @@ impl ValueStore {
         self.inputs.get_value(&format!("{}:{}", scope, key))
     }
 
+    pub fn get_scoped_integer(&self, scope: &str, key: &str) -> Option<i128> {
+        self.inputs.get_integer(&format!("{}:{}", scope, key))
+    }
+
     pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
         if let Some(Value::Bool(bool)) = self.get_scoped_value(scope, key) {
             Some(*bool)
@@ -445,6 +449,10 @@ impl ValueMap {
 
     pub fn get_uint(&self, key: &str) -> Result<Option<u64>, String> {
         self.store.get(key).map(|v| v.expect_uint()).transpose()
+    }
+
+    pub fn get_integer(&self, key: &str) -> Option<i128> {
+        self.store.get(key).and_then(|v| v.as_integer())
     }
 
     pub fn get_string(&self, key: &str) -> Option<&str> {
