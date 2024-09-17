@@ -59,11 +59,10 @@ pub fn public_key_from_signed_message(
     message: &str,
     signature_hex: &str,
 ) -> Result<Vec<u8>, String> {
-    println!("original message: {}", message);
     let prefixed_message = format!("\x19Ethereum Signed Message:\n{}{}", message.len(), message);
-    println!("message: {}", prefixed_message);
+
     let message_hex = hex::encode(prefixed_message);
-    println!("message hex: {}", message_hex);
+
     let message_bytes = Vec::from_hex(message_hex).map_err(|e| {
         format!("failed to get public key from signature: invalid hex message: {e}")
     })?;
