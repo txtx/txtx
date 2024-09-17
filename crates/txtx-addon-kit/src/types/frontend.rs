@@ -1346,6 +1346,7 @@ pub enum ActionItemRequestType {
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
     ProvideSignedMessage(ProvideSignedMessageRequest),
+    SendTransaction(SendTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
     DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
@@ -1381,6 +1382,12 @@ impl ActionItemRequestType {
     pub fn as_provide_signed_tx(&self) -> Option<&ProvideSignedTransactionRequest> {
         match &self {
             ActionItemRequestType::ProvideSignedTransaction(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_sign_tx(&self) -> Option<&SendTransactionRequest> {
+        match &self {
+            ActionItemRequestType::SendTransaction(value) => Some(value),
             _ => None,
         }
     }
@@ -1433,6 +1440,18 @@ impl ActionItemRequestType {
             ActionItemRequestType::ProvideSignedTransaction(val) => {
                 format!(
                     "ProvideSignedTransaction({}-{}-{}-{})",
+                    val.check_expectation_action_uuid
+                        .as_ref()
+                        .and_then(|u| Some(u.to_string()))
+                        .unwrap_or("None".to_string()),
+                    val.signer_uuid.to_string(),
+                    val.namespace,
+                    val.network_id
+                )
+            }
+            ActionItemRequestType::SendTransaction(val) => {
+                format!(
+                    "SendTransaction({}-{}-{}-{})",
                     val.check_expectation_action_uuid
                         .as_ref()
                         .and_then(|u| Some(u.to_string()))
@@ -1564,6 +1583,30 @@ impl ActionItemRequestType {
                     None
                 }
             }
+            ActionItemRequestType::SendTransaction(new) => {
+                let Some(existing) = existing_item.as_sign_tx() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.payload != existing.payload {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed tx request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed tx request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed tx request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed tx request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
             ActionItemRequestType::ProvideSignedMessage(new) => {
                 let Some(existing) = existing_item.as_provide_signed_msg() else {
                     unreachable!("cannot change action item request type")
@@ -1602,6 +1645,15 @@ impl ActionItemRequestType {
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
+}
+
+impl ReviewInputRequest {
+    pub fn new(input_name: &str, value: &Value) -> Self {
+        ReviewInputRequest { input_name: input_name.to_string(), value: value.clone() }
+    }
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::ReviewInput(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1727,6 +1779,51 @@ impl ProvideSignedTransactionRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SendTransactionRequest {
+    pub check_expectation_action_uuid: Option<ConstructDid>,
+    pub signer_uuid: ConstructDid,
+    pub expected_signer_address: Option<String>,
+    pub payload: Value,
+    pub formatted_payload: Option<String>,
+    pub namespace: String,
+    pub network_id: String,
+}
+
+impl SendTransactionRequest {
+    pub fn new(signer_uuid: &Did, payload: &Value, namespace: &str, network_id: &str) -> Self {
+        SendTransactionRequest {
+            signer_uuid: ConstructDid(signer_uuid.clone()),
+            check_expectation_action_uuid: None,
+            expected_signer_address: None,
+            payload: payload.clone(),
+            formatted_payload: None,
+            namespace: namespace.to_string(),
+            network_id: network_id.to_string(),
+        }
+    }
+
+    pub fn check_expectation_action_uuid(&mut self, uuid: &ConstructDid) -> &mut Self {
+        self.check_expectation_action_uuid = Some(uuid.clone());
+        self
+    }
+
+    pub fn expected_signer_address(&mut self, address: Option<&str>) -> &mut Self {
+        self.expected_signer_address = address.and_then(|a| Some(a.to_string()));
+        self
+    }
+
+    pub fn formatted_payload(&mut self, display_payload: Option<String>) -> &mut Self {
+        self.formatted_payload = display_payload;
+        self
+    }
+
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::SendTransaction(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ProvideSignedMessageRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
@@ -1752,6 +1849,7 @@ pub enum ActionItemResponseType {
     ProvidePublicKey(ProvidePublicKeyResponse),
     ProvideSignedMessage(ProvideSignedMessageResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
+    SendTransaction(SendTransactionResponse),
     ValidateBlock,
     ValidateModal,
 }
@@ -1797,6 +1895,13 @@ pub struct ProvideSignedMessageResponse {
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: Option<String>,
     pub signature_approved: Option<bool>,
+    pub signer_uuid: ConstructDid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendTransactionResponse {
+    pub transaction_hash: String,
     pub signer_uuid: ConstructDid,
 }
 
