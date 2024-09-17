@@ -21,10 +21,10 @@ use txtx_addon_kit::types::{
 };
 
 use crate::codec::CommonTransactionFields;
-use crate::constants::{RPC_API_URL, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::{RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
 
@@ -123,8 +123,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
+              tx_hash: {
+                  documentation: "The transaction hash",
                   typing: Type::string()
               }
             //   network_id: {
@@ -179,8 +179,8 @@ impl CommandImplementation for SignEVMTransfer {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -203,7 +203,7 @@ impl CommandImplementation for SignEVMTransfer {
 
             signer_state.insert_scoped_value(
                 &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
+                SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
                 payload.clone(),
             );
             signers.push_signer_state(signer_state);
@@ -272,18 +272,16 @@ impl CommandImplementation for SignEVMTransfer {
         let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = values.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Ok(tx_hash) = values.get_expected_value(TX_HASH) {
             let mut result = CommandExecutionResult::new();
-            result
-                .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
+            result.outputs.insert(TX_HASH.into(), tx_hash.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
         let signer = signers_instances.get(&signer_did).unwrap();
 
         let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
+            .get_scoped_value(&construct_did.to_string(), SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES)
             .unwrap()
             .clone();
 
