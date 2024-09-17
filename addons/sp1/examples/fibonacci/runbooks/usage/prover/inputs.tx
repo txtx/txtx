@@ -5,5 +5,5 @@ variable "n" {
 
 variable "fibonacci_contract" {
     description = "The fibonacci contrat artifacts"
-    value = evm::get_contract_from_foundry_project("contracts/foundry.toml", "Fibonacci")
+    value = evm::get_contract_from_foundry_project("Fibonacci", "contracts/foundry.toml")
 }

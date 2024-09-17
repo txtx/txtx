@@ -16,7 +16,7 @@ signer "operator" "stacks::secret_key" {
 
 action "deploy_contract_a" "stacks::deploy_contract" {
     description = "Deploy contract-a"
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "token")
+    contract = stacks::get_contract_from_clarinet_project("token")
     signer = signer.operator
 }
 
