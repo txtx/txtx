@@ -466,7 +466,7 @@ lazy_static! {
                         optional: false
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
+                        documentation: "The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).",
                         typing: vec![Type::string()],
                         optional: false
                     },
@@ -506,7 +506,7 @@ lazy_static! {
                         optional: false
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_name>::<non_fungible_storage>).",
+                        documentation: "The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).",
                         typing: vec![Type::string()],
                         optional: false
                     },
