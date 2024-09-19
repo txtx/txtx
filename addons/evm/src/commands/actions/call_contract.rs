@@ -7,10 +7,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
@@ -27,10 +24,10 @@ use txtx_addon_kit::types::{
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
 use crate::commands::actions::sign_transaction::SignEVMTransaction;
-use crate::constants::{RPC_API_URL, TX_HASH, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::RPC_API_URL;
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
 
@@ -186,14 +183,10 @@ impl CommandImplementation for SignEVMContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use alloy::{consensus::Transaction, network::TransactionBuilder};
-
         use crate::{
             codec::get_typed_transaction_bytes,
             commands::actions::sign_transaction::SignEVMTransaction,
-            constants::{
-                ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_PAYLOAD_BYTES,
-            },
+            constants::{TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
         };
 
@@ -209,14 +202,15 @@ impl CommandImplementation for SignEVMContractCall {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let transaction = build_unsigned_contract_call(&signer_state, &spec, &values)
-                .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let (transaction, transaction_cost) =
+                build_unsigned_contract_call(&signer_state, &spec, &values)
+                    .await
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
@@ -225,53 +219,18 @@ impl CommandImplementation for SignEVMContractCall {
                     diagnosed_error!("command 'evm::call_contract': {e}"),
                 )
             })?;
-            let transaction = transaction.build_unsigned().unwrap();
 
             let payload = EvmValue::transaction(bytes);
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
 
-            // todo: is this necessary? not happening in deploy_contract
             signer_state.insert_scoped_value(
-                &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
+                &construct_did.to_string(),
+                TRANSACTION_COST,
+                Value::integer(transaction_cost),
             );
             signers.push_signer_state(signer_state);
-            let description =
-                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
-
-            if supervision_context.review_input_values {
-                actions.push_panel("Transaction Signing", "");
-                actions.push_sub_group(
-                    description.clone(),
-                    vec![
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "".into(),
-                            Some(format!("Check account nonce")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
-                            ACTION_ITEM_CHECK_NONCE,
-                        ),
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
-                            ACTION_ITEM_CHECK_FEE,
-                        ),
-                    ],
-                )
-            }
 
             let future_result = SignEVMTransaction::check_signed_executability(
                 &construct_did,
@@ -314,7 +273,6 @@ impl CommandImplementation for SignEVMContractCall {
         let signer_did = get_signer_did(&values).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         let future = async move {
-            // if this contract has already been deployed, we'll skip signing and confirming
             signers.push_signer_state(signer_state);
             let run_signing_future = SignEVMTransaction::run_signed_execution(
                 &construct_did,
@@ -360,7 +318,7 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<TransactionRequest, Diagnostic> {
+) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
         commands::actions::get_common_tx_params_from_args,
@@ -429,10 +387,10 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc, values, common)
+    let res = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {e}"))?;
-    Ok(tx)
+    Ok(res)
 }
 
 pub fn encode_contract_call_inputs_from_selector(

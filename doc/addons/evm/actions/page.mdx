@@ -89,8 +89,8 @@ When the `sign_transfer` action is successfully executed, the following outputs 
 <Properties>
 
 
-  <Property name="signed_transaction_bytes">
-    The signed transaction bytes.
+  <Property name="tx_hash">
+    The transaction hash
   </Property>
 
 
@@ -118,9 +118,9 @@ When the `sign_transfer` action is successfully executed, the following outputs 
 ---
 
 
-## sign_contract_call {{ tag: 'action' }}
+## call_contract {{ tag: 'action' }}
 
-The `evm::sign_contract_call` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.
+The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.
 
 ### Inputs
 
@@ -132,7 +132,7 @@ The `evm::sign_contract_call` action encodes a contract call transaction, signs 
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" type="optional">
     The URL of the EVM API used to broadcast the transaction.
   </Property>
 
@@ -208,7 +208,7 @@ The `evm::sign_contract_call` action encodes a contract call transaction, signs 
 
 <Note>
 
-When the `sign_contract_call` action is successfully executed, the following outputs are attached to the action
+When the `call_contract` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -222,11 +222,11 @@ When the `sign_contract_call` action is successfully executed, the following out
 
 </Properties>
 
-<CodeGroup title="Example using sign_contract_call">
+<CodeGroup title="Example using call_contract">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "call_some_contract" "evm::sign_contract_call" {
+action "call_some_contract" "evm::call_contract" {
     contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
     function_name = "myFunction"
     function_args = [evm::bytes("0x1234")]
@@ -263,7 +263,7 @@ The `evm::eth_call` command simulates an Ethereum transaction using the `eth_cal
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" type="optional">
     The URL of the EVM API used to send the RPC request.
   </Property>
 

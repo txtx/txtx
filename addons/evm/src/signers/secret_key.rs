@@ -1,13 +1,11 @@
 use alloy::consensus::Transaction;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
-use alloy::rpc::types::TransactionRequest;
+use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemStatus, ReviewInputRequest};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
@@ -25,7 +23,10 @@ use txtx_addon_kit::types::{
 };
 
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
-use crate::constants::{ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, TX_HASH};
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+    TX_HASH,
+};
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -161,10 +162,8 @@ impl SignerImplementation for EvmSecretKeySigner {
                     &format!("Check {} expected address", instance_name),
                     None,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(),
-                        value: Value::string(expected_address.to_string()),
-                    }),
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
             );
@@ -211,17 +210,17 @@ impl SignerImplementation for EvmSecretKeySigner {
     }
 
     fn sign(
-        _caller_uuid: &ConstructDid,
+        caller_uuid: &ConstructDid,
         _title: &str,
-        payload: &Value,
+        _payload: &Value,
         spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
+        let caller_uuid = caller_uuid.clone();
         let values = values.clone();
-        let payload = payload.clone();
         let signers_instances = signers_instances.clone();
         let spec = spec.clone();
 
@@ -244,12 +243,17 @@ impl SignerImplementation for EvmSecretKeySigner {
                 .get_expected_buffer_bytes("signer_field_bytes")
                 .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
+            let payload_bytes = signer_state
+                .get_expected_scoped_buffer_bytes(
+                    &caller_uuid.to_string(),
+                    SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+                )
+                .unwrap();
+
             let secret_key_signer = field_bytes_to_secret_key_signer(&signer_field_bytes)
                 .map_err(|e| signer_err(&signers, &signer_state, e))?;
 
             let eth_signer = EthereumWallet::from(secret_key_signer);
-
-            let payload_bytes = payload.expect_buffer_bytes();
 
             let mut tx: TransactionRequest = serde_json::from_slice(&payload_bytes).unwrap();
             if tx.to.is_none() {

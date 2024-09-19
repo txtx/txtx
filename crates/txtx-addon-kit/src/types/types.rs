@@ -246,6 +246,10 @@ impl Value {
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }
+
+    pub fn expect_buffer_bytes_result(&self) -> Result<Vec<u8>, String> {
+        self.try_get_buffer_bytes_result()?.ok_or("unable to retrieve bytes".into())
+    }
     pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
         let bytes = match &self {
             Value::Buffer(value) => value.clone(),
@@ -587,6 +591,32 @@ impl Value {
 //         }
 //     }
 // }
+
+pub struct ObjectType {
+    map: IndexMap<String, Value>,
+}
+impl ObjectType {
+    pub fn new() -> Self {
+        ObjectType { map: IndexMap::new() }
+    }
+
+    pub fn from(default: Vec<(&str, Value)>) -> Self {
+        let mut map = IndexMap::new();
+        for (key, value) in default {
+            map.insert(key.to_string(), value);
+        }
+        ObjectType { map }
+    }
+
+    pub fn insert(&mut self, key: &str, value: Value) -> &mut Self {
+        self.map.insert(key.to_string(), value);
+        self
+    }
+
+    pub fn inner(&self) -> IndexMap<String, Value> {
+        self.map.clone()
+    }
+}
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct AddonData {

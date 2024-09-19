@@ -104,17 +104,14 @@ fn test_signer_runbook_no_env() {
     }
     // validate nonce input
     {
+        let nonce_review_input = nonce_action.action_type.as_review_input().unwrap();
         let _ = harness.send_and_expect_action_item_update(
             ActionItemResponse {
                 action_item_id: nonce_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                    input_name: nonce_action
-                        .action_type
-                        .as_review_input()
-                        .unwrap()
-                        .input_name
-                        .clone(),
+                    input_name: nonce_review_input.input_name.clone(),
                     value_checked: true,
+                    force_execution: nonce_review_input.force_execution,
                 }),
             },
             vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
@@ -122,17 +119,14 @@ fn test_signer_runbook_no_env() {
     }
     // validate fee input
     {
+        let fee_review_input = fee_action.action_type.as_review_input().unwrap();
         let _ = harness.send_and_expect_action_item_update(
             ActionItemResponse {
                 action_item_id: fee_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                    input_name: fee_action
-                        .action_type
-                        .as_review_input()
-                        .unwrap()
-                        .input_name
-                        .clone(),
+                    input_name: fee_review_input.input_name.clone(),
                     value_checked: true,
+                    force_execution: fee_review_input.force_execution,
                 }),
             },
             vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],
@@ -356,24 +350,28 @@ fn test_multisig_runbook_no_env() {
     );
 
     // validate nonce
+    let nonce_review_input = nonce_action.action_type.as_review_input().unwrap();
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: nonce_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: nonce_action.action_type.as_review_input().unwrap().input_name.clone(),
+                input_name: nonce_review_input.input_name.clone(),
                 value_checked: true,
+                force_execution: nonce_review_input.force_execution,
             }),
         },
         vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
     );
 
     // validate fee
+    let fee_review_input = fee_action.action_type.as_review_input().unwrap();
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: fee_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: fee_action.action_type.as_review_input().unwrap().input_name.clone(),
+                input_name: fee_review_input.input_name.clone(),
                 value_checked: true,
+                force_execution: fee_review_input.force_execution,
             }),
         },
         vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],

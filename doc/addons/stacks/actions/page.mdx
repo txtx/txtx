@@ -107,87 +107,6 @@ output "signed_bytes" {
 ---
 
 
-## decode_call_contract {{ tag: 'action' }}
-
-Coming soon
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="bytes" type="required">
-    The contract call transaction bytes to decode.
-  </Property>
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `decode_call_contract` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="contract_id">
-    The contract identifier.
-  </Property>
-
-
-  <Property name="function_name">
-    The function name.
-  </Property>
-
-
-  <Property name="function_args">
-    The function arguments.
-  </Property>
-
-
-  <Property name="nonce">
-    The transaction nonce.
-  </Property>
-
-
-  <Property name="signer">
-    The transaction signer.
-  </Property>
-
-
-  <Property name="fee">
-    The transaction fee.
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using decode_call_contract">
-
-
-```hcl {{ title: 'main.tx' }}
-// Coming soon
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
 ## deploy_contract {{ tag: 'action' }}
 
 The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.
@@ -257,18 +176,23 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="contracts_ids_dependencies" type="optional">
+  <Property name="dependency_contract_ids" type="optional">
     Contracts that are depending on this contract at their deployment.
   </Property>
 
 
-  <Property name="contracts_ids_lazy_dependencies" type="optional">
+  <Property name="lazy_dependency_contract_ids" type="optional">
     Contracts that are depending on this contract after their deployment.
   </Property>
 
 
   <Property name="fee_strategy" type="optional">
     The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.
+  </Property>
+
+
+  <Property name="contract_instance_name" type="optional">
+    The name to use for deploying the contract. Will automatically update contract dependencies.
   </Property>
 
 
@@ -338,9 +262,9 @@ value = action.counter_deployment.tx_id
 ---
 
 
-## deploy_contract_requirement {{ tag: 'action' }}
+## deploy_requirement {{ tag: 'action' }}
 
-The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.
+The `deploy_requirement` action retrieves a deployed contract along with its dependencies, signs the transactions using a signer, and broadcasts the signed transactions to the network.
 
 ### Inputs
 
@@ -359,6 +283,16 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
 
   <Property name="network_id" type="optional">
     The network id used to validate the transaction version.
+  </Property>
+
+
+  <Property name="rpc_api_url_source" type="optional">
+    The URL to use when making API requests.
+  </Property>
+
+
+  <Property name="rpc_api_url" type="optional">
+    The URL to use when making API requests.
   </Property>
 
 
@@ -387,12 +321,17 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="contracts_ids_dependencies" type="optional">
+  <Property name="transforms" type="optional">
+    An array of transform operations to perform on the contract source, before being its signature.
+  </Property>
+
+
+  <Property name="dependency_contract_ids" type="optional">
     Contracts that are depending on this contract at their deployment.
   </Property>
 
 
-  <Property name="contracts_ids_lazy_dependencies" type="optional">
+  <Property name="lazy_dependency_contract_ids" type="optional">
     Contracts that are depending on this contract after their deployment.
   </Property>
 
@@ -403,7 +342,7 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
 
 <Note>
 
-When the `deploy_contract_requirement` action is successfully executed, the following outputs are attached to the action
+When the `deploy_requirement` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -427,11 +366,11 @@ When the `deploy_contract_requirement` action is successfully executed, the foll
 
 </Properties>
 
-<CodeGroup title="Example using deploy_contract_requirement">
+<CodeGroup title="Example using deploy_requirement">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "counter_deployment" "stacks::deploy_contract" {
+action "counter_deployment" "stacks::deploy_requirement" {
     description = "Deploy counter contract."
     source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
     contract_name = "verify-and-update-price-feeds"

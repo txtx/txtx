@@ -293,10 +293,7 @@ impl SignerImplementation for StacksConnect {
                                 &root_construct_did,
                                 ACTION_ITEM_CHECK_BALANCE,
                             )
-                            .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value,
-                            }))
+                            .set_type(ReviewInputRequest::new("", &value).to_action_type())
                             .set_status(status_update),
                         );
                     }
@@ -338,6 +335,8 @@ impl SignerImplementation for StacksConnect {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
+        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
@@ -396,7 +395,7 @@ impl SignerImplementation for StacksConnect {
             signer_state.insert("signers", Value::array(signers_uuids.clone()));
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
-            result.outputs.insert("public_key".into(), public_key.clone());
+            result.outputs.insert(PROVIDE_PUBLIC_KEY_ACTION_RESULT.into(), public_key.clone());
             result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))

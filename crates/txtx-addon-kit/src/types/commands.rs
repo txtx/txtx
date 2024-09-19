@@ -776,6 +776,7 @@ impl CommandInstance {
                         ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                             input_name,
                             value_checked,
+                            ..
                         }) => {
                             for input in self.specification.inputs.iter_mut() {
                                 if &input.name == input_name {
@@ -885,6 +886,11 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                ActionItemRequestType::SendTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
                 ActionItemRequestType::ProvideSignedMessage(_) => {
                     if success {
                         request.action_status = status.clone();
@@ -939,6 +945,12 @@ impl CommandInstance {
                             consolidated_actions.push_action_item_update(action_item_update);
                         }
                         ActionItemResponseType::ProvideSignedTransaction(_) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
+                        ActionItemResponseType::SendTransaction(_) => {
                             let action_item_update =
                                 ActionItemRequestUpdate::from_id(&action_item_id)
                                     .set_status(ActionItemStatus::Success(None));
@@ -1018,6 +1030,11 @@ impl CommandInstance {
                     }
                 }
                 ActionItemRequestType::ProvideSignedTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                ActionItemRequestType::SendTransaction(_) => {
                     if success {
                         request.action_status = status.clone();
                     }
