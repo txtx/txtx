@@ -180,6 +180,7 @@ impl SignerImplementation for SolanaSecretKey {
                     ActionItemRequestType::ReviewInput(ReviewInputRequest {
                         input_name: "".into(),
                         value: Value::string(expected_address.to_string()),
+                        force_execution: true,
                     }),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
