@@ -1,4 +1,6 @@
 use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_config::RpcSendTransactionConfig;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -10,7 +12,7 @@ use txtx_addon_kit::types::commands::{
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
@@ -54,15 +56,19 @@ lazy_static! {
                     tainting: false,
                     internal: false
                 },
-                confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                    typing: Type::integer(),
+                commitment_level: {
+                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
+                    typing: Type::string(),
                     optional: true,
                     tainting: false,
                     internal: false
                 }
             ],
             outputs: [
+                signature: {
+                    documentation: "The transaction computed signature.",
+                    typing: Type::string()
+                }
             ],
             example: txtx_addon_kit::indoc! {r#"
     "#},
@@ -114,6 +120,7 @@ impl CommandImplementation for SendTransaction {
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
+        let commitment_level = inputs.get_expected_string("commitment_level").unwrap_or("confirmed").to_string();
         let transaction_bytes =
             outputs.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES).unwrap();
         let transaction: Transaction = bincode::deserialize(&transaction_bytes).unwrap();
@@ -121,14 +128,23 @@ impl CommandImplementation for SendTransaction {
         let future = async move {
             let client = RpcClient::new(rpc_api_url);
 
-            let res = match client.send_and_confirm_transaction(&transaction) {
+            let mut config = RpcSendTransactionConfig::default();
+            config.preflight_commitment = match commitment_level.as_str() {
+                "processed" => Some(CommitmentLevel::Processed),
+                "confirmed" => Some(CommitmentLevel::Confirmed),
+                "finalized" => Some(CommitmentLevel::Finalized),
+                _ => None
+            };
+
+            let res = match client.send_transaction_with_config(&transaction, config) {
                 Ok(res) => res,
                 Err(e) => {
                     return Err(diagnosed_error!("unable to send transaction ({})", e.to_string()))
                 }
             };
 
-            let result = CommandExecutionResult::new();
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert("signature".into(), Value::string(res.to_string()));
             Ok(result)
         };
 

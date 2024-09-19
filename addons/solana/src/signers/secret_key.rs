@@ -190,7 +190,7 @@ impl SignerImplementation for SolanaSecretKey {
     }
 
     fn activate(
-        _construct_id: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &SignerSpecification,
         _values: &ValueStore,
         signer_state: ValueStore,
@@ -203,6 +203,7 @@ impl SignerImplementation for SolanaSecretKey {
         let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
         result.outputs.insert("address".into(), address.clone());
         result.outputs.insert("public_key".into(), public_key.clone());
+        result.outputs.insert("value".into(), Value::string(construct_did.to_string()));
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -322,10 +323,8 @@ impl SignerImplementation for SolanaSecretKey {
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
-        let transaction_bytes =
-            &payload.expect_addon_data().bytes;
+        let transaction_bytes = &payload.expect_addon_data().bytes;
         let mut transaction: Transaction = bincode::deserialize(transaction_bytes).unwrap();
-
 
         transaction.sign(&[keypair], transaction.message.recent_blockhash);
         result.outputs.insert(

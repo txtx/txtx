@@ -211,6 +211,7 @@ pub async fn run_signers_evaluation(
         let Some(result) = result.take() else {
             continue;
         };
+
         runbook_execution_context.commands_execution_results.insert(construct_did.clone(), result);
     }
 
@@ -394,7 +395,10 @@ pub async fn run_constructs_evaluation(
                                 .insert(dependency, Ok(evaluation_result));
                         }
                         Some(Err(_)) => continue,
-                        Some(Ok(_)) => {}
+                        Some(Ok(_)) => {
+                            cached_dependency_execution_results
+                                .insert(dependency, Ok(evaluation_result));
+                        }
                     }
                 }
             }

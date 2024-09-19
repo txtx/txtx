@@ -10,21 +10,16 @@ signer "operator" "solana::secret_key" {
   secret_key = [181,11,10,238,32,124,15,199,160,13,193,34,197,38,133,225,68,2,167,183,172,225,186,25,5,169,251,180,189,2,32,156,14,192,194,100,14,47,65,105,189,128,211,200,123,17,198,211,187,96,110,38,248,59,76,244,4,34,242,215,130,33,40,58]
 }
 
-variable "in" {
-  value = 1
-}
-
-output "out" {
-  value = signer.operator.public_key
+variable "program_id" {
+  value = "CDPuDrgm8a7MocQ3jcjd8RzHme8z1Lk3H54w4HgVEVsR"
 }
 
 action "call_hellosol" "solana::process_instructions" {
   description = "Invoke instructions"
   instruction {
-    program_id = "CDPuDrgm8a7MocQ3jcjd8RzHme8z1Lk3H54w4HgVEVsR"
+    program_id = variable.program_id
     accounts = [
-      solana::account("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV", true, true),
-      // solana::account(signer.operator.public_key, true, true),
+      solana::account(signer.operator.public_key, true, true),
     ]
     data = "0x"
   }
@@ -33,30 +28,19 @@ action "call_hellosol" "solana::process_instructions" {
   ]
 }
 
-// tx.new/arkadiko
+output "deployer_address" {
+  value = signer.operator.public_key
+}
 
-// commit
-//  - loop
-//     -> commit
-//     -> reveal
-// reveal
+output "transaction_signature" {
+  value = action.call_hellosol.signature
+}
 
-// action "increment_counter" "solana::call_program" {
-//   description = "Increment counter program of ${input.step}"
-//   instructions = [
-//     solana::encode_instruction({
-//       program_id = "BqbXap7GbJXfP42q59Ss2my1iwumLiZBT9fkLFPXwSR2"
-      
-//       accounts = [solana::encode_account(signer.alice
-//        true
-//        true)]
-//       data = borsh_map({
-//         key1: borsh_u8(1)
-//       })
-//     })
-//   ]
-//   signer = signer.alice
-//   confirmations = 1
+// action "deploy_hellosol" "solana::deploy_program" {
+//   description = "Invoke instructions"
+//   program = get_program_from_anchor_project("hellosol")
+//   verifiable = true
+//   signer = signer.operator
 // }
 
   // program = solana::get_contract_from_anchor_project(env.anchor_manifest_path

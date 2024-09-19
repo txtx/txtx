@@ -1,11 +1,6 @@
-use crate::{commands::get_signers_did, typing::SolanaValue};
-use solana_sdk::hash::Hash;
-use solana_sdk::instruction::CompiledInstruction;
-use solana_sdk::message::{Message, MessageHeader};
-use solana_sdk::transaction::Transaction;
+use crate::commands::get_signers_did;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::indexmap::indexmap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -15,7 +10,7 @@ use txtx_addon_kit::types::signers::{
     SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Value};
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
@@ -102,7 +97,7 @@ impl CommandImplementation for SignTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
+        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 
         let signers_did = get_signers_did(values).unwrap();
         let construct_did = construct_did.clone();

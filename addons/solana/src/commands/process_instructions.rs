@@ -91,10 +91,20 @@ lazy_static! {
                     optional: false,
                     tainting: true,
                     internal: false
+                },
+                commitment_level: {
+                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
                 }
             ],
             outputs: [
-
+                signature: {
+                    documentation: "The transaction computed signature.",
+                    typing: Type::string()
+                }
             ],
             example: txtx_addon_kit::indoc! {r#"
     "#},
@@ -145,8 +155,7 @@ impl CommandImplementation for ProcessInstructions {
                     let is_signer = account.get("is_signer").unwrap().expect_bool();
                     let is_writable = account.get("is_writable").unwrap().expect_bool();
                     AccountMeta {
-                        pubkey: Pubkey::try_from(pubkey)
-                            .unwrap(),
+                        pubkey: Pubkey::try_from(pubkey).unwrap(),
                         is_signer,
                         is_writable,
                     }
@@ -158,14 +167,10 @@ impl CommandImplementation for ProcessInstructions {
             instructions.push(instruction);
         }
 
-        // let payer = Pubkey::from_str("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV").unwrap();
-        // let mut message = Message::new(&instructions, Some(&payer));
-
         let mut message = Message::new(&instructions, None);
         let client = RpcClient::new(rpc_api_url);
         message.recent_blockhash = client.get_latest_blockhash().unwrap();
         let transaction = Transaction::new_unsigned(message);
-
 
         let transaction_bytes = bincode::serialize(&transaction).unwrap();
 
