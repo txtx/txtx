@@ -145,7 +145,7 @@ impl CommandImplementation for ProcessInstructions {
                     let is_signer = account.get("is_signer").unwrap().expect_bool();
                     let is_writable = account.get("is_writable").unwrap().expect_bool();
                     AccountMeta {
-                        pubkey: Pubkey::try_from(txtx_addon_kit::hex::decode(pubkey).unwrap())
+                        pubkey: Pubkey::try_from(pubkey)
                             .unwrap(),
                         is_signer,
                         is_writable,
