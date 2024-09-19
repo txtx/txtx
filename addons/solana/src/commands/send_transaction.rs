@@ -1,6 +1,6 @@
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -111,13 +111,13 @@ impl CommandImplementation for SendTransaction {
     }
 
     fn build_background_task(
-        construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _construct_did: &ConstructDid,
+        _spec: &CommandSpecification,
         inputs: &ValueStore,
         outputs: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
-        supervision_context: &RunbookSupervisionContext,
+        _progress_tx: &channel::Sender<BlockEvent>,
+        _background_tasks_uuid: &Uuid,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
         let commitment_level = inputs.get_expected_string("commitment_level").unwrap_or("confirmed").to_string();

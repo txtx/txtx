@@ -42,7 +42,3 @@ output "transaction_signature" {
 //   verifiable = true
 //   signer = signer.operator
 // }
-
-  // program = solana::get_contract_from_anchor_project(env.anchor_manifest_path
-  //  "hellosol")
-
