@@ -7,9 +7,9 @@ runbooks:
     description: 
     location: runbooks/maintenance/hellosol.tx
 environments:
-  devnet:
+  localhost:
     solana_network_id: devnet
-    solana_api_url: http://localhost:8999
+    solana_api_url: http://127.0.0.1:8899
     anchor_manifest_path: ./Anchor.toml
   testnet:
   mainnet:

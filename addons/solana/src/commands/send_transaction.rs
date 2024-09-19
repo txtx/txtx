@@ -1,4 +1,7 @@
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
@@ -11,6 +14,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::constants::RPC_API_URL;
 use crate::typing::SOLANA_INSTRUCTION;
 
 lazy_static! {
@@ -109,11 +113,20 @@ impl CommandImplementation for SendTransaction {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-
-
+        let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
+        let transaction_bytes =
+            outputs.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES).unwrap();
+        let transaction: Transaction = bincode::deserialize(&transaction_bytes).unwrap();
 
         let future = async move {
+            let client = RpcClient::new(rpc_api_url);
 
+            let res = match client.send_and_confirm_transaction(&transaction) {
+                Ok(res) => res,
+                Err(e) => {
+                    return Err(diagnosed_error!("unable to send transaction ({})", e.to_string()))
+                }
+            };
 
             let result = CommandExecutionResult::new();
             Ok(result)

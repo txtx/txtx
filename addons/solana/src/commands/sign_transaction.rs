@@ -5,6 +5,7 @@ use solana_sdk::message::{Message, MessageHeader};
 use solana_sdk::transaction::Transaction;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::indexmap::indexmap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -14,11 +15,11 @@ use txtx_addon_kit::types::signers::{
     SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
-use crate::constants::TRANSACTION_MESSAGE_BYTES;
+use crate::constants::TRANSACTION_BYTES;
 
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
@@ -127,16 +128,7 @@ impl CommandImplementation for SignTransaction {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let message_bytes = args.get_expected_buffer_bytes(TRANSACTION_MESSAGE_BYTES).unwrap();
-
-            let message = bincode::deserialize(&message_bytes).unwrap();
-            let transaction = Transaction::new_unsigned(message);
-            let mut instructions = vec![];
-            for instruction in transaction.message.instructions.iter() {
-                let instruction_bytes = bincode::serialize(instruction).unwrap();
-                instructions.push(SolanaValue::instruction(instruction_bytes));
-            }
-            let payload = Value::array(instructions);
+            let payload = args.get_value(TRANSACTION_BYTES).unwrap().clone();
 
             let description =
                 args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
@@ -184,7 +176,7 @@ impl CommandImplementation for SignTransaction {
         let signer = signers_instances.get(&first_signer_did).unwrap();
 
         let payload = first_signer_state
-            .get_scoped_value(&construct_did.to_string(), TRANSACTION_MESSAGE_BYTES)
+            .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
             .unwrap()
             .clone();
 

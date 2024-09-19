@@ -32,7 +32,7 @@ use txtx_addon_kit::types::{
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, TRANSACTION_MESSAGE_BYTES,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, TRANSACTION_BYTES,
 };
 use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -223,36 +223,9 @@ impl SignerImplementation for SolanaSecretKey {
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
 
-        let secret_key_bytes = signer_state
-            .get_expected_buffer_bytes("secret_key")
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
-
-        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
-
-        let mut instructions = vec![];
-        for instruction in payload.expect_array().iter() {
-            let instruction: CompiledInstruction = {
-                let instruction_bytes = &instruction.expect_addon_data().bytes;
-                bincode::deserialize(&instruction_bytes).unwrap()
-            };
-            instructions.push(instruction);
-        }
-        let message = Message {
-            header: MessageHeader {
-                num_required_signatures: 1,
-                num_readonly_signed_accounts: 0,
-                num_readonly_unsigned_accounts: 0,
-            },
-            account_keys: vec![keypair.pubkey()],
-            recent_blockhash: Hash::new_unique(),
-            instructions,
-        };
-
-        let payload = SolanaValue::message(message.serialize());
-
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
-            TRANSACTION_MESSAGE_BYTES,
+            TRANSACTION_BYTES,
             payload.clone(),
         );
 
@@ -349,12 +322,12 @@ impl SignerImplementation for SolanaSecretKey {
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
-        let message_bytes = &payload.expect_addon_data().bytes;
-        let message = bincode::deserialize(message_bytes).unwrap();
-        // let message = Message::deserialize(message_bytes).unwrap();
-        let mut transaction = Transaction::new_unsigned(message);
-        transaction.sign(&[keypair], Hash::new_unique());
+        let transaction_bytes =
+            &payload.expect_addon_data().bytes;
+        let mut transaction: Transaction = bincode::deserialize(transaction_bytes).unwrap();
 
+
+        transaction.sign(&[keypair], transaction.message.recent_blockhash);
         result.outputs.insert(
             SIGNED_TRANSACTION_BYTES.into(),
             SolanaValue::transaction(bincode::serialize(&transaction).unwrap()),

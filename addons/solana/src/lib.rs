@@ -15,8 +15,7 @@ pub mod typing;
 use constants::NAMESPACE;
 use txtx_addon_kit::{
     types::{
-        commands::PreCommandSpecification,
-        functions::FunctionSpecification,
+        commands::PreCommandSpecification, functions::FunctionSpecification,
         signers::SignerSpecification,
     },
     Addon,

@@ -15,18 +15,17 @@ variable "in" {
 }
 
 output "out" {
-  value = signer.operator.address
+  value = signer.operator.public_key
 }
 
 action "call_hellosol" "solana::process_instructions" {
   description = "Invoke instructions"
   instruction {
-    program_id = "BqbXap7GbJXfP42q59Ss2my1iwumLiZBT9fkLFPXwSR2"
+    program_id = "CDPuDrgm8a7MocQ3jcjd8RzHme8z1Lk3H54w4HgVEVsR"
     accounts = [
       solana::account(signer.operator.public_key, true, true),
-      solana::account(signer.operator.public_key, false, false),
     ]
-    data = "0x0102030405"
+    data = "0x"
   }
   signers = [
     signer.operator

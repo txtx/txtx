@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use solana_client::rpc_client::RpcClient;
 use solana_sdk::instruction::{AccountMeta, Instruction};
+use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
@@ -20,10 +22,9 @@ use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Ty
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::encode_contract_call;
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{PROGRAM_ID, TRANSACTION_MESSAGE_BYTES};
-use crate::typing::SOLANA_ACCOUNT;
+use crate::constants::{PROGRAM_ID, RPC_API_URL, TRANSACTION_BYTES};
+use crate::typing::{SolanaValue, SOLANA_ACCOUNT};
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -129,6 +130,7 @@ impl CommandImplementation for ProcessInstructions {
             .iter()
             .map(|i| i.expect_object())
             .collect::<Vec<_>>();
+        let rpc_api_url = args.get_expected_string(RPC_API_URL).unwrap().to_string();
 
         for instruction_data in instructions_data.iter() {
             let program_id = instruction_data.get(PROGRAM_ID).unwrap().expect_string();
@@ -151,13 +153,24 @@ impl CommandImplementation for ProcessInstructions {
                 })
                 .collect::<Vec<_>>();
             let data = instruction_data.get("data").unwrap().expect_buffer_bytes();
-            let instruction =
-                Instruction { program_id: Pubkey::from_str(program_id).unwrap(), accounts, data };
+            let program_id = Pubkey::from_str(program_id).unwrap();
+            let instruction = Instruction { program_id, accounts, data };
             instructions.push(instruction);
         }
-        let bytes = encode_contract_call(&instructions).unwrap();
+
+        // let payer = Pubkey::from_str("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV").unwrap();
+        // let mut message = Message::new(&instructions, Some(&payer));
+
+        let mut message = Message::new(&instructions, None);
+        let client = RpcClient::new(rpc_api_url);
+        message.recent_blockhash = client.get_latest_blockhash().unwrap();
+        let transaction = Transaction::new_unsigned(message);
+
+
+        let transaction_bytes = bincode::serialize(&transaction).unwrap();
+
         let mut args = args.clone();
-        args.insert(TRANSACTION_MESSAGE_BYTES, bytes);
+        args.insert(TRANSACTION_BYTES, SolanaValue::message(transaction_bytes));
 
         SignTransaction::check_signed_executability(
             construct_did,
