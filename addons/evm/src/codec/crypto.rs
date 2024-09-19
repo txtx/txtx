@@ -1,6 +1,12 @@
-use alloy::signers::k256::ecdsa::SigningKey;
+use alloy::{
+    hex::FromHex,
+    primitives::{keccak256, Address},
+    signers::k256::ecdsa::{SigningKey, VerifyingKey},
+};
 use alloy_signer_local::{coins_bip39::English, LocalSigner, MnemonicBuilder};
 use hmac::digest::generic_array::GenericArray;
+use libsecp256k1::{recover, Message, RecoveryId, Signature};
+use txtx_addon_kit::hex;
 
 use crate::constants::DEFAULT_DERIVATION_PATH;
 
@@ -41,4 +47,49 @@ pub fn field_bytes_to_secret_key_signer(field_bytes: &Vec<u8>) -> Result<SecretK
     let bytes = GenericArray::from_slice(field_bytes);
     SecretKeySigner::from_field_bytes(bytes)
         .map_err(|e| format!("failed to generate signer: {}", e))
+}
+
+pub fn public_key_to_address(public_key_bytes: &Vec<u8>) -> Result<Address, String> {
+    let pubkey = VerifyingKey::from_sec1_bytes(&public_key_bytes)
+        .map_err(|e| format!("invalid public key: {}", e))?;
+    Ok(Address::from_public_key(&pubkey))
+}
+
+pub fn public_key_from_signed_message(
+    message: &str,
+    signature_hex: &str,
+) -> Result<Vec<u8>, String> {
+    let prefixed_message = format!("\x19Ethereum Signed Message:\n{}{}", message.len(), message);
+
+    let message_hex = hex::encode(prefixed_message);
+
+    let message_bytes = Vec::from_hex(message_hex).map_err(|e| {
+        format!("failed to get public key from signature: invalid hex message: {e}")
+    })?;
+
+    let signature_bytes = Vec::from_hex(signature_hex).map_err(|e| {
+        format!("failed to get public key from signature: invalid hex signature: {e}")
+    })?;
+
+    let message_hash = keccak256(&message_bytes);
+
+    let v = signature_bytes[64];
+    let signature_array: &[u8; 64] = signature_bytes[0..64]
+        .try_into()
+        .map_err(|_| "failed to get public key from signature: invalid signature length")?;
+    let signature = Signature::parse_standard(signature_array)
+        .map_err(|e| format!("failed to get public key from signature: invalid signature: {e}"))?;
+
+    // Recover the public key
+    let recovery_id = RecoveryId::parse(v - 27).map_err(|e| {
+        format!("failed to get public key from signature: invalid recovery id: {e}")
+    })?;
+    let message = Message::parse_slice(&message_hash.0).map_err(|e| {
+        format!("failed to get public key from signature: invalid message hash: {e}")
+    })?;
+    let public_key = recover(&message, &signature, &recovery_id).map_err(|e| {
+        format!("failed to get public key from signature: failed to recover public key: {e}")
+    })?;
+    let public_key_bytes = public_key.serialize().to_vec();
+    Ok(public_key_bytes)
 }

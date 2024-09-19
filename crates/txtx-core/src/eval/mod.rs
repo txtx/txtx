@@ -5,6 +5,7 @@ use crate::runbook::{
 use crate::types::{RunbookExecutionContext, RunbookSources};
 use kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+    TX_HASH,
 };
 use kit::indexmap::IndexMap;
 use kit::types::commands::CommandExecutionFuture;
@@ -876,20 +877,30 @@ pub fn eval_expression(
             };
 
             let attribute = components.pop_front().unwrap_or("value".into());
-            // this is a bit hacky. in some cases, our outputs are nested in a "value", but we don't want the user
-            // to have to provide it. if that's the case, the above line consumed an attribute we want to use and
-            // didn't actually use the default "value" key. so if fetching the provided attribute key yields no
-            // results, fetch "value", and add our attribute back to the list of components
-            match res.outputs.get(&attribute).or(res.outputs.get("value")) {
+
+            match res.outputs.get(&attribute) {
                 Some(output) => {
                     if let Some(_) = output.as_object() {
-                        components.push_front(attribute);
                         output.get_keys_from_object(components)?
                     } else {
                         output.clone()
                     }
                 }
-                None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+                // this is a bit hacky. in some cases, our outputs are nested in a "value" key, but we don't want the user
+                // to have to provide that key. if that's the case, the above line consumed an attribute we want to use and
+                // didn't actually use the default "value" key. so if fetching the provided attribute key yields no
+                // results, fetch "value", and add our attribute back to the list of components
+                None => match res.outputs.get("value") {
+                    Some(output) => {
+                        if let Some(_) = output.as_object() {
+                            components.push_front(attribute);
+                            output.get_keys_from_object(components)?
+                        } else {
+                            output.clone()
+                        }
+                    }
+                    None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+                },
             }
         }
         // Represents an operation which applies a unary operator to an expression.
@@ -1028,6 +1039,20 @@ pub fn update_signer_instances_from_action_response(
                                     }
                                 },
                             }
+                            signers.push_signer_state(signer_state.clone());
+                        }
+                    }
+                    ActionItemResponseType::SendTransaction(response) => {
+                        if let Some(mut signer_state) =
+                            signers.pop_signer_state(&response.signer_uuid)
+                        {
+                            let did = &construct_did.to_string();
+                            signer_state.insert_scoped_value(
+                                &did,
+                                TX_HASH,
+                                Value::string(response.transaction_hash.clone()),
+                            );
+
                             signers.push_signer_state(signer_state.clone());
                         }
                     }

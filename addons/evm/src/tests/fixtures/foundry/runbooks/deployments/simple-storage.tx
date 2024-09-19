@@ -1,20 +1,24 @@
 addon "evm" {
     chain_id = 11155111
-    rpc_api_url = "https://sepolia.infura.io/v3/14e311a57f994d89a83883926cf95c7c"
+    rpc_api_url = "http://localhost:8545"
 }
 
 signer "alice" "evm::secret_key" {
     mnemonic = "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
 }
 
-action "deploy_simple_storage" "evm::deploy_contract" {
+action "deploy_simple_storage" "evm::deploy_contract_create2" {
     description = "Deploy SimpleStorage"
-    contract = evm::get_contract_from_foundry_project("/Users/ludovic/Coding/txtx/crates/txtx-addon-network-evm/src/tests/fixtures/foundry/foundry.toml", "SimpleStorage")
+    contract = evm::get_contract_from_foundry_project("SimpleStorage")
     constructor_args = [14]
     salt = "0x0000000000000000000000000000000000000000177317f7617d575e615800c6"
     confirmations = 1
     signer = signer.alice
     expected_contract_address = "0xb4c8d82253565e1c986278A190DC25e07AC78706"
+}
+
+output "contract_address" {
+    value = action.deploy_simple_storage.contract_address
 }
 
 

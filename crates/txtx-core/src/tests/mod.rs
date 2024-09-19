@@ -53,6 +53,7 @@ fn test_ab_c_runbook_no_env() {
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                     value_checked: true,
                     input_name: "value".into(),
+                    force_execution: false,
                 }),
             },
             vec![(&input_a_action.id, Some(ActionItemStatus::Success(None)))],
@@ -76,6 +77,7 @@ fn test_ab_c_runbook_no_env() {
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                     value_checked: true,
                     input_name: "value".into(),
+                    force_execution: false,
                 }),
             },
             vec![(&input_b_action.id, Some(ActionItemStatus::Success(None)))],

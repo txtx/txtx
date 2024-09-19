@@ -1,14 +1,11 @@
 use std::collections::HashMap;
 
-use clarity::address::AddressHashMode;
-use clarity::types::chainstate::StacksAddress;
-use clarity::util::secp256k1::Secp256k1PublicKey;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
+use txtx_addon_kit::constants::TX_HASH;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
-    ProvideSignedTransactionRequest,
+    ReviewInputRequest, SendTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
@@ -26,25 +23,26 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
-    CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, FORMATTED_TRANSACTION,
-    IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_ITEM_SEND_TRANSACTION,
+    ALREADY_DEPLOYED, CHAIN_ID, CHECKED_ADDRESS, CHECKED_COST_PROVISION, CHECKED_PUBLIC_KEY,
+    CONTRACT_ADDRESS, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, FORMATTED_TRANSACTION,
+    NAMESPACE, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
 };
 
-use super::{get_addition_actions_for_address, namespaced_err_fn};
+use super::namespaced_err_fn;
 
 lazy_static! {
-    pub static ref STACKS_WEB_WALLET: SignerSpecification = {
+    pub static ref EVM_WEB_WALLET: SignerSpecification = {
         let mut signer = define_signer! {
-            StacksWebWallet => {
+            EvmWebWallet => {
                 name: "Stacks Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [wagmi](https://wagmi.sh/).
                 This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
-                        documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
+                        documentation: "The EVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
                         tainting: true,
@@ -58,8 +56,8 @@ lazy_static! {
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "stacks::web_wallet" {
-                    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+                signer "alice" "evm::web_wallet" {
+                    expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
                 }
                 "#},
             }
@@ -69,8 +67,8 @@ lazy_static! {
     };
 }
 
-pub struct StacksWebWallet;
-impl SignerImplementation for StacksWebWallet {
+pub struct EvmWebWallet;
+impl SignerImplementation for EvmWebWallet {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,
@@ -100,9 +98,17 @@ impl SignerImplementation for StacksWebWallet {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
 
-        use crate::constants::RPC_API_AUTH_TOKEN;
+        use crate::{
+            codec::{
+                crypto::{public_key_from_signed_message, public_key_to_address},
+                string_to_address,
+            },
+            constants::DEFAULT_MESSAGE,
+            signers::common::get_additional_actions_for_address,
+        };
+
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+            signer_err_fn(signer_diag_with_ctx(spec, &instance_name, namespaced_err_fn()));
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data =
@@ -113,7 +119,15 @@ impl SignerImplementation for StacksWebWallet {
         let _fetched_balance = signer_state.get_expected_integer(FETCHED_BALANCE);
 
         let values = values.clone();
-        let expected_address = values.get_string("expected_address").map(|e| e.to_string());
+        let chain_id = values
+            .get_expected_uint(CHAIN_ID)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+        let expected_address = values
+            .get_string(EXPECTED_ADDRESS)
+            .map(|e| e.to_string())
+            .and_then(|a| Some(string_to_address(a)))
+            .transpose()
+            .map_err(|e| signer_err(&signers, &signer_state, e))?;
         let do_request_address_check = expected_address.is_some();
         let do_request_public_key = is_public_key_required;
         // only request public key if we haven't already created that action
@@ -128,44 +142,25 @@ impl SignerImplementation for StacksWebWallet {
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?
             .to_owned();
 
-        let rpc_api_auth_token =
-            values.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
-
-        let network_id = values
-            .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
-            .to_owned();
-
-        if let Ok(public_key_bytes) =
-            values.get_expected_buffer_bytes(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
+        if let Ok(ref signed_message_hex) =
+            values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
-            let version = if network_id.eq("mainnet") {
-                clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
-            } else {
-                clarity_repl::clarity::address::C32_ADDRESS_VERSION_TESTNET_SINGLESIG
-            };
-
-            let public_key = Secp256k1PublicKey::from_slice(&public_key_bytes).unwrap();
-
-            let stx_address = StacksAddress::from_public_keys(
-                version,
-                &AddressHashMode::SerializeP2PKH,
-                1,
-                &vec![public_key],
-            )
-            .unwrap()
-            .to_string();
+            let public_key_bytes =
+                public_key_from_signed_message(&DEFAULT_MESSAGE, signed_message_hex)
+                    .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            let evm_address = public_key_to_address(&public_key_bytes)
+                .map_err(|e| signer_err(&signers, &signer_state, e))?;
 
             let mut actions: Actions = Actions::none();
             let mut success = true;
-            let mut status_update = ActionItemStatus::Success(Some(stx_address.to_string()));
-            if let Ok(expected_stx_address) = values.get_expected_string(EXPECTED_ADDRESS) {
-                if !expected_stx_address.eq(&stx_address) {
+            let mut status_update = ActionItemStatus::Success(Some(evm_address.to_string()));
+            if let Some(expected_address) = expected_address {
+                if !expected_address.eq(&evm_address) {
                     status_update = ActionItemStatus::Error(diagnosed_error!(
                         "Signer '{}': expected {} got {}",
                         instance_name,
-                        expected_stx_address,
-                        stx_address
+                        expected_address,
+                        evm_address
                     ));
                     success = false;
                 } else {
@@ -182,7 +177,8 @@ impl SignerImplementation for StacksWebWallet {
                     CHECKED_PUBLIC_KEY,
                     Value::string(txtx_addon_kit::hex::encode(public_key_bytes)),
                 );
-                signer_state.insert(CHECKED_ADDRESS, Value::string(stx_address));
+                signer_state.insert(CHECKED_ADDRESS, Value::string(evm_address.to_string()));
+                signer_state.insert("signer_address", Value::string(evm_address.to_string()));
             }
             let update =
                 ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
@@ -194,15 +190,17 @@ impl SignerImplementation for StacksWebWallet {
             return return_synchronous_actions(Ok((signers, signer_state, Actions::none())));
         }
 
+        let spec = spec.clone();
         let future = async move {
+            let signer_err =
+                signer_err_fn(signer_diag_with_ctx(&spec, &instance_name, namespaced_err_fn()));
             let mut actions = Actions::none();
-            let res = get_addition_actions_for_address(
+            let res = get_additional_actions_for_address(
                 &expected_address,
                 &signer_did,
                 &instance_name,
-                &network_id,
                 &rpc_api_url,
-                &rpc_api_auth_token,
+                chain_id,
                 do_request_public_key,
                 do_request_balance,
                 do_request_address_check,
@@ -212,7 +210,7 @@ impl SignerImplementation for StacksWebWallet {
 
             let action_items = match res {
                 Ok(action_items) => action_items,
-                Err(diag) => return Err((signers, signer_state, diag)),
+                Err(e) => return Err(signer_err(&signers, &signer_state, e)),
             };
             if !action_items.is_empty() {
                 actions.push_group(
@@ -240,29 +238,19 @@ impl SignerImplementation for StacksWebWallet {
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
 
         let mut result = CommandExecutionResult::new();
-        let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
-            Ok(value) => value,
-            Err(diag) => {
-                return Err((signers, signer_state, diag));
-            }
-        };
-        let network_id = values
-            .get_expected_string(NETWORK_ID)
+        let public_key = signer_state
+            .get_expected_value(CHECKED_PUBLIC_KEY)
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+        let chain_id = values
+            .get_expected_value(CHAIN_ID)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
-
-        let version = match network_id {
-            "mainnet" => AddressHashMode::SerializeP2PKH.to_version_mainnet(),
-            _ => AddressHashMode::SerializeP2PKH.to_version_testnet(),
-        };
-
-        signer_state.insert("hash_flag", Value::integer(version.into()));
         signer_state.insert("multi_sig", Value::bool(false));
 
-        let address = values
-            .get_value(EXPECTED_ADDRESS)
-            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
+        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
         result.outputs.insert("address".into(), address.clone());
+        result.outputs.insert(CHAIN_ID.into(), chain_id.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -270,10 +258,10 @@ impl SignerImplementation for StacksWebWallet {
         construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
-        payload: &Value,
+        _payload: &Value,
         spec: &SignerSpecification,
         values: &ValueStore,
-        signer_state: ValueStore,
+        mut signer_state: ValueStore,
         signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
@@ -284,63 +272,88 @@ impl SignerImplementation for StacksWebWallet {
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
 
         let construct_did_str = &construct_did.to_string();
-        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
-        {
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, TX_HASH) {
+            println!("already?");
             return Ok((signers, signer_state, Actions::none()));
         }
 
-        let network_id = values
-            .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
-
-        let signable = signer_state
-            .get_scoped_value(&construct_did_str, IS_SIGNABLE)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
-
-        let status = match signable {
-            true => ActionItemStatus::Todo,
-            false => ActionItemStatus::Blocked,
-        };
-
-        let skippable = signer_state
-            .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
-            .and_then(|v| v.as_bool())
+        let already_deployed = signer_state
+            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
-        let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
+        let actions = if already_deployed {
+            // the tx hash won't actually be used in the path where the contract is already deployed, but we need
+            // this value set in order to prevent re-adding the same action item every time we get to this fn
+            signer_state.insert_scoped_value(&construct_did_str, TX_HASH, Value::null());
 
-        let formatted_payload = signer_state
-            .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
-            .and_then(|v| v.as_string())
-            .and_then(|v| Some(v.to_string()));
-
-        let request = ActionItemRequest::new(
-            &Some(construct_did.clone()),
-            title,
-            description.clone(),
-            status,
-            ProvideSignedTransactionRequest::new(
-                &signer_state.uuid,
-                &payload,
-                "stacks",
-                &network_id,
-            )
-            .skippable(skippable)
-            .expected_signer_address(expected_signer_address)
-            .check_expectation_action_uuid(construct_did)
-            .formatted_payload(formatted_payload)
-            .to_action_type(),
-            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-        );
-        Ok((
-            signers,
-            signer_state,
+            let contract_address = signer_state
+                .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
+                .unwrap();
+            let request = ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                title,
+                description.clone(),
+                ActionItemStatus::Todo,
+                ReviewInputRequest::new("", contract_address).force_execution().to_action_type(),
+                "action_item_review_deployed_contract",
+            );
             Actions::append_item(
                 request,
-                Some("Review and sign the transactions from the list below"),
-                Some("Transaction Signing"),
-            ),
-        ))
+                Some("The following contract has already been deployed"),
+                Some("Transaction Execution"),
+            )
+        } else {
+            let chain_id = values
+                .get_expected_uint(CHAIN_ID)
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            // let signable = signer_state
+            //     .get_scoped_value(&construct_did_str, IS_SIGNABLE)
+            //     .and_then(|v| v.as_bool())
+            //     .unwrap_or(true);
+
+            let status = ActionItemStatus::Todo; // match signable {
+                                                 //     true => ActionItemStatus::Todo,
+                                                 //     false => ActionItemStatus::Blocked,
+                                                 // };
+
+            let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
+
+            let payload = signer_state
+                .get_expected_scoped_value(
+                    &construct_did_str,
+                    WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
+                )
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+            let formatted_payload = signer_state
+                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+                .and_then(|v| v.as_string())
+                .and_then(|v| Some(v.to_string()));
+
+            let request = ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                title,
+                description.clone(),
+                status,
+                SendTransactionRequest::new(
+                    &signer_state.uuid,
+                    &payload,
+                    NAMESPACE,
+                    &chain_id.to_string(),
+                )
+                .expected_signer_address(expected_signer_address)
+                .check_expectation_action_uuid(construct_did)
+                .formatted_payload(formatted_payload)
+                .to_action_type(),
+                ACTION_ITEM_SEND_TRANSACTION,
+            );
+            Actions::append_item(
+                request,
+                Some("Review and send the transactions from the list below"),
+                Some("Transaction Execution"),
+            )
+        };
+
+        Ok((signers, signer_state, actions))
     }
 
     fn sign(
@@ -355,10 +368,8 @@ impl SignerImplementation for StacksWebWallet {
     ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
         let key = construct_did.to_string();
-        if let Some(signed_transaction) =
-            signer_state.get_scoped_value(&key, SIGNED_TRANSACTION_BYTES)
-        {
-            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        if let Some(signed_transaction) = signer_state.get_scoped_value(&key, TX_HASH) {
+            result.outputs.insert(TX_HASH.into(), signed_transaction.clone());
         }
 
         return_synchronous_result(Ok((signers, signer_state, result)))

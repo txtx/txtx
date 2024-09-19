@@ -9,8 +9,7 @@ use txtx_addon_kit::constants::{
 use txtx_addon_kit::crypto::secret_key_from_bytes;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvideSignedTransactionRequest,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -177,10 +176,8 @@ impl SignerImplementation for StacksSecretKey {
                     &format!("Check {} expected address", instance_name),
                     None,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(),
-                        value: Value::string(expected_address.to_string()),
-                    }),
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
             );

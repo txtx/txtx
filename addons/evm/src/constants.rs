@@ -13,10 +13,13 @@ pub const FETCHED_NONCE: &str = "fetched_nonce";
 
 // Signers
 pub const PUBLIC_KEYS: &str = "public_keys";
-pub const UNSIGNED_TRANSACTION_BYTES: &str = "unsigned_transaction_bytes";
+pub const SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES: &str =
+    "secret_key_wallet_unsigned_transaction_bytes";
+pub const WEB_WALLET_UNSIGNED_TRANSACTION_BYTES: &str = "web_wallet_unsigned_transaction_bytes";
 pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
 pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";
+pub const FORMATTED_TRANSACTION: &str = "formatted_transaction";
 
 // Defaults keys
 pub const CHAIN_ID: &str = "chain_id";
@@ -48,11 +51,16 @@ pub const DO_VERIFY_CONTRACT: &str = "verify";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
 pub const ALREADY_DEPLOYED: &str = "already_deployed";
+pub const TRANSACTION_COST: &str = "transaction_cost";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
+pub const DEFAULT_HARDHAT_ARTIFACTS_DIR: &str = "artifacts";
+pub const DEFAULT_HARDHAT_SOURCE_DIR: &str = "contracts";
+pub const DEFAULT_FOUNDRY_MANIFEST_PATH: &str = "foundry.toml";
+pub const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
@@ -61,6 +69,7 @@ pub const ACTION_ITEM_CHECK_NONCE: &str = "check_nonce";
 pub const ACTION_ITEM_CHECK_FEE: &str = "check_fee";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
+pub const ACTION_ITEM_SEND_TRANSACTION: &str = "send_transaction";
 pub const ACTION_OPEN_MODAL: &str = "open_modal";
 
 // Default contracts

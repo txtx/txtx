@@ -24,7 +24,7 @@ action "deploy_contract_a" "stacks::deploy_contract" {
     // Description of the deployment
     description = "Deploy contract-a"
     // Load contract
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "contract-a")
+    contract = stacks::get_contract_from_clarinet_project("contract-a")
     // Signer
     signer = signer.operator
     // Set contract instance name, update downstream dependencies
@@ -35,7 +35,7 @@ action "deploy_contract_b" "stacks::deploy_contract" {
     // Description of the deployment
     description = "Deploy contract-b"
     // Load contract
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "contract-b")
+    contract = stacks::get_contract_from_clarinet_project("contract-b")
     // Signer
     signer = signer.operator
     // Set contract instance name, update downstream dependencies
@@ -46,7 +46,7 @@ action "deploy_contract_c" "stacks::deploy_contract" {
     // Description of the deployment
     description = "Deploy contract-c"
     // Load contract
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "contract-c")
+    contract = stacks::get_contract_from_clarinet_project("contract-c")
     // Signer
     signer = signer.operator
     // Set contract instance name, update downstream dependencies
@@ -57,7 +57,7 @@ action "deploy_contract_d" "stacks::deploy_contract" {
     // Description of the deployment
     description = "Deploy contract-dd"
     // Load contract
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "contract-d")
+    contract = stacks::get_contract_from_clarinet_project("contract-d")
     // Signer
     signer = signer.operator
     // Set contract instance name, update downstream dependencies
@@ -68,7 +68,7 @@ action "deploy_contract_e" "stacks::deploy_contract" {
     // Description of the deployment
     description = "Deploy contract-d"
     // Load contract
-    contract = stacks::get_contract_from_clarinet_project(input.clarinet_manifest_path, "contract-d")
+    contract = stacks::get_contract_from_clarinet_project("contract-d")
     // Signer
     signer = signer.operator
     // Set contract instance name, update downstream dependencies

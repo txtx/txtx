@@ -4,8 +4,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
@@ -21,10 +20,10 @@ use txtx_addon_kit::types::{
 };
 
 use crate::codec::CommonTransactionFields;
-use crate::constants::{RPC_API_URL, UNSIGNED_TRANSACTION_BYTES};
+use crate::constants::{RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES};
 use crate::rpc::EVMRpc;
 use crate::typing::EVM_ADDRESS;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
 
@@ -123,8 +122,8 @@ lazy_static! {
             }
           ],
           outputs: [
-              signed_transaction_bytes: {
-                  documentation: "The signed transaction bytes.",
+              tx_hash: {
+                  documentation: "The transaction hash",
                   typing: Type::string()
               }
             //   network_id: {
@@ -162,7 +161,7 @@ impl CommandImplementation for SignEVMTransfer {
 
         use crate::{
             codec::get_typed_transaction_bytes,
-            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE},
+            constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_COST},
             typing::EvmValue,
         };
 
@@ -179,17 +178,17 @@ impl CommandImplementation for SignEVMTransfer {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction = build_unsigned_transfer(&signer_state, &spec, &values)
-                .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let (transaction, transaction_cost) =
+                build_unsigned_transfer(&signer_state, &spec, &values)
+                    .await
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
-            println!("unsigned evm tx: {:?}", transaction);
             let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
                 (
                     signers.clone(),
@@ -202,9 +201,9 @@ impl CommandImplementation for SignEVMTransfer {
             let payload = EvmValue::transaction(bytes);
 
             signer_state.insert_scoped_value(
-                &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
+                &construct_did.to_string(),
+                TRANSACTION_COST,
+                Value::integer(transaction_cost),
             );
             signers.push_signer_state(signer_state);
             let description =
@@ -220,21 +219,23 @@ impl CommandImplementation for SignEVMTransfer {
                             "".into(),
                             Some(format!("Check account nonce")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.nonce().into()),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_NONCE,
                         ),
                         ActionItemRequest::new(
                             &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
+                            "Wei".into(),
+                            Some(format!("Check transaction cost")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.gas_limit().try_into().unwrap()),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_FEE,
                         ),
                     ],
@@ -272,18 +273,19 @@ impl CommandImplementation for SignEVMTransfer {
         let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = values.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Ok(tx_hash) = values.get_expected_value(TX_HASH) {
             let mut result = CommandExecutionResult::new();
-            result
-                .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
+            result.outputs.insert(TX_HASH.into(), tx_hash.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
         let signer = signers_instances.get(&signer_did).unwrap();
 
         let payload = signer_state
-            .get_scoped_value(&construct_did.to_string(), UNSIGNED_TRANSACTION_BYTES)
+            .get_scoped_value(
+                &construct_did.to_string(),
+                SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+            )
             .unwrap()
             .clone();
 
@@ -308,7 +310,7 @@ async fn build_unsigned_transfer(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<TransactionRequest, Diagnostic> {
+) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
@@ -343,9 +345,9 @@ async fn build_unsigned_transfer(
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc, values, common)
+    let res = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("command 'evm::sign_transfer': {e}"))?;
 
-    Ok(tx)
+    Ok(res)
 }

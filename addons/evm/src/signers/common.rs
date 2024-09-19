@@ -1,56 +1,34 @@
+use alloy::primitives::{utils::format_units, Address};
 use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
-    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
     types::Value,
     ConstructDid,
 };
-
-mod multisig;
-mod secret_key;
-mod web_wallet;
-
-use multisig::STACKS_MULTISIG;
-use secret_key::STACKS_SECRET_KEY;
-use web_wallet::STACKS_WEB_WALLET;
 
 use crate::{
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
         DEFAULT_MESSAGE, NAMESPACE,
     },
-    rpc::StacksRpc,
+    rpc::EVMRpc,
 };
 
-pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
-
-lazy_static! {
-    pub static ref WALLETS: Vec<SignerSpecification> =
-        vec![STACKS_SECRET_KEY.clone(), STACKS_WEB_WALLET.clone(), STACKS_MULTISIG.clone()];
-}
-
-pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
-    error_fn
-}
-
-pub async fn get_addition_actions_for_address(
-    expected_address: &Option<String>,
+pub async fn get_additional_actions_for_address(
+    expected_address: &Option<Address>,
     signer_did: &ConstructDid,
     instance_name: &str,
-    network_id: &str,
     rpc_api_url: &str,
-    rpc_api_auth_token: &Option<String>,
+    chain_id: u64,
     do_request_public_key: bool,
     do_request_balance: bool,
     do_request_address_check: bool,
-) -> Result<Vec<ActionItemRequest>, Diagnostic> {
+) -> Result<Vec<ActionItemRequest>, String> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
-    let stacks_rpc = StacksRpc::new(&rpc_api_url, rpc_api_auth_token);
+    let rpc = EVMRpc::new(&rpc_api_url)?;
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
@@ -61,8 +39,8 @@ pub async fn get_addition_actions_for_address(
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
                 check_expectation_action_uuid: Some(signer_did.clone()),
                 message: DEFAULT_MESSAGE.to_string(),
-                network_id: network_id.into(),
-                namespace: "stacks".to_string(),
+                network_id: chain_id.to_string(),
+                namespace: NAMESPACE.to_string(),
             }),
             ACTION_ITEM_PROVIDE_PUBLIC_KEY,
         ));
@@ -75,15 +53,17 @@ pub async fn get_addition_actions_for_address(
                 &format!("Check {} expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
-                ReviewInputRequest::new("", &Value::string(expected_address.to_owned()))
+                ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
                     .to_action_type(),
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
         if do_request_balance {
-            let (action_status, value) = match stacks_rpc.get_balance(&expected_address).await {
+            let (action_status, value) = match rpc.get_balance(&expected_address).await {
                 Ok(response) => {
-                    (ActionItemStatus::Todo, Value::string(response.get_formatted_balance()))
+                    let balance = format_units(response, "ether")
+                        .map_err(|e| format!("received invalid ethereum balance from RCP: {e}"))?;
+                    (ActionItemStatus::Todo, Value::string(balance))
                 }
                 Err(err) => (
                     ActionItemStatus::Error(diagnosed_error!(

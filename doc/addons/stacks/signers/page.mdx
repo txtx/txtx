@@ -7,22 +7,27 @@ export const metadata = {
 
 
 
-## mnemonic {{ tag: 'signer' }}
+## secret_key {{ tag: 'signer' }}
 
-The `mnemonic` signer can be used to synchronously sign a transaction.
+The `stacks::secret_key` signer can be used to synchronously sign a transaction.
 
 ### Inputs
 
 <Properties>
 
 
+  <Property name="secret_key" type="">
+    The secret key used to sign messages and transactions.
+  </Property>
+
+
   <Property name="mnemonic" type="">
-    The mnemonic phrase used to generate the secret key.
+    The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.
   </Property>
 
 
   <Property name="derivation_path" type="">
-    The derivation path used to generate the secret key.
+    The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.
   </Property>
 
 
@@ -42,7 +47,7 @@ The `mnemonic` signer can be used to synchronously sign a transaction.
 
 <Note>
 
-When the `mnemonic` action is successfully executed, the following outputs are attached to the action
+When the `secret_key` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -56,7 +61,7 @@ When the `mnemonic` action is successfully executed, the following outputs are a
 
 </Properties>
 
-<CodeGroup title="Example using mnemonic">
+<CodeGroup title="Example using secret_key">
 
 
 ```hcl {{ title: 'main.tx' }}
@@ -81,9 +86,9 @@ signer "bob" "stacks::secret_key" {
 ---
 
 
-## connect {{ tag: 'signer' }}
+## web_wallet {{ tag: 'signer' }}
 
-The `connect` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
 This allows a Runbook operator to sign the transaction with the browser signer of their choice.
 
 ### Inputs
@@ -102,25 +107,25 @@ This allows a Runbook operator to sign the transaction with the browser signer o
 
 <Note>
 
-When the `connect` action is successfully executed, the following outputs are attached to the action
+When the `web_wallet` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
 <Properties>
 
 
-  <Property name="public_key">
-    The public key of the connected signer.
+  <Property name="address">
+    The address of the account generated from the public key.
   </Property>
 
 
 </Properties>
 
-<CodeGroup title="Example using connect">
+<CodeGroup title="Example using web_wallet">
 
 
 ```hcl {{ title: 'main.tx' }}
-signer "alice" "stacks::connect" {
+signer "alice" "stacks::web_wallet" {
     expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
 }
 
@@ -160,6 +165,11 @@ Each of the specified signers can be any other supported signer type, and will b
   </Property>
 
 
+  <Property name="required_signatures" type="">
+    The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.
+  </Property>
+
+
 </Properties>
 
 ### Outputs
@@ -173,13 +183,13 @@ When the `multisig` action is successfully executed, the following outputs are a
 <Properties>
 
 
-  <Property name="public_key">
-    The public key of the generated multisig signer.
+  <Property name="signers">
+    The list of signers that make up the multisig.
   </Property>
 
 
-  <Property name="signers">
-    The list of signers that make up the multisig.
+  <Property name="address">
+    The address of the account generated from the public key.
   </Property>
 
 
@@ -189,11 +199,11 @@ When the `multisig` action is successfully executed, the following outputs are a
 
 
 ```hcl {{ title: 'main.tx' }}
-signer "alice" "stacks::connect" {
+signer "alice" "stacks::web_wallet" {
     expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
 }
 
-signer "bob" "stacks::connect" {
+signer "bob" "stacks::web_wallet" {
     expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
 }
 
