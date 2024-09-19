@@ -1,7 +1,7 @@
 use crate::{
     types::{
         block::{GqlActionBlock, GqlErrorBlock, GqlModalBlock, GqlProgressBlock},
-        runbook::RunbookDescription,
+        runbook::RunbookMetadata,
     },
     Context,
 };
@@ -58,10 +58,11 @@ impl Query {
             .collect()
     }
 
-    fn runbook(context: &Context) -> RunbookDescription {
-        RunbookDescription {
-            name: context.runbook_name.clone(),
-            description: context.runbook_description.clone(),
-        }
+    fn runbook(context: &Context) -> RunbookMetadata {
+        RunbookMetadata::new(
+            &context.runbook_name,
+            &context.registered_addons,
+            &context.runbook_description,
+        )
     }
 }

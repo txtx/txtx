@@ -17,6 +17,7 @@ pub mod types;
 pub struct Context {
     pub protocol_name: String,
     pub runbook_name: String,
+    pub registered_addons: Vec<String>,
     pub runbook_description: Option<String>,
     pub block_store: Arc<RwLock<BTreeMap<usize, Block>>>,
     pub block_broadcaster: tokio::sync::broadcast::Sender<BlockEvent>,
