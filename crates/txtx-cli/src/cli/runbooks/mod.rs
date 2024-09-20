@@ -980,6 +980,13 @@ pub async fn handle_run_command(
     }
 
     let runbook_description = runbook.description.clone();
+    let registered_addons = runbook
+        .runtime_context
+        .addons_context
+        .registered_addons
+        .keys()
+        .map(|k| k.clone())
+        .collect::<Vec<_>>();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (action_item_updates_tx, _action_item_updates_rx) =
@@ -1013,6 +1020,7 @@ pub async fn handle_run_command(
         let gql_context = GqlContext {
             protocol_name: runbook_name.clone(),
             runbook_name: runbook_name.clone(),
+            registered_addons,
             runbook_description,
             block_store: block_store.clone(),
             block_broadcaster: block_broadcaster.clone(),
