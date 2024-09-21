@@ -396,10 +396,10 @@ pub async fn run_constructs_evaluation(
                                 .insert(dependency, Ok(evaluation_result));
                         }
                         Some(Err(_)) => continue,
-                        Some(Ok(_)) => {
-                            cached_dependency_execution_results
-                                .insert(dependency, Ok(evaluation_result));
-                        }
+                        Some(Ok(_)) => {} // Some(Ok(_)) => {
+                                          //     cached_dependency_execution_results
+                                          //         .insert(dependency, Ok(evaluation_result));
+                                          // }
                     }
                 }
             }
