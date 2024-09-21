@@ -273,7 +273,6 @@ impl SignerImplementation for EvmWebWallet {
 
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, TX_HASH) {
-            println!("already?");
             return Ok((signers, signer_state, Actions::none()));
         }
 
