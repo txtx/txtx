@@ -160,7 +160,9 @@ impl CommandImplementation for SignTransaction {
 
         let first_signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = values.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Some(signed_transaction_bytes) = first_signer_state
+            .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+        {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs

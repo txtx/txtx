@@ -1,0 +1,325 @@
+use std::collections::HashMap;
+
+use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
+use txtx_addon_kit::types::commands::CommandExecutionResult;
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
+    ProvideSignedTransactionRequest,
+};
+use txtx_addon_kit::types::signers::{
+    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
+    SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
+    SignerSignFutureResult, SignerSpecification, SignersState,
+};
+use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::{
+    commands::CommandSpecification,
+    diagnostics::Diagnostic,
+    types::{Type, Value},
+};
+
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS,
+    FORMATTED_TRANSACTION, IS_SIGNABLE, NAMESPACE, NETWORK_ID, REQUESTED_STARTUP_DATA, RPC_API_URL,
+};
+
+use super::{get_additional_actions_for_address, namespaced_err_fn};
+
+lazy_static! {
+    pub static ref SOLANA_WEB_WALLET: SignerSpecification = {
+        let mut signer = define_signer! {
+            SolanaWebWallet => {
+                name: "Stacks Web Wallet",
+                matcher: "web_wallet",
+                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
+                inputs: [
+                    expected_address: {
+                        documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: true,
+                        sensitive: true
+                    }
+                ],
+                outputs: [
+                    address: {
+                        documentation: "The address of the account generated from the public key.",
+                        typing: Type::array(Type::string())
+                    }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                signer "alice" "stacks::web_wallet" {
+                    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+                }
+                "#},
+            }
+        };
+        signer.requires_interaction = true;
+        signer
+    };
+}
+
+pub struct SolanaWebWallet;
+impl SignerImplementation for SolanaWebWallet {
+    fn check_instantiability(
+        _ctx: &SignerSpecification,
+        _args: Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    // check_activability analyses the signer constructs.
+    // it will returns all the ActionItemRequests required for a given signer, which includes:
+    // - ProvidePublicKey:
+    // - ReviewInput (StacksAddress): Most of the case, unknown the first time it's being executed unless expected_address is provided in the construct
+    // - ReviewInput (StacksBalance):
+    // - ReviewInput (Assosiated Costs):
+    // If the all of the informations above are present in the signer state, nothing is returned.
+    #[cfg(not(feature = "wasm"))]
+    fn check_activability(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &SignerSpecification,
+        values: &ValueStore,
+        mut signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _supervision_context: &RunbookSupervisionContext,
+        is_balance_check_required: bool,
+        is_public_key_required: bool,
+    ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+
+        use crate::{codec::public_key_from_str, constants::NETWORK_ID};
+
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+
+        let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
+
+        let values = values.clone();
+        let expected_address = values
+            .get_string(EXPECTED_ADDRESS)
+            .map(|a| public_key_from_str(&a).map_err(|e| signer_err(&signers, &signer_state, e)))
+            .transpose()?;
+        let do_request_address_check = expected_address.is_some();
+        let do_request_public_key = is_public_key_required;
+        // only request public key if we haven't already created that action
+
+        let _is_nonce_required = true;
+        let do_request_balance = is_balance_check_required;
+
+        let instance_name = instance_name.to_string();
+        let signer_did = construct_did.clone();
+        let rpc_api_url = values
+            .get_expected_string(RPC_API_URL)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .to_owned();
+
+        let network_id = values
+            .get_expected_string(NETWORK_ID)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .to_owned();
+
+        if let Ok(public_key_bytes) = values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT) {
+            let mut actions: Actions = Actions::none();
+            let mut success = true;
+
+            let sol_address = public_key_from_str(&public_key_bytes)
+                .map_err(|e| signer_err(&signers, &signer_state, e))?;
+
+            let mut status_update = ActionItemStatus::Success(Some(sol_address.to_string()));
+            if let Some(expected_address) = expected_address.as_ref() {
+                if !expected_address.eq(&sol_address) {
+                    status_update = ActionItemStatus::Error(diagnosed_error!(
+                        "Signer '{}': expected {} got {}",
+                        instance_name,
+                        expected_address,
+                        sol_address
+                    ));
+                    success = false;
+                } else {
+                    let update = ActionItemRequestUpdate::from_context(
+                        &signer_did,
+                        ACTION_ITEM_CHECK_ADDRESS,
+                    )
+                    .set_status(status_update.clone());
+                    actions.push_action_item_update(update);
+                }
+            }
+            if success {
+                signer_state.insert(
+                    CHECKED_PUBLIC_KEY,
+                    Value::string(txtx_addon_kit::hex::encode(public_key_bytes)),
+                );
+                signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
+            }
+            let update =
+                ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
+                    .set_status(status_update);
+            actions.push_action_item_update(update);
+
+            return return_synchronous_actions(Ok((signers, signer_state, actions)));
+        } else if checked_public_key.is_ok() {
+            return return_synchronous_actions(Ok((signers, signer_state, Actions::none())));
+        }
+
+        let future = async move {
+            let mut actions = Actions::none();
+            let res = get_additional_actions_for_address(
+                &expected_address,
+                &signer_did,
+                &instance_name,
+                &network_id,
+                &rpc_api_url,
+                do_request_public_key,
+                do_request_balance,
+                do_request_address_check,
+            )
+            .await;
+            signer_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
+
+            let action_items = match res {
+                Ok(action_items) => action_items,
+                Err(diag) => return Err((signers, signer_state, diag)),
+            };
+            if !action_items.is_empty() {
+                actions.push_group(
+                    "Review and check the following signer related action items",
+                    action_items,
+                );
+            }
+            Ok((signers, signer_state, actions))
+        };
+        Ok(Box::pin(future))
+    }
+
+    fn activate(
+        _construct_id: &ConstructDid,
+        spec: &SignerSpecification,
+        values: &ValueStore,
+        mut signer_state: ValueStore,
+        signers: SignersState,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _progress_tx: &channel::Sender<BlockEvent>,
+    ) -> SignerActivateFutureResult {
+        let signer_did = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let _signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+
+        let mut result = CommandExecutionResult::new();
+
+        signer_state.insert("multi_sig", Value::bool(false));
+
+        let address = values
+            .get_value(EXPECTED_ADDRESS)
+            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
+        result.outputs.insert("address".into(), address.clone());
+        return_synchronous_result(Ok((signers, signer_state, result)))
+    }
+
+    fn check_signability(
+        construct_did: &ConstructDid,
+        title: &str,
+        description: &Option<String>,
+        payload: &Value,
+        spec: &SignerSpecification,
+        values: &ValueStore,
+        signer_state: ValueStore,
+        signers: SignersState,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _supervision_context: &RunbookSupervisionContext,
+    ) -> Result<CheckSignabilityOk, SignerActionErr> {
+        let signer_did = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        println!("web wallet signability check");
+        let construct_did_str = &construct_did.to_string();
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
+        {
+            return Ok((signers, signer_state, Actions::none()));
+        }
+
+        let network_id = values
+            .get_expected_string(NETWORK_ID)
+            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+        let signable = signer_state
+            .get_scoped_value(&construct_did_str, IS_SIGNABLE)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let status = match signable {
+            true => ActionItemStatus::Todo,
+            false => ActionItemStatus::Blocked,
+        };
+
+        let skippable = signer_state
+            .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
+
+        let formatted_payload = signer_state
+            .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+            .and_then(|v| v.as_string())
+            .and_then(|v| Some(v.to_string()));
+
+        let request = ActionItemRequest::new(
+            &Some(construct_did.clone()),
+            title,
+            description.clone(),
+            status,
+            ProvideSignedTransactionRequest::new(
+                &signer_state.uuid,
+                &payload,
+                NAMESPACE,
+                &network_id,
+            )
+            .skippable(skippable)
+            .expected_signer_address(expected_signer_address)
+            .check_expectation_action_uuid(construct_did)
+            .formatted_payload(formatted_payload)
+            .to_action_type(),
+            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+        );
+        Ok((
+            signers,
+            signer_state,
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transaction Signing"),
+            ),
+        ))
+    }
+
+    fn sign(
+        construct_did: &ConstructDid,
+        _title: &str,
+        _payload: &Value,
+        _spec: &SignerSpecification,
+        _values: &ValueStore,
+        signer_state: ValueStore,
+        signers: SignersState,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+    ) -> SignerSignFutureResult {
+        let mut result = CommandExecutionResult::new();
+        let key = construct_did.to_string();
+        if let Some(signed_transaction) =
+            signer_state.get_scoped_value(&key, SIGNED_TRANSACTION_BYTES)
+        {
+            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+        }
+
+        return_synchronous_result(Ok((signers, signer_state, result)))
+    }
+}

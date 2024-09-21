@@ -120,10 +120,11 @@ impl CommandImplementation for SendTransaction {
         _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
-        let commitment_level = inputs.get_expected_string("commitment_level").unwrap_or("confirmed").to_string();
+        let commitment_level =
+            inputs.get_expected_string("commitment_level").unwrap_or("confirmed").to_string();
         let transaction_bytes =
             outputs.get_expected_buffer_bytes(SIGNED_TRANSACTION_BYTES).unwrap();
-        let transaction: Transaction = bincode::deserialize(&transaction_bytes).unwrap();
+        let transaction: Transaction = serde_json::from_slice(&transaction_bytes).unwrap();
 
         let future = async move {
             let client = RpcClient::new(rpc_api_url);
@@ -133,7 +134,7 @@ impl CommandImplementation for SendTransaction {
                 "processed" => Some(CommitmentLevel::Processed),
                 "confirmed" => Some(CommitmentLevel::Confirmed),
                 "finalized" => Some(CommitmentLevel::Finalized),
-                _ => None
+                _ => None,
             };
 
             let res = match client.send_transaction_with_config(&transaction, config) {

@@ -172,7 +172,7 @@ impl CommandImplementation for ProcessInstructions {
         message.recent_blockhash = client.get_latest_blockhash().unwrap();
         let transaction = Transaction::new_unsigned(message);
 
-        let transaction_bytes = bincode::serialize(&transaction).unwrap();
+        let transaction_bytes = serde_json::to_vec(&transaction).unwrap();
 
         let mut args = args.clone();
         args.insert(TRANSACTION_BYTES, SolanaValue::message(transaction_bytes));
@@ -223,7 +223,7 @@ impl CommandImplementation for ProcessInstructions {
             let transaction_bytes = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
             args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes.clone());
             let transaction: Transaction =
-                bincode::deserialize(&transaction_bytes.expect_buffer_bytes()).unwrap();
+                serde_json::from_slice(&transaction_bytes.expect_buffer_bytes()).unwrap();
             let res = transaction.verify_and_hash_message().unwrap();
             Ok((signers, signer_state, res_signing))
         };
