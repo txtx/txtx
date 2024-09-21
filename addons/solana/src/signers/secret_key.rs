@@ -8,8 +8,7 @@ use txtx_addon_kit::constants::{
 };
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvideSignedTransactionRequest,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -28,7 +27,7 @@ use txtx_addon_kit::types::{
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, TRANSACTION_BYTES,
 };
 use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -173,11 +172,8 @@ impl SignerImplementation for SolanaSecretKey {
                     &format!("Check {} expected address", instance_name),
                     None,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(),
-                        value: Value::string(expected_address.to_string()),
-                        force_execution: true,
-                    }),
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
             );
@@ -258,7 +254,7 @@ impl SignerImplementation for SolanaSecretKey {
                 ProvideSignedTransactionRequest::new(
                     &signer_state.uuid,
                     &payload,
-                    "solana",
+                    NAMESPACE,
                     &chain_id,
                 )
                 .skippable(skippable)
@@ -321,12 +317,12 @@ impl SignerImplementation for SolanaSecretKey {
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
         let transaction_bytes = &payload.expect_addon_data().bytes;
-        let mut transaction: Transaction = bincode::deserialize(transaction_bytes).unwrap();
+        let mut transaction: Transaction = serde_json::from_slice(transaction_bytes).unwrap();
 
         transaction.sign(&[keypair], transaction.message.recent_blockhash);
         result.outputs.insert(
             SIGNED_TRANSACTION_BYTES.into(),
-            SolanaValue::transaction(bincode::serialize(&transaction).unwrap()),
+            SolanaValue::transaction(serde_json::to_vec(&transaction).unwrap()),
         );
 
         return_synchronous_result(Ok((signers, signer_state, result)))
