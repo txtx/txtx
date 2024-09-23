@@ -9338,6 +9338,8 @@ dependencies = [
  "serde_json",
  "serde_yml 0.0.11",
  "similar",
+ "test-case",
+ "tokio",
  "txtx-addon-kit",
  "txtx-test-utils",
 ]

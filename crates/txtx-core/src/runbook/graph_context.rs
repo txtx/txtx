@@ -411,3 +411,41 @@ fn stable_kahn_toposort(dag: &Dag<ConstructDid, u32>) -> IndexSet<NodeIndex> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+
+    use txtx_test_utils::test_harness::build_runbook_from_fixture;
+
+    use test_case::test_case;
+
+    #[tokio::test]
+    async fn it_rejects_circular_dependency_runbooks() {
+        let fixture = include_str!("../tests/fixtures/circular.tx");
+        let Err(e) = build_runbook_from_fixture("circular.tx", fixture, vec![]).await else {
+            panic!("Missing expected error on circular dependency");
+        };
+        assert_eq!(e.get(0).unwrap().message, format!("Cycling dependency"));
+    }
+
+    #[test_case(include_str!("../tests/fixtures/ab_c.tx"), vec!["a", "b", "c"])]
+    #[test_case(include_str!("../tests/fixtures/sorting/1.tx"), vec!["a", "b", "c", "d", "e"]; "multiple 0-index nodes")]
+    #[test_case(include_str!("../tests/fixtures/sorting/2.tx"), vec!["e", "d", "c", "b", "a"]; "multiple 0-index nodes sanity check")]
+    #[test_case(include_str!("../tests/fixtures/sorting/3.tx"), vec!["a", "b", "c"]; "3 nodes partially ordered")]
+    #[test_case(include_str!("../tests/fixtures/sorting/4.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes reverse topological order")]
+    #[test_case(include_str!("../tests/fixtures/sorting/5.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes topological order")]
+    #[tokio::test]
+    async fn it_sorts_graph_and_preserves_declared_order(
+        fixture: &str,
+        construct_names: Vec<&str>,
+    ) {
+        let runbook = build_runbook_from_fixture("test.tx", fixture, vec![]).await.unwrap();
+        let execution_context = runbook.flow_contexts[0].execution_context.clone();
+        let order_for_execution = execution_context.order_for_commands_execution;
+        let commands_instances = execution_context.commands_instances;
+        assert_eq!(order_for_execution.len(), construct_names.len() + 1);
+        assert!(commands_instances.get(&order_for_execution[0]).is_none()); // root id
+        for (i, name) in construct_names.iter().enumerate() {
+            assert_eq!(commands_instances.get(&order_for_execution[i + 1]).unwrap().name, *name);
+        }
+    }
+}
