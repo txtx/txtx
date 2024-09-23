@@ -6,8 +6,8 @@ use kit::types::ConstructDid;
 use kit::types::Did;
 use kit::types::PackageDid;
 use kit::types::PackageId;
-use petgraph::algo::toposort;
-use std::collections::VecDeque;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, VecDeque};
 use std::collections::{HashMap, HashSet};
 
 use super::{RunbookExecutionContext, RunbookWorkspaceContext};
@@ -316,32 +316,6 @@ impl RunbookGraphContext {
             .expect("construct_did not indexed in graph");
         let nodes = self.get_nodes_descending_from_node(node_index.clone(), recursive);
         self.resolve_constructs_dids(nodes)
-    }
-
-    /// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
-    /// Legacy, dead code
-    #[allow(dead_code)]
-    pub fn get_sorted_descendants_of_node(
-        &self,
-        node: NodeIndex,
-        recursive: bool,
-    ) -> Vec<ConstructDid> {
-        let sorted = toposort(&self.constructs_dag, None)
-            .unwrap()
-            .into_iter()
-            .collect::<IndexSet<NodeIndex>>();
-
-        let start_node_descendants = self.get_nodes_descending_from_node(node, recursive);
-        let mut sorted_descendants = IndexSet::new();
-
-        for this_node in sorted.into_iter() {
-            let is_descendant = start_node_descendants.iter().any(|d| d == &this_node);
-            let is_start_node = this_node == node;
-            if is_descendant || is_start_node {
-                sorted_descendants.insert(this_node);
-            }
-        }
-        self.resolve_constructs_dids(sorted_descendants)
     }
 
     /// Gets all ascendants of `node` within `graph`.
