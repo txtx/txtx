@@ -373,10 +373,7 @@ impl RunbookGraphContext {
 
     /// Returns a topologically sorted set of all nodes in the graph.
     pub fn get_sorted_constructs(&self) -> Vec<ConstructDid> {
-        let nodes = toposort(&self.constructs_dag, None)
-            .unwrap()
-            .into_iter()
-            .collect::<IndexSet<NodeIndex>>();
+        let nodes = stable_kahn_toposort(&self.constructs_dag);
         self.resolve_constructs_dids(nodes)
     }
 
@@ -391,3 +388,52 @@ impl RunbookGraphContext {
         construct_dids
     }
 }
+
+/// Stable topological sort using Kahn's algorithm
+/// This implementation prioritizes the original order of nodes in the graph
+fn stable_kahn_toposort(dag: &Dag<ConstructDid, u32>) -> IndexSet<NodeIndex> {
+    let graph = dag.graph();
+    // Map nodes to their original positions for stable sorting
+    let index_map: HashMap<NodeIndex, usize> =
+        graph.clone().node_indices().enumerate().map(|(i, node)| (node, i)).collect();
+
+    // Track the in-degree of each node
+    let mut in_degree: HashMap<NodeIndex, usize> = HashMap::new();
+    let mut queue: BinaryHeap<Reverse<(usize, NodeIndex)>> = BinaryHeap::new();
+
+    // Initialize in-degrees and enqueue nodes with zero in-degree
+    for node in graph.node_indices() {
+        let degree = graph.edges_directed(node, petgraph::Incoming).count();
+        in_degree.insert(node, degree);
+        if degree == 0 {
+            // Insert node into queue with priority based on original order
+            queue.push(Reverse((index_map[&node], node)));
+        }
+    }
+
+    let mut sorted = Vec::new();
+
+    // Process nodes in topological order, prioritizing original order for equal dependencies
+    while let Some(Reverse((_, node))) = queue.pop() {
+        // Add the node to the sorted output
+        sorted.push(node);
+
+        // For each outgoing edge from this node, decrement the in-degree of the destination node
+        for neighbor in graph.neighbors_directed(node, petgraph::Outgoing) {
+            let degree = in_degree.get_mut(&neighbor).unwrap();
+            *degree -= 1;
+
+            if *degree == 0 {
+                // Enqueue the neighbor when its in-degree becomes zero, maintain original order priority
+                queue.push(Reverse((index_map[&neighbor], neighbor)));
+            }
+        }
+    }
+
+    if sorted.len() == graph.node_count() {
+        sorted.into_iter().collect::<IndexSet<_>>()
+    } else {
+        panic!("Graph has cycles!");
+    }
+}
+
