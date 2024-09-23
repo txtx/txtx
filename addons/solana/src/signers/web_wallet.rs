@@ -36,11 +36,10 @@ lazy_static! {
             SolanaWebWallet => {
                 name: "Stacks Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
-                This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
+                documentation:txtx_addon_kit::indoc! {r#"The `solana::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
-                        documentation: "The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
+                        documentation: "The Solana address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
                         tainting: true,
@@ -49,13 +48,13 @@ lazy_static! {
                 ],
                 outputs: [
                     address: {
-                        documentation: "The address of the account generated from the public key.",
+                        documentation: "The address of the account.",
                         typing: Type::array(Type::string())
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "stacks::web_wallet" {
-                    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+                signer "alice" "solana::web_wallet" {
+                    expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
                 }
                 "#},
             }
@@ -98,8 +97,8 @@ impl SignerImplementation for SolanaWebWallet {
 
         use crate::{codec::public_key_from_str, constants::NETWORK_ID};
 
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+        let diag_with_ctx_fn = signer_diag_with_ctx(spec, instance_name, namespaced_err_fn());
+        let signer_err = signer_err_fn(&diag_with_ctx_fn);
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
 
@@ -110,7 +109,6 @@ impl SignerImplementation for SolanaWebWallet {
             .transpose()?;
         let do_request_address_check = expected_address.is_some();
         let do_request_public_key = is_public_key_required;
-        // only request public key if we haven't already created that action
 
         let _is_nonce_required = true;
         let do_request_balance = is_balance_check_required;
@@ -137,12 +135,10 @@ impl SignerImplementation for SolanaWebWallet {
             let mut status_update = ActionItemStatus::Success(Some(sol_address.to_string()));
             if let Some(expected_address) = expected_address.as_ref() {
                 if !expected_address.eq(&sol_address) {
-                    status_update = ActionItemStatus::Error(diagnosed_error!(
-                        "Signer '{}': expected {} got {}",
-                        instance_name,
-                        expected_address,
-                        sol_address
-                    ));
+                    status_update = ActionItemStatus::Error(diag_with_ctx_fn(format!(
+                        "expected address {} to connect; got address {}",
+                        expected_address, sol_address
+                    )));
                     success = false;
                 } else {
                     let update = ActionItemRequestUpdate::from_context(
@@ -241,7 +237,7 @@ impl SignerImplementation for SolanaWebWallet {
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
-        println!("web wallet signability check");
+
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
