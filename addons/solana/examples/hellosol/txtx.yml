@@ -11,5 +11,9 @@ environments:
     solana_network_id: devnet
     solana_api_url: http://127.0.0.1:8899
     anchor_manifest_path: ./Anchor.toml
+  devnet:
+    solana_network_id: devnet
+    solana_api_url: https://api.devnet.solana.com
+    anchor_manifest_path: ./Anchor.toml
   testnet:
   mainnet:
