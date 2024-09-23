@@ -9,6 +9,9 @@ addon "solana" {
 signer "operator" "solana::secret_key" {
   secret_key = [181,11,10,238,32,124,15,199,160,13,193,34,197,38,133,225,68,2,167,183,172,225,186,25,5,169,251,180,189,2,32,156,14,192,194,100,14,47,65,105,189,128,211,200,123,17,198,211,187,96,110,38,248,59,76,244,4,34,242,215,130,33,40,58]
 }
+// signer "operator" "solana::web_wallet" {
+//   expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+// }
 
 variable "program_id" {
   value = "CDPuDrgm8a7MocQ3jcjd8RzHme8z1Lk3H54w4HgVEVsR"
@@ -19,9 +22,9 @@ action "call_hellosol" "solana::process_instructions" {
   instruction {
     program_id = variable.program_id
     accounts = [
-      solana::account(signer.operator.public_key, true, true),
+      solana::account("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV", true, true),
     ]
-    data = "0x"
+    data ="0x" // "0xafaf6d1f0d989bed"
   }
   signers = [
     signer.operator
