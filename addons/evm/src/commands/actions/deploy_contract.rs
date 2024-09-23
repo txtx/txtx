@@ -70,21 +70,21 @@ lazy_static! {
                 internal: false
             },
             type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
                 typing: Type::string(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -105,49 +105,53 @@ lazy_static! {
                 internal: false
             },
             gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
+                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             gas_price: {
-                documentation: "Sets the gas price for Legacy transactions.",
+                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             contract: {
-                documentation: "Coming soon",
+                documentation: indoc!{r#"
+                The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
+                The abi field can also be provided to add type checking for the constructor arguments.
+                The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
+                "#},
                 typing: CONTRACT_METADATA.clone(),
                 optional: false,
                 tainting: true,
                 internal: false
             },
             constructor_args: {
-                documentation: "Coming soon",
+                documentation: "The optional constructor arguments for the deployed contract.",
                 typing: Type::array(Type::string()),
                 optional: true,
                 tainting: true,
                 internal: false
             },
             confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             verify: {
-                documentation: "",
+                documentation: "Coming soon.",
                 typing: Type::bool(),
                 optional: true,
                 tainting: true,
                 internal: false
             },
             block_explorer_api_key: {
-                documentation: "The URL of the block explorer used to verify the contract.",
+                documentation: "Coming soon.",
                 typing: Type::string(),
                 optional: true,
                 tainting: false,
@@ -161,7 +165,10 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
+          action "my_contract" "evm::deploy_contract" {
+              contract = evm::get_contract_from_foundry_project("MyContract")
+              signer = signer.deployer
+          }
       "#},
       }
     };

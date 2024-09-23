@@ -32,7 +32,7 @@ lazy_static! {
       SignEVMTransaction => {
           name: "Sign EVM Transaction",
           matcher: "sign_transaction",
-          documentation: "Coming soon",
+          documentation: "The `evm::sign_transaction` command signs an EVM transaction.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -49,6 +49,13 @@ lazy_static! {
                 optional: false,
                 tainting: true,
                 internal: false
+            },
+            signer: {
+                documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
+                typing: Type::string(),
+                optional: false,
+                tainting: true,
+                internal: false
             }
           ],
           outputs: [
@@ -58,7 +65,11 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
+          action "signed_tx" "evm::sign_transaction" {
+              description = "Deploy a new contract"
+              transaction_payload_bytes = "0x1234567890abcdef"
+              signer = signer.operator
+          }
       "#},
       }
     };

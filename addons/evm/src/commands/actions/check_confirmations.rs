@@ -38,14 +38,14 @@ lazy_static! {
                     internal: false
                 },
                 chain_id: {
-                    documentation: "Coming soon",
+                    documentation: "The chain ID of the network to check the transaction on.",
                     typing: Type::integer(),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: false,
@@ -61,7 +61,6 @@ lazy_static! {
             example: txtx_addon_kit::indoc! {r#"
             action "confirm_deployment" "evm::check_confirmations" {
                 tx_hash = action.some_deploying_action.tx_hash
-                confirmations = 1
             }
         "#},
         }
