@@ -6,10 +6,14 @@ addon "evm" {
 signer "alice" "evm::secret_key" {
     mnemonic = "model elbow sunny fashion orient nominee symbol odor joy clown range lake"
 }
+// signer "alice" "evm::web_wallet" {
+//     expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+// }
+
 
 action "deploy_simple_storage" "evm::deploy_contract_create2" {
     description = "Deploy SimpleStorage"
-    contract = evm::get_contract_from_foundry_project("SimpleStorage")
+    contract = evm::get_contract_from_foundry_project( "SimpleStorage")
     constructor_args = [14]
     salt = "0x0000000000000000000000000000000000000000177317f7617d575e615800c6"
     confirmations = 1
