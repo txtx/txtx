@@ -40,7 +40,7 @@ lazy_static! {
             StacksWebWallet => {
                 name: "Stacks Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                documentation:txtx_addon_kit::indoc! {r#"The `stacks::web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
                 This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
