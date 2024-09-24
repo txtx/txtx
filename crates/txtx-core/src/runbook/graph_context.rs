@@ -59,6 +59,7 @@ impl RunbookGraphContext {
         let packages = workspace_context.packages.clone();
 
         for (package_id, package) in packages.iter() {
+            // add variable constructs to graph
             for construct_did in package.variables_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -78,6 +79,7 @@ impl RunbookGraphContext {
                     }
                 }
             }
+            // add module constructs to graph
             for construct_did in package.modules_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -97,6 +99,7 @@ impl RunbookGraphContext {
                     }
                 }
             }
+            // add output constructs to graph
             for construct_did in package.outputs_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -118,6 +121,7 @@ impl RunbookGraphContext {
             }
             let mut signers = VecDeque::new();
             let mut instantiated_signers = HashSet::new();
+            // add command constructs to graph
             for construct_did in package.commands_dids.iter() {
                 let command_instance =
                     execution_context.commands_instances.get(construct_did).unwrap();
@@ -153,6 +157,7 @@ impl RunbookGraphContext {
                 }
             }
             // todo: should we constrain to signers depending on signers?
+            // add signer constructs to graph
             for construct_did in package.signers_dids.iter() {
                 let signer_instance =
                     execution_context.signers_instances.get(construct_did).unwrap();
@@ -433,6 +438,7 @@ mod tests {
     #[test_case(include_str!("../tests/fixtures/sorting/3.tx"), vec!["a", "b", "c"]; "3 nodes partially ordered")]
     #[test_case(include_str!("../tests/fixtures/sorting/4.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes reverse topological order")]
     #[test_case(include_str!("../tests/fixtures/sorting/5.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes topological order")]
+    #[test_case(include_str!("../tests/fixtures/sorting/6.tx"), vec!["url", "get", "get_status", "get_status_out", "post", "post_status", "post_status_out"]; "mixed constructs")]
     #[tokio::test]
     async fn it_sorts_graph_and_preserves_declared_order(
         fixture: &str,
