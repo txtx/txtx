@@ -70,7 +70,7 @@ lazy_static! {
                     internal: false
                 },
                 network_id: {
-                    documentation: indoc!{r#"The network id. Can be `"mainnet"`, `"testnet"` or `"devnet"`."#},
+                    documentation: indoc!{r#"The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
