@@ -22,9 +22,9 @@ use crate::typing::{STACKS_CV_GENERIC, STACKS_CV_PRINCIPAL};
 lazy_static! {
     pub static ref CALL_READONLY_FN: PreCommandSpecification = define_command! {
         CallReadonlyStacksFunction => {
-            name: "Call Clarity Read only function",
+            name: "Call a Clarity Read Only Function",
             matcher: "call_readonly_fn",
-            documentation: "The `call_readonly_fn` action queries a public readonly function.",
+            documentation: "The `stacks::call_readonly_fn` action queries a public readonly function.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
             inputs: [
@@ -50,16 +50,16 @@ lazy_static! {
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Can be `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
@@ -71,7 +71,7 @@ lazy_static! {
                     internal: false
                 },
                 sender: {
-                    documentation: "The simulated tx-sender to use.",
+                    documentation: "The simulated tx-sender address to use.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
@@ -92,6 +92,20 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
+            action "get_name_price" "stacks::call_readonly_fn" {
+                description = "Get price for bns name"
+                contract_id = "ST000000000000000000002AMW42H.bns"
+                function_name = "get-name-price"
+                function_args = [
+                    stacks::cv_buff(encode_hex("btc")), // namespace
+                    stacks::cv_buff(encode_hex("test")) // name
+                ]
+                sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+            }
+            output "name_price" {
+                value = action.get_name_price
+            }
+            // > name_price: 100
         "#},
         }
     };
@@ -130,7 +144,8 @@ impl CommandImplementation for CallReadonlyStacksFunction {
 
         let function_name = args.get_expected_string("function_name")?.to_string();
 
-        let function_args_values = args.get_expected_array("function_args")?.clone();
+        let empty_array = vec![];
+        let function_args_values = args.get_expected_array("function_args").unwrap_or(&empty_array);
         let mut function_args = vec![];
         for arg_value in function_args_values.iter() {
             let Some(data) = arg_value.as_addon_data() else {

@@ -52,7 +52,7 @@ lazy_static! {
         StacksDeployContract => {
             name: "Stacks Contract Deployment",
             matcher: "deploy_contract",
-            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
+            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -95,9 +95,9 @@ lazy_static! {
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Can be `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
