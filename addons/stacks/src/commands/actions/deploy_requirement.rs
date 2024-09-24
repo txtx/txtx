@@ -40,7 +40,7 @@ lazy_static! {
         StacksDeployContractRequirement => {
             name: "Stacks Contract Requirement Deployment",
             matcher: "deploy_requirement",
-            documentation: "The `deploy_requirement` action retrieves a deployed contract along with its dependencies, signs the transactions using a signer, and broadcasts the signed transactions to the network.",
+            documentation: "The `stacks::deploy_requirement` action retrieves a deployed contract along with its dependencies, signs the transactions using the specified signer, and broadcasts the signed transactions to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -52,30 +52,30 @@ lazy_static! {
                     internal: false
                 },
                 contract_id: {
-                    documentation: "The contract id deployed on Mainnet that needs to mirrored.",
+                    documentation: "The contract id, deployed on Mainnet, that needs to mirrored.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Can be `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
                 rpc_api_url_source: {
-                    documentation: "The URL to use when making API requests.",
+                    documentation: "The URL to use when pulling the source contract.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
                 rpc_api_url: {
-                    documentation: "The URL to use when making API requests.",
+                    documentation: "The URL to use when deploying the required contract.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
@@ -87,7 +87,7 @@ lazy_static! {
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: true,
@@ -119,7 +119,7 @@ lazy_static! {
                     typing: Type::array(Type::object(vec![
                         ObjectProperty {
                             name: "type".into(),
-                            documentation: "Type of transform (supported: 'contract_source_find_and_replace').".into(),
+                            documentation: "The type of transform (supported: 'contract_source_find_and_replace').".into(),
                             typing: Type::string(),
                             optional: false,
                             tainting: true,
@@ -175,17 +175,17 @@ lazy_static! {
                 }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                        action "counter_deployment" "stacks::deploy_requirement" {
-                            description = "Deploy counter contract."
-                            source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
-                            contract_name = "verify-and-update-price-feeds"
-                            signer = signer.alice
-                        }
-                        output "contract_tx_id" {
+                    action "counter_deployment" "stacks::deploy_requirement" {
+                        description = "Deploy counter contract."
+                        source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
+                        contract_name = "verify-and-update-price-feeds"
+                        signer = signer.alice
+                    }
+                    output "contract_tx_id" {
                         value = action.counter_deployment.tx_id
-                        }
-                        // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
-                    "#},
+                    }
+                    // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
+                "#},
             }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
