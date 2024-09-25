@@ -1,3 +1,5 @@
+pub mod idl;
+
 use std::str::FromStr;
 
 use solana_sdk::{instruction::Instruction, message::Message, pubkey::Pubkey};
