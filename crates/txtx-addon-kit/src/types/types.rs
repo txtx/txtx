@@ -243,6 +243,8 @@ impl Value {
             _ => unreachable!(),
         }
     }
+
+    #[deprecated(note = "use `get_expected_buffer_bytes_result` instead")]
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }
@@ -615,6 +617,9 @@ impl ObjectType {
 
     pub fn inner(&self) -> IndexMap<String, Value> {
         self.map.clone()
+    }
+    pub fn to_value(&self) -> Value {
+        Value::object(self.map.clone())
     }
 }
 
