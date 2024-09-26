@@ -26,8 +26,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, NETWORK_ID, TRANSACTION_BYTES
 };
 use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -229,7 +228,7 @@ impl SignerImplementation for SolanaSecretKey {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let chain_id = match values.get_expected_string(CHAIN_ID) {
+            let network_id = match values.get_expected_string(NETWORK_ID) {
                 Ok(value) => value,
                 Err(diag) => return Err((signers, signer_state, diag)),
             };
@@ -255,7 +254,7 @@ impl SignerImplementation for SolanaSecretKey {
                     &signer_state.uuid,
                     &payload,
                     NAMESPACE,
-                    &chain_id,
+                    &network_id,
                 )
                 .skippable(skippable)
                 .check_expectation_action_uuid(construct_did)

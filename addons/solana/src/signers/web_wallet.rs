@@ -237,7 +237,6 @@ impl SignerImplementation for SolanaWebWallet {
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
-
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {

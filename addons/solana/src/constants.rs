@@ -14,7 +14,6 @@ pub const IS_SIGNABLE: &str = "is_signable";
 pub const FORMATTED_TRANSACTION: &str = "formatted_transaction";
 
 // Defaults keys
-pub const CHAIN_ID: &str = "chain_id";
 pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
