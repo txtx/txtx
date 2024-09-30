@@ -1,15 +1,21 @@
+
+// 1
+output "c" {
+    value = variable.a + variable.b
+    description = "c"
+}
+
+// 2
 variable "a" {
     value = 1
     description = "a"
 }
 
+
+// 3
 variable "b" {
     editable = true
     value = 1
     description = "b"
 }
 
-output "c" {
-    value = variable.a + variable.b
-    description = "c"
-}

@@ -6,8 +6,8 @@ use kit::types::ConstructDid;
 use kit::types::Did;
 use kit::types::PackageDid;
 use kit::types::PackageId;
-use petgraph::algo::toposort;
-use std::collections::VecDeque;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, VecDeque};
 use std::collections::{HashMap, HashSet};
 
 use super::{RunbookExecutionContext, RunbookWorkspaceContext};
@@ -59,6 +59,7 @@ impl RunbookGraphContext {
         let packages = workspace_context.packages.clone();
 
         for (package_id, package) in packages.iter() {
+            // add variable constructs to graph
             for construct_did in package.variables_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -78,6 +79,7 @@ impl RunbookGraphContext {
                     }
                 }
             }
+            // add module constructs to graph
             for construct_did in package.modules_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -97,6 +99,7 @@ impl RunbookGraphContext {
                     }
                 }
             }
+            // add output constructs to graph
             for construct_did in package.outputs_dids.iter() {
                 let construct = execution_context.commands_instances.get(construct_did).unwrap();
                 for (_input, dep) in construct.collect_dependencies().iter() {
@@ -118,6 +121,7 @@ impl RunbookGraphContext {
             }
             let mut signers = VecDeque::new();
             let mut instantiated_signers = HashSet::new();
+            // add command constructs to graph
             for construct_did in package.commands_dids.iter() {
                 let command_instance =
                     execution_context.commands_instances.get(construct_did).unwrap();
@@ -153,6 +157,7 @@ impl RunbookGraphContext {
                 }
             }
             // todo: should we constrain to signers depending on signers?
+            // add signer constructs to graph
             for construct_did in package.signers_dids.iter() {
                 let signer_instance =
                     execution_context.signers_instances.get(construct_did).unwrap();
@@ -318,32 +323,6 @@ impl RunbookGraphContext {
         self.resolve_constructs_dids(nodes)
     }
 
-    /// Gets all descendants of `node` within `graph` and returns them, topologically sorted.
-    /// Legacy, dead code
-    #[allow(dead_code)]
-    pub fn get_sorted_descendants_of_node(
-        &self,
-        node: NodeIndex,
-        recursive: bool,
-    ) -> Vec<ConstructDid> {
-        let sorted = toposort(&self.constructs_dag, None)
-            .unwrap()
-            .into_iter()
-            .collect::<IndexSet<NodeIndex>>();
-
-        let start_node_descendants = self.get_nodes_descending_from_node(node, recursive);
-        let mut sorted_descendants = IndexSet::new();
-
-        for this_node in sorted.into_iter() {
-            let is_descendant = start_node_descendants.iter().any(|d| d == &this_node);
-            let is_start_node = this_node == node;
-            if is_descendant || is_start_node {
-                sorted_descendants.insert(this_node);
-            }
-        }
-        self.resolve_constructs_dids(sorted_descendants)
-    }
-
     /// Gets all ascendants of `node` within `graph`.
     pub fn get_nodes_ascending_from_node(&self, node: NodeIndex) -> IndexSet<NodeIndex> {
         let mut ascendants_nodes = VecDeque::new();
@@ -373,10 +352,7 @@ impl RunbookGraphContext {
 
     /// Returns a topologically sorted set of all nodes in the graph.
     pub fn get_sorted_constructs(&self) -> Vec<ConstructDid> {
-        let nodes = toposort(&self.constructs_dag, None)
-            .unwrap()
-            .into_iter()
-            .collect::<IndexSet<NodeIndex>>();
+        let nodes = stable_kahn_toposort(&self.constructs_dag);
         self.resolve_constructs_dids(nodes)
     }
 
@@ -389,5 +365,93 @@ impl RunbookGraphContext {
             construct_dids.push(construct_did.clone());
         }
         construct_dids
+    }
+}
+
+/// Stable topological sort using Kahn's algorithm
+/// This implementation prioritizes the original order of nodes in the graph
+fn stable_kahn_toposort(dag: &Dag<ConstructDid, u32>) -> IndexSet<NodeIndex> {
+    let graph = dag.graph();
+    // Map nodes to their original positions for stable sorting
+    let index_map: HashMap<NodeIndex, usize> =
+        graph.clone().node_indices().enumerate().map(|(i, node)| (node, i)).collect();
+
+    // Track the in-degree of each node
+    let mut in_degree: HashMap<NodeIndex, usize> = HashMap::new();
+    let mut queue: BinaryHeap<Reverse<(usize, NodeIndex)>> = BinaryHeap::new();
+
+    // Initialize in-degrees and enqueue nodes with zero in-degree
+    for node in graph.node_indices() {
+        let degree = graph.edges_directed(node, petgraph::Incoming).count();
+        in_degree.insert(node, degree);
+        if degree == 0 {
+            // Insert node into queue with priority based on original order
+            queue.push(Reverse((index_map[&node], node)));
+        }
+    }
+
+    let mut sorted = Vec::new();
+
+    // Process nodes in topological order, prioritizing original order for equal dependencies
+    while let Some(Reverse((_, node))) = queue.pop() {
+        // Add the node to the sorted output
+        sorted.push(node);
+
+        // For each outgoing edge from this node, decrement the in-degree of the destination node
+        for neighbor in graph.neighbors_directed(node, petgraph::Outgoing) {
+            let degree = in_degree.get_mut(&neighbor).unwrap();
+            *degree -= 1;
+
+            if *degree == 0 {
+                // Enqueue the neighbor when its in-degree becomes zero, maintain original order priority
+                queue.push(Reverse((index_map[&neighbor], neighbor)));
+            }
+        }
+    }
+
+    if sorted.len() == graph.node_count() {
+        sorted.into_iter().collect::<IndexSet<_>>()
+    } else {
+        panic!("Graph has cycles!");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use txtx_test_utils::test_harness::build_runbook_from_fixture;
+
+    use test_case::test_case;
+
+    #[tokio::test]
+    async fn it_rejects_circular_dependency_runbooks() {
+        let fixture = include_str!("../tests/fixtures/circular.tx");
+        let Err(e) = build_runbook_from_fixture("circular.tx", fixture, vec![]).await else {
+            panic!("Missing expected error on circular dependency");
+        };
+        assert_eq!(e.get(0).unwrap().message, format!("Cycling dependency"));
+    }
+
+    #[test_case(include_str!("../tests/fixtures/ab_c.tx"), vec!["a", "b", "c"])]
+    #[test_case(include_str!("../tests/fixtures/sorting/1.tx"), vec!["a", "b", "c", "d", "e"]; "multiple 0-index nodes")]
+    #[test_case(include_str!("../tests/fixtures/sorting/2.tx"), vec!["e", "d", "c", "b", "a"]; "multiple 0-index nodes sanity check")]
+    #[test_case(include_str!("../tests/fixtures/sorting/3.tx"), vec!["a", "b", "c"]; "3 nodes partially ordered")]
+    #[test_case(include_str!("../tests/fixtures/sorting/4.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes reverse topological order")]
+    #[test_case(include_str!("../tests/fixtures/sorting/5.tx"), vec!["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]; "10 nodes topological order")]
+    #[test_case(include_str!("../tests/fixtures/sorting/6.tx"), vec!["url", "get", "get_status", "get_status_out", "post", "post_status", "post_status_out"]; "mixed constructs")]
+    #[tokio::test]
+    async fn it_sorts_graph_and_preserves_declared_order(
+        fixture: &str,
+        construct_names: Vec<&str>,
+    ) {
+        let runbook = build_runbook_from_fixture("test.tx", fixture, vec![]).await.unwrap();
+        let execution_context = runbook.flow_contexts[0].execution_context.clone();
+        let order_for_execution = execution_context.order_for_commands_execution;
+        let commands_instances = execution_context.commands_instances;
+        assert_eq!(order_for_execution.len(), construct_names.len() + 1);
+        assert!(commands_instances.get(&order_for_execution[0]).is_none()); // root id
+        for (i, name) in construct_names.iter().enumerate() {
+            assert_eq!(commands_instances.get(&order_for_execution[i + 1]).unwrap().name, *name);
+        }
     }
 }

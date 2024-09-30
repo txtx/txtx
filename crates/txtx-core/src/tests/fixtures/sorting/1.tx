@@ -1,0 +1,18 @@
+variable "a" {
+    value = 1
+}
+variable "b" {
+    value = 1
+}
+
+variable "c" {
+    value = 1
+}
+
+variable "d" {
+    value = 1
+}
+
+variable "e" {
+    value = variable.a + variable.b + variable.c + variable.d
+}

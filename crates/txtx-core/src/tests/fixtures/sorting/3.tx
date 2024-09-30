@@ -1,0 +1,11 @@
+// C is topologically after a/b, but we should maintain the declared order for a/b
+// so final order should be a, b, c
+variable "c" {
+    value = variable.a + variable.b
+}
+variable "a" {
+    value = 1
+}
+variable "b" {
+    value = 1
+}

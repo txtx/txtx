@@ -6,6 +6,7 @@ use txtx_addon_kit::{
     helpers::fs::FileLocation,
     types::{
         block_id::BlockId,
+        diagnostics::Diagnostic,
         frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
             ModalPanelData, NormalizedActionItemRequestUpdate,
@@ -199,30 +200,46 @@ impl TestHarness {
     }
 }
 
-pub fn setup_test(
-    file_name: &str,
-    fixture: &str,
-    available_addons: Vec<Box<dyn Addon>>,
-) -> TestHarness {
+pub fn runbook_sources_from_fixture(filename: &str, fixture: &str) -> RunbookSources {
     let mut runbook_sources = RunbookSources::new();
     runbook_sources.add_source(
-        file_name.into(),
+        filename.into(),
         FileLocation::from_path_string(".").unwrap(),
         fixture.into(),
     );
+    runbook_sources
+}
+
+pub async fn build_runbook_from_fixture(
+    file_name: &str,
+    fixture: &str,
+    available_addons: Vec<Box<dyn Addon>>,
+) -> Result<Runbook, Vec<Diagnostic>> {
+    let runbook_sources = runbook_sources_from_fixture(file_name, fixture);
     let runbook_inputs = RunbookTopLevelInputsMap::new();
 
     let runbook_id = RunbookId { org: None, workspace: None, name: "test".into() };
 
     let mut runbook = Runbook::new(runbook_id, None);
     let authorization_context = AuthorizationContext::empty();
-    let future = runbook.build_contexts_from_sources(
-        runbook_sources,
-        runbook_inputs,
-        authorization_context,
-        available_addons,
-    );
-    let _ = block_on(future);
+    runbook
+        .build_contexts_from_sources(
+            runbook_sources,
+            runbook_inputs,
+            authorization_context,
+            available_addons,
+        )
+        .await?;
+    Ok(runbook)
+}
+
+pub fn setup_test(
+    file_name: &str,
+    fixture: &str,
+    available_addons: Vec<Box<dyn Addon>>,
+) -> TestHarness {
+    let future = build_runbook_from_fixture(file_name, fixture, available_addons);
+    let mut runbook = block_on(future).expect("unable to build runbook from fixture");
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, _action_item_updates_rx) =
