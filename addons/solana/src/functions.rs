@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use anchor_lang_idl::types::Idl;
 use solana_sdk::system_program;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
@@ -14,7 +15,11 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::{codec::idl::IdlRef, constants::NAMESPACE, typing::SOLANA_ACCOUNT};
+use crate::{
+    codec::{anchor::AnchorProgramArtifacts, idl::IdlRef},
+    constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
+    typing::{SolanaValue, ANCHOR_PROGRAM_ARTIFACTS, SOLANA_ACCOUNT, SOLANA_IDL, SOLANA_PUBKEY},
+};
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
     let checker = arg_checker_with_ctx(NAMESPACE.to_string());
@@ -76,9 +81,9 @@ lazy_static! {
             }
         },
         define_function! {
-            GetDataFromAnchorProject => {
-                name: "get_instruction_data_from_idl",
-                documentation: "`solana::get_instruction_data_from_idl` is coming soon",
+            GetInstructionDataFromIdlPath => {
+                name: "get_instruction_data_from_idl_path",
+                documentation: "`solana::get_instruction_data_from_idl_path` is coming soon",
                 example: indoc! {r#"
                     // Coming soon
                 "#},
@@ -104,8 +109,64 @@ lazy_static! {
                     typing: Type::addon(SOLANA_ACCOUNT.into())
                 },
             }
+        },
+        define_function! {
+            GetInstructionDataFromIdl => {
+                name: "get_instruction_data_from_idl",
+                documentation: "`solana::get_instruction_data_from_idl` is coming soon",
+                example: indoc! {r#"
+                    // Coming soon
+                "#},
+                inputs: [
+                    idl: {
+                        documentation: "The program IDL.",
+                        typing: vec![Type::addon(SOLANA_IDL)],
+                        optional: false
+                    },
+                    instruction_name: {
+                        documentation: "The name of the instruction to generate data for, as indexed by the IDL.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    arguments: {
+                        documentation: "The instruction arguments to generate data for.",
+                        typing: vec![Type::array(Type::string())],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "Coming soon.",
+                    typing: Type::addon(SOLANA_ACCOUNT.into())
+                },
+            }
+        },
+        define_function! {
+            GetProgramFromAnchorProject => {
+                name: "get_program_from_anchor_project",
+                documentation: "`solana::get_program_from_anchor_project` is coming soon",
+                example: indoc! {r#"
+                    // Coming soon
+                "#},
+                inputs: [
+                    program_name: {
+                        documentation: "The name of the program being deployed.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    target_path: {
+                        documentation: "The target path to the compiled anchor project artifacts. Defaults to `./target`.",
+                        typing: vec![Type::string()],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "Coming soon.",
+                    typing: ANCHOR_PROGRAM_ARTIFACTS.clone()
+                },
+            }
         }
     ];
+}
 
 pub struct SystemProgramId;
 impl FunctionImplementation for SystemProgramId {
@@ -154,8 +215,45 @@ impl FunctionImplementation for CreateAccountMeta {
     }
 }
 
-pub struct GetDataFromAnchorProject;
-impl FunctionImplementation for GetDataFromAnchorProject {
+pub struct GetInstructionDataFromIdl;
+impl FunctionImplementation for GetInstructionDataFromIdl {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let idl_bytes = &args.get(0).unwrap().as_addon_data().unwrap().bytes;
+        let instruction_name = args.get(1).unwrap().as_string().unwrap();
+        let arguments =
+            args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
+
+        let idl: Idl = serde_json::from_slice(&idl_bytes)
+            .map_err(|e| to_diag(fn_spec, format!("invalid idl: {e}")))?;
+
+        let idl_ref = IdlRef::from_idl(idl);
+
+        let mut data =
+            idl_ref.get_discriminator(&instruction_name).map_err(|e| to_diag(fn_spec, e))?;
+        let mut encoded_args = idl_ref
+            .get_encoded_args(&instruction_name, arguments)
+            .map_err(|e| to_diag(fn_spec, e))?;
+        data.append(&mut encoded_args);
+
+        Ok(Value::buffer(data))
+    }
+}
+
+pub struct GetInstructionDataFromIdlPath;
+impl FunctionImplementation for GetInstructionDataFromIdlPath {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -175,20 +273,8 @@ impl FunctionImplementation for GetDataFromAnchorProject {
         let arguments =
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
-        let idl_path = Path::new(&idl_path_str);
-        let idl_path = if idl_path.is_absolute() {
-            FileLocation::from_path(idl_path.to_path_buf())
-        } else {
-            let mut workspace_loc = auth_ctx
-                .workspace_location
-                .get_parent_location()
-                .map_err(|e| to_diag(fn_spec, format!("unable to read workspace location: {e}")))?;
-
-            workspace_loc
-                .append_path(&idl_path_str.to_string())
-                .map_err(|e| to_diag(fn_spec, format!("invalid hardhat config path: {}", e)))?;
-            workspace_loc
-        };
+        let idl_path = get_path_from_path_str(idl_path_str, auth_ctx)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
         let idl_ref = IdlRef::new(idl_path).map_err(|e| to_diag(fn_spec, e))?;
         let mut data =
@@ -200,4 +286,57 @@ impl FunctionImplementation for GetDataFromAnchorProject {
 
         Ok(Value::buffer(data))
     }
+}
+
+pub struct GetProgramFromAnchorProject;
+impl FunctionImplementation for GetProgramFromAnchorProject {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let program_name = args.get(0).unwrap().as_string().unwrap();
+        let target_path_str =
+            args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_ANCHOR_TARGET_PATH);
+
+        let target_path = get_path_from_path_str(target_path_str, auth_ctx)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get anchor target path: {e}")))?;
+
+        let anchor_program_artifacts =
+            AnchorProgramArtifacts::new(target_path.expect_path_buf(), &program_name)
+                .map_err(|e| to_diag(fn_spec, e))?;
+
+        let value = anchor_program_artifacts.to_value().map_err(|e| to_diag(fn_spec, e))?;
+        Ok(value)
+    }
+}
+
+fn get_path_from_path_str(
+    path_str: &str,
+    auth_ctx: &AuthorizationContext,
+) -> Result<FileLocation, String> {
+    let path = Path::new(path_str);
+    let path = if path.is_absolute() {
+        FileLocation::from_path(path.to_path_buf())
+    } else {
+        let mut workspace_loc = auth_ctx
+            .workspace_location
+            .get_parent_location()
+            .map_err(|e| format!("unable to read workspace location: {e}"))?;
+
+        workspace_loc
+            .append_path(&path_str.to_string())
+            .map_err(|e| format!("invalid path: {}", e))?;
+        workspace_loc
+    };
+    Ok(path)
 }
