@@ -361,7 +361,7 @@ jobs:
         run: |
           cd snapcraft-txtx
           NEW_VERSION="${{ needs.get_release_info.outputs.tag }}"
-          SOURCE_URL="https://github.com/txtx/txtx/releases/download/v${NEW_VERSION}/txtx-linux-x64.tar.gz"
+          SOURCE_URL="https://github.com/txtx/txtx/releases/download/${NEW_VERSION}/txtx-linux-x64.tar.gz"
 
           # Update the version and source URL in the snapcraft.yaml file
           sed -i "s/^version:.*/version: '${NEW_VERSION}'/" snapcraft.yaml

@@ -44,7 +44,7 @@ lazy_static! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the supplied signer data.",
+          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the specified signer.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -63,7 +63,7 @@ lazy_static! {
                 internal: false
             },
             network_id: {
-                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`."#},
+                documentation: indoc!{r#"The network id, which is used to set the transaction version. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                 typing: Type::string(),
                 optional: true,
                 tainting: true,

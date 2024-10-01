@@ -40,8 +40,8 @@ fn test_ab_c_runbook_no_env() {
         let inputs_panel_data =
             harness.expect_action_panel(None, "variables review", vec![vec![2, 1]]);
 
-        let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
-        let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
+        let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
+        let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
 
         assert_eq!(&input_a_action.internal_key, "check_input");
         assert_eq!(&input_b_action.internal_key, "provide_input");

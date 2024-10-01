@@ -89,9 +89,14 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
+        // we can create a secret key signer by providing a mnemonic and computing the secret key
         signer "bob" "stacks::secret_key" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
+        }
+        // or we can create one by providing the secret key directly
+        signer "bob_again" "stacks::secret_key" {
+            secret_key = "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
         }
     "#},
       }

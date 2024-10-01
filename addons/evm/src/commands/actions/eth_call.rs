@@ -83,21 +83,21 @@ lazy_static! {
                 internal: false
             },
             type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
                 typing: Type::string(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -118,14 +118,14 @@ lazy_static! {
                 internal: false
             },
             gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
+                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             gas_price: {
-                documentation: "Sets the gas price for Legacy transactions.",
+                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -140,10 +140,10 @@ lazy_static! {
           ],
           example: txtx_addon_kit::indoc! {r#"
             action "call_some_contract" "evm::eth_call" {
-                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                contract_address = input.contract_address
                 function_name = "myFunction"
                 function_args = [evm::bytes("0x1234")]
-                from = evm::address(env.MY_ADDRESS)
+                signer = signer.operator.address
             }
       "#},
       }

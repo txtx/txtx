@@ -65,9 +65,14 @@ When the `secret_key` action is successfully executed, the following outputs are
 
 
 ```hcl {{ title: 'main.tx' }}
+// we can create a secret key signer by providing a mnemonic and computing the secret key
 signer "bob" "stacks::secret_key" {
     mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
     derivation_path = "m/44'/5757'/0'/0/0"
+}
+// or we can create one by providing the secret key directly
+signer "bob_again" "stacks::secret_key" {
+    secret_key = "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
 }
 
 ```
@@ -88,7 +93,7 @@ signer "bob" "stacks::secret_key" {
 
 ## web_wallet {{ tag: 'signer' }}
 
-The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+The `stacks::web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
 This allows a Runbook operator to sign the transaction with the browser signer of their choice.
 
 ### Inputs

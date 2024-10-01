@@ -36,9 +36,9 @@ lazy_static! {
     pub static ref EVM_WEB_WALLET: SignerSpecification = {
         let mut signer = define_signer! {
             EvmWebWallet => {
-                name: "Stacks Web Wallet",
+                name: "EVM Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [wagmi](https://wagmi.sh/).
+                documentation:txtx_addon_kit::indoc! {r#"The `evm::web_wallet` signer will route the transaction signing process through [wagmi](https://wagmi.sh/).
                 This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {

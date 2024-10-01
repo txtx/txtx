@@ -1,0 +1,32 @@
+// This is in a reverse topological order, so it won't be possible to maintain any of the reveser order
+// Final order is a, b, c, d, e, f, g, h, i, j
+variable "j" {
+    value = variable.i + 1
+}
+variable "i" {
+    value = variable.h + 1
+}
+variable "h" {
+    value = variable.g + 1
+}
+variable "g" {
+    value = variable.f + 1
+}
+variable "f" {
+    value = variable.e + 1
+}
+variable "e" {
+    value = variable.d + 1
+}
+variable "d" {
+    value = variable.c + 1
+}
+variable "c" {
+    value = variable.b + 1
+}
+variable "b" {
+    value = variable.a + 1
+}
+variable "a" {
+    value = 1
+}

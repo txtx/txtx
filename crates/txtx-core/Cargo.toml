@@ -28,6 +28,8 @@ better-debug = "1.0.1"
 
 [dev-dependencies]
 txtx-test-utils = {path = "../../crates/txtx-test-utils"}
+tokio = "1.37.0"
+test-case = "*"
 
 [features]
 default = ["txtx-addon-kit/default"]

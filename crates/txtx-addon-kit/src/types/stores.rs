@@ -155,6 +155,10 @@ impl ValueStore {
         self.inputs.get_bool(key).or(self.defaults.get_bool(key))
     }
 
+    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.inputs.get_array(key).or(self.defaults.get_array(key))
+    }
+
     // Scoped values
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
         self.inputs.insert(&format!("{}:{}", scope, key), value);
@@ -461,6 +465,10 @@ impl ValueMap {
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.store.get(key).and_then(|v| v.as_bool())
+    }
+
+    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.store.get(key).and_then(|v| v.as_array())
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
