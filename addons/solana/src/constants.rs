@@ -2,12 +2,14 @@ pub const NAMESPACE: &str = "solana";
 pub const SIGNERS: &str = "signers";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
+pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
 
 // Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
 pub const REQUESTED_STARTUP_DATA: &str = "requested_startup_data";
 pub const CHECKED_ADDRESS: &str = "checked_address";
 pub const EXPECTED_ADDRESS: &str = "expected_address";
+pub const PROGRAM_DEPLOYMENT_KEYPAIR: &str = "program_deployment_keypair";
 
 // Signers
 pub const IS_SIGNABLE: &str = "is_signable";

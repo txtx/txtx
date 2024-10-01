@@ -16,6 +16,7 @@ solana-sdk = { git = "https://github.com/txtx/solana", subdir = "solana/sdk" }
 solana-client = { git = "https://github.com/txtx/solana", subdir = "solana/client", default-features = false }
 anchor-lang-idl = "0.1.1"
 borsh = "1.5.1"
+tiny-bip39 = "0.8.2"
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../crates/txtx-test-utils" }
