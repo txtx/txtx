@@ -1,5 +1,6 @@
+use std::path::PathBuf;
+
 use anchor_lang_idl::types::{Idl, IdlInstruction, IdlType};
-use serde::de::value;
 use txtx_addon_kit::{helpers::fs::FileLocation, types::types::Value};
 
 pub struct IdlRef {
@@ -13,6 +14,10 @@ impl IdlRef {
             location.read_content_as_utf8().map_err(|e| format!("unable to read idl: {e}"))?;
         let idl = serde_json::from_str(&idl_str).map_err(|e| format!("invalid idl: {e}"))?;
         Ok(Self { idl, location })
+    }
+
+    pub fn from_idl(idl: Idl) -> Self {
+        Self { idl, location: FileLocation::FileSystem { path: PathBuf::default() } }
     }
 
     pub fn get_discriminator(&self, instruction_name: &str) -> Result<Vec<u8>, String> {
@@ -54,57 +59,64 @@ impl IdlRef {
 }
 
 pub fn encode_value_to_idl_type(value: &Value, idl_type: &IdlType) -> Result<Vec<u8>, String> {
+    let to_err = |expected: &str| {
+        format!(
+            "invalid value for idl type: expected {}, found {}",
+            expected,
+            value.get_type().to_string()
+        )
+    };
     match idl_type {
         IdlType::Bool => {
-            value.as_bool().and_then(|b| Some(borsh::to_vec(&b).unwrap())).ok_or(format!(""))
+            value.as_bool().and_then(|b| Some(borsh::to_vec(&b).unwrap())).ok_or(to_err("bool"))
         }
         IdlType::U8 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as u8)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("u8")),
         IdlType::I8 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as i8)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("i8")),
         IdlType::U16 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as u16)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("u16")),
         IdlType::I16 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as i16)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("i16")),
         IdlType::U32 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as u32)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("u32")),
         IdlType::I32 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as i32)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("i32")),
         IdlType::F32 => value
             .as_float()
             .and_then(|i| Some(borsh::to_vec(&(i as f32)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("f32")),
         IdlType::U64 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as u64)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("u64")),
         IdlType::I64 => value
             .as_integer()
             .and_then(|i| Some(borsh::to_vec(&(i as i64)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("i64")),
         IdlType::F64 => value
             .as_float()
             .and_then(|i| Some(borsh::to_vec(&(i as f64)).unwrap()))
-            .ok_or(format!("")),
+            .ok_or(to_err("f64")),
         IdlType::U128 => todo!(),
         IdlType::I128 => todo!(),
         IdlType::U256 => todo!(),
         IdlType::I256 => todo!(),
         IdlType::Bytes => todo!(),
         IdlType::String => {
-            value.as_string().and_then(|s| Some(borsh::to_vec(&s).unwrap())).ok_or(format!(""))
+            value.as_string().and_then(|s| Some(borsh::to_vec(&s).unwrap())).ok_or(to_err("string"))
         }
         IdlType::Pubkey => todo!(),
         IdlType::Option(idl_type) => todo!(),
