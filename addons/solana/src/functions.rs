@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use solana_sdk::system_program;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     indexmap::indexmap,
@@ -26,6 +27,24 @@ pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
+        define_function! {
+            SystemProgramId => {
+                name: "system_program_id",
+                documentation: "`solana::system_program_id` returns the id of the system program, `11111111111111111111111111111111`.",
+                example: indoc! {r#"
+                    output "system_program_id" { 
+                        value = solana::system_program_id()
+                    }
+                    // > 
+                "#},
+                inputs: [
+                ],
+                output: {
+                    documentation: "The system program id",
+                    typing: Type::addon(SOLANA_PUBKEY.into())
+                },
+            }
+        },
         define_function! {
             CreateAccountMeta => {
                 name: "account",
@@ -87,6 +106,24 @@ lazy_static! {
             }
         }
     ];
+
+pub struct SystemProgramId;
+impl FunctionImplementation for SystemProgramId {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        Ok(Value::string(system_program::id().to_string()))
+    }
 }
 
 pub struct CreateAccountMeta;
