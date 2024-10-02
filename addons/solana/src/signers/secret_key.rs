@@ -158,7 +158,7 @@ impl SignerImplementation for SolanaSecretKey {
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
 
-        let expected_address = keypair.to_base58_string();
+        let expected_address = keypair.pubkey().to_string();
         let public_key = Value::string(keypair.pubkey().to_string());
         let secret_key = Value::buffer(secret_key_bytes);
 
