@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use solana_sdk::signature::Keypair;
-use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
@@ -28,10 +27,9 @@ use txtx_addon_kit::types::{
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, NETWORK_ID, PROGRAM_DEPLOYMENT_KEYPAIR,
-    TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, NETWORK_ID, TRANSACTION_BYTES,
 };
-use crate::typing::{PartialSigner, SolanaValue};
+use crate::typing::SolanaValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
@@ -337,9 +335,10 @@ impl SignerImplementation for SolanaSecretKey {
         if let Some(transactions) = payload.as_array() {
             let mut signed_txs = vec![];
             for (i, transaction) in transactions.iter().enumerate() {
-                let partial_signer_bytes = transaction.expect_addon_data().bytes.clone();
-                let mut partial_signer: PartialSigner =
-                    serde_json::from_slice(&partial_signer_bytes).map_err(|e| {
+                let transaction_bytes = transaction.expect_addon_data().bytes.clone();
+
+                let mut transaction: Transaction = serde_json::from_slice(&transaction_bytes)
+                    .map_err(|e| {
                         signer_err(
                             &signers,
                             &signer_state,
@@ -347,27 +346,17 @@ impl SignerImplementation for SolanaSecretKey {
                         )
                     })?;
 
-                let mut transaction: Transaction =
-                    serde_json::from_slice(&partial_signer.transaction_bytes).map_err(|e| {
-                        signer_err(
-                            &signers,
-                            &signer_state,
-                            format!("failed to deserialize transaction for signing: {e}"),
-                        )
-                    })?;
+                let keypairs = [&keypair];
 
-                partial_signer.fill_signer(keypair.pubkey(), &secret_key_bytes);
-                let keypairs = partial_signer.expect_signers();
-
-                transaction.try_sign(&keypairs, transaction.message.recent_blockhash).map_err(
-                    |e| {
+                transaction
+                    .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
+                    .map_err(|e| {
                         signer_err(
                             &signers,
                             &signer_state,
                             format!("failed to sign transaction: {e}"),
                         )
-                    },
-                )?;
+                    })?;
                 signed_txs.push(SolanaValue::transaction(
                     serde_json::to_vec(&transaction).map_err(|e| {
                         signer_err(

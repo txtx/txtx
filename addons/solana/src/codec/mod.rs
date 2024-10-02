@@ -179,31 +179,19 @@ impl UpgradeableProgramDeployer {
             &blockhash,
         );
 
-        let transaction = Transaction::new_unsigned(message);
+        let mut transaction = Transaction::new_unsigned(message);
+
+        let available_keypairs = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
+            KeypairOrTxSigner::TxSigner(_) => vec![&self.buffer_keypair],
+        };
+        transaction
+            .try_partial_sign(&available_keypairs, blockhash.clone())
+            .map_err(|e| format!("failed to sign transaction: {e}"))?;
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
-            KeypairOrTxSigner::Keypair(keypair) => (
-                Some(vec![(1, self.payer_pubkey.clone())]),
-                vec![
-                    (keypair.to_bytes().to_vec(), 0),
-                    (self.buffer_keypair.to_bytes().to_vec(), 2),
-                ],
-            ),
-            KeypairOrTxSigner::TxSigner(pubkey) => (
-                Some(vec![(0, pubkey.clone()), (1, self.payer_pubkey.clone())]),
-                vec![(self.buffer_keypair.to_bytes().to_vec(), 2)],
-            ),
-        };
-
-        let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-            transaction_bytes,
-            deferred_signer_pos,
-            initial_signers,
-        )
-        .map_err(|e| e.message)?;
-        Ok(transaction_with_partial_signer)
+        Ok(SolanaValue::transaction(transaction_bytes))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
@@ -226,29 +214,21 @@ impl UpgradeableProgramDeployer {
             let offset = i.saturating_mul(chunk_size);
             // Only write the chunk if it differs from our initial buffer data
             if chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
-                let transaction =
+                let mut transaction =
                     Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
-                let transaction_bytes = serde_json::to_vec(&transaction)
-                    .map_err(|e| format!("failed to serialize transaction: {e}"))
-                    .unwrap();
 
-                let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
-                    KeypairOrTxSigner::Keypair(keypair) => (
-                        Some(vec![(0, self.payer_pubkey.clone())]),
-                        vec![(keypair.to_bytes().to_vec(), 1)],
-                    ),
-                    KeypairOrTxSigner::TxSigner(pubkey) => {
-                        (Some(vec![(0, self.payer_pubkey.clone()), (1, pubkey.clone())]), vec![])
-                    }
+                let available_keypairs = match &self.upgrade_authority {
+                    KeypairOrTxSigner::Keypair(keypair) => vec![keypair],
+                    KeypairOrTxSigner::TxSigner(_) => vec![],
                 };
 
-                let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-                    transaction_bytes,
-                    deferred_signer_pos,
-                    initial_signers,
-                )
-                .map_err(|e| e.message)?;
-                write_transactions.push(transaction_with_partial_signer);
+                transaction
+                    .try_partial_sign(&available_keypairs, blockhash.clone())
+                    .map_err(|e| format!("failed to sign transaction: {e}"))?;
+                let transaction_bytes = serde_json::to_vec(&transaction)
+                    .map_err(|e| format!("failed to serialize transaction: {e}"))?;
+
+                write_transactions.push(SolanaValue::transaction(transaction_bytes));
             }
         }
         Ok(write_transactions)
@@ -272,32 +252,21 @@ impl UpgradeableProgramDeployer {
 
         let message =
             Message::new_with_blockhash(&instructions, Some(&self.payer_pubkey), &blockhash);
-        let transaction = Transaction::new_unsigned(message);
+        let mut transaction = Transaction::new_unsigned(message);
+
+        let available_keypairs = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(keypair) => vec![&self.program_keypair, keypair],
+            KeypairOrTxSigner::TxSigner(_) => vec![&self.program_keypair],
+        };
+
+        transaction
+            .try_partial_sign(&available_keypairs, blockhash.clone())
+            .map_err(|e| format!("failed to sign transaction: {e}"))?;
 
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
-            KeypairOrTxSigner::Keypair(upgrade_authority_keypair) => (
-                Some(vec![(0, self.payer_pubkey.clone())]),
-                vec![
-                    (self.program_keypair.to_bytes().to_vec(), 1),
-                    (upgrade_authority_keypair.to_bytes().to_vec(), 2),
-                ],
-            ),
-            KeypairOrTxSigner::TxSigner(upgrade_authority_pubkey) => (
-                Some(vec![(0, self.payer_pubkey.clone()), (2, upgrade_authority_pubkey.clone())]),
-                vec![(self.program_keypair.to_bytes().to_vec(), 1)],
-            ),
-        };
-
-        let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-            transaction_bytes,
-            deferred_signer_pos,
-            initial_signers,
-        )
-        .map_err(|e| e.message)?;
-        Ok(transaction_with_partial_signer)
+        Ok(SolanaValue::transaction(transaction_bytes))
     }
 
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
