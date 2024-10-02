@@ -1,5 +1,6 @@
 [package]
 name = "txtx-addon-kit"
+description = "Low level primitives for building addons for Txtx"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
@@ -36,7 +37,7 @@ wasm-bindgen = { version = "0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4.41", optional = true }
 
 [dev-dependencies]
-test-case = "*"
+test-case = "3.3"
 hiro-system-kit = "0.3.4"
 
 [features]

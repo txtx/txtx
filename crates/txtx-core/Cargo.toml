@@ -1,5 +1,6 @@
 [package]
 name = "txtx-core"
+description = "Primitives for parsing, analyzing and executing Txtx runbooks"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
@@ -10,6 +11,7 @@ categories = { workspace = true }
 [dependencies]
 daggy = "0.8.0"
 base64 = "0.22.1"
+# txtx-addon-kit = { version = "0.1", optional = true }
 txtx-addon-kit = { workspace = true, default-features = false}
 getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
@@ -29,7 +31,7 @@ better-debug = "1.0.1"
 [dev-dependencies]
 txtx-test-utils = {path = "../../crates/txtx-test-utils"}
 tokio = "1.37.0"
-test-case = "*"
+test-case = "3.3"
 
 [features]
 default = ["txtx-addon-kit/default"]

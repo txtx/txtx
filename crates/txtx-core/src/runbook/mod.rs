@@ -152,8 +152,8 @@ impl Runbook {
                     &dummy_execution_context,
                     runtime_context,
                 )?;
-                flow_contexts.push(flow_context.to_owned());
             }
+            flow_contexts.push(flow_context.to_owned());
         }
 
         Ok(flow_contexts)

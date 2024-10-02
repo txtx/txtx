@@ -270,16 +270,20 @@ impl ValueMap {
 
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(format!("unable to retrieve key '{}'", key)));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve value '{}'",
+                key
+            )));
         };
         Ok(value)
     }
 
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve bool '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_bool() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -292,9 +296,10 @@ impl ValueMap {
 
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve string '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_string() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -307,9 +312,10 @@ impl ValueMap {
 
     pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve array '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_array() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -322,9 +328,10 @@ impl ValueMap {
 
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve object '{}'",
+                key,
+            )));
         };
         let Some(result) = value.as_object() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -337,9 +344,10 @@ impl ValueMap {
 
     pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve integer '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_integer() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -352,9 +360,10 @@ impl ValueMap {
 
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve uint '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_uint() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -372,9 +381,10 @@ impl ValueMap {
 
     pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve buffer '{}'",
+                key,
+            )));
         };
 
         let bytes = match value {
