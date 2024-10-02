@@ -74,7 +74,8 @@ lazy_static! {
     pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_object_type! {
         idl: {
             documentation: "The program idl.",
-            typing: Type::addon(SOLANA_IDL),
+            // typing: Type::addon(SOLANA_IDL),
+            typing: Type::string(),
             optional: false,
             tainting: true
         },
@@ -82,7 +83,7 @@ lazy_static! {
             documentation: "The program binary.",
             typing: Type::addon(SOLANA_BINARY),
             optional: false,
-            tainting: true
+            tainting: false
         },
         keypair: {
             documentation: "The program keypair.",

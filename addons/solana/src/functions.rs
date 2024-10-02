@@ -120,7 +120,7 @@ lazy_static! {
                 inputs: [
                     idl: {
                         documentation: "The program IDL.",
-                        typing: vec![Type::addon(SOLANA_IDL)],
+                        typing: vec![Type::addon(SOLANA_IDL), Type::string()],
                         optional: false
                     },
                     instruction_name: {
@@ -231,12 +231,15 @@ impl FunctionImplementation for GetInstructionDataFromIdl {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let idl_bytes = &args.get(0).unwrap().as_addon_data().unwrap().bytes;
+        // let idl_bytes = &args.get(0).unwrap().as_addon_data().unwrap().bytes;
+        let idl_str = args.get(0).unwrap().as_string().unwrap();
         let instruction_name = args.get(1).unwrap().as_string().unwrap();
         let arguments =
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
-        let idl: Idl = serde_json::from_slice(&idl_bytes)
+        // let idl: Idl = serde_json::from_slice(&idl_bytes)
+        //     .map_err(|e| to_diag(fn_spec, format!("invalid idl: {e}")))?;
+        let idl: Idl = serde_json::from_str(idl_str)
             .map_err(|e| to_diag(fn_spec, format!("invalid idl: {e}")))?;
 
         let idl_ref = IdlRef::from_idl(idl);

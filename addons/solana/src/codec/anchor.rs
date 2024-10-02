@@ -81,14 +81,18 @@ impl AnchorProgramArtifacts {
     }
 
     pub fn to_value(&self) -> Result<Value, String> {
-        let idl_bytes =
-            serde_json::to_vec(&self.idl).map_err(|e| format!("invalid anchor idl: {e}"))?;
+        // let idl_bytes =
+        //     serde_json::to_vec(&self.idl).map_err(|e| format!("invalid anchor idl: {e}"))?;
+
+        let idl_str = serde_json::to_string_pretty(&self.idl)
+            .map_err(|e| format!("invalid anchor idl: {e}"))?;
 
         let keypair_bytes = self.keypair.to_bytes();
 
         Ok(ObjectType::from(vec![
             ("binary", SolanaValue::binary(self.bin.clone())),
-            ("idl", SolanaValue::idl(idl_bytes)),
+            // ("idl", SolanaValue::idl(idl_bytes)),
+            ("idl", Value::string(idl_str)),
             ("keypair", SolanaValue::keypair(keypair_bytes.to_vec())),
             ("program_id", Value::string(self.program_id.to_string())),
         ])
@@ -100,12 +104,16 @@ impl AnchorProgramArtifacts {
             Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
             _ => return Err("anchor artifacts missing binary".to_string()),
         };
-        let idl_bytes = match map.get("idl") {
-            Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
-            _ => return Err("anchor artifacts missing idl".to_string()),
-        };
+        // let idl_bytes = match map.get("idl") {
+        //     Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
+        //     _ => return Err("anchor artifacts missing idl".to_string()),
+        // };
+        let idl_str = map.get("idl").ok_or("anchor artifacts missing idl")?.to_string();
+        // let idl: Idl =
+        //     serde_json::from_slice(&idl_bytes).map_err(|e| format!("invalid anchor idl: {e}"))?;
+
         let idl: Idl =
-            serde_json::from_slice(&idl_bytes).map_err(|e| format!("invalid anchor idl: {e}"))?;
+            serde_json::from_str(&idl_str).map_err(|e| format!("invalid anchor idl: {e}"))?;
 
         let keypair_bytes = match map.get("keypair") {
             Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
