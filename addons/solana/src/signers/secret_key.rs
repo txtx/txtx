@@ -248,6 +248,10 @@ impl SignerImplementation for SolanaSecretKey {
                 .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
+            let formatted_payload = payload
+                .as_array()
+                .and_then(|a| Some(format!("{} Deployment Transactions", a.len())));
+
             let request = ActionItemRequest::new(
                 &Some(construct_did.clone()),
                 title,
@@ -261,6 +265,7 @@ impl SignerImplementation for SolanaSecretKey {
                 )
                 .skippable(skippable)
                 .check_expectation_action_uuid(construct_did)
+                .formatted_payload(formatted_payload)
                 .only_approval_needed()
                 .to_action_type(),
                 ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
