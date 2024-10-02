@@ -20,6 +20,7 @@ pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const NETWORK_ID: &str = "network_id";
+pub const AUTO_EXTEND: &str = "auto_extend";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";

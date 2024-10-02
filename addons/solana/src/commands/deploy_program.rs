@@ -4,7 +4,6 @@ use std::vec;
 
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::Keypair;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -25,11 +24,11 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNERS, TRANSACTION_BYTES};
+use crate::constants::{AUTO_EXTEND, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::ANCHOR_PROGRAM_ARTIFACTS;
 
+use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
-use super::{get_payer_did, get_signers_did};
 
 lazy_static! {
     pub static ref DEPLOY_PROGRAM: PreCommandSpecification = define_command! {
@@ -64,6 +63,13 @@ lazy_static! {
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
                     typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                auto_extend: {
+                    documentation: "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
+                    typing: Type::bool(),
                     optional: true,
                     tainting: false,
                     internal: false
@@ -119,6 +125,8 @@ impl CommandImplementation for DeployProgram {
 
         let rpc_client = RpcClient::new(rpc_api_url.clone());
 
+        let auto_extend = args.get_bool(AUTO_EXTEND);
+
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
         let keypair = program_artifacts_map.get("keypair").unwrap();
         signer_state.insert_scoped_value(
@@ -143,17 +151,15 @@ impl CommandImplementation for DeployProgram {
             )
         })?;
 
-        let program_keypair = Keypair::from_bytes(&program_artifacts.keypair.to_bytes()).unwrap();
-
         let deployer = UpgradeableProgramDeployer::new(
             program_artifacts.keypair,
             KeypairOrTxSigner::TxSigner(payer_pubkey.clone()),
-            // KeypairOrTxSigner::Keypair(program_keypair),
             &program_artifacts.bin,
             &payer_pubkey,
             rpc_client,
             None,
             None,
+            auto_extend,
         );
         let transactions = deployer.get_transactions().map_err(|e| {
             (
@@ -206,7 +212,7 @@ impl CommandImplementation for DeployProgram {
                 &signers_instances,
                 signers,
             );
-            let (signers, signer_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),

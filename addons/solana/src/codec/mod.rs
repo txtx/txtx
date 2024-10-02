@@ -8,6 +8,7 @@ use bip39::Seed;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::account_utils::StateMut;
 use solana_sdk::bpf_loader_upgradeable::create_buffer;
+use solana_sdk::bpf_loader_upgradeable::get_program_data_address;
 use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::commitment_config::CommitmentLevel;
@@ -17,6 +18,7 @@ use solana_sdk::signature::keypair_from_seed;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
+use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
 // use solana_sdk::loader_v4::finalize;
 use solana_sdk::{
     bpf_loader_upgradeable, instruction::Instruction, message::Message, pubkey::Pubkey,
@@ -67,6 +69,8 @@ pub struct UpgradeableProgramDeployer {
     pub rpc_client: RpcClient,
     /// The commitment level to use for the deployment.
     pub commitment: CommitmentConfig,
+    /// Whether to auto extend the program data account if it is too small to accommodate the new program.
+    pub auto_extend: bool,
 }
 
 pub enum KeypairOrTxSigner {
@@ -97,6 +101,7 @@ impl UpgradeableProgramDeployer {
         rpc_client: RpcClient,
         commitment: Option<CommitmentConfig>,
         existing_program_buffer_opts: Option<(Pubkey, Keypair, Vec<u8>)>,
+        auto_extend: Option<bool>,
     ) -> Self {
         let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
             Some((buffer_pubkey, buffer_keypair, buffer_data)) => {
@@ -126,6 +131,7 @@ impl UpgradeableProgramDeployer {
             buffer_keypair,
             buffer_pubkey,
             buffer_data,
+            auto_extend: auto_extend.unwrap_or(true),
         }
     }
 
@@ -135,7 +141,7 @@ impl UpgradeableProgramDeployer {
             .get_latest_blockhash()
             .map_err(|e| format!("failed to fetch latest blockhash: rpc error: {e}"))?;
 
-        if self.should_do_initial_deploy()? {
+        let transactions = if self.should_do_initial_deploy()? {
             let create_account_transaction =
                 self.get_create_buffer_transaction(&recent_blockhash)?;
 
@@ -148,13 +154,26 @@ impl UpgradeableProgramDeployer {
             let mut transactions = vec![create_account_transaction];
             transactions.append(&mut write_transactions);
             transactions.push(finalize_transaction);
-            return Ok(transactions);
+            transactions
         } else {
-        }
-        Ok(vec![])
+            // upgrading an existing program
+            let prepare_program_upgrade_transaction =
+                self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
+
+            let mut write_transactions =
+                self.get_write_to_buffer_transactions(&recent_blockhash)?;
+
+            let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
+
+            let mut transactions = vec![prepare_program_upgrade_transaction];
+            transactions.append(&mut write_transactions);
+            transactions.push(upgrade_transaction);
+            transactions
+        };
+        Ok(transactions)
     }
 
-    pub fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
+    fn get_create_buffer_instruction(&self) -> Result<Vec<Instruction>, String> {
         let program_data_length = self.binary.len();
 
         let rent_lamports = self
@@ -164,14 +183,18 @@ impl UpgradeableProgramDeployer {
             ))
             .unwrap();
 
-        let create_buffer_instruction = create_buffer(
+        create_buffer(
             &self.payer_pubkey,
             &self.buffer_pubkey,
             &self.upgrade_authority_pubkey,
             rent_lamports,
             program_data_length,
         )
-        .map_err(|e| format!("failed to create buffer: {e}"))?;
+        .map_err(|e| format!("failed to create buffer: {e}"))
+    }
+
+    fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
+        let create_buffer_instruction = self.get_create_buffer_instruction()?;
 
         let message = Message::new_with_blockhash(
             &create_buffer_instruction,
@@ -185,9 +208,87 @@ impl UpgradeableProgramDeployer {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
             KeypairOrTxSigner::TxSigner(_) => vec![&self.buffer_keypair],
         };
+        transaction.try_partial_sign(&available_keypairs, blockhash.clone()).map_err(|e| {
+            format!("failed to sign transaction to create program buffer account: {e}")
+        })?;
+        let transaction_bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| format!("failed to serialize transaction: {e}"))?;
+
+        Ok(SolanaValue::transaction(transaction_bytes))
+    }
+
+    // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
+    fn get_extend_program_instruction(&self) -> Result<Option<Instruction>, String> {
+        let program_data_address = get_program_data_address(&self.program_pubkey);
+
+        let Some(program_data_account) = self
+            .rpc_client
+            .get_account_with_commitment(&program_data_address, self.commitment)
+            .map_err(|e| format!("failed to get program data account: {e}",))?
+            .value
+        else {
+            // Program data has not been allocated yet.
+            return Ok(None);
+        };
+
+        let program_len = self.binary.len();
+        let required_len = UpgradeableLoaderState::size_of_programdata(program_len);
+        let max_permitted_data_length = usize::try_from(MAX_PERMITTED_DATA_LENGTH).unwrap();
+        if required_len > max_permitted_data_length {
+            let max_program_len = max_permitted_data_length
+                .saturating_sub(UpgradeableLoaderState::size_of_programdata(0));
+            return Err(format!(
+                "New program ({}) data account is too big: {}.\n\
+             Maximum program size: {}.",
+                &self.program_pubkey, required_len, max_program_len
+            )
+            .into());
+        }
+
+        let current_len = program_data_account.data.len();
+        let additional_bytes = required_len.saturating_sub(current_len);
+        if additional_bytes == 0 {
+            // Current allocation is sufficient.
+            return Ok(None);
+        }
+
+        let additional_bytes =
+            u32::try_from(additional_bytes).expect("`u32` is big enough to hold an account size");
+        let instruction = bpf_loader_upgradeable::extend_program(
+            &self.program_pubkey,
+            Some(&self.upgrade_authority_pubkey),
+            additional_bytes,
+        );
+
+        Ok(Some(instruction))
+    }
+
+    fn get_prepare_program_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
+        let mut instructions = self.get_create_buffer_instruction()?;
+        if self.auto_extend {
+            if let Some(extend_program_instruction) = self.get_extend_program_instruction()? {
+                println!("Extending program data account to accommodate new program...");
+                instructions.push(extend_program_instruction);
+            } else {
+                println!("Program data account is already large enough for new program.");
+            };
+        }
+
+        let message = Message::new_with_blockhash(
+            &instructions,
+            Some(&self.upgrade_authority_pubkey),
+            &blockhash,
+        );
+
+        let mut transaction = Transaction::new_unsigned(message);
+
+        let available_keypairs = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
+            KeypairOrTxSigner::TxSigner(_) => vec![&self.buffer_keypair],
+        };
         transaction
             .try_partial_sign(&available_keypairs, blockhash.clone())
-            .map_err(|e| format!("failed to sign transaction: {e}"))?;
+            .map_err(|e| format!("failed to sign transaction to prepare program upgrade: {e}"))?;
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
@@ -195,7 +296,7 @@ impl UpgradeableProgramDeployer {
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
-    pub fn get_write_to_buffer_transactions(&self, blockhash: &Hash) -> Result<Vec<Value>, String> {
+    fn get_write_to_buffer_transactions(&self, blockhash: &Hash) -> Result<Vec<Value>, String> {
         let create_msg = |offset: u32, bytes: Vec<u8>| {
             let instruction = bpf_loader_upgradeable::write(
                 &self.buffer_pubkey,
@@ -224,7 +325,7 @@ impl UpgradeableProgramDeployer {
 
                 transaction
                     .try_partial_sign(&available_keypairs, blockhash.clone())
-                    .map_err(|e| format!("failed to sign transaction: {e}"))?;
+                    .map_err(|e| format!("failed to sign transaction to write program data to buffer account: {e}"))?;
                 let transaction_bytes = serde_json::to_vec(&transaction)
                     .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
@@ -234,7 +335,7 @@ impl UpgradeableProgramDeployer {
         Ok(write_transactions)
     }
 
-    pub fn get_deploy_with_max_program_len_transaction(
+    fn get_deploy_with_max_program_len_transaction(
         &self,
         blockhash: &Hash,
     ) -> Result<Value, String> {
@@ -261,7 +362,7 @@ impl UpgradeableProgramDeployer {
 
         transaction
             .try_partial_sign(&available_keypairs, blockhash.clone())
-            .map_err(|e| format!("failed to sign transaction: {e}"))?;
+            .map_err(|e| format!("failed to sign transaction to deploy program: {e}"))?;
 
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
@@ -269,8 +370,37 @@ impl UpgradeableProgramDeployer {
         Ok(SolanaValue::transaction(transaction_bytes))
     }
 
+    fn get_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
+        let upgrade_instruction = bpf_loader_upgradeable::upgrade(
+            &self.program_pubkey,
+            &self.buffer_pubkey,
+            &self.upgrade_authority_pubkey,
+            &self.payer_pubkey,
+        );
+
+        let message = Message::new_with_blockhash(
+            &[upgrade_instruction],
+            Some(&self.payer_pubkey),
+            &blockhash,
+        );
+        let mut transaction = Transaction::new_unsigned(message);
+
+        let available_keypairs = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(keypair) => vec![keypair],
+            KeypairOrTxSigner::TxSigner(_) => vec![],
+        };
+
+        transaction
+            .try_partial_sign(&available_keypairs, blockhash.clone())
+            .map_err(|e| format!("failed to sign transaction to upgrade program: {e}"))?;
+
+        let transaction_bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| format!("failed to serialize transaction: {e}"))?;
+
+        Ok(SolanaValue::transaction(transaction_bytes))
+    }
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
-    pub fn should_do_initial_deploy(&self) -> Result<bool, String> {
+    fn should_do_initial_deploy(&self) -> Result<bool, String> {
         if let Some(account) = self
             .rpc_client
             .get_account_with_commitment(&self.program_pubkey, self.commitment.clone())
@@ -344,7 +474,7 @@ fn create_ephemeral_keypair() -> (usize, Mnemonic, Keypair) {
 }
 
 /// Copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2386
-pub fn calculate_max_chunk_size<F>(create_msg: &F) -> usize
+fn calculate_max_chunk_size<F>(create_msg: &F) -> usize
 where
     F: Fn(u32, Vec<u8>) -> Message,
 {
