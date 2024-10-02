@@ -130,50 +130,21 @@ impl UpgradeableProgramDeployer {
     }
 
     pub fn get_transactions(&self) -> Result<Vec<Value>, String> {
-        let should_do_initial_deploy = should_do_initial_deploy(
-            &self.program_pubkey,
-            &self.upgrade_authority_pubkey,
-            &self.commitment,
-            &self.rpc_client,
-        )?;
-
         let recent_blockhash = self
             .rpc_client
             .get_latest_blockhash()
             .map_err(|e| format!("failed to fetch latest blockhash: rpc error: {e}"))?;
 
-        if should_do_initial_deploy {
-            let create_account_transaction = get_create_account_transaction(
-                &self.payer_pubkey,
-                &self.buffer_pubkey,
-                &self.buffer_keypair,
-                &self.upgrade_authority_pubkey,
-                &self.upgrade_authority,
-                &self.binary,
-                &self.rpc_client,
-                &recent_blockhash,
-            )?;
+        if self.should_do_initial_deploy()? {
+            let create_account_transaction =
+                self.get_create_buffer_transaction(&recent_blockhash)?;
 
-            let mut write_transactions = get_write_transactions(
-                &self.buffer_pubkey,
-                &self.upgrade_authority_pubkey,
-                &self.upgrade_authority,
-                &self.binary,
-                &self.payer_pubkey,
-                &recent_blockhash,
-                &self.buffer_data,
-            )?;
-            let finalize_transaction = get_final_transaction(
-                &self.payer_pubkey,
-                &self.program_pubkey,
-                &self.program_keypair,
-                &self.buffer_pubkey,
-                &self.upgrade_authority_pubkey,
-                &self.upgrade_authority,
-                &recent_blockhash,
-                &self.rpc_client,
-                &self.binary,
-            )?;
+            let mut write_transactions =
+                self.get_write_to_buffer_transactions(&recent_blockhash)?;
+
+            let finalize_transaction =
+                self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
+
             let mut transactions = vec![create_account_transaction];
             transactions.append(&mut write_transactions);
             transactions.push(finalize_transaction);
@@ -181,6 +152,216 @@ impl UpgradeableProgramDeployer {
         } else {
         }
         Ok(vec![])
+    }
+
+    pub fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
+        let program_data_length = self.binary.len();
+
+        let rent_lamports = self
+            .rpc_client
+            .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_programdata(
+                program_data_length,
+            ))
+            .unwrap();
+
+        let create_buffer_instruction = create_buffer(
+            &self.payer_pubkey,
+            &self.buffer_pubkey,
+            &self.upgrade_authority_pubkey,
+            rent_lamports,
+            program_data_length,
+        )
+        .map_err(|e| format!("failed to create buffer: {e}"))?;
+
+        let message = Message::new_with_blockhash(
+            &create_buffer_instruction,
+            Some(&self.upgrade_authority_pubkey),
+            &blockhash,
+        );
+
+        let transaction = Transaction::new_unsigned(message);
+        let transaction_bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| format!("failed to serialize transaction: {e}"))?;
+
+        let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(keypair) => (
+                Some(vec![(1, self.payer_pubkey.clone())]),
+                vec![
+                    (keypair.to_bytes().to_vec(), 0),
+                    (self.buffer_keypair.to_bytes().to_vec(), 2),
+                ],
+            ),
+            KeypairOrTxSigner::TxSigner(pubkey) => (
+                Some(vec![(0, pubkey.clone()), (1, self.payer_pubkey.clone())]),
+                vec![(self.buffer_keypair.to_bytes().to_vec(), 2)],
+            ),
+        };
+
+        let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
+            transaction_bytes,
+            deferred_signer_pos,
+            initial_signers,
+        )
+        .map_err(|e| e.message)?;
+        Ok(transaction_with_partial_signer)
+    }
+
+    // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
+    pub fn get_write_to_buffer_transactions(&self, blockhash: &Hash) -> Result<Vec<Value>, String> {
+        let create_msg = |offset: u32, bytes: Vec<u8>| {
+            let instruction = bpf_loader_upgradeable::write(
+                &self.buffer_pubkey,
+                &self.upgrade_authority_pubkey,
+                offset,
+                bytes,
+            );
+
+            let instructions = vec![instruction];
+            Message::new_with_blockhash(&instructions, Some(&self.payer_pubkey), &blockhash)
+        };
+
+        let mut write_transactions = vec![];
+        let chunk_size = calculate_max_chunk_size(&create_msg);
+        for (chunk, i) in self.binary.chunks(chunk_size).zip(0usize..) {
+            let offset = i.saturating_mul(chunk_size);
+            // Only write the chunk if it differs from our initial buffer data
+            if chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
+                let transaction =
+                    Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
+                let transaction_bytes = serde_json::to_vec(&transaction)
+                    .map_err(|e| format!("failed to serialize transaction: {e}"))
+                    .unwrap();
+
+                let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
+                    KeypairOrTxSigner::Keypair(keypair) => (
+                        Some(vec![(0, self.payer_pubkey.clone())]),
+                        vec![(keypair.to_bytes().to_vec(), 1)],
+                    ),
+                    KeypairOrTxSigner::TxSigner(pubkey) => {
+                        (Some(vec![(0, self.payer_pubkey.clone()), (1, pubkey.clone())]), vec![])
+                    }
+                };
+
+                let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
+                    transaction_bytes,
+                    deferred_signer_pos,
+                    initial_signers,
+                )
+                .map_err(|e| e.message)?;
+                write_transactions.push(transaction_with_partial_signer);
+            }
+        }
+        Ok(write_transactions)
+    }
+
+    pub fn get_deploy_with_max_program_len_transaction(
+        &self,
+        blockhash: &Hash,
+    ) -> Result<Value, String> {
+        let instructions = bpf_loader_upgradeable::deploy_with_max_program_len(
+            &self.payer_pubkey,
+            &self.program_pubkey,
+            &self.buffer_pubkey,
+            &self.upgrade_authority_pubkey,
+            self.rpc_client
+                .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_program())
+                .map_err(|e| format!("failed to get minimum balance for rent exemption: {e}"))?,
+            self.binary.len(),
+        )
+        .map_err(|e| format!("failed to create deploy with max program len instruction: {e}"))?;
+
+        let message =
+            Message::new_with_blockhash(&instructions, Some(&self.payer_pubkey), &blockhash);
+        let transaction = Transaction::new_unsigned(message);
+
+        let transaction_bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| format!("failed to serialize transaction: {e}"))?;
+
+        let (deferred_signer_pos, initial_signers) = match &self.upgrade_authority {
+            KeypairOrTxSigner::Keypair(upgrade_authority_keypair) => (
+                Some(vec![(0, self.payer_pubkey.clone())]),
+                vec![
+                    (self.program_keypair.to_bytes().to_vec(), 1),
+                    (upgrade_authority_keypair.to_bytes().to_vec(), 2),
+                ],
+            ),
+            KeypairOrTxSigner::TxSigner(upgrade_authority_pubkey) => (
+                Some(vec![(0, self.payer_pubkey.clone()), (2, upgrade_authority_pubkey.clone())]),
+                vec![(self.program_keypair.to_bytes().to_vec(), 1)],
+            ),
+        };
+
+        let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
+            transaction_bytes,
+            deferred_signer_pos,
+            initial_signers,
+        )
+        .map_err(|e| e.message)?;
+        Ok(transaction_with_partial_signer)
+    }
+
+    /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
+    pub fn should_do_initial_deploy(&self) -> Result<bool, String> {
+        if let Some(account) = self
+            .rpc_client
+            .get_account_with_commitment(&self.program_pubkey, self.commitment.clone())
+            .map_err(|e| format!("failed to get program account: {e}"))?
+            .value
+        {
+            if account.owner != bpf_loader_upgradeable::id() {
+                return Err(format!(
+                    "Account {} is not an upgradeable program or already in use",
+                    self.program_pubkey
+                )
+                .into());
+            }
+            if !account.executable {
+                return Ok(true);
+            } else if let Ok(UpgradeableLoaderState::Program { programdata_address }) =
+                account.state()
+            {
+                if let Some(account) = self
+                    .rpc_client
+                    .get_account_with_commitment(&programdata_address, self.commitment.clone())
+                    .map_err(|e| format!("failed to get program data account: {e}"))?
+                    .value
+                {
+                    if let Ok(UpgradeableLoaderState::ProgramData {
+                        slot: _,
+                        upgrade_authority_address: program_authority_pubkey,
+                    }) = account.state()
+                    {
+                        if let Some(program_authority_pubkey) = program_authority_pubkey {
+                            if program_authority_pubkey != self.upgrade_authority_pubkey {
+                                return Err(format!(
+                                    "Program's authority {:?} does not match authority provided {:?}",
+                                    program_authority_pubkey, self.upgrade_authority_pubkey,
+                                )
+                                .into());
+                            }
+                        }
+                        // Do upgrade
+                        return Ok(false);
+                    } else {
+                        return Err(format!(
+                            "Program {} has been closed, use a new Program Id",
+                            self.program_pubkey
+                        )
+                        .into());
+                    }
+                } else {
+                    return Err(format!(
+                        "Program {} has been closed, use a new Program Id",
+                        self.program_pubkey
+                    )
+                    .into());
+                }
+            } else {
+                return Err(format!("{} is not an upgradeable program", self.program_pubkey).into());
+            }
+        } else {
+            return Ok(true);
+        }
     }
 }
 
@@ -191,178 +372,6 @@ fn create_ephemeral_keypair() -> (usize, Mnemonic, Keypair) {
     let new_keypair = keypair_from_seed(seed.as_bytes()).unwrap();
 
     (WORDS, mnemonic, new_keypair)
-}
-
-pub fn get_create_account_transaction(
-    payer_pubkey: &Pubkey,
-    buffer_pubkey: &Pubkey,
-    buffer_keypair: &Keypair,
-    buffer_authority_pubkey: &Pubkey,
-    buffer_authority_keypair: &KeypairOrTxSigner,
-    binary: &Vec<u8>,
-    rpc_client: &RpcClient,
-    blockhash: &Hash,
-) -> Result<Value, String> {
-    let program_data_length = binary.len();
-
-    let rent_lamports = rpc_client
-        .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_programdata(
-            program_data_length,
-        ))
-        .unwrap();
-
-    let create_program_account_instruction = create_buffer(
-        payer_pubkey,
-        buffer_pubkey,
-        buffer_authority_pubkey,
-        rent_lamports,
-        program_data_length,
-    )
-    .map_err(|e| format!("failed to create buffer: {e}"))?;
-
-    let message = Message::new_with_blockhash(
-        &create_program_account_instruction,
-        Some(buffer_authority_pubkey),
-        &blockhash,
-    );
-
-    let transaction = Transaction::new_unsigned(message);
-    let transaction_bytes = serde_json::to_vec(&transaction)
-        .map_err(|e| format!("failed to serialize transaction: {e}"))?;
-
-    let (deferred_signer_pos, initial_signers) = match buffer_authority_keypair {
-        KeypairOrTxSigner::Keypair(keypair) => (
-            Some(vec![(1, payer_pubkey.clone())]),
-            vec![(keypair.to_bytes().to_vec(), 0), (buffer_keypair.to_bytes().to_vec(), 2)],
-        ),
-        KeypairOrTxSigner::TxSigner(pubkey) => (
-            Some(vec![(0, pubkey.clone()), (1, payer_pubkey.clone())]),
-            vec![(buffer_keypair.to_bytes().to_vec(), 2)],
-        ),
-    };
-
-    let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-        transaction_bytes,
-        deferred_signer_pos,
-        initial_signers,
-    )
-    .map_err(|e| e.message)?;
-    Ok(transaction_with_partial_signer)
-}
-
-/// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
-fn should_do_initial_deploy(
-    program_pubkey: &Pubkey,
-    upgrade_authority_pubkey: &Pubkey,
-    commitment: &CommitmentConfig,
-    rpc_client: &RpcClient,
-) -> Result<bool, String> {
-    if let Some(account) = rpc_client
-        .get_account_with_commitment(&program_pubkey, commitment.clone())
-        .map_err(|e| format!("failed to get program account: {e}"))?
-        .value
-    {
-        if account.owner != bpf_loader_upgradeable::id() {
-            return Err(format!(
-                "Account {program_pubkey} is not an upgradeable program or already in use"
-            )
-            .into());
-        }
-        if !account.executable {
-            return Ok(true);
-        } else if let Ok(UpgradeableLoaderState::Program { programdata_address }) = account.state()
-        {
-            if let Some(account) = rpc_client
-                .get_account_with_commitment(&programdata_address, commitment.clone())
-                .map_err(|e| format!("failed to get program data account: {e}"))?
-                .value
-            {
-                if let Ok(UpgradeableLoaderState::ProgramData {
-                    slot: _,
-                    upgrade_authority_address: program_authority_pubkey,
-                }) = account.state()
-                {
-                    if program_authority_pubkey.is_none() {
-                        return Err(
-                            format!("Program {program_pubkey} is no longer upgradeable").into()
-                        );
-                    }
-                    if program_authority_pubkey.as_ref() != Some(upgrade_authority_pubkey) {
-                        return Err(format!(
-                            "Program's authority {:?} does not match authority provided {:?}",
-                            program_authority_pubkey, upgrade_authority_pubkey,
-                        )
-                        .into());
-                    }
-                    // Do upgrade
-                    return Ok(false);
-                } else {
-                    return Err(format!(
-                        "Program {program_pubkey} has been closed, use a new Program Id"
-                    )
-                    .into());
-                }
-            } else {
-                return Err(format!(
-                    "Program {program_pubkey} has been closed, use a new Program Id"
-                )
-                .into());
-            }
-        } else {
-            return Err(format!("{program_pubkey} is not an upgradeable program").into());
-        }
-    } else {
-        return Ok(true);
-    }
-}
-
-// Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
-fn get_write_transactions(
-    buffer_pubkey: &Pubkey,
-    buffer_authority_pubkey: &Pubkey,
-    upgrade_authority_keypair: &KeypairOrTxSigner,
-    program_data: &Vec<u8>,
-    payer_pubkey: &Pubkey,
-    blockhash: &Hash,
-    buffer_program_data: &[u8],
-) -> Result<Vec<Value>, String> {
-    let create_msg = |offset: u32, bytes: Vec<u8>| {
-        let instruction =
-            bpf_loader_upgradeable::write(buffer_pubkey, &buffer_authority_pubkey, offset, bytes);
-
-        let instructions = vec![instruction];
-        Message::new_with_blockhash(&instructions, Some(&payer_pubkey), &blockhash)
-    };
-
-    let mut write_transactions = vec![];
-    let chunk_size = calculate_max_chunk_size(&create_msg);
-    for (chunk, i) in program_data.chunks(chunk_size).zip(0usize..) {
-        let offset = i.saturating_mul(chunk_size);
-        if chunk != &buffer_program_data[offset..offset.saturating_add(chunk.len())] {
-            let transaction = Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
-            let transaction_bytes = serde_json::to_vec(&transaction)
-                .map_err(|e| format!("failed to serialize transaction: {e}"))
-                .unwrap();
-
-            let (deferred_signer_pos, initial_signers) = match upgrade_authority_keypair {
-                KeypairOrTxSigner::Keypair(keypair) => {
-                    (Some(vec![(0, payer_pubkey.clone())]), vec![(keypair.to_bytes().to_vec(), 1)])
-                }
-                KeypairOrTxSigner::TxSigner(pubkey) => {
-                    (Some(vec![(0, payer_pubkey.clone()), (1, pubkey.clone())]), vec![])
-                }
-            };
-
-            let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-                transaction_bytes,
-                deferred_signer_pos,
-                initial_signers,
-            )
-            .map_err(|e| e.message)?;
-            write_transactions.push(transaction_with_partial_signer);
-        }
-    }
-    Ok(write_transactions)
 }
 
 /// Copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2386
@@ -381,57 +390,4 @@ where
     .unwrap() as usize;
     // add 1 byte buffer to account for shortvec encoding
     PACKET_DATA_SIZE.saturating_sub(tx_size).saturating_sub(1)
-}
-
-pub fn get_final_transaction(
-    payer_pubkey: &Pubkey,
-    program_pubkey: &Pubkey,
-    program_keypair: &Keypair,
-    buffer_pubkey: &Pubkey,
-    upgrade_authority_pubkey: &Pubkey,
-    upgrade_authority_keypair_or_signer: &KeypairOrTxSigner,
-    blockhash: &Hash,
-    rpc_client: &RpcClient,
-    binary: &Vec<u8>,
-) -> Result<Value, String> {
-    let instructions = bpf_loader_upgradeable::deploy_with_max_program_len(
-        &payer_pubkey,
-        &program_pubkey,
-        buffer_pubkey,
-        &upgrade_authority_pubkey,
-        rpc_client
-            .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_program())
-            .map_err(|e| format!("failed to get minimum balance for rent exemption: {e}"))?,
-        binary.len(),
-    )
-    .map_err(|e| format!("failed to create deploy with max program len instruction: {e}"))?;
-
-    let message = Message::new_with_blockhash(&instructions, Some(&payer_pubkey), &blockhash);
-    let transaction = Transaction::new_unsigned(message);
-
-    let transaction_bytes = serde_json::to_vec(&transaction)
-        .map_err(|e| format!("failed to serialize transaction: {e}"))?;
-
-    let (deferred_signer_pos, initial_signers) = match upgrade_authority_keypair_or_signer {
-        KeypairOrTxSigner::Keypair(upgrade_authority_keypair) => (
-            Some(vec![(0, payer_pubkey.clone())]),
-            vec![
-                (program_keypair.to_bytes().to_vec(), 1),
-                (upgrade_authority_keypair.to_bytes().to_vec(), 2),
-            ],
-        ),
-        KeypairOrTxSigner::TxSigner(upgrade_authority_pubkey) => (
-            Some(vec![(0, payer_pubkey.clone()), (2, upgrade_authority_pubkey.clone())]),
-            vec![(program_keypair.to_bytes().to_vec(), 1)],
-        ),
-    };
-
-    let transaction_with_partial_signer = SolanaValue::transaction_with_partial_signer(
-        transaction_bytes,
-        deferred_signer_pos,
-        initial_signers,
-    )
-    .map_err(|e| e.message)?;
-
-    Ok(transaction_with_partial_signer)
 }
