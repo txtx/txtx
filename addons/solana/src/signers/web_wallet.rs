@@ -150,10 +150,7 @@ impl SignerImplementation for SolanaWebWallet {
                 }
             }
             if success {
-                signer_state.insert(
-                    CHECKED_PUBLIC_KEY,
-                    Value::string(txtx_addon_kit::hex::encode(public_key_bytes)),
-                );
+                signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
                 signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
             }
             let update =
