@@ -89,7 +89,7 @@ pub fn encode_value_to_idl_type(
     let encode_err = |expected: &str, e| {
         format!("unable to encode value ({}) as borsh {}: {}", value.to_string(), expected, e)
     };
-    println!("type: {:?}", idl_type);
+
     match idl_type {
         IdlType::Bool => value
             .as_bool()
@@ -258,7 +258,6 @@ pub fn encode_value_to_idl_type(
             array
         }
         IdlType::Defined { name, generics } => {
-            println!("Defined: {}", name);
             let typing = idl_types
                 .iter()
                 .find(|t| &t.name == name)
@@ -302,13 +301,12 @@ pub fn encode_value_to_idl_type(
                                     let user_value = user_values.get(i).ok_or_else(|| {
                                         format!("missing field value in {} index of array", i)
                                     })?;
-                                    println!("User value: {:?}", user_value);
+
                                     let ty = parse_generic_expected_type(
                                         expected_type,
                                         &typing.generics,
                                         generics,
                                     )?;
-                                    println!("Type: {:?}", ty);
 
                                     let encoded_field = encode_value_to_idl_type(
                                         user_value,
