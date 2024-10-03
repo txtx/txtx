@@ -558,7 +558,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
             Value::Buffer(_) => Type::Buffer,
-            Value::Object(_) => todo!(),
+            Value::Object(_) => Type::Object(vec![]),
             Value::Array(t) => {
                 Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
             }
