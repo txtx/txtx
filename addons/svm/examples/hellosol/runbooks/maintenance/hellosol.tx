@@ -1,14 +1,14 @@
 // Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
 // to understand the syntax and discover the powerful features of txtx.
-addon "solana" {
-  network_id = input.solana_network_id
-  rpc_api_url = input.solana_api_url
+addon "svm" {
+  network_id = input.svm_network_id
+  rpc_api_url = input.svm_api_url
 }
 
-signer "operator" "solana::web_wallet" {
+signer "operator" "svm::web_wallet" {
   expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
 }
-// signer "operator" "solana::web_wallet" {
+// signer "operator" "svm::web_wallet" {
 //   expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
 // }
 
@@ -16,12 +16,12 @@ variable "program_id" {
   value = "CDPuDrgm8a7MocQ3jcjd8RzHme8z1Lk3H54w4HgVEVsR"
 }
 
-action "call_hellosol" "solana::process_instructions" {
+action "call_hellosol" "svm::process_instructions" {
   description = "Invoke instructions"
   instruction {
     program_id = "34PPF3JfHDAUbpcfzLgFe8ZcDiWKZ16wQ34rQdWXKQ2F"
     accounts = [
-      solana::account("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV", true, true),
+      svm::account("zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV", true, true),
     ]
     data ="0x" // "0xafaf6d1f0d989bed"
   }
@@ -38,7 +38,7 @@ output "transaction_signature" {
   value = action.call_hellosol.signature
 }
 
-// action "deploy_hellosol" "solana::deploy_program" {
+// action "deploy_hellosol" "svm::deploy_program" {
 //   description = "Invoke instructions"
 //   program = get_program_from_anchor_project("hellosol")
 //   verifiable = true

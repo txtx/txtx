@@ -33,9 +33,9 @@ use super::sign_transaction::SignTransaction;
 lazy_static! {
     pub static ref DEPLOY_PROGRAM: PreCommandSpecification = define_command! {
         DeployProgram => {
-            name: "Deploy Solana Program",
+            name: "Deploy SVM Program",
             matcher: "deploy_program",
-            documentation: "The `deploy_program` is coming soon",
+            documentation: "`svm::deploy_program` is coming soon",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [

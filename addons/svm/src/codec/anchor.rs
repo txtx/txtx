@@ -7,7 +7,7 @@ use txtx_addon_kit::{
     types::types::{ObjectType, Value},
 };
 
-use crate::typing::SolanaValue;
+use crate::typing::SvmValue;
 
 pub struct AnchorProgramArtifacts {
     /// The IDL of the anchor program, stored for an anchor project at `target/idl/<program_name>.json`.
@@ -90,10 +90,10 @@ impl AnchorProgramArtifacts {
         let keypair_bytes = self.keypair.to_bytes();
 
         Ok(ObjectType::from(vec![
-            ("binary", SolanaValue::binary(self.bin.clone())),
-            // ("idl", SolanaValue::idl(idl_bytes)),
+            ("binary", SvmValue::binary(self.bin.clone())),
+            // ("idl", SvmValue::idl(idl_bytes)),
             ("idl", Value::string(idl_str)),
-            ("keypair", SolanaValue::keypair(keypair_bytes.to_vec())),
+            ("keypair", SvmValue::keypair(keypair_bytes.to_vec())),
             ("program_id", Value::string(self.program_id.to_string())),
         ])
         .to_value())

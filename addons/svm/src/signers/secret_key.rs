@@ -29,18 +29,18 @@ use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, IS_SIGNABLE, NAMESPACE, NETWORK_ID, TRANSACTION_BYTES,
 };
-use crate::typing::SolanaValue;
+use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
 use super::namespaced_err_fn;
 
 lazy_static! {
-    pub static ref SOLANA_SECRET_KEY: SignerSpecification = define_signer! {
-        SolanaSecretKey => {
+    pub static ref SVM_SECRET_KEY: SignerSpecification = define_signer! {
+        SvmSecretKey => {
             name: "Secret Key Signer",
             matcher: "secret_key",
-            documentation:txtx_addon_kit::indoc! {r#"The `solana::secret_key` signer can be used to synchronously sign a transaction."#},
+            documentation:txtx_addon_kit::indoc! {r#"The `svm::secret_key` signer can be used to synchronously sign a transaction."#},
             inputs: [
                 secret_key: {
                     documentation: "The secret key used to sign messages and transactions.",
@@ -95,8 +95,8 @@ lazy_static! {
     };
 }
 
-pub struct SolanaSecretKey;
-impl SignerImplementation for SolanaSecretKey {
+pub struct SvmSecretKey;
+impl SignerImplementation for SvmSecretKey {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,
@@ -357,15 +357,15 @@ impl SignerImplementation for SolanaSecretKey {
                             format!("failed to sign transaction: {e}"),
                         )
                     })?;
-                signed_txs.push(SolanaValue::transaction(
-                    serde_json::to_vec(&transaction).map_err(|e| {
+                signed_txs.push(SvmValue::transaction(serde_json::to_vec(&transaction).map_err(
+                    |e| {
                         signer_err(
                             &signers,
                             &signer_state,
                             format!("failed to serialize signed transaction: {e}"),
                         )
-                    })?,
-                ));
+                    },
+                )?));
             }
             result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), Value::array(signed_txs));
         } else {
@@ -384,7 +384,7 @@ impl SignerImplementation for SolanaSecretKey {
             )?;
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
-                SolanaValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
+                SvmValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
                     signer_err(
                         &signers,
                         &signer_state,

@@ -24,7 +24,7 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{PROGRAM_ID, RPC_API_URL, TRANSACTION_BYTES};
-use crate::typing::{SolanaValue, SOLANA_ACCOUNT};
+use crate::typing::{SvmValue, SVM_ACCOUNT};
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -32,9 +32,9 @@ use super::sign_transaction::SignTransaction;
 lazy_static! {
     pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
         ProcessInstructions => {
-            name: "Process Solana Instructions",
+            name: "Process SVM Instructions",
             matcher: "process_instructions",
-            documentation: "The `process_instructions` action encode instructions, build, sign and broadcast a transaction",
+            documentation: "The `svm::process_instructions` action encode instructions, build, sign and broadcast a transaction",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -67,7 +67,7 @@ lazy_static! {
                         ObjectProperty {
                             name: "accounts".into(),
                             documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
-                            typing: Type::array(Type::Addon(SOLANA_ACCOUNT.into())), // TODO - should be an object
+                            typing: Type::array(Type::Addon(SVM_ACCOUNT.into())), // TODO - should be an object
                             optional: false,
                             tainting: true,
                             internal: false
@@ -175,7 +175,7 @@ impl CommandImplementation for ProcessInstructions {
         let transaction_bytes = serde_json::to_vec(&transaction).unwrap();
 
         let mut args = args.clone();
-        args.insert(TRANSACTION_BYTES, SolanaValue::message(transaction_bytes));
+        args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
 
         SignTransaction::check_signed_executability(
             construct_did,

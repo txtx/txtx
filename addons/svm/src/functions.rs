@@ -18,7 +18,7 @@ use txtx_addon_kit::{
 use crate::{
     codec::{anchor::AnchorProgramArtifacts, idl::IdlRef},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
-    typing::{SolanaValue, ANCHOR_PROGRAM_ARTIFACTS, SOLANA_ACCOUNT, SOLANA_IDL, SOLANA_PUBKEY},
+    typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, SVM_ACCOUNT, SVM_IDL, SVM_PUBKEY},
 };
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
@@ -35,10 +35,10 @@ lazy_static! {
         define_function! {
             SystemProgramId => {
                 name: "system_program_id",
-                documentation: "`solana::system_program_id` returns the id of the system program, `11111111111111111111111111111111`.",
+                documentation: "`svm::system_program_id` returns the id of the system program, `11111111111111111111111111111111`.",
                 example: indoc! {r#"
                     output "system_program_id" { 
-                        value = solana::system_program_id()
+                        value = svm::system_program_id()
                     }
                     // > 
                 "#},
@@ -46,17 +46,17 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The system program id",
-                    typing: Type::addon(SOLANA_PUBKEY.into())
+                    typing: Type::addon(SVM_PUBKEY.into())
                 },
             }
         },
         define_function! {
             CreateAccountMeta => {
                 name: "account",
-                documentation: "`solana::account` is coming soon",
+                documentation: "`svm::account` is coming soon",
                 example: indoc! {r#"
                     output "account" { 
-                    value = solana::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
+                    value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
                     }
                     // > 
                 "#},
@@ -76,14 +76,14 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "Coming soon.",
-                    typing: Type::addon(SOLANA_ACCOUNT.into())
+                    typing: Type::addon(SVM_ACCOUNT.into())
                 },
             }
         },
         define_function! {
             GetInstructionDataFromIdlPath => {
                 name: "get_instruction_data_from_idl_path",
-                documentation: "`solana::get_instruction_data_from_idl_path` is coming soon",
+                documentation: "`svm::get_instruction_data_from_idl_path` is coming soon",
                 example: indoc! {r#"
                     // Coming soon
                 "#},
@@ -106,21 +106,21 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "Coming soon.",
-                    typing: Type::addon(SOLANA_ACCOUNT.into())
+                    typing: Type::addon(SVM_ACCOUNT.into())
                 },
             }
         },
         define_function! {
             GetInstructionDataFromIdl => {
                 name: "get_instruction_data_from_idl",
-                documentation: "`solana::get_instruction_data_from_idl` is coming soon",
+                documentation: "`svm::get_instruction_data_from_idl` is coming soon",
                 example: indoc! {r#"
                     // Coming soon
                 "#},
                 inputs: [
                     idl: {
                         documentation: "The program IDL.",
-                        typing: vec![Type::addon(SOLANA_IDL), Type::string()],
+                        typing: vec![Type::addon(SVM_IDL), Type::string()],
                         optional: false
                     },
                     instruction_name: {
@@ -136,14 +136,14 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "Coming soon.",
-                    typing: Type::addon(SOLANA_ACCOUNT.into())
+                    typing: Type::addon(SVM_ACCOUNT.into())
                 },
             }
         },
         define_function! {
             GetProgramFromAnchorProject => {
                 name: "get_program_from_anchor_project",
-                documentation: "`solana::get_program_from_anchor_project` is coming soon",
+                documentation: "`svm::get_program_from_anchor_project` is coming soon",
                 example: indoc! {r#"
                     // Coming soon
                 "#},

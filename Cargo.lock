@@ -11592,7 +11592,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "txtx-addon-network-solana"
+name = "txtx-addon-network-stacks"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "clarinet-deployments",
+ "clarity",
+ "clarity-repl",
+ "lazy_static",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "toml 0.5.11",
+ "txtx-addon-kit",
+ "txtx-test-utils",
+]
+
+[[package]]
+name = "txtx-addon-network-svm"
 version = "0.1.0"
 dependencies = [
  "anchor-lang-idl",
@@ -11606,23 +11623,6 @@ dependencies = [
  "solana-client",
  "solana-sdk",
  "tiny-bip39",
- "txtx-addon-kit",
- "txtx-test-utils",
-]
-
-[[package]]
-name = "txtx-addon-network-stacks"
-version = "0.1.0"
-dependencies = [
- "async-recursion",
- "clarinet-deployments",
- "clarity",
- "clarity-repl",
- "lazy_static",
- "serde",
- "serde_derive",
- "serde_json",
- "toml 0.5.11",
  "txtx-addon-kit",
  "txtx-test-utils",
 ]
@@ -11688,8 +11688,8 @@ dependencies = [
  "tower-lsp",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
- "txtx-addon-network-solana",
  "txtx-addon-network-stacks",
+ "txtx-addon-network-svm",
  "txtx-addon-sp1",
  "txtx-addon-telegram",
  "txtx-core",

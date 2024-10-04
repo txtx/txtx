@@ -1,7 +1,7 @@
 pub mod secret_key;
 pub mod web_wallet;
 
-use secret_key::SOLANA_SECRET_KEY;
+use secret_key::SVM_SECRET_KEY;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::types::{
@@ -14,7 +14,7 @@ use txtx_addon_kit::types::{
     types::Value,
     ConstructDid,
 };
-use web_wallet::SOLANA_WEB_WALLET;
+use web_wallet::SVM_WEB_WALLET;
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, NAMESPACE,
@@ -22,7 +22,7 @@ use crate::constants::{
 
 lazy_static! {
     pub static ref SIGNERS: Vec<SignerSpecification> =
-        vec![SOLANA_SECRET_KEY.clone(), SOLANA_WEB_WALLET.clone()];
+        vec![SVM_SECRET_KEY.clone(), SVM_WEB_WALLET.clone()];
 }
 
 pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {

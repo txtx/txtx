@@ -1,72 +1,72 @@
 use txtx_addon_kit::types::types::{Type, Value};
 
-pub const SOLANA_ADDRESS: &str = "solana::address";
-pub const SOLANA_BYTES: &str = "solana::bytes";
-pub const SOLANA_BYTES32: &str = "solana::bytes32";
-pub const SOLANA_TRANSACTION: &str = "solana::transaction";
-pub const SOLANA_INSTRUCTION: &str = "solana::instruction";
-pub const SOLANA_ACCOUNT: &str = "solana::account";
-pub const SOLANA_MESSAGE: &str = "solana::message";
-pub const SOLANA_TX_HASH: &str = "solana::tx_hash";
-pub const SOLANA_INIT_CODE: &str = "solana::init_code";
-pub const SOLANA_BINARY: &str = "solana::binary";
-pub const SOLANA_IDL: &str = "solana::idl";
-pub const SOLANA_KEYPAIR: &str = "solana::keypair";
-pub const SOLANA_PUBKEY: &str = "solana::pubkey";
+pub const SVM_ADDRESS: &str = "svm::address";
+pub const SVM_BYTES: &str = "svm::bytes";
+pub const SVM_BYTES32: &str = "svm::bytes32";
+pub const SVM_TRANSACTION: &str = "svm::transaction";
+pub const SVM_INSTRUCTION: &str = "svm::instruction";
+pub const SVM_ACCOUNT: &str = "svm::account";
+pub const SVM_MESSAGE: &str = "svm::message";
+pub const SVM_TX_HASH: &str = "svm::tx_hash";
+pub const SVM_INIT_CODE: &str = "svm::init_code";
+pub const SVM_BINARY: &str = "svm::binary";
+pub const SVM_IDL: &str = "svm::idl";
+pub const SVM_KEYPAIR: &str = "svm::keypair";
+pub const SVM_PUBKEY: &str = "svm::pubkey";
 
-pub struct SolanaValue {}
+pub struct SvmValue {}
 
-impl SolanaValue {
+impl SvmValue {
     pub fn address(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_ADDRESS)
+        Value::addon(bytes, SVM_ADDRESS)
     }
 
     pub fn bytes(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_BYTES)
+        Value::addon(bytes, SVM_BYTES)
     }
 
     pub fn bytes32(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_BYTES32)
+        Value::addon(bytes, SVM_BYTES32)
     }
 
     pub fn transaction(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_TRANSACTION)
+        Value::addon(bytes, SVM_TRANSACTION)
     }
 
     pub fn instruction(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_INSTRUCTION)
+        Value::addon(bytes, SVM_INSTRUCTION)
     }
 
     pub fn account(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_ACCOUNT)
+        Value::addon(bytes, SVM_ACCOUNT)
     }
 
     pub fn message(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_MESSAGE)
+        Value::addon(bytes, SVM_MESSAGE)
     }
 
     pub fn tx_hash(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_TX_HASH)
+        Value::addon(bytes, SVM_TX_HASH)
     }
 
     pub fn init_code(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_INIT_CODE)
+        Value::addon(bytes, SVM_INIT_CODE)
     }
 
     pub fn binary(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_BINARY)
+        Value::addon(bytes, SVM_BINARY)
     }
 
     pub fn idl(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_IDL)
+        Value::addon(bytes, SVM_IDL)
     }
 
     pub fn keypair(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_KEYPAIR)
+        Value::addon(bytes, SVM_KEYPAIR)
     }
 
     pub fn pubkey(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SOLANA_PUBKEY)
+        Value::addon(bytes, SVM_PUBKEY)
     }
 }
 
@@ -74,26 +74,26 @@ lazy_static! {
     pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_object_type! {
         idl: {
             documentation: "The program idl.",
-            // typing: Type::addon(SOLANA_IDL),
+            // typing: Type::addon(SVM_IDL),
             typing: Type::string(),
             optional: false,
             tainting: true
         },
         binary: {
             documentation: "The program binary.",
-            typing: Type::addon(SOLANA_BINARY),
+            typing: Type::addon(SVM_BINARY),
             optional: false,
             tainting: false
         },
         keypair: {
             documentation: "The program keypair.",
-            typing: Type::addon(SOLANA_KEYPAIR),
+            typing: Type::addon(SVM_KEYPAIR),
             optional: false,
             tainting: true
         },
         program_id: {
             documentation: "The program id.",
-            typing: Type::addon(SOLANA_PUBKEY),
+            typing: Type::addon(SVM_PUBKEY),
             optional: false,
             tainting: true
         }

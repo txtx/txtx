@@ -31,15 +31,15 @@ use crate::constants::{
 use super::{get_additional_actions_for_address, namespaced_err_fn};
 
 lazy_static! {
-    pub static ref SOLANA_WEB_WALLET: SignerSpecification = {
+    pub static ref SVM_WEB_WALLET: SignerSpecification = {
         let mut signer = define_signer! {
-            SolanaWebWallet => {
+            SvmWebWallet => {
                 name: "Stacks Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `solana::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice."#},
+                documentation:txtx_addon_kit::indoc! {r#"The `svm::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
-                        documentation: "The Solana address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
+                        documentation: "The SVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
                         optional: false,
                         tainting: true,
@@ -53,7 +53,7 @@ lazy_static! {
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "solana::web_wallet" {
+                signer "alice" "svm::web_wallet" {
                     expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
                 }
                 "#},
@@ -64,8 +64,8 @@ lazy_static! {
     };
 }
 
-pub struct SolanaWebWallet;
-impl SignerImplementation for SolanaWebWallet {
+pub struct SvmWebWallet;
+impl SignerImplementation for SvmWebWallet {
     fn check_instantiability(
         _ctx: &SignerSpecification,
         _args: Vec<Type>,

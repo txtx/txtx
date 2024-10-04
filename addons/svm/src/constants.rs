@@ -1,4 +1,4 @@
-pub const NAMESPACE: &str = "solana";
+pub const NAMESPACE: &str = "svm";
 pub const SIGNERS: &str = "signers";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";

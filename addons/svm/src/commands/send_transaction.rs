@@ -22,14 +22,14 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::constants::RPC_API_URL;
-use crate::typing::SOLANA_INSTRUCTION;
+use crate::typing::SVM_INSTRUCTION;
 
 lazy_static! {
     pub static ref SEND_TRANSACTION: PreCommandSpecification = define_command! {
         SendTransaction => {
-            name: "Send Solana Transaction",
+            name: "Send SVM Transaction",
             matcher: "send_transaction",
-            documentation: "The `send_transaction` action encodes a transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+            documentation: "The `svm::send_transaction` action encodes a transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
@@ -42,7 +42,7 @@ lazy_static! {
                 },
                 instructions: {
                     documentation: "The address and identifier of the contract to invoke.",
-                    typing: Type::array(Type::addon(SOLANA_INSTRUCTION.into())),
+                    typing: Type::array(Type::addon(SVM_INSTRUCTION.into())),
                     optional: false,
                     tainting: true,
                     internal: false

@@ -1,5 +1,5 @@
 [package]
-name = "txtx-addon-network-solana"
+name = "txtx-addon-network-svm"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"

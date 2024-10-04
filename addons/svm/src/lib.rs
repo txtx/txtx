@@ -22,17 +22,17 @@ use txtx_addon_kit::{
 };
 
 #[derive(Debug)]
-pub struct SolanaNetworkAddon;
+pub struct SvmNetworkAddon;
 
-impl SolanaNetworkAddon {
+impl SvmNetworkAddon {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Addon for SolanaNetworkAddon {
+impl Addon for SvmNetworkAddon {
     fn get_name(&self) -> &str {
-        "Solana Blockchain (alpha)"
+        "Solana and SVM Compatible Blockchains (alpha)"
     }
 
     fn get_description(&self) -> &str {

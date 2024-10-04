@@ -27,7 +27,7 @@ use solana_sdk::{
 use std::str::FromStr;
 use txtx_addon_kit::types::types::Value;
 
-use crate::typing::SolanaValue;
+use crate::typing::SvmValue;
 
 pub fn encode_contract_call(instructions: &Vec<Instruction>) -> Result<Value, String> {
     let message = Message::new(instructions, None);
@@ -214,7 +214,7 @@ impl UpgradeableProgramDeployer {
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SolanaValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction(transaction_bytes))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
@@ -292,7 +292,7 @@ impl UpgradeableProgramDeployer {
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SolanaValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction(transaction_bytes))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
@@ -329,7 +329,7 @@ impl UpgradeableProgramDeployer {
                 let transaction_bytes = serde_json::to_vec(&transaction)
                     .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-                write_transactions.push(SolanaValue::transaction(transaction_bytes));
+                write_transactions.push(SvmValue::transaction(transaction_bytes));
             }
         }
         Ok(write_transactions)
@@ -367,7 +367,7 @@ impl UpgradeableProgramDeployer {
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SolanaValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction(transaction_bytes))
     }
 
     fn get_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
@@ -397,7 +397,7 @@ impl UpgradeableProgramDeployer {
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SolanaValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction(transaction_bytes))
     }
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
     fn should_do_initial_deploy(&self) -> Result<bool, String> {

@@ -19,9 +19,9 @@ use crate::constants::TRANSACTION_BYTES;
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
       SignTransaction => {
-          name: "Sign Solana Transaction",
+          name: "Sign SVM Transaction",
           matcher: "sign_transaction",
-          documentation: "The `solana::send_transaction` is coming soon.",
+          documentation: "The `svm::send_transaction` is coming soon.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
