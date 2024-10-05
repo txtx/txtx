@@ -288,25 +288,6 @@ impl CommandImplementation for DeployProgram {
                     signed_transactions_bytes.push(signed_transaction_value.clone());
                     signatures.push(signature.clone());
 
-                    let transaction_bytes =
-                        signed_transaction_value.expect_buffer_bytes_result().map_err(|e| {
-                            (signers_ref.clone(), signer_state.clone(), diagnosed_error!("{}", e))
-                        })?;
-                    let transaction: Transaction = serde_json::from_slice(&transaction_bytes)
-                        .map_err(|e| {
-                            (
-                                signers_ref.clone(),
-                                signer_state.clone(),
-                                diagnosed_error!("invalid signed transaction: {}", e),
-                            )
-                        })?;
-                    let _ = transaction.verify_and_hash_message().map_err(|e| {
-                        (
-                            signers_ref.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to verify signed transaction: {}", e),
-                        )
-                    })?;
                     last_signer_state_ref = Some(signer_state);
                 }
 

@@ -220,11 +220,22 @@ impl CommandImplementation for ProcessInstructions {
                 },
                 Err(err) => return Err(err),
             };
+
             let transaction_bytes = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
             args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes.clone());
+            let transaction_bytes = transaction_bytes
+                .expect_buffer_bytes_result()
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
             let transaction: Transaction =
-                serde_json::from_slice(&transaction_bytes.expect_buffer_bytes()).unwrap();
-            let res = transaction.verify_and_hash_message().unwrap();
+                serde_json::from_slice(&transaction_bytes).map_err(|e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to serialize transaction bytes: {}", e),
+                    )
+                })?;
+
+            let _ = transaction.verify_and_hash_message().unwrap();
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
