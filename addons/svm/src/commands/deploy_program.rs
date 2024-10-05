@@ -357,10 +357,8 @@ impl CommandImplementation for DeployProgram {
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
         if values.get_bool(IS_ARRAY).unwrap_or(false) {
-            println!("returning sync");
             return return_synchronous_result(Ok(CommandExecutionResult::new()));
         } else {
-            println!("bg task for deploy program");
             SendTransaction::build_background_task(
                 &construct_did,
                 &spec,
