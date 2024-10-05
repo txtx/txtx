@@ -31,8 +31,8 @@ use txtx_addon_kit::types::{
 use crate::commands::send_transaction::send_transaction;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, DO_AWAIT_CONFIRMATION, IS_ARRAY, IS_SIGNABLE, NAMESPACE, NETWORK_ID,
-    RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_ARRAY, IS_SIGNABLE, NAMESPACE,
+    NETWORK_ID, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
 };
 use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -340,7 +340,7 @@ impl SignerImplementation for SvmSecretKey {
         let rpc_api_url = values.get_expected_string(RPC_API_URL).unwrap().to_string();
 
         if values.get_bool(IS_ARRAY).unwrap_or(false) {
-            let commitment = match values.get_string(DO_AWAIT_CONFIRMATION).unwrap() {
+            let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap() {
                 "finalized" => CommitmentLevel::Finalized,
                 "processed" => CommitmentLevel::Processed,
                 "confirmed" => CommitmentLevel::Confirmed,
