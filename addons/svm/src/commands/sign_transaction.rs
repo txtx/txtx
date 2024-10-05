@@ -14,7 +14,7 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
-use crate::constants::TRANSACTION_BYTES;
+use crate::constants::{IS_ARRAY, TRANSACTION_BYTES};
 
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
@@ -172,10 +172,14 @@ impl CommandImplementation for SignTransaction {
 
         let signer = signers_instances.get(&first_signer_did).unwrap();
 
-        let payload = first_signer_state
-            .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
-            .unwrap()
-            .clone();
+        let payload = if values.get_bool(IS_ARRAY).unwrap_or(false) {
+            values.get_value(TRANSACTION_BYTES).unwrap().clone()
+        } else {
+            first_signer_state
+                .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
+                .unwrap()
+                .clone()
+        };
 
         let title = values.get_expected_string("description").unwrap_or("New Transaction".into());
 

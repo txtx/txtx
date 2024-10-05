@@ -21,6 +21,10 @@ pub const PROGRAM_ID: &str = "program_id";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const NETWORK_ID: &str = "network_id";
 pub const AUTO_EXTEND: &str = "auto_extend";
+pub const COMMITMENT_LEVEL: &str = "commitment_level";
+pub const DO_AWAIT_CONFIRMATION: &str = "do_await_confirmation";
+pub const SIGNATURE: &str = "signature";
+pub const IS_ARRAY: &str = "is_array";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";

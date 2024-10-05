@@ -208,13 +208,13 @@ impl UpgradeableProgramDeployer {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
             KeypairOrTxSigner::TxSigner(_) => vec![&self.buffer_keypair],
         };
-        transaction.try_partial_sign(&available_keypairs, blockhash.clone()).map_err(|e| {
-            format!("failed to sign transaction to create program buffer account: {e}")
-        })?;
+        // transaction.try_partial_sign(&available_keypairs, blockhash.clone()).map_err(|e| {
+        //     format!("failed to sign transaction to create program buffer account: {e}")
+        // })?;
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SvmValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction_with_keypairs(transaction_bytes, available_keypairs))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
@@ -286,13 +286,13 @@ impl UpgradeableProgramDeployer {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
             KeypairOrTxSigner::TxSigner(_) => vec![&self.buffer_keypair],
         };
-        transaction
-            .try_partial_sign(&available_keypairs, blockhash.clone())
-            .map_err(|e| format!("failed to sign transaction to prepare program upgrade: {e}"))?;
+        // transaction
+        //     .try_partial_sign(&available_keypairs, blockhash.clone())
+        //     .map_err(|e| format!("failed to sign transaction to prepare program upgrade: {e}"))?;
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SvmValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction_with_keypairs(transaction_bytes, available_keypairs))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
@@ -323,13 +323,17 @@ impl UpgradeableProgramDeployer {
                     KeypairOrTxSigner::TxSigner(_) => vec![],
                 };
 
-                transaction
-                    .try_partial_sign(&available_keypairs, blockhash.clone())
-                    .map_err(|e| format!("failed to sign transaction to write program data to buffer account: {e}"))?;
+                // transaction
+                //     .try_partial_sign(&available_keypairs, blockhash.clone())
+                //     .map_err(|e| format!("failed to sign transaction to write program data to buffer account: {e}"))?;
                 let transaction_bytes = serde_json::to_vec(&transaction)
                     .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-                write_transactions.push(SvmValue::transaction(transaction_bytes));
+                write_transactions.push(SvmValue::transaction_with_keypairs(
+                    transaction_bytes,
+                    available_keypairs,
+                ))
+                // write_transactions.push(SvmValue::transaction(transaction_bytes));
             }
         }
         Ok(write_transactions)
@@ -360,14 +364,14 @@ impl UpgradeableProgramDeployer {
             KeypairOrTxSigner::TxSigner(_) => vec![&self.program_keypair],
         };
 
-        transaction
-            .try_partial_sign(&available_keypairs, blockhash.clone())
-            .map_err(|e| format!("failed to sign transaction to deploy program: {e}"))?;
+        // transaction
+        //     .try_partial_sign(&available_keypairs, blockhash.clone())
+        //     .map_err(|e| format!("failed to sign transaction to deploy program: {e}"))?;
 
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SvmValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction_with_keypairs(transaction_bytes, available_keypairs))
     }
 
     fn get_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, String> {
@@ -390,14 +394,14 @@ impl UpgradeableProgramDeployer {
             KeypairOrTxSigner::TxSigner(_) => vec![],
         };
 
-        transaction
-            .try_partial_sign(&available_keypairs, blockhash.clone())
-            .map_err(|e| format!("failed to sign transaction to upgrade program: {e}"))?;
+        // transaction
+        //     .try_partial_sign(&available_keypairs, blockhash.clone())
+        //     .map_err(|e| format!("failed to sign transaction to upgrade program: {e}"))?;
 
         let transaction_bytes = serde_json::to_vec(&transaction)
             .map_err(|e| format!("failed to serialize transaction: {e}"))?;
 
-        Ok(SvmValue::transaction(transaction_bytes))
+        Ok(SvmValue::transaction_with_keypairs(transaction_bytes, available_keypairs))
     }
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
     fn should_do_initial_deploy(&self) -> Result<bool, String> {

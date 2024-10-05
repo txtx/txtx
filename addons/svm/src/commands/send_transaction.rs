@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config::RpcSendTransactionConfig;
@@ -21,7 +22,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::constants::RPC_API_URL;
+use crate::constants::{COMMITMENT_LEVEL, RPC_API_URL, SIGNATURE};
 use crate::typing::SVM_INSTRUCTION;
 
 lazy_static! {
@@ -126,7 +127,7 @@ impl CommandImplementation for SendTransaction {
     ) -> CommandExecutionFutureResult {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
         let commitment_level =
-            inputs.get_expected_string("commitment_level").unwrap_or("confirmed").to_string();
+            inputs.get_expected_string(COMMITMENT_LEVEL).unwrap_or("confirmed").to_string();
 
         let construct_did = construct_did.clone();
         let outputs = outputs.clone();
@@ -143,7 +144,8 @@ impl CommandImplementation for SendTransaction {
                     _ => CommitmentLevel::Processed,
                 },
             };
-            let client = RpcClient::new_with_commitment(rpc_api_url.clone(), commitment_config);
+            let client =
+                Arc::new(RpcClient::new_with_commitment(rpc_api_url.clone(), commitment_config));
 
             // let mut config = RpcSendTransactionConfig::default();
             // config.preflight_commitment = match commitment_level.as_str() {
@@ -174,10 +176,10 @@ impl CommandImplementation for SendTransaction {
                     } else {
                         (false, CommitmentLevel::Processed)
                     };
-                    let client = RpcClient::new_with_commitment(
+                    let client = Arc::new(RpcClient::new_with_commitment(
                         rpc_api_url.clone(),
                         CommitmentConfig { commitment },
-                    );
+                    ));
 
                     status_updater
                         .propagate_pending_status(&format!("Sending transaction {}", i + 1));
@@ -187,7 +189,7 @@ impl CommandImplementation for SendTransaction {
                         .map_err(|e| diagnosed_error!("{}", e))?;
 
                     let signature =
-                        send_transaction(&client, do_await_confirmation, &transaction_bytes)
+                        send_transaction(client.clone(), do_await_confirmation, &transaction_bytes)
                             .map_err(|diag| {
                                 status_updater.propagate_status(ProgressBarStatus::new_err(
                                     "Failed",
@@ -251,13 +253,13 @@ impl CommandImplementation for SendTransaction {
                     // };
                     signatures.push(Value::string(signature));
                 }
-                result.outputs.insert("signature".into(), Value::array(signatures));
+                result.outputs.insert(SIGNATURE.into(), Value::array(signatures));
             } else {
                 let transaction_bytes = signed_transaction_value
                     .expect_buffer_bytes_result()
                     .map_err(|e| diagnosed_error!("{}", e))?;
-                let signature =
-                    send_transaction(&client, true, &transaction_bytes).map_err(|diag| {
+                let signature = send_transaction(client.clone(), true, &transaction_bytes)
+                    .map_err(|diag| {
                         status_updater.propagate_status(ProgressBarStatus::new_err(
                             "Failed",
                             "Failed to broadcast transaction",
@@ -265,7 +267,7 @@ impl CommandImplementation for SendTransaction {
                         ));
                         diag
                     })?;
-                result.outputs.insert("signature".into(), Value::string(signature));
+                result.outputs.insert(SIGNATURE.into(), Value::string(signature));
             }
 
             status_updater.propagate_status(ProgressBarStatus::new_msg(
@@ -299,8 +301,8 @@ fn send_transaction_and_await(
     };
     Ok(res.to_string())
 }
-fn send_transaction(
-    rpc_client: &RpcClient,
+pub fn send_transaction(
+    rpc_client: Arc<RpcClient>,
     // rpc_config: &RpcSendTransactionConfig,
     do_await_confirmation: bool,
     transaction_bytes: &Vec<u8>,

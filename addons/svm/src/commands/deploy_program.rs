@@ -3,16 +3,19 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
-    PreCommandSpecification,
+    return_synchronous_result, CommandExecutionFutureResult, CommandExecutionResult,
+    CommandImplementation, CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::frontend::{
+    BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
+};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
@@ -24,7 +27,10 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{AUTO_EXTEND, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, TRANSACTION_BYTES};
+use crate::constants::{
+    AUTO_EXTEND, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_ARRAY, PROGRAM_DEPLOYMENT_KEYPAIR,
+    RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+};
 use crate::typing::ANCHOR_PROGRAM_ARTIFACTS;
 
 use super::get_signers_did;
@@ -191,8 +197,18 @@ impl CommandImplementation for DeployProgram {
         args: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        signers: SignersState,
+        mut signers: SignersState,
     ) -> SignerSignFutureResult {
+        let signers_did = get_signers_did(args).unwrap();
+        let first_signer_did = signers_did.first().unwrap();
+
+        let first_signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
+        let payload = first_signer_state
+            .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
+            .unwrap()
+            .clone();
+        signers.push_signer_state(first_signer_state);
+
         let progress_tx = progress_tx.clone();
         // let signer_did = get_payer_did(args).unwrap();
         let args = args.clone();
@@ -203,69 +219,130 @@ impl CommandImplementation for DeployProgram {
 
         let mut args = args.clone();
         let future = async move {
-            // args.insert(SIGNERS, Value::array(vec![Value::string(signer_did.to_string())]));
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
-            let (signers, signer_state, res_signing) = match run_signing_future {
-                Ok(future) => match future.await {
-                    Ok(res) => res,
-                    Err(err) => return Err(err),
-                },
-                Err(err) => return Err(err),
-            };
-            let signed_transaction_value =
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            args.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
-            if let Some(transactions_values) = signed_transaction_value.as_array() {
-                for transaction_value in transactions_values.iter() {
+            let (signers, signer_state, res) = if let Some(payloads) = payload.as_array() {
+                let mut signers_ref = signers;
+                let mut last_signer_state_ref = None;
+                let mut signatures = vec![];
+                let mut signed_transactions_bytes = vec![];
+
+                args.insert(IS_ARRAY, Value::bool(true));
+                let mut status_updater =
+                    StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
+                for (i, transaction) in payloads.iter().enumerate() {
+                    let (do_await_confirmation, commitment) = if i == 0 {
+                        (true, CommitmentLevel::Processed)
+                    } else if i == payloads.len() - 2 {
+                        (true, CommitmentLevel::Processed)
+                    } else if i == payloads.len() - 1 {
+                        status_updater.propagate_status(ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Complete",
+                            "All program data written to buffer",
+                        ));
+                        (true, CommitmentLevel::Processed)
+                    } else {
+                        (false, CommitmentLevel::Processed)
+                    };
+                    args.insert(COMMITMENT_LEVEL, Value::string(commitment.to_string()));
+                    args.insert(DO_AWAIT_CONFIRMATION, Value::bool(do_await_confirmation));
+
+                    if let Some(last_signer_state) = last_signer_state_ref {
+                        signers_ref.push_signer_state(last_signer_state);
+                    }
+                    args.insert(TRANSACTION_BYTES, transaction.clone());
+                    let run_signing_future = SignTransaction::run_signed_execution(
+                        &construct_did,
+                        &spec,
+                        &args,
+                        &progress_tx,
+                        &signers_instances,
+                        signers_ref,
+                    );
+                    let (signers, signer_state, res_signing) = match run_signing_future {
+                        Ok(future) => match future.await {
+                            Ok(res) => res,
+                            Err(err) => return Err(err),
+                        },
+                        Err(err) => return Err(err),
+                    };
+
+                    if i == 0 {
+                        status_updater.propagate_status(ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Complete",
+                            "Program buffer creation complete",
+                        ));
+                    } else if i == payloads.len() - 1 {
+                        status_updater.propagate_status(ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Complete",
+                            "Program created",
+                        ));
+                    }
+
+                    signers_ref = signers;
+
+                    let signed_transaction_value =
+                        res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+                    let signature = res_signing.outputs.get(SIGNATURE).unwrap();
+                    signed_transactions_bytes.push(signed_transaction_value.clone());
+                    signatures.push(signature.clone());
+
                     let transaction_bytes =
-                        transaction_value.expect_buffer_bytes_result().map_err(|e| {
-                            (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
+                        signed_transaction_value.expect_buffer_bytes_result().map_err(|e| {
+                            (signers_ref.clone(), signer_state.clone(), diagnosed_error!("{}", e))
                         })?;
                     let transaction: Transaction = serde_json::from_slice(&transaction_bytes)
                         .map_err(|e| {
                             (
-                                signers.clone(),
+                                signers_ref.clone(),
                                 signer_state.clone(),
                                 diagnosed_error!("invalid signed transaction: {}", e),
                             )
                         })?;
                     let _ = transaction.verify_and_hash_message().map_err(|e| {
                         (
-                            signers.clone(),
+                            signers_ref.clone(),
                             signer_state.clone(),
                             diagnosed_error!("failed to verify signed transaction: {}", e),
                         )
                     })?;
+                    last_signer_state_ref = Some(signer_state);
                 }
+
+                let signed_transactions_bytes = Value::array(signed_transactions_bytes);
+                let signatures = Value::array(signatures);
+                args.insert(SIGNED_TRANSACTION_BYTES, signed_transactions_bytes.clone());
+                let mut result = CommandExecutionResult::new();
+                result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transactions_bytes);
+                result.outputs.insert(SIGNATURE.into(), signatures);
+                result.outputs.insert(IS_ARRAY.into(), Value::bool(true));
+                (signers_ref, last_signer_state_ref.unwrap(), result)
             } else {
-                let transaction_bytes =
-                    signed_transaction_value.expect_buffer_bytes_result().map_err(|e| {
-                        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
-                    })?;
-                let transaction: Transaction =
-                    serde_json::from_slice(&transaction_bytes).map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("invalid signed transaction: {}", e),
-                        )
-                    })?;
-                let _ = transaction.verify_and_hash_message().map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to verify signed transaction: {}", e),
-                    )
-                })?;
-            }
-            Ok((signers, signer_state, res_signing))
+                let run_signing_future = SignTransaction::run_signed_execution(
+                    &construct_did,
+                    &spec,
+                    &args,
+                    &progress_tx,
+                    &signers_instances,
+                    signers,
+                );
+                let (signers, signer_state, res_signing) = match run_signing_future {
+                    Ok(future) => match future.await {
+                        Ok(res) => res,
+                        Err(err) => return Err(err),
+                    },
+                    Err(err) => return Err(err),
+                };
+                let signed_transaction_value =
+                    res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+                args.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
+                verify_signature(signed_transaction_value.clone())
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+                (signers, signer_state, res_signing)
+            };
+
+            Ok((signers, signer_state, res))
         };
         Ok(Box::pin(future))
     }
@@ -279,14 +356,32 @@ impl CommandImplementation for DeployProgram {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        SendTransaction::build_background_task(
-            &construct_did,
-            &spec,
-            &values,
-            &outputs,
-            &progress_tx,
-            &background_tasks_uuid,
-            &supervision_context,
-        )
+        if values.get_bool(IS_ARRAY).unwrap_or(false) {
+            println!("returning sync");
+            return return_synchronous_result(Ok(CommandExecutionResult::new()));
+        } else {
+            println!("bg task for deploy program");
+            SendTransaction::build_background_task(
+                &construct_did,
+                &spec,
+                &values,
+                &outputs,
+                &progress_tx,
+                &background_tasks_uuid,
+                &supervision_context,
+            )
+        }
     }
+}
+
+fn verify_signature(signed_transaction_value: Value) -> Result<(), Diagnostic> {
+    let transaction_bytes = signed_transaction_value
+        .expect_buffer_bytes_result()
+        .map_err(|e| diagnosed_error!("failed to get signed transaction bytes: {}", e))?;
+    let transaction: Transaction = serde_json::from_slice(&transaction_bytes)
+        .map_err(|e| diagnosed_error!("invalid signed transaction: {}", e))?;
+    let _ = transaction
+        .verify_and_hash_message()
+        .map_err(|e| diagnosed_error!("failed to verify signed transaction: {}", e))?;
+    Ok(())
 }
