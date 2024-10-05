@@ -202,7 +202,7 @@ impl UpgradeableProgramDeployer {
             &blockhash,
         );
 
-        let mut transaction = Transaction::new_unsigned(message);
+        let transaction = Transaction::new_unsigned(message);
 
         let available_keypairs = match &self.upgrade_authority {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
@@ -267,10 +267,7 @@ impl UpgradeableProgramDeployer {
         let mut instructions = self.get_create_buffer_instruction()?;
         if self.auto_extend {
             if let Some(extend_program_instruction) = self.get_extend_program_instruction()? {
-                println!("Extending program data account to accommodate new program...");
                 instructions.push(extend_program_instruction);
-            } else {
-                println!("Program data account is already large enough for new program.");
             };
         }
 
@@ -280,7 +277,7 @@ impl UpgradeableProgramDeployer {
             &blockhash,
         );
 
-        let mut transaction = Transaction::new_unsigned(message);
+        let transaction = Transaction::new_unsigned(message);
 
         let available_keypairs = match &self.upgrade_authority {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair, &self.buffer_keypair],
@@ -315,7 +312,7 @@ impl UpgradeableProgramDeployer {
             let offset = i.saturating_mul(chunk_size);
             // Only write the chunk if it differs from our initial buffer data
             if chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
-                let mut transaction =
+                let transaction =
                     Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
 
                 let available_keypairs = match &self.upgrade_authority {
@@ -357,7 +354,7 @@ impl UpgradeableProgramDeployer {
 
         let message =
             Message::new_with_blockhash(&instructions, Some(&self.payer_pubkey), &blockhash);
-        let mut transaction = Transaction::new_unsigned(message);
+        let transaction = Transaction::new_unsigned(message);
 
         let available_keypairs = match &self.upgrade_authority {
             KeypairOrTxSigner::Keypair(keypair) => vec![&self.program_keypair, keypair],
@@ -387,7 +384,7 @@ impl UpgradeableProgramDeployer {
             Some(&self.payer_pubkey),
             &blockhash,
         );
-        let mut transaction = Transaction::new_unsigned(message);
+        let transaction = Transaction::new_unsigned(message);
 
         let available_keypairs = match &self.upgrade_authority {
             KeypairOrTxSigner::Keypair(keypair) => vec![keypair],
