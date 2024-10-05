@@ -1,10 +1,7 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_sdk::signature::Signature;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -158,117 +155,20 @@ impl CommandImplementation for SendTransaction {
                 StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
             let mut result = CommandExecutionResult::new();
-            if let Some(transactions_values) = signed_transaction_value.as_array() {
-                let mut signatures = vec![];
 
-                for (i, transaction_value) in transactions_values.iter().enumerate() {
-                    let (do_await_confirmation, commitment) = if i == 0 {
-                        (true, CommitmentLevel::Processed)
-                    } else if i == transactions_values.len() - 2 {
-                        (true, CommitmentLevel::Processed)
-                    } else if i == transactions_values.len() - 1 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Complete",
-                            "All program data written to buffer",
-                        ));
-                        (true, CommitmentLevel::Processed)
-                    } else {
-                        (false, CommitmentLevel::Processed)
-                    };
-                    let client = Arc::new(RpcClient::new_with_commitment(
-                        rpc_api_url.clone(),
-                        CommitmentConfig { commitment },
+            let transaction_bytes = signed_transaction_value
+                .expect_buffer_bytes_result()
+                .map_err(|e| diagnosed_error!("{}", e))?;
+            let signature =
+                send_transaction(client.clone(), true, &transaction_bytes).map_err(|diag| {
+                    status_updater.propagate_status(ProgressBarStatus::new_err(
+                        "Failed",
+                        "Failed to broadcast transaction",
+                        &diag,
                     ));
-
-                    status_updater
-                        .propagate_pending_status(&format!("Sending transaction {}", i + 1));
-
-                    let transaction_bytes = transaction_value
-                        .expect_buffer_bytes_result()
-                        .map_err(|e| diagnosed_error!("{}", e))?;
-
-                    let signature =
-                        send_transaction(client.clone(), do_await_confirmation, &transaction_bytes)
-                            .map_err(|diag| {
-                                status_updater.propagate_status(ProgressBarStatus::new_err(
-                                    "Failed",
-                                    "Failed to broadcast transaction",
-                                    &diag,
-                                ));
-                                diag
-                            })?;
-                    if i == 0 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Complete",
-                            "Program buffer creation complete",
-                        ));
-                    } else if i == transactions_values.len() - 1 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Complete",
-                            "Program created",
-                        ));
-                    }
-                    if i == transactions_values.len() - 1 {
-                        client
-                            .poll_for_signature_confirmation(
-                                &Signature::from_str(&signature).unwrap(),
-                                2,
-                            )
-                            .map_err(|e| {
-                                diagnosed_error!(
-                                    "unable to confirm transaction ({})",
-                                    e.to_string()
-                                )
-                            })?;
-                    }
-                    // let signature = if i == 0
-                    //     || i == transactions_values.len() - 2
-                    //     || i == transactions_values.len() - 1
-                    // {
-                    //     let signature =
-                    //         send_transaction_and_await(&client, &config, &transaction_bytes)
-                    //             .map_err(|diag| {
-                    //                 status_updater.propagate_status(ProgressBarStatus::new_err(
-                    //                     "Failed",
-                    //                     "Failed to broadcast transaction",
-                    //                     &diag,
-                    //                 ));
-                    //                 diag
-                    //             })?;
-                    //     signature
-                    // } else {
-                    //     let signature = send_transaction(&client, &config, &transaction_bytes)
-                    //         .map_err(|diag| {
-                    //             status_updater.propagate_status(ProgressBarStatus::new_err(
-                    //                 "Failed",
-                    //                 "Failed to broadcast transaction",
-                    //                 &diag,
-                    //             ));
-                    //             diag
-                    //         })?;
-                    //     signature
-                    // };
-                    signatures.push(Value::string(signature));
-                }
-                result.outputs.insert(SIGNATURE.into(), Value::array(signatures));
-            } else {
-                let transaction_bytes = signed_transaction_value
-                    .expect_buffer_bytes_result()
-                    .map_err(|e| diagnosed_error!("{}", e))?;
-                let signature = send_transaction(client.clone(), true, &transaction_bytes)
-                    .map_err(|diag| {
-                        status_updater.propagate_status(ProgressBarStatus::new_err(
-                            "Failed",
-                            "Failed to broadcast transaction",
-                            &diag,
-                        ));
-                        diag
-                    })?;
-                result.outputs.insert(SIGNATURE.into(), Value::string(signature));
-            }
+                    diag
+                })?;
+            result.outputs.insert(SIGNATURE.into(), Value::string(signature));
 
             status_updater.propagate_status(ProgressBarStatus::new_msg(
                 ProgressBarStatusColor::Green,
@@ -282,25 +182,6 @@ impl CommandImplementation for SendTransaction {
     }
 }
 
-fn send_transaction_and_await(
-    rpc_client: &RpcClient,
-    rpc_config: &RpcSendTransactionConfig,
-    transaction_bytes: &Vec<u8>,
-) -> Result<String, Diagnostic> {
-    let transaction: Transaction = serde_json::from_slice(&transaction_bytes).map_err(|e| {
-        diagnosed_error!("unable to deserialize transaction from bytes ({})", e.to_string())
-    })?;
-    let res = match rpc_client.send_and_confirm_transaction_with_spinner_and_commitment(
-        &transaction,
-        CommitmentConfig {
-            commitment: rpc_config.preflight_commitment.unwrap_or(CommitmentLevel::Confirmed),
-        },
-    ) {
-        Ok(res) => res,
-        Err(e) => return Err(diagnosed_error!("unable to send transaction ({})", e.to_string())),
-    };
-    Ok(res.to_string())
-}
 pub fn send_transaction(
     rpc_client: Arc<RpcClient>,
     // rpc_config: &RpcSendTransactionConfig,
