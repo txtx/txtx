@@ -1,3 +1,4 @@
+use solana_sdk::signature::Keypair;
 use txtx_addon_kit::types::types::{Type, Value};
 
 pub const SVM_ADDRESS: &str = "svm::address";
@@ -13,6 +14,7 @@ pub const SVM_BINARY: &str = "svm::binary";
 pub const SVM_IDL: &str = "svm::idl";
 pub const SVM_KEYPAIR: &str = "svm::keypair";
 pub const SVM_PUBKEY: &str = "svm::pubkey";
+pub const SVM_TRANSACTION_WITH_KEYPAIRS: &str = "svm::transaction_with_keypairs";
 
 pub struct SvmValue {}
 
@@ -67,6 +69,14 @@ impl SvmValue {
 
     pub fn pubkey(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_PUBKEY)
+    }
+
+    pub fn transaction_with_keypairs(transaction_bytes: Vec<u8>, keypairs: Vec<&Keypair>) -> Value {
+        let keypairs_bytes: Vec<Vec<u8>> =
+            keypairs.iter().map(|keypair| keypair.to_bytes().to_vec()).collect();
+        let transaction_with_keypairs = (&transaction_bytes, &keypairs_bytes);
+        let bytes = serde_json::to_vec(&transaction_with_keypairs).unwrap();
+        Value::addon(bytes, SVM_TRANSACTION_WITH_KEYPAIRS)
     }
 }
 
