@@ -212,6 +212,7 @@ pub async fn run_signers_evaluation(
         let Some(result) = result.take() else {
             continue;
         };
+
         runbook_execution_context.commands_execution_results.insert(construct_did.clone(), result);
     }
 
@@ -395,7 +396,10 @@ pub async fn run_constructs_evaluation(
                                 .insert(dependency, Ok(evaluation_result));
                         }
                         Some(Err(_)) => continue,
-                        Some(Ok(_)) => {}
+                        Some(Ok(_)) => {} // Some(Ok(_)) => {
+                                          //     cached_dependency_execution_results
+                                          //         .insert(dependency, Ok(evaluation_result));
+                                          // }
                     }
                 }
             }
@@ -1127,6 +1131,10 @@ pub fn perform_inputs_evaluation(
                 results.unevaluated_inputs.insert("signer".into(), None);
                 continue;
             }
+            if input.name.eq("signers") {
+                results.unevaluated_inputs.insert("signers".into(), None);
+                continue;
+            }
         } else {
             if !results.unevaluated_inputs.contains_key(&input.name) {
                 continue;
@@ -1313,43 +1321,62 @@ pub fn perform_inputs_evaluation(
             };
 
             results.insert(&input.name, value);
-        } else if let Some(_) = input.as_action() {
-            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
-                continue;
-            };
-            let value = match eval_expression(
-                &expr,
-                dependencies_execution_results,
-                package_id,
-                runbook_workspace_context,
-                runbook_execution_context,
-                runtime_context,
-            ) {
-                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                    if e.is_error() {
-                        fatal_error = true;
-                    }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
-                    diags.push(e);
-                    continue;
-                }
-                Err(e) => {
-                    if e.is_error() {
-                        fatal_error = true;
-                    }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
-                    diags.push(e);
-                    continue;
-                }
-                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                    require_user_interaction = true;
-                    results.unevaluated_inputs.insert(input.name.clone(), None);
-                    continue;
-                }
-            };
+        } else if let Some(object_props) = input.as_map() {
+            let mut entries = vec![];
+            let blocks = command_instance.get_blocks_for_map(&input)?;
+            for block in blocks.iter() {
+                let mut object_values = IndexMap::new();
+                for prop in object_props.iter() {
+                    let Some(expr) = command_instance.get_expression_from_block(&block, &prop)?
+                    else {
+                        continue;
+                    };
+                    let value = match eval_expression(
+                        &expr,
+                        dependencies_execution_results,
+                        package_id,
+                        runbook_workspace_context,
+                        runbook_execution_context,
+                        runtime_context,
+                    ) {
+                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                            if e.is_error() {
+                                fatal_error = true;
+                            }
+                            results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                            diags.push(e);
+                            continue;
+                        }
+                        Err(e) => {
+                            if e.is_error() {
+                                fatal_error = true;
+                            }
+                            results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                            diags.push(e);
+                            continue;
+                        }
+                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                            require_user_interaction = true;
+                            results.unevaluated_inputs.insert(input.name.clone(), None);
+                            continue;
+                        }
+                    };
 
-            results.insert(&input.name, value);
+                    match value.clone() {
+                        Value::Object(obj) => {
+                            for (k, v) in obj.into_iter() {
+                                object_values.insert(k, v);
+                            }
+                        }
+                        v => {
+                            object_values.insert(prop.name.to_string(), v);
+                        }
+                    };
+                }
+                entries.push(Value::object(object_values));
+            }
+            results.insert(&input.name, Value::array(entries));
         } else {
             let Some(expr) = command_instance.get_expression_from_input(&input)? else {
                 continue;
@@ -1555,45 +1582,6 @@ pub fn perform_signer_inputs_evaluation(
                     continue;
                 }
             };
-
-            results.insert(&input.name, value);
-        } else if let Some(_) = input.as_action() {
-            let value = if let Some(value) = previously_evaluated_input {
-                value.clone()
-            } else {
-                let Some(expr) = signer_instance.get_expression_from_input(&input)? else {
-                    continue;
-                };
-                match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Err(e) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        require_user_interaction = true;
-                        continue;
-                    }
-                }
-            };
-
             results.insert(&input.name, value);
         } else {
             let value = if let Some(value) = previously_evaluated_input {

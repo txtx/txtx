@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use crate::codec::crypto::{
-    compute_keypair, secret_key_from_bytes, sign_message, sign_transaction,
-};
+use crate::codec::crypto::{compute_keypair, sign_message, sign_transaction};
 
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::crypto::secret_key_from_bytes;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
@@ -126,13 +125,12 @@ impl SignerImplementation for StacksSecretKey {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::crypto::{secret_key_bytes_from_mnemonic, secret_key_from_bytes};
+
         use crate::codec::crypto::version_from_network_id;
         use crate::constants::CHECKED_ADDRESS;
-        use crate::{
-            codec::crypto::{secret_key_from_bytes, secret_key_from_mnemonic},
-            constants::CHECKED_PUBLIC_KEY,
-            signers::namespaced_err_fn,
-        };
+        use crate::signers::DEFAULT_DERIVATION_PATH;
+        use crate::{constants::CHECKED_PUBLIC_KEY, signers::namespaced_err_fn};
 
         let signer_err =
             signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
@@ -146,20 +144,24 @@ impl SignerImplementation for StacksSecretKey {
             .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
         let version = version_from_network_id(&network_id);
 
-        let secret_key =
-            if let Ok(secret_key_bytes) = values.get_expected_buffer_bytes("secret_key") {
-                secret_key_from_bytes(&secret_key_bytes)
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?
-            } else {
+        let secret_key_bytes = match values.get_expected_buffer_bytes("secret_key") {
+            Ok(value) => value,
+            Err(_) => {
                 let mnemonic = values
                     .get_expected_string("mnemonic")
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-                let derivation_path = values.get_string("derivation_path");
+                let derivation_path =
+                    values.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
                 let is_encrypted = values.get_bool("is_encrypted").unwrap_or(false);
                 let password = values.get_string("password");
-                secret_key_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
+                secret_key_bytes_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
-            };
+                    .to_vec()
+            }
+        };
+
+        let secret_key = secret_key_from_bytes(&secret_key_bytes)
+            .map_err(|e| signer_err(&signers, &signer_state, e))?;
 
         let (secret_key, public_key, expected_address) = compute_keypair(secret_key, network_id)
             .map_err(|e| signer_err(&signers, &signer_state, e))?;
