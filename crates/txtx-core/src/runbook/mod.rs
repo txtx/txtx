@@ -2,7 +2,7 @@ use flow_context::FlowContext;
 use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
 use kit::helpers::hcl::RawHclContent;
-use kit::types::commands::CommandExecutionResult;
+use kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
 use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::stores::ValueStore;
 use kit::types::types::RunbookSupervisionContext;
@@ -91,7 +91,7 @@ impl Runbook {
         }
 
         let mut sources = runbook_sources.to_vec_dequeue();
-        let dependencies_execution_results = HashMap::new();
+        let dependencies_execution_results = DependencyExecutionResultCache::new();
 
         let mut flow_contexts = vec![];
 
