@@ -170,7 +170,7 @@ impl RunbookExecutionContext {
             let input_evaluation_results =
                 self.commands_inputs_evaluation_results.get(&construct_did);
 
-            let mut cached_dependency_execution_results = HashMap::new();
+            let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
 
             // Retrieve the construct_did of the inputs
             // Collect the outputs
@@ -181,30 +181,27 @@ impl RunbookExecutionContext {
             // and make sure we have the evaluation results, and seed a temporary, lighter map.
             // This step could probably be removed.
             for (_input, expr) in references_expressions.into_iter() {
-                let res = workspace_context
+                let Some((dependency, _, _)) = workspace_context
                     .try_resolve_construct_reference_in_expression(
                         &command_instance.package_id,
                         &expr,
                     )
-                    .unwrap();
-                let Some((dependency, _, _)) = res else {
+                    .unwrap()
+                else {
                     continue;
                 };
 
-                let evaluation_result_opt = self.commands_execution_results.get(&dependency);
-
-                let Some(evaluation_result) = evaluation_result_opt else {
+                let Some(evaluation_result) = self.commands_execution_results.get(&dependency)
+                else {
                     continue;
                 };
 
-                match cached_dependency_execution_results.get(&dependency) {
-                    None => {
-                        cached_dependency_execution_results
-                            .insert(dependency, Ok(evaluation_result));
+                match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
+                    Ok(_) => (),
+                    Err(_) => {
+                        continue;
                     }
-                    Some(Err(_)) => continue,
-                    Some(Ok(_)) => {}
-                }
+                };
             }
 
             // After this evaluation, commands should be able to tweak / override
@@ -325,7 +322,7 @@ impl RunbookExecutionContext {
             let inputs_simulation_results =
                 self.commands_inputs_evaluation_results.get(&construct_did);
 
-            let cached_dependency_execution_results = HashMap::new();
+            let cached_dependency_execution_results = DependencyExecutionResultCache::new();
 
             let package_id = command_instance.package_id.clone();
             let construct_id = &workspace_context.expect_construct_id(&construct_did);

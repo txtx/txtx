@@ -73,6 +73,62 @@ impl CommandExecutionResult {
         }
         Self { outputs }
     }
+
+    pub fn insert(&mut self, key: &str, value: Value) {
+        self.outputs.insert(key.into(), value);
+    }
+
+    /// Applies each of the keys/values of `other` onto `self`
+    pub fn apply(&mut self, other: &CommandExecutionResult) {
+        for (key, value) in other.outputs.iter() {
+            self.outputs.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DependencyExecutionResultCache {
+    cache: HashMap<ConstructDid, Result<CommandExecutionResult, Diagnostic>>,
+}
+impl DependencyExecutionResultCache {
+    pub fn new() -> Self {
+        Self { cache: HashMap::new() }
+    }
+
+    pub fn get(
+        &self,
+        construct_did: &ConstructDid,
+    ) -> Option<&Result<CommandExecutionResult, Diagnostic>> {
+        self.cache.get(construct_did)
+    }
+
+    pub fn insert(
+        &mut self,
+        construct_did: ConstructDid,
+        result: Result<CommandExecutionResult, Diagnostic>,
+    ) {
+        self.cache.insert(construct_did, result);
+    }
+
+    /// If `self` does not contain `construct_did`, insert `construct_did` with `other_result`.
+    /// If `self` contains `construct_did`, apply `other_result` onto the existing value by only inserting
+    /// each of the keys of `other_result` into `self`'s results at `construct_did`.
+    pub fn merge(
+        &mut self,
+        construct_did: &ConstructDid,
+        other_result: &CommandExecutionResult,
+    ) -> Result<(), Diagnostic> {
+        match self.cache.get_mut(&construct_did) {
+            Some(Ok(result)) => {
+                result.apply(&other_result);
+            }
+            Some(Err(e)) => return Err(e.clone()),
+            None => {
+                self.cache.insert(construct_did.clone(), Ok(other_result.clone()));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]

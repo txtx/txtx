@@ -8,7 +8,7 @@ use kit::constants::{
     TX_HASH,
 };
 use kit::indexmap::IndexMap;
-use kit::types::commands::CommandExecutionFuture;
+use kit::types::commands::{CommandExecutionFuture, DependencyExecutionResultCache};
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
@@ -65,66 +65,60 @@ pub async fn run_signers_evaluation(
 
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
-        let (evaluated_inputs_res, _group) =
-            match runbook_execution_context.signers_instances.get(&construct_did) {
-                None => continue,
-                Some(signer_instance) => {
-                    let mut cached_dependency_execution_results: HashMap<
-                        ConstructDid,
-                        Result<&CommandExecutionResult, &Diagnostic>,
-                    > = HashMap::new();
+        let (evaluated_inputs_res, _group) = match runbook_execution_context
+            .signers_instances
+            .get(&construct_did)
+        {
+            None => continue,
+            Some(signer_instance) => {
+                let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
 
-                    let references_expressions =
-                        signer_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+                let references_expressions =
+                    signer_instance.get_expressions_referencing_commands_from_inputs().unwrap();
 
-                    for (_input, expr) in references_expressions.into_iter() {
-                        let res = runbook_workspace_context
-                            .try_resolve_construct_reference_in_expression(&package_id, &expr)
-                            .unwrap();
-
-                        if let Some((dependency, _, _)) = res {
-                            let evaluation_result_opt = runbook_execution_context
-                                .commands_execution_results
-                                .get(&dependency);
-
-                            if let Some(evaluation_result) = evaluation_result_opt {
-                                match cached_dependency_execution_results.get(&dependency) {
-                                    None => {
-                                        cached_dependency_execution_results
-                                            .insert(dependency, Ok(evaluation_result));
-                                    }
-                                    Some(Err(diag)) => {
-                                        pass_result.push_diagnostic(diag, construct_id);
-                                        continue;
-                                    }
-                                    Some(Ok(_)) => {}
+                for (_input, expr) in references_expressions.into_iter() {
+                    if let Some((dependency, _, _)) = runbook_workspace_context
+                        .try_resolve_construct_reference_in_expression(&package_id, &expr)
+                        .unwrap()
+                    {
+                        if let Some(evaluation_result) =
+                            runbook_execution_context.commands_execution_results.get(&dependency)
+                        {
+                            match cached_dependency_execution_results
+                                .merge(&dependency, &evaluation_result)
+                            {
+                                Ok(_) => {}
+                                Err(diag) => {
+                                    pass_result.push_diagnostic(&diag, construct_id);
+                                    continue;
                                 }
                             }
                         }
                     }
-
-                    let input_evaluation_results = runbook_execution_context
-                        .commands_inputs_evaluation_results
-                        .get(&construct_did.clone());
-
-                    let addon_context_key = (package_id.did(), signer_instance.namespace.clone());
-                    let addon_defaults =
-                        runbook_workspace_context.get_addon_defaults(&addon_context_key);
-
-                    let res = perform_signer_inputs_evaluation(
-                        &signer_instance,
-                        &cached_dependency_execution_results,
-                        &input_evaluation_results,
-                        addon_defaults,
-                        &package_id,
-                        &runbook_workspace_context,
-                        &runbook_execution_context,
-                        runtime_context,
-                    );
-                    let group = signer_instance.get_group();
-                    (res, group)
                 }
-            };
+
+                let input_evaluation_results = runbook_execution_context
+                    .commands_inputs_evaluation_results
+                    .get(&construct_did.clone());
+
+                let addon_context_key = (package_id.did(), signer_instance.namespace.clone());
+                let addon_defaults =
+                    runbook_workspace_context.get_addon_defaults(&addon_context_key);
+
+                let res = perform_signer_inputs_evaluation(
+                    &signer_instance,
+                    &cached_dependency_execution_results,
+                    &input_evaluation_results,
+                    addon_defaults,
+                    &package_id,
+                    &runbook_workspace_context,
+                    &runbook_execution_context,
+                    runtime_context,
+                );
+                let group = signer_instance.get_group();
+                (res, group)
+            }
+        };
         let evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
@@ -321,7 +315,7 @@ pub async fn run_constructs_evaluation(
         }
     }
 
-    let mut genesis_dependency_execution_results = HashMap::new();
+    let mut genesis_dependency_execution_results = DependencyExecutionResultCache::new();
 
     let mut signers_results = HashMap::new();
     for (signer_construct_did, _) in runbook_execution_context.signers_instances.iter() {
@@ -333,8 +327,9 @@ pub async fn run_constructs_evaluation(
     }
 
     for (signer_construct_did, _) in runbook_execution_context.signers_instances.iter() {
-        let results: &CommandExecutionResult = signers_results.get(signer_construct_did).unwrap();
-        genesis_dependency_execution_results.insert(signer_construct_did.clone(), Ok(results));
+        let results = signers_results.get(signer_construct_did).unwrap();
+        genesis_dependency_execution_results
+            .insert(signer_construct_did.clone(), Ok(results.clone()));
     }
 
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
@@ -370,10 +365,7 @@ pub async fn run_constructs_evaluation(
             .commands_inputs_evaluation_results
             .get(&construct_did.clone());
 
-        let mut cached_dependency_execution_results: HashMap<
-            ConstructDid,
-            Result<&CommandExecutionResult, &Diagnostic>,
-        > = genesis_dependency_execution_results.clone();
+        let mut cached_dependency_execution_results = genesis_dependency_execution_results.clone();
 
         // Retrieve the construct_did of the inputs
         // Collect the outputs
@@ -381,25 +373,19 @@ pub async fn run_constructs_evaluation(
             command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
 
         for (_input, expr) in references_expressions.into_iter() {
-            let res = runbook_workspace_context
+            if let Some((dependency, _, _)) = runbook_workspace_context
                 .try_resolve_construct_reference_in_expression(&package_id, &expr)
-                .unwrap();
-
-            if let Some((dependency, _, _)) = res {
-                let evaluation_result_opt =
-                    runbook_execution_context.commands_execution_results.get(&dependency);
-
-                if let Some(evaluation_result) = evaluation_result_opt {
-                    match cached_dependency_execution_results.get(&dependency) {
-                        None => {
-                            cached_dependency_execution_results
-                                .insert(dependency, Ok(evaluation_result));
+                .unwrap()
+            {
+                if let Some(evaluation_result) =
+                    runbook_execution_context.commands_execution_results.get(&dependency)
+                {
+                    match cached_dependency_execution_results.merge(&dependency, evaluation_result)
+                    {
+                        Ok(_) => {}
+                        Err(_) => {
+                            continue;
                         }
-                        Some(Err(_)) => continue,
-                        Some(Ok(_)) => {} // Some(Ok(_)) => {
-                                          //     cached_dependency_execution_results
-                                          //         .insert(dependency, Ok(evaluation_result));
-                                          // }
                     }
                 }
             }
@@ -651,10 +637,7 @@ pub enum ExpressionEvaluationStatus {
 
 pub fn eval_expression(
     expr: &Expression,
-    dependencies_execution_results: &HashMap<
-        ConstructDid,
-        Result<&CommandExecutionResult, &Diagnostic>,
-    >,
+    dependencies_execution_results: &DependencyExecutionResultCache,
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
@@ -863,15 +846,14 @@ pub fn eval_expression(
                 }
             };
 
-            let res: &CommandExecutionResult = match dependencies_execution_results.get(&dependency)
-            {
+            let res = match dependencies_execution_results.get(&dependency) {
                 Some(res) => match res.clone() {
                     Ok(res) => res,
                     Err(e) => return Ok(ExpressionEvaluationStatus::CompleteErr(e.clone())),
                 },
                 None => match runbook_execution_context.commands_execution_results.get(&dependency)
                 {
-                    Some(res) => res,
+                    Some(res) => res.clone(),
                     None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
                 },
             };
@@ -1087,10 +1069,7 @@ pub enum CommandInputEvaluationStatus {
 
 pub fn perform_inputs_evaluation(
     command_instance: &CommandInstance,
-    dependencies_execution_results: &HashMap<
-        ConstructDid,
-        Result<&CommandExecutionResult, &Diagnostic>,
-    >,
+    dependencies_execution_results: &DependencyExecutionResultCache,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     addon_defaults: &AddonDefaults,
     action_item_response: &Option<&Vec<ActionItemResponse>>,

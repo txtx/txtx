@@ -1,3 +1,4 @@
+use kit::types::commands::DependencyExecutionResultCache;
 use kit::types::stores::AddonDefaults;
 use kit::types::stores::ValueStore;
 use kit::{
@@ -206,7 +207,7 @@ impl RuntimeContext {
 
             let mut sources = runbook_sources.to_vec_dequeue();
 
-            let dependencies_execution_results = HashMap::new();
+            let dependencies_execution_results = DependencyExecutionResultCache::new();
 
             // Register standard functions at the root level
             self.register_standard_functions();

@@ -1,10 +1,9 @@
 use kit::hcl::structure::Attribute;
 use kit::indexmap::IndexMap;
-use kit::types::commands::CommandExecutionResult;
+use kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
 use kit::types::stores::ValueStore;
 use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{ConstructDid, Did, PackageId, RunbookId};
-use std::collections::HashMap;
+use kit::types::{Did, PackageId, RunbookId};
 
 use crate::eval::{self, ExpressionEvaluationStatus};
 
@@ -65,10 +64,7 @@ impl FlowContext {
     pub fn index_flow_inputs_from_attributes(
         &mut self,
         attributes: &Vec<Attribute>,
-        dependencies_execution_results: &HashMap<
-            ConstructDid,
-            Result<&CommandExecutionResult, &Diagnostic>,
-        >,
+        dependencies_execution_results: &DependencyExecutionResultCache,
         package_id: &PackageId,
         workspace_context: &RunbookWorkspaceContext,
         execution_context: &RunbookExecutionContext,
