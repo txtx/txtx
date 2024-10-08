@@ -75,7 +75,7 @@ lazy_static! {
                 rpc_api_url: {
                     documentation: "The URL to use when deploying the required contract.",
                     typing: Type::string(),
-                    optional: false,
+                    optional: true,
                     tainting: false,
                     internal: false
                 },
