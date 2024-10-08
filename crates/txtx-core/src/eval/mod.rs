@@ -1080,7 +1080,11 @@ pub fn perform_inputs_evaluation(
     simulation: bool,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut results = match *input_evaluation_results {
-        Some(evaluated_inputs) => evaluated_inputs.clone(),
+        Some(evaluated_inputs) => {
+            let mut inputs = evaluated_inputs.clone();
+            inputs.inputs = inputs.inputs.with_defaults(&addon_defaults.store);
+            inputs
+        }
         None => CommandInputsEvaluationResult::new(&command_instance.name, &addon_defaults.store),
     };
     let mut require_user_interaction = false;
