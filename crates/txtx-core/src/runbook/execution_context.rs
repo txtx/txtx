@@ -1,6 +1,7 @@
 use kit::channel::unbounded;
 use kit::hcl::Span;
 use kit::indexmap::IndexMap;
+use kit::types::commands::DependencyExecutionResultCache;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;

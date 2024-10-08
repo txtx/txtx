@@ -338,9 +338,7 @@ impl RunbookSnapshotContext {
 
                         let value_pre_evaluation = command_instance
                             .get_expression_from_input(input)
-                            .ok()
-                            .map(|entry| entry.map(|expr| expr.to_string().trim().to_string()))
-                            .unwrap_or(None);
+                            .map(|expr| expr.to_string().trim().to_string());
                         let input_name = &input.name;
                         match command_to_update.inputs.get_mut(input_name) {
                             Some(input) => {

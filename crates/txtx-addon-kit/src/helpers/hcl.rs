@@ -64,14 +64,11 @@ pub fn visit_required_string_literal_attribute(
     }
 }
 
-pub fn visit_optional_untyped_attribute(
-    field_name: &str,
-    block: &Block,
-) -> Result<Option<Expression>, Vec<Diagnostic>> {
+pub fn visit_optional_untyped_attribute(field_name: &str, block: &Block) -> Option<Expression> {
     let Some(attribute) = block.body.get_attribute(field_name) else {
-        return Ok(None);
+        return None;
     };
-    Ok(Some(attribute.value.clone()))
+    Some(attribute.value.clone())
 }
 
 pub fn get_object_expression_key(obj: &Object, key: &str) -> Option<hcl_edit::expr::ObjectValue> {

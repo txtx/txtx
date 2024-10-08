@@ -1200,7 +1200,7 @@ pub fn perform_inputs_evaluation(
             let mut object_values = IndexMap::new();
             for prop in object_props.iter() {
                 let Some(expr) =
-                    command_instance.get_expression_from_object_property(&input, &prop)?
+                    command_instance.get_expression_from_object_property(&input, &prop)
                 else {
                     continue;
                 };
@@ -1254,7 +1254,7 @@ pub fn perform_inputs_evaluation(
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
-            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = command_instance.get_expression_from_input(&input) else {
                 continue;
             };
             let value = match eval_expression(
@@ -1306,7 +1306,7 @@ pub fn perform_inputs_evaluation(
             for block in blocks.iter() {
                 let mut object_values = IndexMap::new();
                 for prop in object_props.iter() {
-                    let Some(expr) = command_instance.get_expression_from_block(&block, &prop)?
+                    let Some(expr) = command_instance.get_expression_from_block(&block, &prop)
                     else {
                         continue;
                     };
@@ -1357,7 +1357,7 @@ pub fn perform_inputs_evaluation(
             }
             results.insert(&input.name, Value::array(entries));
         } else {
-            let Some(expr) = command_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = command_instance.get_expression_from_input(&input) else {
                 continue;
             };
             let value = match eval_expression(
@@ -1408,10 +1408,7 @@ pub fn perform_inputs_evaluation(
 
 pub fn perform_signer_inputs_evaluation(
     signer_instance: &SignerInstance,
-    dependencies_execution_results: &HashMap<
-        ConstructDid,
-        Result<&CommandExecutionResult, &Diagnostic>,
-    >,
+    dependencies_execution_results: &DependencyExecutionResultCache,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     addon_defaults: &AddonDefaults,
     package_id: &PackageId,
@@ -1451,8 +1448,7 @@ pub fn perform_signer_inputs_evaluation(
                     };
                 }
 
-                let Some(expr) =
-                    signer_instance.get_expression_from_object_property(&input, &prop)?
+                let Some(expr) = signer_instance.get_expression_from_object_property(&input, &prop)
                 else {
                     continue;
                 };
@@ -1512,7 +1508,7 @@ pub fn perform_signer_inputs_evaluation(
                 }
             }
 
-            let Some(expr) = signer_instance.get_expression_from_input(&input)? else {
+            let Some(expr) = signer_instance.get_expression_from_input(&input) else {
                 continue;
             };
             let value = match eval_expression(
@@ -1566,7 +1562,7 @@ pub fn perform_signer_inputs_evaluation(
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
             } else {
-                let Some(expr) = signer_instance.get_expression_from_input(&input)? else {
+                let Some(expr) = signer_instance.get_expression_from_input(&input) else {
                     continue;
                 };
                 match eval_expression(
