@@ -56,16 +56,41 @@ impl ValueStore {
         spec_inputs: &Vec<CommandInput>,
     ) -> Result<Self, Diagnostic> {
         for input in spec_inputs.iter() {
-            match self.inputs.get_value(&input.name) {
-                Some(_) => {}
-                None => match input.optional {
-                    true => continue,
-                    false => {
-                        return Err(Diagnostic::error_from_string(format!(
-                            "Could not execute command '{}': Required input '{}' missing",
-                            instance_name, input.name
-                        )));
-                    }
+            match input.optional {
+                true => continue,
+                false => match self.inputs.get_value(&input.name) {
+                    // Uncomment for strict type-checking on all values:
+                    // Some(value) => match input.check_value(value) {
+                    //     Ok(_) => continue,
+                    //     Err(e) => return Err(e),
+                    // },
+                    Some(value) => match input.as_object() {
+                        Some(_) => match input.check_value(value) {
+                            Ok(_) => continue,
+                            Err(e) => return Err(e),
+                        },
+                        None => continue,
+                    },
+                    None => match self.defaults.get_value(&input.name) {
+                        // Uncomment for strict type-checking on all values:
+                        // Some(value) => match input.check_value(value) {
+                        //     Ok(_) => continue,
+                        //     Err(e) => return Err(e),
+                        // },
+                        Some(value) => match input.as_object() {
+                            Some(_) => match input.check_value(value) {
+                                Ok(_) => continue,
+                                Err(e) => return Err(e),
+                            },
+                            None => continue,
+                        },
+                        None => {
+                            return Err(Diagnostic::error_from_string(format!(
+                                "Could not execute command '{}': Required input '{}' missing",
+                                instance_name, input.name
+                            )));
+                        }
+                    },
                 },
             };
         }
