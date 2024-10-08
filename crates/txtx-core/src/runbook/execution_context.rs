@@ -350,6 +350,19 @@ impl RunbookExecutionContext {
                     CommandInputEvaluationStatus::Aborted(results, _diags) => results,
                 },
                 Err(_d) => {
+                    // if we failed to evaluated inputs during simulation, swallow the error, but ensure we
+                    // re-evaluate all of the inputs in the actual execution by adding each required input
+                    // to the unevaluated_inputs map.
+                    let mut inputs = CommandInputsEvaluationResult::new(
+                        &command_instance.name,
+                        &addon_defaults.store,
+                    );
+                    for input in command_instance.specification.inputs.iter() {
+                        if input.optional {
+                            continue;
+                        }
+                        inputs.unevaluated_inputs.insert(input.name.clone(), None);
+                    }
                     continue;
                 }
             };
