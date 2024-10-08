@@ -274,6 +274,11 @@ impl CommandInput {
             Type::Object(_) => None,
         }
     }
+    pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
+        self.typing.check_value(value).map_err(|e| {
+            Diagnostic::error_from_string(format!("error in input '{}': {}", self.name, e.message))
+        })
+    }
 }
 
 impl Serialize for CommandInput {

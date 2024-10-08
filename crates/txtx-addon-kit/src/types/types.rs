@@ -364,7 +364,7 @@ impl Value {
     pub fn as_addon_data(&self) -> Option<&AddonData> {
         match &self {
             Value::Addon(value) => Some(&value),
-            _ => unreachable!(),
+            _ => None,
         }
     }
     pub fn as_array(&self) -> Option<&Box<Vec<Value>>> {
@@ -685,6 +685,59 @@ impl Type {
     }
     pub fn array(array_item_type: Type) -> Type {
         Type::Array(Box::new(array_item_type))
+    }
+
+    pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
+        let mismatch_err = |expected: &str| {
+            Diagnostic::error_from_string(format!(
+                "expected {}, got {}",
+                expected,
+                value.get_type().to_string()
+            ))
+        };
+
+        match &self {
+            Type::Bool => value.as_bool().map(|_| ()).ok_or_else(|| mismatch_err("bool"))?,
+            Type::Null => value.as_null().map(|_| ()).ok_or_else(|| mismatch_err("null"))?,
+            Type::Integer => {
+                value.as_integer().map(|_| ()).ok_or_else(|| mismatch_err("integer"))?
+            }
+            Type::Float => value.as_float().map(|_| ()).ok_or_else(|| mismatch_err("float"))?,
+            Type::String => value.as_string().map(|_| ()).ok_or_else(|| mismatch_err("string"))?,
+            Type::Buffer => {
+                value.as_buffer_data().map(|_| ()).ok_or_else(|| mismatch_err("buffer"))?
+            }
+            Type::Addon(addon_type) => value
+                .as_addon_data()
+                .map(|_| ())
+                .ok_or_else(|| mismatch_err(&format!("addon type '{}'", addon_type)))?,
+            Type::Array(array_type) => value
+                .as_array()
+                .map(|_| ())
+                .ok_or_else(|| mismatch_err(&format!("array<{}>", array_type.to_string())))?,
+            Type::Object(expected_props) | Type::Map(expected_props) => {
+                let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                for expected_prop in expected_props.iter() {
+                    let prop_value = object.get(&expected_prop.name);
+                    if expected_prop.optional && prop_value.is_none() {
+                        continue;
+                    }
+                    let prop_value = prop_value.ok_or_else(|| {
+                        Diagnostic::error_from_string(format!(
+                            "missing required property '{}'",
+                            expected_prop.name,
+                        ))
+                    })?;
+                    expected_prop.typing.check_value(prop_value).map_err(|e| {
+                        Diagnostic::error_from_string(format!(
+                            "object property '{}': {}",
+                            expected_prop.name, e.message
+                        ))
+                    })?;
+                }
+            } //  => todo!(),
+        };
+        Ok(())
     }
 }
 
