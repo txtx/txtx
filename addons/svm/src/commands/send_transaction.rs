@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
@@ -192,12 +193,21 @@ pub fn send_transaction(
         diagnosed_error!("unable to deserialize transaction from bytes ({})", e.to_string())
     })?;
     let signature = if do_await_confirmation {
-        rpc_client
-            .send_and_confirm_transaction(&transaction)
-            .map_err(|e| diagnosed_error!("unable to send transaction ({})", e.to_string()))?
+        rpc_client.send_and_confirm_transaction(&transaction).map_err(|e| {
+            diagnosed_error!("unable to send and confirm transaction ({})", e.to_string())
+        })?
     } else {
         rpc_client
-            .send_transaction(&transaction)
+            .send_transaction_with_config(
+                &transaction,
+                RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    preflight_commitment: None,
+                    encoding: None,
+                    max_retries: None,
+                    min_context_slot: None,
+                },
+            )
             .map_err(|e| diagnosed_error!("unable to send transaction ({})", e.to_string()))?
     };
 

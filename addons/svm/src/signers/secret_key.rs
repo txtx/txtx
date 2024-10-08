@@ -372,14 +372,11 @@ impl SignerImplementation for SvmSecretKey {
                     )
                 })?;
 
-            transaction.message.recent_blockhash =
-                rpc_client.get_latest_blockhash().map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to get latest blockhash: {e}"),
-                    )
-                })?;
+            let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
+                signer_err(&signers, &signer_state, format!("failed to get latest blockhash: {e}"))
+            })?;
+
+            transaction.message.recent_blockhash = blockhash;
             let mut keypairs: Vec<&Keypair> = vec![];
             let mut owned_keypairs: Vec<Keypair> = vec![];
 

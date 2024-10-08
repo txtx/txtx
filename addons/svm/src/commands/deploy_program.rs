@@ -229,6 +229,11 @@ impl CommandImplementation for DeployProgram {
                 let mut status_updater =
                     StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
                 for (i, transaction) in payloads.iter().enumerate() {
+                    status_updater.propagate_pending_status(&format!(
+                        "Sending transaction {}/{}",
+                        i + 1,
+                        payloads.len()
+                    ));
                     let (do_await_confirmation, commitment) = if i == 0 {
                         (true, CommitmentLevel::Processed)
                     } else if i == payloads.len() - 2 {
