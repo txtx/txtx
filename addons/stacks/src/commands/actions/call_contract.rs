@@ -204,7 +204,10 @@ impl CommandImplementation for SendContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(values).unwrap();
+        let signer_did = match get_signer_did(values) {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, ValueStore::tmp(), diag)),
+        };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
         let network_id: String = match values.get_expected_string("network_id") {
