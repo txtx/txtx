@@ -173,6 +173,7 @@ impl CommandInput {
             Type::Float => None,
             Type::String => None,
             Type::Buffer => None,
+            Type::Map(_) => None,
         }
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
@@ -186,6 +187,7 @@ impl CommandInput {
             Type::Float => None,
             Type::String => None,
             Type::Buffer => None,
+            Type::Map(_) => None,
         }
     }
     pub fn as_action(&self) -> Option<&String> {
@@ -199,6 +201,21 @@ impl CommandInput {
             Type::Float => None,
             Type::String => None,
             Type::Buffer => None,
+            Type::Map(_) => None,
+        }
+    }
+    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        match &self.typing {
+            Type::Map(spec) => Some(spec),
+            Type::Addon(_) => None,
+            Type::Array(_) => None,
+            Type::Bool => None,
+            Type::Null => None,
+            Type::Integer => None,
+            Type::Float => None,
+            Type::String => None,
+            Type::Buffer => None,
+            Type::Object(_) => None,
         }
     }
 }
@@ -549,6 +566,23 @@ impl CommandInstance {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
+                Type::Map(ref props) => {
+                    for block in self.block.body.get_blocks(&input.name) {
+                        for prop in props.iter() {
+                            let res = visit_optional_untyped_attribute(&prop.name, &block)
+                                .map_err(|e| format!("{:?}", e))?;
+                            if let Some(expr) = res {
+                                let mut references = vec![];
+                                collect_constructs_references_from_expression(
+                                    &expr,
+                                    Some(input),
+                                    &mut references,
+                                );
+                                expressions.append(&mut references);
+                            }
+                        }
+                    }
+                }
                 Type::Object(ref props) => {
                     let res = visit_optional_untyped_attribute(&input.name, &self.block)
                         .map_err(|e| format!("{:?}", e))?;
@@ -628,6 +662,44 @@ impl CommandInstance {
             return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
+    }
+
+    pub fn get_blocks_for_map(&self, input: &CommandInput) -> Result<Vec<Block>, Vec<Diagnostic>> {
+        let mut entries = vec![];
+
+        match &input.typing {
+            Type::Map(_) => {
+                for block in self.block.body.get_blocks(&input.name) {
+                    entries.push(block.clone());
+                }
+            }
+            _ => {
+                unreachable!()
+            }
+        };
+        if entries.is_empty() && !input.optional {
+            return Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for object '{}'",
+                self.name, self.specification.matcher, input.name
+            ))]);
+        }
+        Ok(entries)
+    }
+
+    pub fn get_expression_from_block(
+        &self,
+        block: &Block,
+        prop: &ObjectProperty,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+        let res = visit_optional_untyped_attribute(&prop.name, &block)?;
+        match (res, prop.optional) {
+            (Some(res), _) => Ok(Some(res)),
+            (None, true) => Ok(None),
+            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') is missing value for field '{}'",
+                self.name, self.specification.matcher, prop.name
+            ))]),
+        }
     }
 
     pub fn get_expression_from_object(
@@ -1107,7 +1179,7 @@ pub trait CommandImplementation {
     }
 
     fn build_background_task(
-        _construct_id: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _outputs: &ValueStore,

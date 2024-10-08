@@ -243,6 +243,8 @@ impl Value {
             _ => unreachable!(),
         }
     }
+
+    #[deprecated(note = "use `get_expected_buffer_bytes_result` instead")]
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }
@@ -279,7 +281,24 @@ impl Value {
                 })?;
                 bytes
             }
-            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
+            Value::Array(values) => {
+                let mut bytes = vec![];
+                for v in values.iter() {
+                    let Some(Ok(byte)) = v.as_uint() else {
+                        return Err(format!("unable to infer sequence of bytes"));
+                    };
+                    match u8::try_from(byte) {
+                        Ok(byte) => bytes.push(byte),
+                        Err(e) => {
+                            return Err(format!(
+                                "unable to infer sequence of bytes ({})",
+                                e.to_string()
+                            ))
+                        }
+                    }
+                }
+                bytes
+            }
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return Ok(None),
         };
@@ -539,7 +558,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
             Value::Buffer(_) => Type::Buffer,
-            Value::Object(_) => todo!(),
+            Value::Object(_) => Type::Object(vec![]),
             Value::Array(t) => {
                 Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
             }
@@ -599,6 +618,9 @@ impl ObjectType {
     pub fn inner(&self) -> IndexMap<String, Value> {
         self.map.clone()
     }
+    pub fn to_value(&self) -> Value {
+        Value::object(self.map.clone())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -630,6 +652,7 @@ pub enum Type {
     Object(Vec<ObjectProperty>),
     Addon(String),
     Array(Box<Type>),
+    Map(Vec<ObjectProperty>),
 }
 
 impl Type {
@@ -650,6 +673,9 @@ impl Type {
     }
     pub fn object(props: Vec<ObjectProperty>) -> Type {
         Type::Object(props)
+    }
+    pub fn map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(props)
     }
     pub fn buffer() -> Type {
         Type::Buffer
@@ -674,6 +700,7 @@ impl Type {
             Type::Object(_) => "object".into(),
             Type::Addon(addon) => format!("addon({})", addon),
             Type::Array(typing) => format!("array[{}]", typing.to_string()),
+            Type::Map(_) => "map".into(),
         }
     }
 }
@@ -725,6 +752,7 @@ impl Serialize for Type {
             Type::Object(_) => serializer.serialize_str("object"), // todo: add properties
             Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
             Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
+            Type::Map(_) => serializer.serialize_str("map"), // todo: add properties
         }
     }
 }

@@ -8,7 +8,7 @@ use hmac::digest::generic_array::GenericArray;
 use libsecp256k1::{recover, Message, RecoveryId, Signature};
 use txtx_addon_kit::hex;
 
-use crate::signers::DEFAULT_DERIVATION_PATH;
+use crate::constants::DEFAULT_DERIVATION_PATH;
 
 pub type SecretKeySigner = LocalSigner<SigningKey>;
 pub fn mnemonic_to_secret_key_signer(
