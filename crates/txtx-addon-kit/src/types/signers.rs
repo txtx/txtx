@@ -279,8 +279,7 @@ impl SignerInstance {
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block)
-                                .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -294,8 +293,7 @@ impl SignerInstance {
                     }
                 }
                 _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -312,22 +310,8 @@ impl SignerInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = match &input.typing {
-            Type::Object(_) => unreachable!(),
-            _ => visit_optional_untyped_attribute(&input.name, &self.block)?,
-        };
-        match (res, input.optional) {
-            (Some(res), _) => Ok(Some(res)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
+    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input.name, &self.block)
     }
 
     pub fn get_group(&self) -> String {
@@ -341,25 +325,17 @@ impl SignerInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+    ) -> Option<Expression> {
         let object = self.block.body.get_blocks(&input.name).next();
-        match (object, input.optional) {
-            (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)?;
-                match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression)),
-                    (None, true) => Ok(None),
-                    (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name, self.specification.matcher, prop.name, input.name
-                    ))]),
+        match object {
+            Some(block) => {
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
+                match expr_res {
+                    Some(expression) => Some(expression),
+                    None => None,
                 }
             }
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing object '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
+            None => None,
         }
     }
 

@@ -17,8 +17,7 @@ use crate::types::stores::ValueStore;
 use crate::{
     constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
     helpers::hcl::{
-        collect_constructs_references_from_expression, get_object_expression_key,
-        visit_optional_untyped_attribute,
+        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
 };
 
@@ -630,8 +629,7 @@ impl CommandInstance {
                 Type::Map(ref props) => {
                     for block in self.block.body.get_blocks(&input.name) {
                         for prop in props.iter() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block)
-                                .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -645,8 +643,7 @@ impl CommandInstance {
                     }
                 }
                 Type::Object(ref props) => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -659,8 +656,7 @@ impl CommandInstance {
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block)
-                                .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -674,8 +670,7 @@ impl CommandInstance {
                     }
                 }
                 _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -703,19 +698,8 @@ impl CommandInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = visit_optional_untyped_attribute(&input.name, &self.block)?;
-        match (res, input.optional) {
-            (Some(res), _) => Ok(Some(res)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
+    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input.name, &self.block)
     }
 
     pub fn get_group(&self) -> String {
@@ -751,33 +735,18 @@ impl CommandInstance {
         &self,
         block: &Block,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = visit_optional_untyped_attribute(&prop.name, &block)?;
-        match (res, prop.optional) {
-            (Some(res), _) => Ok(Some(res)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, prop.name
-            ))]),
-        }
+    ) -> Option<Expression> {
+        visit_optional_untyped_attribute(&prop.name, &block)
     }
 
     pub fn get_expression_from_object(
         &self,
         input: &CommandInput,
     ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let object = match &input.typing {
-            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
-            _ => {
-                unreachable!()
-            }
-        };
-        match (object, input.optional) {
-            (Some(expr), _) => Ok(Some(expr)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for object '{}'",
+        match &input.typing {
+            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input.name, &self.block)),
+            _ => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') expected object for input '{}'",
                 self.name, self.specification.matcher, input.name
             ))]),
         }
@@ -787,31 +756,17 @@ impl CommandInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let expr = visit_optional_untyped_attribute(&input.name, &self.block)?;
-        match (expr, input.optional) {
-            (Some(expr), _) => {
-                let object_expr = expr.as_object().unwrap();
-                let expr_res = get_object_expression_key(object_expr, &prop.name);
-                match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression.expr().clone())),
-                    (None, true) => Ok(None),
-                    (None, false) => todo!(
-                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name,
-                        self.specification.matcher,
-                        prop.name,
-                        input.name
-                    ),
+    ) -> Option<Expression> {
+        let object = self.block.body.get_blocks(&input.name).next();
+        match object {
+            Some(block) => {
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
+                match expr_res {
+                    Some(expression) => Some(expression),
+                    None => None,
                 }
             }
-            (None, true) => Ok(None),
-            (None, false) => todo!(
-                "command '{}' (type '{}') is missing object '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
+            None => None,
         }
     }
 
