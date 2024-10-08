@@ -36,7 +36,7 @@ impl EVMNetworkAddon {
 
 impl Addon for EVMNetworkAddon {
     fn get_name(&self) -> &str {
-        "Ethereum and EVM Compatible Blockchains (alpha)"
+        "Ethereum and EVM Compatible Blockchains (beta)"
     }
 
     fn get_description(&self) -> &str {

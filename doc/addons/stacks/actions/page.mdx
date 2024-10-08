@@ -26,7 +26,7 @@ The `stacks::sign_transaction` action signs an encoded transaction payload with 
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id, which is used to set the transaction version. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -126,12 +126,12 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -281,7 +281,7 @@ The `stacks::deploy_requirement` action retrieves a deployed contract along with
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -291,7 +291,7 @@ The `stacks::deploy_requirement` action retrieves a deployed contract along with
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" type="optional">
     The URL to use when deploying the required contract.
   </Property>
 
@@ -421,7 +421,7 @@ The `stacks::call_contract` action encodes a valid contract call payload and ser
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -507,7 +507,7 @@ The `stacks::broadcast_transaction` action sends a signed transaction payload to
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -619,7 +619,7 @@ The `stacks::call_readonly_fn` action queries a public readonly function.
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -728,7 +728,7 @@ The `stacks::call_contract` action encodes a contract call transaction, signs th
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
@@ -875,7 +875,7 @@ The `stacks::send_stx` action encodes a STX transfer transaction, signs the tran
   </Property>
 
 
-  <Property name="network_id" type="optional">
+  <Property name="network_id" type="required">
     The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
