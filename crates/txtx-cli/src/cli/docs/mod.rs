@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use super::{Context, GetDocumentation};
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
-use txtx_addon_telegram::TelegramAddon;
+use txtx_addon_network_svm::SvmNetworkAddon;
 use txtx_core::kit::types::commands::{CommandInput, CommandOutput, PreCommandSpecification};
 use txtx_core::kit::types::functions::FunctionSpecification;
 use txtx_core::kit::{
@@ -19,8 +19,8 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
     let stacks: Box<dyn Addon> = Box::new(StacksNetworkAddon::new());
     let evm: Box<dyn Addon> = Box::new(EVMNetworkAddon::new());
-    let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
-    let addons = vec![&std, &stacks, &evm, &telegram];
+    let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
+    let addons = vec![&std, &stacks, &evm, &svm];
     display_documentation(&addons);
     generate_mdx(&addons);
     Ok(())
@@ -44,6 +44,7 @@ pub fn generate_mdx(addons: &Vec<&Box<dyn Addon>>) {
 }
 
 pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
+    
     // functions
     {
         let map = vec![
@@ -56,6 +57,10 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
             ("hash", "Hash", hash::FUNCTIONS.clone()),
         ];
         for (path, title, fns) in map.into_iter() {
+            let mut dir_path = addon_path.clone();
+            dir_path.push(format!("functions/{}", path));
+            let _ = std::fs::create_dir_all(dir_path);
+        
             let mut page_path = addon_path.clone();
             page_path.push(format!("functions/{}/page.mdx", path));
             let mut doc_file = File::create(page_path).expect("creation failed");
@@ -69,6 +74,10 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     {
         let map = vec![("http", "HTTP", vec![http::SEND_HTTP_REQUEST.clone()])];
         for (path, title, actions) in map.into_iter() {
+            let mut dir_path = addon_path.clone();
+            dir_path.push(format!("actions/{}", path));
+            let _ = std::fs::create_dir_all(dir_path);
+
             let mut page_path = addon_path.clone();
             page_path.push(format!("actions/{}/page.mdx", path));
             let mut doc_file = File::create(page_path).expect("creation failed");
@@ -80,6 +89,10 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     }
     // an overview page for each category (functions/actions)
     {
+        let mut dir_path = addon_path.clone();
+        dir_path.push(format!("functions/overview"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("functions/overview/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
@@ -89,6 +102,10 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         template.render_data(&mut doc_file, &doc_data).expect("Failed to render template");
     }
     {
+        let mut dir_path: PathBuf = addon_path.clone();
+        dir_path.push(format!("actions/overview"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("actions/overview/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
@@ -102,6 +119,10 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
 pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     // functions
     {
+        let mut dir_path: PathBuf = addon_path.clone();
+        dir_path.push(format!("functions"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("functions/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
@@ -112,6 +133,10 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     }
     // actions
     {
+        let mut dir_path: PathBuf = addon_path.clone();
+        dir_path.push(format!("actions"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("actions/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
@@ -122,6 +147,10 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     }
     // signers
     {
+        let mut dir_path: PathBuf = addon_path.clone();
+        dir_path.push(format!("signers"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("signers/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");
@@ -132,6 +161,10 @@ pub fn generate_addon_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
     }
     // overview page
     {
+        let mut dir_path: PathBuf = addon_path.clone();
+        dir_path.push(format!("overview"));
+        let _ = std::fs::create_dir_all(dir_path);
+
         let mut page_path = addon_path.clone();
         page_path.push("overview/page.mdx");
         let mut doc_file = File::create(page_path).expect("creation failed");

@@ -46,7 +46,7 @@ impl StacksNetworkAddon {
 
 impl Addon for StacksNetworkAddon {
     fn get_name(&self) -> &str {
-        "Stacks Blockchain (rc1)"
+        "Stacks Blockchain (RC1)"
     }
 
     fn get_description(&self) -> &str {

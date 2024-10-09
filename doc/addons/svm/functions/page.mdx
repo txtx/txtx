@@ -1,0 +1,303 @@
+export const metadata = {
+    title: "Solana and SVM Compatible Blockchains (alpha) Functions",
+    description: "Functions for Solana and SVM Compatible Blockchains (alpha)",
+};
+
+# Solana and SVM Compatible Blockchains (alpha) Functions {{ id: "svm-functions" }}
+
+
+## system_program_id {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::system_program_id` returns the id of the system program, `11111111111111111111111111111111`.
+
+### Inputs
+
+<Properties>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The system program id
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using system_program_id">
+
+
+```hcl {{ title: 'main.tx' }}
+output "system_program_id" { 
+    value = svm::system_program_id()
+}
+// > 
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## account {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::account` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="public_key">
+    The on-chain address of an account.
+  </Property>
+
+
+  <Property name="is_signer">
+    Specify if the account is required as a signer on the transaction.
+  </Property>
+
+
+  <Property name="is_writable">
+    Specify if the account data will be modified.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming soon.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using account">
+
+
+```hcl {{ title: 'main.tx' }}
+output "account" { 
+value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
+}
+// > 
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_instruction_data_from_idl_path {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::get_instruction_data_from_idl_path` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="idl_path">
+    The path, relative to the txtx.yml, to the IDL `.json` file.
+  </Property>
+
+
+  <Property name="instruction_name">
+    The name of the instruction to generate data for, as indexed by the IDL.
+  </Property>
+
+
+  <Property name="arguments">
+    The instruction arguments to generate data for.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming soon.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_instruction_data_from_idl_path">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_instruction_data_from_idl {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::get_instruction_data_from_idl` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="idl">
+    The program IDL.
+  </Property>
+
+
+  <Property name="instruction_name">
+    The name of the instruction to generate data for, as indexed by the IDL.
+  </Property>
+
+
+  <Property name="arguments">
+    The instruction arguments to generate data for.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming soon.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_instruction_data_from_idl">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_program_from_anchor_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::get_program_from_anchor_project` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="program_name">
+    The name of the program being deployed.
+  </Property>
+
+
+  <Property name="target_path">
+    The target path to the compiled anchor project artifacts. Defaults to `./target`.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming soon.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_program_from_anchor_project">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
