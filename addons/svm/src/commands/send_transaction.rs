@@ -75,7 +75,8 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-    "#},
+            // Coming soon
+            "#},
       }
     };
 }

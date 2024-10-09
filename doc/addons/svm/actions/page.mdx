@@ -146,7 +146,8 @@ When the `send_transaction` action is successfully executed, the following outpu
 
 
 ```hcl {{ title: 'main.tx' }}
-    
+// Coming soon
+
 ```
 
 
@@ -165,7 +166,7 @@ When the `send_transaction` action is successfully executed, the following outpu
 
 ## process_instructions {{ tag: 'action' }}
 
-The `svm::process_instructions` action encode instructions, build, sign and broadcast a transaction
+The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.
 
 ### Inputs
 
@@ -216,7 +217,17 @@ When the `process_instructions` action is successfully executed, the following o
 
 
 ```hcl {{ title: 'main.tx' }}
-    
+
+action "program_call" "svm::process_instructions" {
+    description = "Invoke instructions"
+    instruction {
+        program_id = variable.program
+        accounts = [svm::account(signer.caller.address, true, true)]
+        data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
+    }
+    signers = [signer.caller]
+}
+
 ```
 
 

@@ -34,7 +34,7 @@ lazy_static! {
         ProcessInstructions => {
             name: "Process SVM Instructions",
             matcher: "process_instructions",
-            documentation: "The `svm::process_instructions` action encode instructions, build, sign and broadcast a transaction",
+            documentation: "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -107,6 +107,16 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
+
+            action "program_call" "svm::process_instructions" {
+                description = "Invoke instructions"
+                instruction {
+                    program_id = variable.program
+                    accounts = [svm::account(signer.caller.address, true, true)]
+                    data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
+                }
+                signers = [signer.caller]
+            }
     "#},
       }
     };
