@@ -21,7 +21,7 @@ lazy_static! {
       SignTransaction => {
           name: "Sign SVM Transaction",
           matcher: "sign_transaction",
-          documentation: "The `svm::send_transaction` is coming soon.",
+          documentation: "The `svm::send_transaction` is used to sign a transaction and broadcast it to the specified SVM-compatible network.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [

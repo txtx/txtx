@@ -1,0 +1,149 @@
+export const metadata = {
+    title: "Solana and SVM Compatible Blockchains (alpha) Signers",
+    description: "Signers for Solana and SVM Compatible Blockchains (alpha)",
+};
+
+# Solana and SVM Compatible Blockchains (alpha) Signers {{ id: "svm-signers" }}
+
+
+
+## secret_key {{ tag: 'signer' }}
+
+The `svm::secret_key` signer can be used to synchronously sign a transaction.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="secret_key" type="">
+    The secret key used to sign messages and transactions.
+  </Property>
+
+
+  <Property name="mnemonic" type="">
+    The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.
+  </Property>
+
+
+  <Property name="derivation_path" type="">
+    The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.
+  </Property>
+
+
+  <Property name="is_encrypted" type="">
+    Coming soon
+  </Property>
+
+
+  <Property name="password" type="">
+    Coming soon
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `secret_key` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="public_key">
+    The public key of the account generated from the secret key.
+  </Property>
+
+
+  <Property name="address">
+    The address generated from the secret key.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using secret_key">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "deployer" "svm::secret_key" {
+    secret_key = input.secret_key
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## web_wallet {{ tag: 'signer' }}
+
+The `svm::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="expected_address" type="">
+    The SVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `web_wallet` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="address">
+    The address of the account.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using web_wallet">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "alice" "svm::web_wallet" {
+    expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+

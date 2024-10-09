@@ -1,0 +1,314 @@
+export const metadata = {
+    title: "Solana and SVM Compatible Blockchains (alpha) Actions",
+    description: "Actions for Solana and SVM Compatible Blockchains (alpha)",
+};
+
+# Solana and SVM Compatible Blockchains (alpha) Actions {{ id: "svm-actions" }}
+
+
+
+## sign_transaction {{ tag: 'action' }}
+
+The `svm::send_transaction` is used to sign a transaction and broadcast it to the specified SVM-compatible network.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    Description of the transaction
+  </Property>
+
+
+  <Property name="transaction_payload_bytes" type="optional">
+    The transaction payload bytes, encoded as a clarity buffer.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    Coming soon
+  </Property>
+
+
+  <Property name="signer" type="required">
+    A reference to a signer construct, which will be used to sign the transaction payload.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `sign_transaction` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signed_transaction_bytes">
+    The signed transaction bytes.
+  </Property>
+
+
+  <Property name="chain_id">
+    Coming soon.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using sign_transaction">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## send_transaction {{ tag: 'action' }}
+
+The `svm::send_transaction` action encodes a transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    Description of the transaction
+  </Property>
+
+
+  <Property name="instructions" type="required">
+    The address and identifier of the contract to invoke.
+  </Property>
+
+
+  <Property name="rpc_api_url" type="optional">
+    The URL to use when making API requests.
+  </Property>
+
+
+  <Property name="rpc_api_auth_token" type="optional">
+    The HTTP authentication token to include in the headers when making API requests.
+  </Property>
+
+
+  <Property name="commitment_level" type="optional">
+    The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `send_transaction` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signature">
+    The transaction computed signature.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using send_transaction">
+
+
+```hcl {{ title: 'main.tx' }}
+    
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## process_instructions {{ tag: 'action' }}
+
+The `svm::process_instructions` action encode instructions, build, sign and broadcast a transaction
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    Description of the transaction
+  </Property>
+
+
+  <Property name="instruction" type="required">
+    Instructions to process
+  </Property>
+
+
+  <Property name="signers" type="required">
+    Set of references to a signer construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="commitment_level" type="optional">
+    The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `process_instructions` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signature">
+    The transaction computed signature.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using process_instructions">
+
+
+```hcl {{ title: 'main.tx' }}
+    
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## deploy_program {{ tag: 'action' }}
+
+`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    Description of the program
+  </Property>
+
+
+  <Property name="program" type="required">
+    The Solana program artifacts to deploy.
+  </Property>
+
+
+  <Property name="signers" type="required">
+    A reference to a signer construct, which will be used to pay for the deployment.
+  </Property>
+
+
+  <Property name="commitment_level" type="optional">
+    The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.
+  </Property>
+
+
+  <Property name="auto_extend" type="optional">
+    Whether to auto extend the program account for program upgrades. Defaults to `true`.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `deploy_program` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signature">
+    The transaction computed signature.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using deploy_program">
+
+
+```hcl {{ title: 'main.tx' }}
+action "deploy" "svm::deploy_program" {
+    description = "Deploy program"
+    program = svm::get_program_from_anchor_project("hello_world") 
+    signers = [signer.deployer]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+

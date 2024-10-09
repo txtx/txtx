@@ -40,7 +40,7 @@ lazy_static! {
                     output "system_program_id" { 
                         value = svm::system_program_id()
                     }
-                    // > 
+                    // > 11111111111111111111111111111111
                 "#},
                 inputs: [
                 ],
@@ -53,12 +53,12 @@ lazy_static! {
         define_function! {
             CreateAccountMeta => {
                 name: "account",
-                documentation: "`svm::account` is coming soon",
+                documentation: "`svm::account` encodes a public key in to an account meta object for a program instruction call.",
                 example: indoc! {r#"
                     output "account" { 
-                    value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
+                        value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
                     }
-                    // > 
+                    // > account: { public_key: 3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R, is_signer: true, is_writable: true } 
                 "#},
                 inputs: [
                     public_key: {
@@ -75,7 +75,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Coming soon.",
+                    documentation: "The account meta object.",
                     typing: Type::addon(SVM_ACCOUNT.into())
                 },
             }
@@ -83,9 +83,12 @@ lazy_static! {
         define_function! {
             GetInstructionDataFromIdlPath => {
                 name: "get_instruction_data_from_idl_path",
-                documentation: "`svm::get_instruction_data_from_idl_path` is coming soon",
+                documentation: "`svm::get_instruction_data_from_idl_path` creates encoded instruction data for a program invocation, providing type checking and serialization based on the provided IDL file.",
                 example: indoc! {r#"
-                    // Coming soon
+                    output "data" {
+                        value = svm::get_instruction_data_from_idl("/path/to/idl.json", "my_instruction", ["arg1", "arg2"])
+                    }
+                    // > data: 0x95763bdcc47fa1b305000000776f726c64
                 "#},
                 inputs: [
                     idl_path: {
@@ -105,17 +108,20 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Coming soon.",
-                    typing: Type::addon(SVM_ACCOUNT.into())
+                    documentation: "The encoded instruction data.",
+                    typing: Type::buffer()
                 },
             }
         },
         define_function! {
             GetInstructionDataFromIdl => {
                 name: "get_instruction_data_from_idl",
-                documentation: "`svm::get_instruction_data_from_idl` is coming soon",
+                documentation: "`svm::get_instruction_data_from_idl_path` creates encoded instruction data for a program invocation, providing type checking and serialization based on the provided IDL data.",
                 example: indoc! {r#"
-                    // Coming soon
+                    output "data" {
+                        value = svm::get_instruction_data_from_idl(variable.idl, "my_instruction", ["arg1", "arg2"])
+                    }
+                    // > data: 0x95763bdcc47fa1b305000000776f726c64
                 "#},
                 inputs: [
                     idl: {
@@ -135,17 +141,22 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Coming soon.",
-                    typing: Type::addon(SVM_ACCOUNT.into())
+                    documentation: "The encoded instruction data.",
+                    typing: Type::buffer()
                 },
             }
         },
         define_function! {
             GetProgramFromAnchorProject => {
                 name: "get_program_from_anchor_project",
-                documentation: "`svm::get_program_from_anchor_project` is coming soon",
+                documentation: "`svm::get_program_from_anchor_project` retrieves the program deployment artifacts for a program in an Anchor project.",
                 example: indoc! {r#"
-                    // Coming soon
+                    variable "contract" {
+                        value = evm::get_program_from_anchor_project("my_program")
+                    }
+                    output "idl" {
+                        value = variable.contract.idl
+                    }    
                 "#},
                 inputs: [
                     program_name: {
@@ -160,7 +171,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "Coming soon.",
+                    documentation: "An object containing the anchor program artifacts.",
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone()
                 },
             }
