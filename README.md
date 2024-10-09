@@ -25,6 +25,9 @@ ______________________________________________________________________
 
 Txtx introduces Smart Contract Runbooks to assist developers deploy and operate on their Smart Contracts / Programs / Scripts. <br/> Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management. <br/>Thanks to infrastructure as code, developers now have the ability to level up their Web3 operations by leveling up security, composability and reproducibility.
 
+> [!IMPORTANT]
+> Txtx is currently in beta: We’re still testing and refining the platform. Please use it for testing purposes only. Your feedback is welcome! 🙌
+
 ## 101 Demos 
 
 <a href="https://www.youtube.com/playlist?list=PL0FMgRjJMRzMcA23x6y_1lkxXUmuqOlKu">
