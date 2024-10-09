@@ -11295,7 +11295,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "crossbeam-channel",
  "dotenvy_macro",
@@ -11420,7 +11420,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -11473,7 +11473,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -11499,7 +11499,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "async-stream",
  "futures",
@@ -11513,7 +11513,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
