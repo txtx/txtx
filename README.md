@@ -27,10 +27,10 @@ Txtx introduces Smart Contract Runbooks to assist developers deploy and operate 
 
 ## 101 Demos 
 
-<a href="https://youtube.com/">
+<a href="https://www.youtube.com/playlist?list=PL0FMgRjJMRzMcA23x6y_1lkxXUmuqOlKu">
   <picture>
     <source srcset="https://raw.githubusercontent.com/txtx/txtx/main/doc/assets/youtube.png">
-    <img alt="Txtx" style="max-width: 100%;">
+    <img alt="Txtx - Web3 Runbook - 101 series" style="max-width: 100%;">
   </picture>
 </a>
 
