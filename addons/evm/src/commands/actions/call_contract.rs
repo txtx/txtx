@@ -5,7 +5,8 @@ use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
+    CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -20,6 +21,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
+use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
@@ -38,7 +40,7 @@ lazy_static! {
           matcher: "call_contract",
           documentation: "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
           implements_signing_capability: true,
-          implements_background_task_capability: false,
+          implements_background_task_capability: true,
           inputs: [
             description: {
                 documentation: "A description of the transaction.",
@@ -309,6 +311,43 @@ impl CommandImplementation for SignEVMContractCall {
             Ok((signers, signer_state, result))
         };
 
+        Ok(Box::pin(future))
+    }
+
+    fn build_background_task(
+        construct_did: &ConstructDid,
+        spec: &CommandSpecification,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+        supervision_context: &RunbookSupervisionContext,
+    ) -> CommandExecutionFutureResult {
+        let construct_did = construct_did.clone();
+        let spec = spec.clone();
+        let inputs = inputs.clone();
+        let outputs = outputs.clone();
+        let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+        let supervision_context = supervision_context.clone();
+
+        let future = async move {
+            let mut result = CommandExecutionResult::new();
+            let mut res = CheckEVMConfirmations::build_background_task(
+                &construct_did,
+                &spec,
+                &inputs,
+                &outputs,
+                &progress_tx,
+                &background_tasks_uuid,
+                &supervision_context,
+            )?
+            .await?;
+
+            result.append(&mut res);
+
+            Ok(result)
+        };
         Ok(Box::pin(future))
     }
 }
