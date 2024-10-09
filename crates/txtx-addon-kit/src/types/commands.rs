@@ -13,13 +13,13 @@ use uuid::Uuid;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 use indexmap::IndexMap;
 
-use crate::types::stores::ValueStore;
 use crate::{
     constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
 };
+use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
 use super::{
     diagnostics::Diagnostic,
@@ -757,12 +757,13 @@ impl CommandInstance {
         input: &CommandInput,
         prop: &ObjectProperty,
     ) -> Option<Expression> {
-        let object = self.block.body.get_blocks(&input.name).next();
-        match object {
-            Some(block) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
+        let expr = visit_optional_untyped_attribute(&input.name, &self.block);
+        match expr {
+            Some(expr) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = get_object_expression_key(object_expr, &prop.name);
                 match expr_res {
-                    Some(expression) => Some(expression),
+                    Some(expression) => Some(expression.expr().clone()),
                     None => None,
                 }
             }
