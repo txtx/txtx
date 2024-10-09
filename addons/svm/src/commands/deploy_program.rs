@@ -41,7 +41,7 @@ lazy_static! {
         DeployProgram => {
             name: "Deploy SVM Program",
             matcher: "deploy_program",
-            documentation: "`svm::deploy_program` is coming soon",
+            documentation: "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -53,7 +53,7 @@ lazy_static! {
                     internal: false
                 },
                 program: {
-                    documentation: "Coming soon",
+                    documentation: "The Solana program artifacts to deploy.",
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone(),
                     optional: false,
                     tainting: true,
@@ -88,7 +88,12 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-    "#},
+                action "deploy" "svm::deploy_program" {
+                    description = "Deploy program"
+                    program = svm::get_program_from_anchor_project("hello_world") 
+                    signers = [signer.deployer]
+                }
+            "#},
       }
     };
 }

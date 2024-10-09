@@ -37,7 +37,9 @@ impl Addon for SvmNetworkAddon {
 
     fn get_description(&self) -> &str {
         txtx_addon_kit::indoc! {r#"
-            Coming soon. 
+            The SVM `txtx` plugin enables building Runbooks that interact with Solana and SVM compatible blockchains. 
+            The plugin provides utility functions that allow you to deploy anchor programs, and encode instruction calls according to program IDLs.
+            The actions can be used to create valid transfer, program call, and program deployment transactions that can be signed via a mnemonic phrase, secret key, or via your browser signer.
             "#}
     }
 

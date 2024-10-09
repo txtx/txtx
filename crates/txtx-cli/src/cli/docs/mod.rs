@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use super::{Context, GetDocumentation};
 use txtx_addon_network_evm::EVMNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_addon_network_svm::SvmNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::types::commands::{CommandInput, CommandOutput, PreCommandSpecification};
 use txtx_core::kit::types::functions::FunctionSpecification;
@@ -19,8 +20,9 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
     let stacks: Box<dyn Addon> = Box::new(StacksNetworkAddon::new());
     let evm: Box<dyn Addon> = Box::new(EVMNetworkAddon::new());
+    let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
     let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
-    let addons = vec![&std, &stacks, &evm, &telegram];
+    let addons = vec![&std, &stacks, &evm, &svm, &telegram];
     display_documentation(&addons);
     generate_mdx(&addons);
     Ok(())

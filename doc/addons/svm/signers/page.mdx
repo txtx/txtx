@@ -1,15 +1,15 @@
 export const metadata = {
-    title: "Ethereum and EVM Compatible Blockchains (beta) Signers",
-    description: "Signers for Ethereum and EVM Compatible Blockchains (beta)",
+    title: "Solana and SVM Compatible Blockchains (alpha) Signers",
+    description: "Signers for Solana and SVM Compatible Blockchains (alpha)",
 };
 
-# Ethereum and EVM Compatible Blockchains (beta) Signers {{ id: "evm-signers" }}
+# Solana and SVM Compatible Blockchains (alpha) Signers {{ id: "svm-signers" }}
 
 
 
 ## secret_key {{ tag: 'signer' }}
 
-The `evm::secret_key` signer can be used to synchronously sign a transaction.
+The `svm::secret_key` signer can be used to synchronously sign a transaction.
 
 ### Inputs
 
@@ -70,14 +70,8 @@ When the `secret_key` action is successfully executed, the following outputs are
 
 
 ```hcl {{ title: 'main.tx' }}
-// we can create a secret key signer by providing a mnemonic and computing the secret key
-signer "bob" "evm::secret_key" {
-    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
-    derivation_path = "m/44'/5757'/0'/0/0"
-}
-// or we can create one by providing the secret key directly
-signer "bob_again" "evm::secret_key" {
-    secret_key = "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
+signer "deployer" "svm::secret_key" {
+    secret_key = input.secret_key
 }
 
 ```
@@ -98,8 +92,7 @@ signer "bob_again" "evm::secret_key" {
 
 ## web_wallet {{ tag: 'signer' }}
 
-The `evm::web_wallet` signer will route the transaction signing process through [wagmi](https://wagmi.sh/).
-This allows a Runbook operator to sign the transaction with the browser signer of their choice.
+The `svm::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice.
 
 ### Inputs
 
@@ -107,7 +100,7 @@ This allows a Runbook operator to sign the transaction with the browser signer o
 
 
   <Property name="expected_address" type="">
-    The EVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
+    The SVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
   </Property>
 
 
@@ -125,7 +118,7 @@ When the `web_wallet` action is successfully executed, the following outputs are
 
 
   <Property name="address">
-    The address of the account generated from the public key.
+    The address of the account.
   </Property>
 
 
@@ -135,8 +128,8 @@ When the `web_wallet` action is successfully executed, the following outputs are
 
 
 ```hcl {{ title: 'main.tx' }}
-signer "alice" "evm::web_wallet" {
-    expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+signer "alice" "svm::web_wallet" {
+    expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
 }
 
 ```
