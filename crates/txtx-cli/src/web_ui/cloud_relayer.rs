@@ -16,6 +16,7 @@ use tokio_tungstenite::tungstenite::Message;
 use totp_rs::{Algorithm, TOTP};
 use txtx_core::kit::channel::{select, Receiver, Sender};
 use txtx_core::kit::futures::{SinkExt, StreamExt};
+use txtx_core::kit::reqwest::StatusCode as ReqwestStatusCode;
 use txtx_core::kit::reqwest::{self};
 use txtx_core::kit::sha2::{Digest, Sha256};
 use txtx_core::kit::types::frontend::{
@@ -112,8 +113,15 @@ pub async fn open_channel(
         .send()
         .await
         .map_err(ErrorInternalServerError)?;
-
-    let body = res.json::<OpenChannelResponse>().await.map_err(ErrorInternalServerError)?;
+    let body = match res.status() {
+        ReqwestStatusCode::OK => {
+            res.json::<OpenChannelResponse>().await.map_err(ErrorInternalServerError)?
+        }
+        ReqwestStatusCode::UNAUTHORIZED => {
+            return Ok(HttpResponse::Unauthorized().body("Unauthorized"))
+        }
+        _ => return Ok(HttpResponse::InternalServerError().body("Internal Server Error")),
+    };
 
     let _ = relayer_context.relayer_channel_tx.send(RelayerChannelEvent::OpenChannel(
         ChannelData::new(
