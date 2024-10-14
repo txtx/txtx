@@ -33,7 +33,7 @@ pub async fn start_server(
             .wrap(
                 Cors::default()
                     .allow_any_origin()
-                    .allowed_methods(vec!["POST", "GET"])
+                    .allowed_methods(vec!["POST", "GET", "OPTIONS", "DELETE"])
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)
                     .supports_credentials()
