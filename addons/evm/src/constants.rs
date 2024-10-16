@@ -61,6 +61,8 @@ pub const DEFAULT_HARDHAT_ARTIFACTS_DIR: &str = "artifacts";
 pub const DEFAULT_HARDHAT_SOURCE_DIR: &str = "contracts";
 pub const DEFAULT_FOUNDRY_MANIFEST_PATH: &str = "foundry.toml";
 pub const DEFAULT_FOUNDRY_PROFILE: &str = "default";
+pub const DEFAULT_FOUNDRY_OUT_DIR: &str = "out";
+pub const DEFAULT_FOUNDRY_SRC_DIR: &str = "src";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";

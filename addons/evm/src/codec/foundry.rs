@@ -3,6 +3,8 @@ use serde_json::Value as JsonValue;
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use txtx_addon_kit::helpers::fs::FileLocation;
 
+use crate::constants::DEFAULT_FOUNDRY_OUT_DIR;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FoundryCompiledOutputJson {
@@ -98,8 +100,8 @@ pub struct ContractCompilerVersion {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FoundryProfile {
-    pub src: String,
-    pub out: String,
+    pub src: Option<String>,
+    pub out: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -126,7 +128,10 @@ impl FoundryConfig {
         };
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
-        path.push(&format!("{}", profile.out));
+        path.push(&format!(
+            "{}",
+            profile.out.clone().unwrap_or(DEFAULT_FOUNDRY_OUT_DIR.to_string())
+        ));
         path.push(contract_filename);
         path.push(&format!("{}.json", contract_name));
 
