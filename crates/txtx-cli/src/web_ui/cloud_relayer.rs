@@ -99,6 +99,7 @@ pub async fn open_channel(
     let payload = OpenChannelRequest {
         runbook_name: graph_context.runbook_name.clone(),
         runbook_description: graph_context.runbook_description.clone(),
+        registered_addons: graph_context.registered_addons.clone(),
         block_store: block_store.clone(),
         uuid: uuid.clone(),
         slug: slug.clone(),

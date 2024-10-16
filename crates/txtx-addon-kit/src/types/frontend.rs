@@ -1950,6 +1950,7 @@ pub struct ChannelParticipantAuthResponse {
 pub struct OpenChannelRequest {
     pub runbook_name: String,
     pub runbook_description: Option<String>,
+    pub registered_addons: Vec<String>,
     pub block_store: BTreeMap<usize, Block>,
     pub uuid: Uuid,
     pub slug: String,
