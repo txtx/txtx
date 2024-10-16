@@ -5,13 +5,15 @@ pub mod hardhat;
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EVMRpc;
-use crate::typing::{EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE};
+use crate::typing::{
+    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
+};
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
-use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256};
+use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256, U32};
 use alloy::rpc::types::TransactionRequest;
 use alloy_rpc_types::AccessList;
 use serde_json::json;
@@ -232,6 +234,10 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
                 DynSolValue::Address(Address::from_slice(&addon.bytes))
             } else if addon.id == EVM_BYTES32 {
                 DynSolValue::FixedBytes(Word::from_slice(&addon.bytes), 32)
+            } else if addon.id == EVM_UINT32 {
+                DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 32)
+            } else if addon.id == EVM_UINT8 {
+                DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 8)
             } else if addon.id == EVM_BYTES || addon.id == EVM_INIT_CODE {
                 DynSolValue::Bytes(addon.bytes.clone())
             } else {
