@@ -416,6 +416,10 @@ pub async fn start_supervised_runbook_runloop(
                         background_tasks_contructs_dids
                             .append(&mut pass_results.pending_background_tasks_constructs_uuids);
                     }
+
+                    if pass_results.has_diagnostics() {
+                        pass_results.fill_diagnostic_span(&runbook.sources);
+                    }
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
                     }
@@ -436,7 +440,7 @@ pub async fn start_supervised_runbook_runloop(
                 map.insert(signer_construct_did, scoped_requests);
 
                 let running_context = runbook.flow_contexts.first_mut().unwrap();
-                let pass_result = run_signers_evaluation(
+                let mut pass_result = run_signers_evaluation(
                     &running_context.workspace_context,
                     &mut running_context.execution_context,
                     &mut runbook.runtime_context,
@@ -446,6 +450,10 @@ pub async fn start_supervised_runbook_runloop(
                     &block_tx.clone(),
                 )
                 .await;
+
+                if pass_result.has_diagnostics() {
+                    pass_result.fill_diagnostic_span(&runbook.sources);
+                }
 
                 if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
@@ -502,6 +510,9 @@ pub async fn start_supervised_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_dids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
+                if pass_results.has_diagnostics() {
+                    pass_results.fill_diagnostic_span(&runbook.sources);
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
@@ -623,6 +634,8 @@ pub async fn build_genesis_panel(
     .await;
 
     if pass_result.has_diagnostics() {
+        pass_result.fill_diagnostic_span(&runbook.sources);
+
         println!("Diagnostics");
         for diag in pass_result.diagnostics().iter() {
             println!("- {}", diag);

@@ -363,9 +363,11 @@ impl AddonsContext {
         command_name: &str,
         package_id: &PackageId,
         block: &Block,
-        _location: &FileLocation,
+        location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
-        let factory = self.get_factory(namespace, &package_id.did())?;
+        let factory = self
+            .get_factory(namespace, &package_id.did())
+            .map_err(|diag| diag.location(location))?;
         let command_id = CommandId::Action(command_id.to_string());
         factory.create_command_instance(&command_id, namespace, command_name, block, package_id)
     }
@@ -376,12 +378,14 @@ impl AddonsContext {
         signer_name: &str,
         package_id: &PackageId,
         block: &Block,
-        _location: &FileLocation,
+        location: &FileLocation,
     ) -> Result<SignerInstance, Diagnostic> {
         let Some((namespace, signer_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
-        let ctx = self.get_factory(namespace, &package_id.did())?;
+        let ctx = self
+            .get_factory(namespace, &package_id.did())
+            .map_err(|diag| diag.location(location))?;
         ctx.create_signer_instance(signer_id, namespace, signer_name, block, package_id)
     }
 }

@@ -1,5 +1,6 @@
 use daggy::Walker;
 use daggy::{Dag, NodeIndex};
+use kit::hcl::Span;
 use kit::indexmap::IndexSet;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::ConstructDid;
@@ -61,8 +62,11 @@ impl RunbookGraphContext {
         for (package_id, package) in packages.iter() {
             // add variable constructs to graph
             for construct_did in package.variables_dids.iter() {
-                let construct = execution_context.commands_instances.get(construct_did).unwrap();
-                for (_input, dep) in construct.collect_dependencies().iter() {
+                let command_instance =
+                    execution_context.commands_instances.get(construct_did).unwrap();
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
+                for (_input, dep) in command_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -71,18 +75,22 @@ impl RunbookGraphContext {
                         diags.push(
                             diagnosed_error!(
                                 "unable to resolve '{}' in input '{}'",
-                                dep,
-                                construct.name,
+                                dep.to_string().trim(),
+                                command_instance.name,
                             )
-                            .location(&package_id.package_location),
+                            .location(&construct_id.construct_location)
+                            .set_span_range(command_instance.block.span()),
                         );
                     }
                 }
             }
             // add module constructs to graph
             for construct_did in package.modules_dids.iter() {
-                let construct = execution_context.commands_instances.get(construct_did).unwrap();
-                for (_input, dep) in construct.collect_dependencies().iter() {
+                let command_instance =
+                    execution_context.commands_instances.get(construct_did).unwrap();
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
+                for (_input, dep) in command_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -91,18 +99,22 @@ impl RunbookGraphContext {
                         diags.push(
                             diagnosed_error!(
                                 "unable to resolve '{}' in module '{}'",
-                                dep,
-                                construct.name,
+                                dep.to_string().trim(),
+                                command_instance.name,
                             )
-                            .location(&package_id.package_location),
+                            .location(&construct_id.construct_location)
+                            .set_span_range(command_instance.block.span()),
                         );
                     }
                 }
             }
             // add output constructs to graph
             for construct_did in package.outputs_dids.iter() {
-                let construct = execution_context.commands_instances.get(construct_did).unwrap();
-                for (_input, dep) in construct.collect_dependencies().iter() {
+                let command_instance =
+                    execution_context.commands_instances.get(construct_did).unwrap();
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
+                for (_input, dep) in command_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -111,10 +123,11 @@ impl RunbookGraphContext {
                         diags.push(
                             diagnosed_error!(
                                 "unable to resolve '{}' in output '{}'",
-                                dep,
-                                construct.name,
+                                dep.to_string().trim(),
+                                command_instance.name,
                             )
-                            .location(&package_id.package_location),
+                            .location(&construct_id.construct_location)
+                            .set_span_range(command_instance.block.span()),
                         );
                     }
                 }
@@ -125,6 +138,8 @@ impl RunbookGraphContext {
             for construct_did in package.commands_dids.iter() {
                 let command_instance =
                     execution_context.commands_instances.get(construct_did).unwrap();
+
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
 
                 if let Some(dependencies) = domain_specific_dependencies.get(construct_did) {
                     for dependent_construct_did in dependencies {
@@ -148,10 +163,11 @@ impl RunbookGraphContext {
                         diags.push(
                             diagnosed_error!(
                                 "unable to resolve '{}' in action '{}'",
-                                dep,
+                                dep.to_string().trim(),
                                 command_instance.name,
                             )
-                            .location(&package_id.package_location),
+                            .location(&construct_id.construct_location)
+                            .set_span_range(command_instance.block.span()),
                         );
                     }
                 }
@@ -161,6 +177,8 @@ impl RunbookGraphContext {
             for construct_did in package.signers_dids.iter() {
                 let signer_instance =
                     execution_context.signers_instances.get(construct_did).unwrap();
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
                 for (_input, dep) in signer_instance.collect_dependencies().iter() {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
@@ -177,10 +195,11 @@ impl RunbookGraphContext {
                         diags.push(
                             diagnosed_error!(
                                 "unable to resolve '{}' in signer '{}'",
-                                dep,
+                                dep.to_string().trim(),
                                 signer_instance.name,
                             )
-                            .location(&package_id.package_location),
+                            .location(&construct_id.construct_location)
+                            .set_span_range(signer_instance.block.span()),
                         );
                     }
                 }
