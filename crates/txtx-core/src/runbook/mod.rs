@@ -223,11 +223,23 @@ impl Runbook {
                         .set_diagnostic_span(get_source_context_for_diagnostic(&diag, &sources))]
                 })?;
             // Step 5: identify and index all the relationships between the constructs (edges)
-            flow_context.graph_context.build(
-                &mut flow_context.execution_context,
-                &flow_context.workspace_context,
-                domain_specific_dependencies,
-            )?;
+            flow_context
+                .graph_context
+                .build(
+                    &mut flow_context.execution_context,
+                    &flow_context.workspace_context,
+                    domain_specific_dependencies,
+                )
+                .map_err(|diags| {
+                    diags
+                        .into_iter()
+                        .map(|diag| {
+                            diag.clone().set_diagnostic_span(get_source_context_for_diagnostic(
+                                &diag, &sources,
+                            ))
+                        })
+                        .collect::<Vec<_>>()
+                })?;
         }
 
         // Final step: Update contexts
