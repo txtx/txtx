@@ -1,5 +1,7 @@
-use kit::sha2::Sha256 as LibSha256;
+use kit::keccak_hash::keccak;
+use kit::types::functions::arg_checker_with_ctx;
 use kit::types::AuthorizationContext;
+use kit::{sha2::Sha256 as LibSha256, types::functions::fn_diag_with_ctx};
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
 
 use txtx_addon_kit::{
@@ -11,7 +13,17 @@ use txtx_addon_kit::{
     },
 };
 
+use crate::constants::NAMESPACE;
 use crate::std::typing::StdValue;
+
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+    checker(fn_spec, args)
+}
+pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
+    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    error_fn(fn_spec, e)
+}
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -51,6 +63,28 @@ lazy_static! {
                     value: {
                         documentation: "The hex-encoded value to hash.",
                         typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                    }
+                ],
+                output: {
+                    documentation: "The hashed result.",
+                    typing: Type::string()
+                },
+            }
+        },
+        define_function! {
+            Keccak256 => {
+                name: "keccak256",
+                documentation: "`std::keccak256` computes the keccak256 hash of a value.",
+                example: indoc!{r#"
+                output "hashed_data" {
+                    value = keccak256("hello, world")
+                }
+                // > hashed_data: 0x09ca7e4eaa6e8ae9c7d261167129184883644d07dfba7cbfbc4c8a2e08360d5b
+              "#},
+                inputs: [
+                    value: {
+                        documentation: "The string value to hash.",
+                        typing: vec![Type::string()]
                     }
                 ],
                 output: {
@@ -111,5 +145,27 @@ impl FunctionImplementation for Sha256 {
         hasher.update(value.to_bytes());
         let result = hasher.finalize();
         Ok(StdValue::hash(result[..].to_vec()))
+    }
+}
+
+pub struct Keccak256;
+impl FunctionImplementation for Keccak256 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_string().unwrap().to_string();
+        let hash = keccak(value.as_bytes());
+        Ok(StdValue::hash(hash.0.to_vec()))
     }
 }

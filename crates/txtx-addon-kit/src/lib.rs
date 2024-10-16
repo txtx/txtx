@@ -35,6 +35,7 @@ use types::{
     signers::SignerSpecification,
 };
 
+pub use keccak_hash;
 pub use reqwest;
 pub use serde;
 pub use serde_json;
