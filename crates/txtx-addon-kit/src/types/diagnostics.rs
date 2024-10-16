@@ -144,7 +144,17 @@ impl Display for Diagnostic {
         if let Some(span) = &self.span {
             msg = format!("{}:{}:{}", msg, span.line_start, span.column_start);
         }
-        msg = format!("{}\n\t{}: {}", msg, self.level, self.message);
+        msg = format!(
+            "{}{}{}: {}",
+            msg,
+            if self.location.is_some() || self.span.is_some() {
+                format!("\n\t")
+            } else {
+                format!("")
+            },
+            self.level,
+            self.message
+        );
         write!(f, "{}", msg)
     }
 }
