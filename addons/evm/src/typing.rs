@@ -7,6 +7,8 @@ pub const EVM_TRANSACTION: &str = "evm::transaction";
 pub const EVM_TX_HASH: &str = "evm::tx_hash";
 pub const EVM_INIT_CODE: &str = "evm::init_code";
 pub const EVM_SIGNER_FIELD_BYTES: &str = "evm::signer_field_bytes";
+pub const EVM_UINT32: &str = "evm::uint32";
+pub const EVM_UINT8: &str = "evm::uint8";
 
 pub struct EvmValue {}
 
@@ -37,6 +39,14 @@ impl EvmValue {
 
     pub fn signer_field_bytes(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, EVM_SIGNER_FIELD_BYTES)
+    }
+
+    pub fn uint32(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_UINT32)
+    }
+
+    pub fn uint8(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_UINT8)
     }
 }
 

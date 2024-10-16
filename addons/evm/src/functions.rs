@@ -33,7 +33,7 @@ use crate::{
     },
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
-        EVM_INIT_CODE,
+        EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
     },
 };
 const INFURA_API_KEY: &str = "";
@@ -109,6 +109,48 @@ lazy_static! {
                 output: {
                     documentation: "The input string encoded as a buffer.",
                     typing: Type::addon(EVM_BYTES)
+                },
+            }
+        },
+        define_function! {
+            EncodeEvmUint32 => {
+                name: "uint32",
+                documentation: "`evm::uint32` encodes a number as a Solidity uint32 value.",
+                example: indoc! {r#"
+                        output "uint32" {
+                            value = evm::uint32(1)
+                        }
+                        "#},
+                inputs: [
+                    input: {
+                        documentation: "The number to encode.",
+                        typing: vec![Type::integer()]
+                    }
+                ],
+                output: {
+                    documentation: "The number encoded as a Solidity uint32.",
+                    typing: Type::addon(EVM_UINT32)
+                },
+            }
+        },
+        define_function! {
+            EncodeEvmUint8 => {
+                name: "uint8",
+                documentation: "`evm::uint8` encodes a number as a Solidity uint8 value.",
+                example: indoc! {r#"
+                        output "uint8" {
+                            value = evm::uint8(1)
+                        }
+                        "#},
+                inputs: [
+                    input: {
+                        documentation: "The number to encode.",
+                        typing: vec![Type::integer()]
+                    }
+                ],
+                output: {
+                    documentation: "The number encoded as a Solidity uint8.",
+                    typing: Type::addon(EVM_UINT8)
                 },
             }
         },
@@ -359,6 +401,52 @@ impl FunctionImplementation for EncodeEVMBytes {
             }
         };
         Ok(EvmValue::bytes(bytes.to_vec()))
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodeEvmUint32;
+impl FunctionImplementation for EncodeEvmUint32 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_integer().unwrap();
+
+        Ok(EvmValue::uint32(value.to_be_bytes().as_slice().to_vec()))
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodeEvmUint8;
+impl FunctionImplementation for EncodeEvmUint8 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_integer().unwrap();
+
+        Ok(EvmValue::uint8(value.to_be_bytes().as_slice().to_vec()))
     }
 }
 
