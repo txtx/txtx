@@ -6,6 +6,8 @@ use txtx_addon_kit::{
     Addon,
 };
 
+use crate::constants::NAMESPACE;
+
 use self::{commands::actions::ACTIONS, functions::FUNCTIONS};
 
 pub mod commands;
@@ -34,7 +36,7 @@ impl Addon for StdAddon {
     }
 
     fn get_namespace(&self) -> &str {
-        "std"
+        NAMESPACE
     }
 
     fn get_functions(&self) -> Vec<FunctionSpecification> {
