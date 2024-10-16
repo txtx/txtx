@@ -1163,18 +1163,21 @@ pub async fn handle_run_command(
     Ok(())
 }
 
+pub fn load_workspace_manifest_from_manifest_path(
+    manifest_path: &str,
+) -> Result<WorkspaceManifest, String> {
+    let manifest_location = FileLocation::from_path_string(manifest_path)?;
+    WorkspaceManifest::from_location(&manifest_location)
+}
+
 pub async fn load_runbooks_from_manifest(
+    manifest: &WorkspaceManifest,
     manifest_path: &str,
     environment_selector: &Option<String>,
-) -> Result<
-    (WorkspaceManifest, IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>),
-    String,
-> {
-    let manifest_location = FileLocation::from_path_string(manifest_path)?;
-    let manifest = WorkspaceManifest::from_location(&manifest_location)?;
+) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
     let runbooks = read_runbooks_from_manifest(&manifest, environment_selector, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
-    Ok((manifest, runbooks))
+    Ok(runbooks)
 }
 
 pub async fn load_runbook_from_manifest(
@@ -1185,15 +1188,20 @@ pub async fn load_runbook_from_manifest(
     available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
-    let (manifest, runbooks) =
-        load_runbooks_from_manifest(manifest_path, environment_selector).await?;
+    let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
+    let top_level_inputs_map =
+        manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
+
+    let environment_selector =
+        environment_selector.clone().or(manifest.environments.first().map(|(k, _)| k.clone()));
+
+    let runbooks =
+        load_runbooks_from_manifest(&manifest, manifest_path, &environment_selector).await?;
     // Select first runbook by default
     for (runbook_id, (mut runbook, runbook_sources, runbook_name, runbook_state)) in
         runbooks.into_iter()
     {
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
-            let top_level_inputs_map =
-                manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
             let res = runbook
