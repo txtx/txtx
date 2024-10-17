@@ -16,7 +16,7 @@ use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 
 lazy_static! {
     pub static ref CHECK_CONFIRMATIONS: PreCommandSpecification = define_command! {
-        CheckEVMConfirmations => {
+        CheckEvmConfirmations => {
             name: "Check Transaction Confirmations",
             matcher: "check_confirmations",
             documentation: "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
@@ -66,8 +66,8 @@ lazy_static! {
         }
     };
 }
-pub struct CheckEVMConfirmations;
-impl CommandImplementation for CheckEVMConfirmations {
+pub struct CheckEvmConfirmations;
+impl CommandImplementation for CheckEvmConfirmations {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -128,7 +128,7 @@ impl CommandImplementation for CheckEVMConfirmations {
 
         use crate::{
             constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
-            rpc::EVMRpc,
+            rpc::EvmRpc,
         };
 
         let inputs = inputs.clone();
@@ -196,7 +196,7 @@ impl CommandImplementation for CheckEVMConfirmations {
 
             let backoff_ms = 500;
 
-            let rpc = EVMRpc::new(&rpc_api_url)
+            let rpc = EvmRpc::new(&rpc_api_url)
                 .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
 
             let mut included_block = u64::MAX - confirmations_required as u64;

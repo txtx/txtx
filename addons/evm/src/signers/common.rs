@@ -13,7 +13,7 @@ use crate::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
         DEFAULT_MESSAGE, NAMESPACE,
     },
-    rpc::EVMRpc,
+    rpc::EvmRpc,
 };
 
 pub async fn get_additional_actions_for_address(
@@ -28,7 +28,7 @@ pub async fn get_additional_actions_for_address(
 ) -> Result<Vec<ActionItemRequest>, String> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
-    let rpc = EVMRpc::new(&rpc_api_url)?;
+    let rpc = EvmRpc::new(&rpc_api_url)?;
 
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(

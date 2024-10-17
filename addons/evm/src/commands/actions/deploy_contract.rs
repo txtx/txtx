@@ -23,18 +23,18 @@ use crate::codec::{value_to_sol_value, CommonTransactionFields};
 use crate::constants::{
     ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
 };
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::CONTRACT_METADATA;
 use txtx_addon_kit::constants::TX_HASH;
 
-use super::check_confirmations::CheckEVMConfirmations;
+use super::check_confirmations::CheckEvmConfirmations;
 use super::get_signer_did;
-use super::sign_transaction::SignEVMTransaction;
-use super::verify_contract::VerifyEVMContract;
+use super::sign_transaction::SignEvmTransaction;
+use super::verify_contract::VerifyEvmContract;
 
 lazy_static! {
     pub static ref EVM_DEPLOY_CONTRACT: PreCommandSpecification = define_command! {
-      EVMDeployContract => {
+      EvmDeployContract => {
           name: "Sign EVM Contract Deployment Transaction",
           matcher: "deploy_contract",
           documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.",
@@ -174,8 +174,8 @@ lazy_static! {
     };
 }
 
-pub struct EVMDeployContract;
-impl CommandImplementation for EVMDeployContract {
+pub struct EvmDeployContract;
+impl CommandImplementation for EvmDeployContract {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -248,7 +248,7 @@ impl CommandImplementation for EVMDeployContract {
             );
             signers.push_signer_state(signer_state);
 
-            let future_result = SignEVMTransaction::check_signed_executability(
+            let future_result = SignEvmTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
@@ -286,7 +286,7 @@ impl CommandImplementation for EVMDeployContract {
         let progress_tx = progress_tx.clone();
 
         let future = async move {
-            let run_signing_future = SignEVMTransaction::run_signed_execution(
+            let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -303,7 +303,7 @@ impl CommandImplementation for EVMDeployContract {
             };
 
             values.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
-            let mut res = match CheckEVMConfirmations::run_execution(
+            let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -320,7 +320,7 @@ impl CommandImplementation for EVMDeployContract {
 
             let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
-                let mut res = match VerifyEVMContract::run_execution(
+                let mut res = match VerifyEvmContract::run_execution(
                     &construct_did,
                     &spec,
                     &values,
@@ -361,7 +361,7 @@ impl CommandImplementation for EVMDeployContract {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            let mut res = CheckEVMConfirmations::build_background_task(
+            let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
                 &inputs,
@@ -382,7 +382,7 @@ impl CommandImplementation for EVMDeployContract {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
 
-                let mut res = VerifyEVMContract::build_background_task(
+                let mut res = VerifyEvmContract::build_background_task(
                     &construct_did,
                     &spec,
                     &inputs,
@@ -434,7 +434,7 @@ async fn build_unsigned_contract_deploy(
     }
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EVMRpc::new(&rpc_api_url)
+    let rpc = EvmRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
 
     let common = CommonTransactionFields {
