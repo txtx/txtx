@@ -303,16 +303,28 @@ impl CommandImplementation for StacksDeployContract {
         // and retrieve the dependencies.
         let mut dependencies = vec![];
         let mut lazy_dependencies = vec![];
-        if let Err((data, _)) =
-            ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded)
-        {
-            for (_contract_id, deps) in data.iter() {
-                for dep in deps.iter() {
-                    let contract_id = Value::string(dep.contract_id.to_string());
-                    if dep.required_before_publish {
-                        dependencies.push(contract_id);
-                    } else {
-                        lazy_dependencies.push(contract_id);
+        match ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded) {
+            Err((data, _)) => {
+                for (_contract_id, deps) in data.iter() {
+                    for dep in deps.iter() {
+                        let contract_id = Value::string(dep.contract_id.to_string());
+                        if dep.required_before_publish {
+                            dependencies.push(contract_id);
+                        } else {
+                            lazy_dependencies.push(contract_id);
+                        }
+                    }
+                }    
+            }
+            Ok(data) => {
+                for (_contract_id, deps) in data.iter() {
+                    for dep in deps.iter() {
+                        let contract_id = Value::string(dep.contract_id.to_string());
+                        if dep.required_before_publish {
+                            dependencies.push(contract_id);
+                        } else {
+                            lazy_dependencies.push(contract_id);
+                        }
                     }
                 }
             }
