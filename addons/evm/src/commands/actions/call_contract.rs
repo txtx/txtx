@@ -333,6 +333,7 @@ impl CommandImplementation for SignEvmContractCall {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
+            result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
