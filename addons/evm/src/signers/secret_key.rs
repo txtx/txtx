@@ -4,8 +4,11 @@ use alloy::primitives::Address;
 use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
-use txtx_addon_kit::types::frontend::{ActionItemRequest, ActionItemStatus, ReviewInputRequest};
+use txtx_addon_kit::types::frontend::{
+    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
+};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
@@ -24,7 +27,8 @@ use txtx_addon_kit::types::{
 
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, NONCE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID,
+    FORMATTED_TRANSACTION, NONCE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
     TX_HASH,
 };
 use crate::rpc::EvmWalletRpc;
@@ -200,18 +204,65 @@ impl SignerImplementation for EvmSecretKeySigner {
     }
 
     fn check_signability(
-        _caller_uuid: &ConstructDid,
-        _title: &str,
-        _description: &Option<String>,
-        _payload: &Value,
-        _spec: &SignerSpecification,
-        _values: &ValueStore,
+        construct_did: &ConstructDid,
+        title: &str,
+        description: &Option<String>,
+        payload: &Value,
+        spec: &SignerSpecification,
+        values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _supervision_context: &RunbookSupervisionContext,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        Ok((signers, signer_state, Actions::none()))
+        let signer_did = ConstructDid(signer_state.uuid.clone());
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
+        let signer_err =
+            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+
+        let actions = if supervision_context.review_input_values {
+            let construct_did_str = &construct_did.to_string();
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
+                return Ok((signers, signer_state, Actions::none()));
+            }
+
+            let chain_id = values
+                .get_expected_uint(CHAIN_ID)
+                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+
+            let status = ActionItemStatus::Todo;
+
+            let formatted_payload = signer_state
+                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+                .and_then(|v| v.as_string())
+                .and_then(|v| Some(v.to_string()));
+
+            let request = ActionItemRequest::new(
+                &Some(construct_did.clone()),
+                title,
+                description.clone(),
+                status,
+                ProvideSignedTransactionRequest::new(
+                    &signer_state.uuid,
+                    &payload,
+                    "stacks",
+                    &chain_id.to_string(),
+                )
+                .check_expectation_action_uuid(construct_did)
+                .only_approval_needed()
+                .formatted_payload(formatted_payload)
+                .to_action_type(),
+                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
+            );
+            Actions::append_item(
+                request,
+                Some("Review and sign the transactions from the list below"),
+                Some("Transaction Signing"),
+            )
+        } else {
+            Actions::none()
+        };
+        Ok((signers, signer_state, actions))
     }
 
     fn sign(
