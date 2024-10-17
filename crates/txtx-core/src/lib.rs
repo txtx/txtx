@@ -368,6 +368,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
                 if runbook_completed {
                     let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                    return Ok(());
                 }
             }
             ActionItemResponseType::PickInputOption(_) => {}
