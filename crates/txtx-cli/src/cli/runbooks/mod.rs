@@ -832,41 +832,7 @@ pub async fn handle_run_command(
             for diag in diags.iter() {
                 println!("{}", red!(format!("- {}", diag)));
             }
-
-            for running_context in runbook.flow_contexts.iter_mut() {
-                running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
-            }
-
-            if let Some(state_file_location) = runbook_state {
-                let previous_snapshot = match load_runbook_execution_snapshot(
-                    &state_file_location,
-                    false,
-                    &runbook.runbook_id.name,
-                    &runbook.top_level_inputs_map.current_top_level_input_name(),
-                ) {
-                    Ok(snapshot) => Some(snapshot),
-                    Err(_e) => None,
-                };
-
-                let lock_file = get_lock_file_location(&state_file_location.get_location_for_ctx(
-                    &runbook.runbook_id.name,
-                    Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
-                ));
-                println!("{} Saving transient state to {}", yellow!("!"), lock_file);
-                let diff = RunbookSnapshotContext::new();
-                let snapshot = diff
-                    .snapshot_runbook_execution(
-                        &runbook.runbook_id,
-                        &runbook.flow_contexts,
-                        previous_snapshot,
-                        &runbook.top_level_inputs_map,
-                    )
-                    .map_err(|e| e.message)?;
-                lock_file
-                    .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-                    .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
-                ();
-            }
+            write_runbook_transient_state(&mut runbook, runbook_state)?;
             return Ok(());
         }
 
@@ -903,40 +869,7 @@ pub async fn handle_run_command(
             collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
         }
 
-        if let Some(state_file_location) = runbook_state {
-            let previous_snapshot = match load_runbook_execution_snapshot(
-                &state_file_location,
-                false,
-                &runbook.runbook_id.name,
-                &runbook.top_level_inputs_map.current_top_level_input_name(),
-            ) {
-                Ok(snapshot) => Some(snapshot),
-                Err(_e) => None,
-            };
-
-            let state_file_location = state_file_location.get_location_for_ctx(
-                &runbook.runbook_id.name,
-                Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
-            );
-            if let Some(lock_file) = get_lock_file(&state_file_location) {
-                let _ = std::fs::remove_file(&lock_file.to_string());
-            }
-
-            println!("\n{} Saving execution state to {}", green!("✓"), state_file_location);
-            let diff = RunbookSnapshotContext::new();
-            let snapshot = diff
-                .snapshot_runbook_execution(
-                    &runbook.runbook_id,
-                    &runbook.flow_contexts,
-                    previous_snapshot,
-                    &runbook.top_level_inputs_map,
-                )
-                .map_err(|e| e.message)?;
-            state_file_location
-                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-                .expect("unable to save state");
-            ();
-        }
+        write_runbook_state(&mut runbook, runbook_state)?;
 
         if !collected_outputs.is_empty() {
             if cmd.output_json {
@@ -998,6 +931,7 @@ pub async fn handle_run_command(
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
+    let moved_runbook_state = runbook_state.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
@@ -1009,6 +943,13 @@ pub async fn handle_run_command(
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
             }
+            if let Err(e) = write_runbook_transient_state(&mut runbook, moved_runbook_state) {
+                println!("{} Failed to write transient runbook state: {}", red!("x"), e);
+            };
+        } else {
+            if let Err(e) = write_runbook_state(&mut runbook, moved_runbook_state) {
+                println!("{} Failed to write runbook state: {}", red!("x"), e);
+            };
         }
         if let Err(_e) = moved_kill_loops_tx.send(true) {
             std::process::exit(1);
@@ -1113,7 +1054,8 @@ pub async fn handle_run_command(
                         .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
                         .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
-                        println!("{}", green!("Runbook complete!"));
+                        println!("\n{}", green!("Runbook complete!"));
+                        break;
                     }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
@@ -1140,6 +1082,7 @@ pub async fn handle_run_command(
                 match kill_loops_rx.recv() {
                     Ok(_) => {
                         if let Some(handle) = web_ui_handle {
+                            println!("{} Stopping web console", purple!("→"));
                             let _ = handle.stop(true).await;
                         }
                         let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
@@ -1257,4 +1200,84 @@ pub async fn load_runbook_from_file_path(
 
     // Select first runbook by default
     Ok((runbook_name, runbook))
+}
+
+fn write_runbook_transient_state(
+    runbook: &mut Runbook,
+    runbook_state: Option<RunbookState>,
+) -> Result<(), String> {
+    for running_context in runbook.flow_contexts.iter_mut() {
+        running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
+    }
+
+    if let Some(state_file_location) = runbook_state {
+        let previous_snapshot = match load_runbook_execution_snapshot(
+            &state_file_location,
+            false,
+            &runbook.runbook_id.name,
+            &runbook.top_level_inputs_map.current_top_level_input_name(),
+        ) {
+            Ok(snapshot) => Some(snapshot),
+            Err(_e) => None,
+        };
+
+        let lock_file = get_lock_file_location(&state_file_location.get_location_for_ctx(
+            &runbook.runbook_id.name,
+            Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
+        ));
+        println!("{} Saving transient state to {}", yellow!("!"), lock_file);
+        let diff = RunbookSnapshotContext::new();
+        let snapshot = diff
+            .snapshot_runbook_execution(
+                &runbook.runbook_id,
+                &runbook.flow_contexts,
+                previous_snapshot,
+                &runbook.top_level_inputs_map,
+            )
+            .map_err(|e| e.message)?;
+        lock_file
+            .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+            .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
+    }
+    Ok(())
+}
+
+fn write_runbook_state(
+    runbook: &mut Runbook,
+    runbook_state: Option<RunbookState>,
+) -> Result<(), String> {
+    if let Some(state_file_location) = runbook_state {
+        let previous_snapshot = match load_runbook_execution_snapshot(
+            &state_file_location,
+            false,
+            &runbook.runbook_id.name,
+            &runbook.top_level_inputs_map.current_top_level_input_name(),
+        ) {
+            Ok(snapshot) => Some(snapshot),
+            Err(_e) => None,
+        };
+
+        let state_file_location = state_file_location.get_location_for_ctx(
+            &runbook.runbook_id.name,
+            Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
+        );
+        if let Some(lock_file) = get_lock_file(&state_file_location) {
+            let _ = std::fs::remove_file(&lock_file.to_string());
+        }
+
+        println!("\n{} Saving execution state to {}", green!("✓"), state_file_location);
+        let diff = RunbookSnapshotContext::new();
+        let snapshot = diff
+            .snapshot_runbook_execution(
+                &runbook.runbook_id,
+                &runbook.flow_contexts,
+                previous_snapshot,
+                &runbook.top_level_inputs_map,
+            )
+            .map_err(|e| e.message)?;
+        state_file_location
+            .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+            .expect("unable to save state");
+    }
+    Ok(())
 }
