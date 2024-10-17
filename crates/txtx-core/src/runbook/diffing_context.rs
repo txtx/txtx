@@ -625,19 +625,22 @@ pub fn diff_command_snapshots(
                     comparable_signed_constructs_list.push((old_index + i, new_index + i));
                 }
             }
-            DiffOp::Delete { old_index: _, old_len: _, new_index: _ } => {
-                // Not true!
-                // comparable_signed_constructs_list.push((*old_index, *new_index));
-            }
             DiffOp::Insert { old_index: _, new_index, new_len } => {
                 for i in 0..*new_len {
                     let entry = new_construct_dids.get(new_index + i).unwrap().clone();
+                    if visited_constructs.contains(&entry) {
+                        continue;
+                    }
                     let command = match new_run.commands.get(&entry) {
                         Some(e) => Some(e.clone()),
                         None => None,
                     };
                     consolidated_changes.new_constructs_to_add.push((entry, command))
                 }
+            }
+            DiffOp::Delete { old_index: _, old_len: _, new_index: _ } => {
+                // Not true!
+                // comparable_signed_constructs_list.push((*old_index, *new_index));
             }
             DiffOp::Replace { old_index: _, old_len: _, new_index: _, new_len: _ } => {
                 // comparable_signed_constructs_list.push((*old_index, *new_index));
