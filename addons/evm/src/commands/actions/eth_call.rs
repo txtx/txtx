@@ -14,7 +14,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::RPC_API_URL;
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 
 lazy_static! {
@@ -226,7 +226,7 @@ async fn build_eth_call(
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EVMRpc::new(&rpc_api_url)
+    let rpc = EvmRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     let input = if let Some(function_name) = function_name {

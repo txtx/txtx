@@ -21,7 +21,7 @@ use txtx_addon_kit::types::{
 
 use crate::codec::CommonTransactionFields;
 use crate::constants::{RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES};
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 use txtx_addon_kit::constants::TX_HASH;
 
@@ -29,7 +29,7 @@ use super::get_signer_did;
 
 lazy_static! {
     pub static ref SIGN_EVM_TRANSFER: PreCommandSpecification = define_command! {
-      SignEVMTransfer => {
+      SignEvmTransfer => {
           name: "Sign EVM Transfer Transaction",
           matcher: "sign_transfer",
           documentation: "The `evm::sign_transfer` action encodes an ETH transfer transaction, signs it with the provided signer data, and broadcasts it to the network.",
@@ -138,8 +138,8 @@ lazy_static! {
     };
 }
 
-pub struct SignEVMTransfer;
-impl CommandImplementation for SignEVMTransfer {
+pub struct SignEvmTransfer;
+impl CommandImplementation for SignEvmTransfer {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -330,7 +330,7 @@ async fn build_unsigned_transfer(
 
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc: EVMRpc = EVMRpc::new(&rpc_api_url)
+    let rpc: EvmRpc = EvmRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::sign_transfer': {}", e))?;
 
     let common = CommonTransactionFields {

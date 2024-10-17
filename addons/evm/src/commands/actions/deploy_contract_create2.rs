@@ -26,18 +26,18 @@ use crate::codec::{salt_str_to_hex, CommonTransactionFields};
 use crate::constants::{
     ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT, RPC_API_URL,
 };
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::{CONTRACT_METADATA, EVM_ADDRESS};
 
-use super::check_confirmations::CheckEVMConfirmations;
+use super::check_confirmations::CheckEvmConfirmations;
 use super::get_signer_did;
-use super::sign_transaction::SignEVMTransaction;
-use super::verify_contract::VerifyEVMContract;
+use super::sign_transaction::SignEvmTransaction;
+use super::verify_contract::VerifyEvmContract;
 use txtx_addon_kit::constants::TX_HASH;
 
 lazy_static! {
     pub static ref EVM_DEPLOY_CONTRACT_CREATE2: PreCommandSpecification = define_command! {
-      EVMDeployContractCreate2 => {
+      EvmDeployContractCreate2 => {
           name: "Deploy an EVM Contract Using a Create2 Proxy Contract",
           matcher: "deploy_contract_create2",
           documentation: indoc!{r#"
@@ -229,8 +229,8 @@ lazy_static! {
     };
 }
 
-pub struct EVMDeployContractCreate2;
-impl CommandImplementation for EVMDeployContractCreate2 {
+pub struct EvmDeployContractCreate2;
+impl CommandImplementation for EvmDeployContractCreate2 {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -324,7 +324,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             signers.push_signer_state(signer_state);
 
-            let future_result = SignEVMTransaction::check_signed_executability(
+            let future_result = SignEvmTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
@@ -378,7 +378,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             // if this contract has already been deployed, we'll skip signing and confirming
             let (signers, signer_state) = if !already_deployed {
                 signers.push_signer_state(signer_state);
-                let run_signing_future = SignEVMTransaction::run_signed_execution(
+                let run_signing_future = SignEvmTransaction::run_signed_execution(
                     &construct_did,
                     &spec,
                     &values,
@@ -403,7 +403,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
             };
 
             values.insert(ALREADY_DEPLOYED, Value::bool(already_deployed)); // todo: delte?
-            let mut res = match CheckEVMConfirmations::run_execution(
+            let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -419,7 +419,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
 
             let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
-                let mut res = match VerifyEVMContract::run_execution(
+                let mut res = match VerifyEvmContract::run_execution(
                     &construct_did,
                     &spec,
                     &values,
@@ -461,7 +461,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
-            let mut res = CheckEVMConfirmations::build_background_task(
+            let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
                 &inputs,
@@ -484,7 +484,7 @@ impl CommandImplementation for EVMDeployContractCreate2 {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
 
-                let mut res = VerifyEVMContract::build_background_task(
+                let mut res = VerifyEvmContract::build_background_task(
                     &construct_did,
                     &spec,
                     &inputs,
@@ -582,7 +582,7 @@ async fn build_unsigned_create2_deployment(
         encode_default_create2_proxy_args(Some(salt), &init_code).map_err(to_diag_with_ctx)?
     };
 
-    let rpc = EVMRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
     let contract_address = match contract_address {
         Some(contract_address) => {

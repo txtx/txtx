@@ -29,7 +29,7 @@ use super::get_signer_did;
 
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
-      SignEVMTransaction => {
+      SignEvmTransaction => {
           name: "Sign EVM Transaction",
           matcher: "sign_transaction",
           documentation: "The `evm::sign_transaction` command signs an EVM transaction.",
@@ -75,8 +75,8 @@ lazy_static! {
     };
 }
 
-pub struct SignEVMTransaction;
-impl CommandImplementation for SignEVMTransaction {
+pub struct SignEvmTransaction;
+impl CommandImplementation for SignEvmTransaction {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,

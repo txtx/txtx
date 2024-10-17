@@ -50,7 +50,7 @@ pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
-            EncodeEVMAddress => {
+            EncodeEvmAddress => {
                 name: "address",
                 documentation: "`evm::address` creates a valid Ethereum address from the input string.",
                 example: indoc! {r#"
@@ -71,7 +71,7 @@ lazy_static! {
             }
         },
         define_function! {
-            EncodeEVMBytes32 => {
+            EncodeEvmBytes32 => {
                 name: "bytes32",
                 documentation: "`evm::bytes32` encodes a hex string as a 32-byte buffer.",
                 example: indoc! {r#"
@@ -92,7 +92,7 @@ lazy_static! {
             }
         },
         define_function! {
-            EncodeEVMBytes => {
+            EncodeEvmBytes => {
                 name: "bytes",
                 documentation: "`evm::bytes` encodes a hex string as a variable length buffer.",
                 example: indoc! {r#"
@@ -155,7 +155,7 @@ lazy_static! {
             }
         },
         define_function! {
-            EncodeEVMChain => {
+            EncodeEvmChain => {
                 name: "chain",
                 documentation: "`evm::chain` generates a default chain id and RPC API URL for a valid EVM compatible chain name.",
                 example: indoc! {r#"
@@ -166,7 +166,7 @@ lazy_static! {
                         "#},
                 inputs: [
                     input: {
-                        documentation: "A EVM-compatible chain name. See https://chainlist.org for a list of supported chains.",
+                        documentation: "An EVM-compatible chain name. See https://chainlist.org for a list of supported chains.",
                         typing: vec![Type::string()]
                     }
                 ],
@@ -305,8 +305,8 @@ lazy_static! {
 }
 
 #[derive(Clone)]
-pub struct EncodeEVMAddress;
-impl FunctionImplementation for EncodeEVMAddress {
+pub struct EncodeEvmAddress;
+impl FunctionImplementation for EncodeEvmAddress {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -337,8 +337,8 @@ impl FunctionImplementation for EncodeEVMAddress {
 }
 
 #[derive(Clone)]
-pub struct EncodeEVMBytes32;
-impl FunctionImplementation for EncodeEVMBytes32 {
+pub struct EncodeEvmBytes32;
+impl FunctionImplementation for EncodeEvmBytes32 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -373,8 +373,8 @@ impl FunctionImplementation for EncodeEVMBytes32 {
 }
 
 #[derive(Clone)]
-pub struct EncodeEVMBytes;
-impl FunctionImplementation for EncodeEVMBytes {
+pub struct EncodeEvmBytes;
+impl FunctionImplementation for EncodeEvmBytes {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
@@ -451,8 +451,8 @@ impl FunctionImplementation for EncodeEvmUint8 {
 }
 
 #[derive(Clone)]
-pub struct EncodeEVMChain;
-impl FunctionImplementation for EncodeEVMChain {
+pub struct EncodeEvmChain;
+impl FunctionImplementation for EncodeEvmChain {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,

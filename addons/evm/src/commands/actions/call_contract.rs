@@ -24,10 +24,10 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::CommonTransactionFields;
-use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
-use crate::commands::actions::sign_transaction::SignEVMTransaction;
+use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
+use crate::commands::actions::sign_transaction::SignEvmTransaction;
 use crate::constants::RPC_API_URL;
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 use txtx_addon_kit::constants::TX_HASH;
 
@@ -35,7 +35,7 @@ use super::get_signer_did;
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
-      SignEVMContractCall => {
+      SignEvmContractCall => {
           name: "Sign EVM Contract Call Transaction",
           matcher: "call_contract",
           documentation: "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
@@ -166,8 +166,8 @@ lazy_static! {
     };
 }
 
-pub struct SignEVMContractCall;
-impl CommandImplementation for SignEVMContractCall {
+pub struct SignEvmContractCall;
+impl CommandImplementation for SignEvmContractCall {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -187,7 +187,7 @@ impl CommandImplementation for SignEVMContractCall {
     ) -> SignerActionsFutureResult {
         use crate::{
             codec::get_typed_transaction_bytes,
-            commands::actions::sign_transaction::SignEVMTransaction,
+            commands::actions::sign_transaction::SignEvmTransaction,
             constants::{TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
         };
@@ -234,7 +234,7 @@ impl CommandImplementation for SignEVMContractCall {
             );
             signers.push_signer_state(signer_state);
 
-            let future_result = SignEVMTransaction::check_signed_executability(
+            let future_result = SignEvmTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
@@ -276,7 +276,7 @@ impl CommandImplementation for SignEVMContractCall {
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
         let future = async move {
             signers.push_signer_state(signer_state);
-            let run_signing_future = SignEVMTransaction::run_signed_execution(
+            let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -294,7 +294,7 @@ impl CommandImplementation for SignEVMContractCall {
             result.append(&mut res_signing);
             values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
 
-            let mut res = match CheckEVMConfirmations::run_execution(
+            let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -333,7 +333,7 @@ impl CommandImplementation for SignEVMContractCall {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            let mut res = CheckEVMConfirmations::build_background_task(
+            let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
                 &inputs,
@@ -403,7 +403,7 @@ async fn build_unsigned_contract_call(
 
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EVMRpc::new(&rpc_api_url)
+    let rpc = EvmRpc::new(&rpc_api_url)
         .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
