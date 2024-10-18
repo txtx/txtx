@@ -615,6 +615,8 @@ pub async fn handle_run_command(
 
                 let running_context = runbook.find_expected_flow_context_mut(&running_context_key);
 
+                println!("=> {:?}", unexecuted);
+
                 if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
                     running_context.execution_context.execution_mode =
                         RunbookExecutionMode::Ignored;
@@ -705,6 +707,8 @@ pub async fn handle_run_command(
                     .into_iter()
                     .filter(|c| great_filter.contains(&c))
                     .collect();
+
+                println!("The great filter: {:?}", great_filter);
 
                 running_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(great_filter);

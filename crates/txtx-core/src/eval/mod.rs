@@ -335,6 +335,11 @@ pub async fn run_constructs_evaluation(
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
 
     for construct_did in ordered_constructs.into_iter() {
+
+        if construct_did.to_string().eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4") {
+            println!("Evaluating variable.id_gateway_contract");
+        }
+
         let Some(command_instance) =
             runbook_execution_context.commands_instances.get(&construct_did)
         else {

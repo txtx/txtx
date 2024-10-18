@@ -76,7 +76,7 @@ impl CommandImplementation for Module {
     }
 }
 
-pub fn new_input_specification() -> CommandSpecification {
+pub fn new_variable_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
         Variable => {
             name: "Variable",

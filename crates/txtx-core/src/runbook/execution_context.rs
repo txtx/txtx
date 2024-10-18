@@ -152,6 +152,11 @@ impl RunbookExecutionContext {
         let (tx, _rx) = unbounded();
 
         for construct_did in ordered_constructs.into_iter() {
+
+            if construct_did.to_string().eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4") {
+                println!("Simulating variable.id_gateway_contract");
+            }
+    
             // Is a command being considered? (vs signer, env, etc)
             let Some(command_instance) = self.commands_instances.get(&construct_did) else {
                 continue;

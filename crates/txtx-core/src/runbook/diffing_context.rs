@@ -131,6 +131,9 @@ impl RunbookSnapshotContext {
         flow_contexts.sort_by(|a, b| a.name.cmp(&b.name));
 
         for flow_context in flow_contexts.iter() {
+            println!("Snapshot! {:?}", flow_context.execution_context.execution_mode);
+
+            // todo: rename run to flow
             let run_id = flow_context.name.clone();
             let (mut run, constructs_ids_to_consider) =
                 match &flow_context.execution_context.execution_mode {
@@ -177,6 +180,7 @@ impl RunbookSnapshotContext {
                         (run, constructs_ids_to_consider)
                     }
                     RunbookExecutionMode::Partial(updated_constructs) => {
+                        // We should be here
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_run = previous_snapshot
                             .as_ref()
@@ -186,6 +190,7 @@ impl RunbookSnapshotContext {
                             .ok_or(diagnosed_error!("unexpected error: former snapshot corrupted"))?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
+                        println!("Constructs IDs to consider: {:?}", constructs_ids_to_consider);
                         (previous_run, constructs_ids_to_consider)
                     }
                 };
