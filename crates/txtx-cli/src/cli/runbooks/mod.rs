@@ -600,6 +600,14 @@ pub async fn handle_run_command(
                 let pristine_execution_context =
                     execution_context_backups.remove(flow_context_key).unwrap();
                 running_context.execution_context = pristine_execution_context;
+                println!(
+                    "setting execution context to pristine after simulation for flow {}",
+                    flow_context_key
+                );
+                println!(
+                    "pristine execution context execution results: {:?}",
+                    running_context.execution_context.commands_execution_results
+                );
             }
 
             for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
@@ -615,7 +623,7 @@ pub async fn handle_run_command(
 
                 let running_context = runbook.find_expected_flow_context_mut(&running_context_key);
 
-                println!("=> {:?}", unexecuted);
+                println!("=> unexecuted construct {:?}", unexecuted);
 
                 if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
                     running_context.execution_context.execution_mode =
@@ -694,10 +702,12 @@ pub async fn handle_run_command(
                 great_filter.append(&mut unexecuted);
 
                 for construct_did in great_filter.iter() {
-                    running_context
+                    println!("removing construct {:?} execution results", construct_did);
+                    let val = running_context
                         .execution_context
                         .commands_execution_results
                         .remove(construct_did);
+                    println!("removed value {:?}", val);
                 }
 
                 running_context.execution_context.order_for_commands_execution = running_context

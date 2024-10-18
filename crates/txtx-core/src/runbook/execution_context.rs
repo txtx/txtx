@@ -152,18 +152,23 @@ impl RunbookExecutionContext {
         let (tx, _rx) = unbounded();
 
         for construct_did in ordered_constructs.into_iter() {
-
-            if construct_did.to_string().eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4") {
+            println!("Simulating construct {:?}", construct_did);
+            if construct_did
+                .to_string()
+                .eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4")
+            {
                 println!("Simulating variable.id_gateway_contract");
             }
-    
+
             // Is a command being considered? (vs signer, env, etc)
             let Some(command_instance) = self.commands_instances.get(&construct_did) else {
+                println!(" - Command instance not found for construct_did: {:?}", construct_did);
                 continue;
             };
 
             // Construct was already executed
             if let Some(_) = self.commands_execution_results.get(&construct_did) {
+                println!(" - Construct {:?} already executed", construct_did);
                 continue;
             };
 
@@ -194,17 +199,20 @@ impl RunbookExecutionContext {
                     )
                     .unwrap()
                 else {
+                    println!(" - Simulation Dependency not found for expression {:?}", expr);
                     continue;
                 };
 
                 let Some(evaluation_result) = self.commands_execution_results.get(&dependency)
                 else {
+                    println!(" - Simulation Dependency not executed for expression {:?}", expr);
                     continue;
                 };
 
                 match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
                     Ok(_) => (),
                     Err(_) => {
+                        println!(" - Simulation Dependency not merged for expression {:?}", expr);
                         continue;
                     }
                 };
@@ -227,10 +235,21 @@ impl RunbookExecutionContext {
             let mut evaluated_inputs = match evaluated_inputs_res {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, _) => results,
+                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => {
+                        println!(
+                            " - Simulation Needs User Interaction for construct {:?}",
+                            construct_did
+                        );
+                        println!("unevaluated inputs: {:?}", result.unevaluated_inputs);
+                        result
+                    }
+                    CommandInputEvaluationStatus::Aborted(results, _) => {
+                        println!(" - Simulation Aborted for construct {:?}", construct_did);
+                        results
+                    }
                 },
                 Err(diags) => {
+                    println!(" - Simulation Failed to evaluate inputs");
                     pass_result.append_diagnostics(diags, &construct_id);
                     continue;
                 }
@@ -247,15 +266,21 @@ impl RunbookExecutionContext {
                         unexecutable_nodes.insert(dep.clone());
                     }
                 }
+                println!(" - Simulation Construct {:?} reached frontier", construct_did);
                 continue;
             }
 
             if command_instance.specification.implements_signing_capability {
+                println!(" - Simulation Construct {:?} implements signing", construct_did);
                 continue;
             }
 
             // This time, we borrow a mutable reference
             let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
+                println!(
+                    " - Simulation Command instance not found for construct_did: {:?}",
+                    construct_did
+                );
                 continue;
             };
 
@@ -273,10 +298,15 @@ impl RunbookExecutionContext {
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
+                        println!(" - Simulation Construct {:?} has pending actions", construct_did);
                         continue;
                     }
                 }
                 Err(diag) => {
+                    println!(
+                        " - Simulation Construct {:?} failed to check executability",
+                        construct_did
+                    );
                     pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
@@ -284,7 +314,7 @@ impl RunbookExecutionContext {
 
             self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
-
+            println!(" - Simulation Construct {:?} is executable", construct_did);
             let execution_result = {
                 command_instance
                     .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
@@ -307,10 +337,11 @@ impl RunbookExecutionContext {
                 Ok(res) => res,
                 Err(diag) => {
                     pass_result.push_diagnostic(&diag, &construct_id);
+                    println!(" - Simulation Construct {:?} failed to execute", construct_did);
                     continue;
                 }
             };
-
+            println!("simulation inserting execution result for {:?}", construct_did);
             self.commands_execution_results
                 .entry(construct_did)
                 .or_insert_with(CommandExecutionResult::new)
@@ -384,5 +415,13 @@ impl RunbookExecutionContext {
                 .insert(construct_did.clone(), post_processed_inputs);
         }
         Ok(())
+    }
+
+    pub fn construct_did_is_signed_or_signed_upstream(&self, construct_did: &ConstructDid) -> bool {
+        self.signed_commands.contains(construct_did)
+            || self
+                .signed_commands_upstream_dependencies
+                .iter()
+                .any(|(_signed, upstream)| upstream.contains(construct_did))
     }
 }

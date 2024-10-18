@@ -333,20 +333,27 @@ pub async fn run_constructs_evaluation(
     }
 
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
-
+    println!("ordered_constructs: {:?}", ordered_constructs);
     for construct_did in ordered_constructs.into_iter() {
-
-        if construct_did.to_string().eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4") {
+        if construct_did
+            .to_string()
+            .eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4")
+        {
             println!("Evaluating variable.id_gateway_contract");
         }
 
         let Some(command_instance) =
             runbook_execution_context.commands_instances.get(&construct_did)
         else {
+            println!("Command instance not found for construct_did: {:?}", construct_did);
             // runtime_context.addons.index_command_instance(namespace, package_did, block)
             continue;
         };
         if let Some(_) = runbook_execution_context.commands_execution_results.get(&construct_did) {
+            println!(
+                "Command already executed for command: {:?}; skipping evaluation",
+                command_instance.name
+            );
             continue;
         };
 
@@ -357,9 +364,11 @@ pub async fn run_constructs_evaluation(
                     unexecutable_nodes.insert(dep.clone());
                 }
             }
+            println!("Command is unexecutable: {:?}", command_instance.name);
             continue;
         }
 
+        println!("Evaluating command: {:?}", command_instance.name);
         let package_id = command_instance.package_id.clone();
         let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
 
@@ -385,13 +394,21 @@ pub async fn run_constructs_evaluation(
                 if let Some(evaluation_result) =
                     runbook_execution_context.commands_execution_results.get(&dependency)
                 {
+                    println!("Found evaluation results for dependency: {:?}", dependency);
                     match cached_dependency_execution_results.merge(&dependency, evaluation_result)
                     {
                         Ok(_) => {}
                         Err(_) => {
+                            println!("Error merging dependency results");
                             continue;
                         }
                     }
+                } else {
+                    println!("No evaluation results found for dependency: {:?}", dependency);
+                    println!(
+                        "evaluation results: {:?}",
+                        runbook_execution_context.commands_execution_results
+                    );
                 }
             }
         }
@@ -411,6 +428,10 @@ pub async fn run_constructs_evaluation(
         let Some(command_instance) =
             runbook_execution_context.commands_instances.get_mut(&construct_did)
         else {
+            println!(
+                "Command instance not found in execution context for construct_did: {:?}",
+                construct_did
+            );
             // runtime_context.addons.index_command_instance(namespace, package_did, block)
             continue;
         };
@@ -418,7 +439,11 @@ pub async fn run_constructs_evaluation(
         let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
+                CommandInputEvaluationStatus::NeedsUserInteraction(res) => {
+                    println!("Command needs user interaction: {:?}", command_instance.name);
+
+                    continue;
+                }
                 CommandInputEvaluationStatus::Aborted(_, diags) => {
                     pass_result.append_diagnostics(diags, construct_id);
                     return pass_result;
@@ -437,6 +462,7 @@ pub async fn run_constructs_evaluation(
                 &construct_did,
                 &action_item_responses.get(&construct_did),
             );
+            println!("Checking signed executability for command: {:?}", command_instance.name);
             let res = command_instance
                 .check_signed_executability(
                     &construct_did,
@@ -461,6 +487,7 @@ pub async fn run_constructs_evaluation(
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
+                        println!("Command has pending actions: {:?}", command_instance.name);
                         continue;
                     }
                     pass_result.actions.append(&mut new_actions);
@@ -481,7 +508,7 @@ pub async fn run_constructs_evaluation(
             let action_items_requests =
                 action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_did);
-
+            println!("Performing signed execution for command: {:?}", command_instance.name);
             let execution_result = command_instance
                 .perform_signed_execution(
                     &construct_did,
@@ -514,6 +541,7 @@ pub async fn run_constructs_evaluation(
             };
             execution_result
         } else {
+            println!("Checking executability for command: {:?}", command_instance.name);
             match command_instance.check_executability(
                 &construct_did,
                 &mut evaluated_inputs,
@@ -531,6 +559,7 @@ pub async fn run_constructs_evaluation(
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
+                        println!("Command has pending actions: {:?}", command_instance.name);
                         continue;
                     }
                     pass_result.actions.append(&mut new_actions);
@@ -549,7 +578,7 @@ pub async fn run_constructs_evaluation(
             let action_items_requests =
                 action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_did);
-
+            println!("Performing execution for command: {:?}", command_instance.name);
             let execution_result = {
                 command_instance
                     .perform_execution(
@@ -670,8 +699,10 @@ pub fn eval_expression(
         Expression::String(decorated_string) => Value::string(decorated_string.to_string()),
         // Represents an HCL array.
         Expression::Array(entries) => {
+            println!("evaluating array expression with entry count: {}", entries.len());
             let mut res = vec![];
             for entry_expr in entries {
+                println!("evaluating array entry: {:?}", entry_expr);
                 let value = match eval_expression(
                     entry_expr,
                     dependencies_execution_results,
@@ -685,7 +716,8 @@ pub fn eval_expression(
                         return Ok(ExpressionEvaluationStatus::CompleteErr(e))
                     }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
-                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
+                        println!("array dep not computed");
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed);
                     }
                 };
                 res.push(value);
@@ -850,7 +882,8 @@ pub fn eval_expression(
                     ))
                 }
             };
-
+            println!("traversal dependency: {:?}", dependency);
+            println!("traversal components: {:?}", components);
             let res = match dependencies_execution_results.get(&dependency) {
                 Some(res) => match res.clone() {
                     Ok(res) => res,
@@ -862,6 +895,7 @@ pub fn eval_expression(
                     None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
                 },
             };
+            println!("dependency execution results for traversal: {:?}", res);
 
             let attribute = components.pop_front().unwrap_or("value".into());
 
@@ -1162,6 +1196,7 @@ pub fn perform_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("traversal dependency not computed: {:?}", input.name);
                         require_user_interaction = true;
                         results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
@@ -1198,6 +1233,7 @@ pub fn perform_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("function call dependency not computed: {:?}", input.name);
                         require_user_interaction = true;
                         results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
@@ -1240,6 +1276,7 @@ pub fn perform_inputs_evaluation(
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        println!("object property dependency not computed: {:?}", input.name);
                         require_user_interaction = true;
                         results.unevaluated_inputs.insert(input.name.clone(), None);
                         continue;
@@ -1264,8 +1301,10 @@ pub fn perform_inputs_evaluation(
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
             let Some(expr) = command_instance.get_expression_from_input(&input) else {
+                println!("no expression found array for input: {:?}", input.name);
                 continue;
             };
+
             let value = match eval_expression(
                 &expr,
                 dependencies_execution_results,
@@ -1302,6 +1341,7 @@ pub fn perform_inputs_evaluation(
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    println!("array dependency not computed: {:?}", input.name);
                     require_user_interaction = true;
                     results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
@@ -1345,6 +1385,7 @@ pub fn perform_inputs_evaluation(
                             continue;
                         }
                         Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                            println!("map dependency not computed: {:?}", input.name);
                             require_user_interaction = true;
                             results.unevaluated_inputs.insert(input.name.clone(), None);
                             continue;
@@ -1395,6 +1436,7 @@ pub fn perform_inputs_evaluation(
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    println!("input dependency not computed: {:?}", input.name);
                     require_user_interaction = true;
                     results.unevaluated_inputs.insert(input.name.clone(), None);
                     continue;
