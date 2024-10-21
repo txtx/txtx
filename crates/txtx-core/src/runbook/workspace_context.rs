@@ -494,7 +494,7 @@ impl RunbookWorkspaceContext {
         };
         let Some(root) = traversal.expr.as_variable() else {
             if traversal.expr.is_func_call() {
-                return Err(" - properties of function results cannot be referenced in-line; the function result must be stored in a command and referenced".into());
+                return Err("properties of function results cannot be referenced in-line; the function result must be stored in a command and referenced".into());
             }
             return Ok(None);
         };

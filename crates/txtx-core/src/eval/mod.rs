@@ -333,6 +333,7 @@ pub async fn run_constructs_evaluation(
     }
 
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
+
     for construct_did in ordered_constructs.into_iter() {
         let Some(command_instance) =
             runbook_execution_context.commands_instances.get(&construct_did)
@@ -412,9 +413,7 @@ pub async fn run_constructs_evaluation(
         let mut evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction(_res) => {
-                    continue;
-                }
+                CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
                 CommandInputEvaluationStatus::Aborted(_, diags) => {
                     pass_result.append_diagnostics(diags, construct_id);
                     return pass_result;
@@ -433,7 +432,6 @@ pub async fn run_constructs_evaluation(
                 &construct_did,
                 &action_item_responses.get(&construct_did),
             );
-
             let res = command_instance
                 .check_signed_executability(
                     &construct_did,
@@ -478,6 +476,7 @@ pub async fn run_constructs_evaluation(
             let action_items_requests =
                 action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_did);
+
             let execution_result = command_instance
                 .perform_signed_execution(
                     &construct_did,
@@ -545,6 +544,7 @@ pub async fn run_constructs_evaluation(
             let action_items_requests =
                 action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
             let action_items_response = action_item_responses.get(&construct_did);
+
             let execution_result = {
                 command_instance
                     .perform_execution(
@@ -680,7 +680,7 @@ pub fn eval_expression(
                         return Ok(ExpressionEvaluationStatus::CompleteErr(e))
                     }
                     ExpressionEvaluationStatus::DependencyNotComputed => {
-                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed);
+                        return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                     }
                 };
                 res.push(value);
@@ -845,6 +845,7 @@ pub fn eval_expression(
                     ))
                 }
             };
+
             let res = match dependencies_execution_results.get(&dependency) {
                 Some(res) => match res.clone() {
                     Ok(res) => res,
@@ -1260,7 +1261,6 @@ pub fn perform_inputs_evaluation(
             let Some(expr) = command_instance.get_expression_from_input(&input) else {
                 continue;
             };
-
             let value = match eval_expression(
                 &expr,
                 dependencies_execution_results,
