@@ -23,7 +23,11 @@ ______________________________________________________________________
 
 ## What is Txtx?
 
-Txtx introduces Smart Contract Runbooks to assist developers deploy and operate on their Smart Contracts / Programs / Scripts. <br/> Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management. <br/>Thanks to infrastructure as code, developers now have the ability to level up their Web3 operations by leveling up security, composability and reproducibility.
+Txtx introduces Smart Contract Runbooks to assist developers to deploy and operate on their Smart Contracts / Programs / Scripts.
+
+Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management.
+
+Thanks to infrastructure as code, developers now have the ability to enhance their Web3 operations by leveling up security, composability, and reproducibility.
 
 > [!IMPORTANT]
 > Txtx is currently in beta: We’re still testing and refining the platform. Please use it for testing purposes only. Your feedback is welcome! 🙌
@@ -40,19 +44,19 @@ Txtx introduces Smart Contract Runbooks to assist developers deploy and operate 
 ## Declarative Automation
 
 In a composable context (and Web3 is inherently composable), declarative deployments and operations are essential.
-<br/>
-As infrastructure complexity increases, we must be able to test and reproduce deployments in clean, isolated environments. Additionally, we need the capability to update, migrate, add, or remove components without going offline or putting funds, tokens and assets at risks.
-<br/>
+
+As infrastructure complexity increases, we must be able to test and reproduce deployments in clean, isolated environments. Additionally, we need the capability to update, migrate, add, or remove components without going offline or putting funds, tokens, and assets at risk.
+
 Txtx is purpose-built for blockchain operations, drawing on the best practices that were developed over time in cloud infrastructure management.
 
 ## Security
 
 Every year, between $500M and $1B are lost due to compromised private keys. As developers, we often do exactly what we tell our users not to do: leaving our private keys too accessible for easy copying and pasting during deployments and operations.
-<br/>
+
 Txtx is eliminating these risky practices by introducing script execution in the browser, where execution interactively prompts for signatures. These signatures can be securely provided using your web wallet, hardware wallet, or even multisig ceremonies.
-<br/>
+
 In addition to boosting security, the Web Supervisor UI helps developers by identifying common pitfalls and guiding them toward safer practices.
-<br/>
+
 Finally, the declarative nature of Txtx runbooks, combined with a state-aware runtime, ensures that smart contracts are always configured as intended. This class of issues has historically led to some of the [largest hacks](https://www.theverge.com/2022/2/3/22916111/wormhole-hack-github-error-325-million-theft-ethereum-solana) in Web3 history.
 
 
@@ -60,7 +64,7 @@ Finally, the declarative nature of Txtx runbooks, combined with a state-aware ru
 
 The txtx CLI tool can be installed via our install script or through a manual build.
 
-### Install on macOs (Homebrew)
+### Install on macOS (Homebrew)
 
 To install txtx on a macOS system using Homebrew, open a terminal and run:
 
