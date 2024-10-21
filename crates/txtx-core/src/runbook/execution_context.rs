@@ -9,6 +9,7 @@ use kit::types::frontend::ActionItemStatus;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::signers::SignersState;
 use kit::types::types::RunbookSupervisionContext;
+use kit::types::types::Value;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
 use std::collections::HashMap;
@@ -21,6 +22,8 @@ use crate::eval::perform_inputs_evaluation;
 use crate::eval::CommandInputEvaluationStatus;
 use crate::eval::EvaluationPassResult;
 
+use super::diffing_context::RunbookFlowSnapshot;
+use super::diffing_context::ValuePostEvaluation;
 use super::RunbookWorkspaceContext;
 use super::RuntimeContext;
 
@@ -152,23 +155,13 @@ impl RunbookExecutionContext {
         let (tx, _rx) = unbounded();
 
         for construct_did in ordered_constructs.into_iter() {
-            println!("Simulating construct {:?}", construct_did);
-            if construct_did
-                .to_string()
-                .eq("0x12b1dc7d771ef63899910de4334b409cfb2f31ce2634e38306b6ae9ec9cf0fa4")
-            {
-                println!("Simulating variable.id_gateway_contract");
-            }
-
             // Is a command being considered? (vs signer, env, etc)
             let Some(command_instance) = self.commands_instances.get(&construct_did) else {
-                println!(" - Command instance not found for construct_did: {:?}", construct_did);
                 continue;
             };
 
             // Construct was already executed
             if let Some(_) = self.commands_execution_results.get(&construct_did) {
-                println!(" - Construct {:?} already executed", construct_did);
                 continue;
             };
 
@@ -199,20 +192,17 @@ impl RunbookExecutionContext {
                     )
                     .unwrap()
                 else {
-                    println!(" - Simulation Dependency not found for expression {:?}", expr);
                     continue;
                 };
 
                 let Some(evaluation_result) = self.commands_execution_results.get(&dependency)
                 else {
-                    println!(" - Simulation Dependency not executed for expression {:?}", expr);
                     continue;
                 };
 
                 match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
                     Ok(_) => (),
                     Err(_) => {
-                        println!(" - Simulation Dependency not merged for expression {:?}", expr);
                         continue;
                     }
                 };
@@ -235,21 +225,10 @@ impl RunbookExecutionContext {
             let mut evaluated_inputs = match evaluated_inputs_res {
                 Ok(result) => match result {
                     CommandInputEvaluationStatus::Complete(result) => result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => {
-                        println!(
-                            " - Simulation Needs User Interaction for construct {:?}",
-                            construct_did
-                        );
-                        println!("unevaluated inputs: {:?}", result.unevaluated_inputs);
-                        result
-                    }
-                    CommandInputEvaluationStatus::Aborted(results, _) => {
-                        println!(" - Simulation Aborted for construct {:?}", construct_did);
-                        results
-                    }
+                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                    CommandInputEvaluationStatus::Aborted(results, _) => results,
                 },
                 Err(diags) => {
-                    println!(" - Simulation Failed to evaluate inputs");
                     pass_result.append_diagnostics(diags, &construct_id);
                     continue;
                 }
@@ -266,21 +245,15 @@ impl RunbookExecutionContext {
                         unexecutable_nodes.insert(dep.clone());
                     }
                 }
-                println!(" - Simulation Construct {:?} reached frontier", construct_did);
                 continue;
             }
 
             if command_instance.specification.implements_signing_capability {
-                println!(" - Simulation Construct {:?} implements signing", construct_did);
                 continue;
             }
 
             // This time, we borrow a mutable reference
             let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
-                println!(
-                    " - Simulation Command instance not found for construct_did: {:?}",
-                    construct_did
-                );
                 continue;
             };
 
@@ -298,15 +271,10 @@ impl RunbookExecutionContext {
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
-                        println!(" - Simulation Construct {:?} has pending actions", construct_did);
                         continue;
                     }
                 }
                 Err(diag) => {
-                    println!(
-                        " - Simulation Construct {:?} failed to check executability",
-                        construct_did
-                    );
                     pass_result.push_diagnostic(&diag, &construct_id);
                     continue;
                 }
@@ -314,7 +282,6 @@ impl RunbookExecutionContext {
 
             self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
-            println!(" - Simulation Construct {:?} is executable", construct_did);
             let execution_result = {
                 command_instance
                     .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
@@ -337,11 +304,9 @@ impl RunbookExecutionContext {
                 Ok(res) => res,
                 Err(diag) => {
                     pass_result.push_diagnostic(&diag, &construct_id);
-                    println!(" - Simulation Construct {:?} failed to execute", construct_did);
                     continue;
                 }
             };
-            println!("simulation inserting execution result for {:?}", construct_did);
             self.commands_execution_results
                 .entry(construct_did)
                 .or_insert_with(CommandExecutionResult::new)
@@ -413,6 +378,73 @@ impl RunbookExecutionContext {
 
             self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), post_processed_inputs);
+        }
+        Ok(())
+    }
+
+    /// Takes a [RunbookFlowSnapshot] and applies the inputs to the `commands_inputs_evaluation_results` field
+    /// and the outputs to the `commands_execution_results` field of the associated construct in the [RunbookExecutionContext].
+    /// If an input or output value from the snapshot is already found in the simulation results, it will be ignored.
+    pub fn apply_snapshot_to_execution_context(
+        &mut self,
+        snapshot: &RunbookFlowSnapshot,
+        workspace_context: &RunbookWorkspaceContext,
+    ) -> Result<(), Diagnostic> {
+        for (construct_did, command_snapshot) in snapshot.commands.iter() {
+            let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
+                continue;
+            };
+
+            let addon_context_key =
+                (command_instance.package_id.did(), command_instance.namespace.clone());
+            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
+            let mut execution_result = self
+                .commands_execution_results
+                .get(&construct_did)
+                .cloned()
+                .unwrap_or(CommandExecutionResult::new());
+
+            let mut inputs_evaluation_result =
+                self.commands_inputs_evaluation_results.get(&construct_did).cloned().unwrap_or(
+                    CommandInputsEvaluationResult::new(
+                        &command_instance.name,
+                        &addon_defaults.store,
+                    ),
+                );
+
+            for (input_name, input_value_snapshot) in command_snapshot.inputs.iter() {
+                // if our existing simulation results _don't_ have a value for this input that exists in the snapshot,
+                // and this input is a actually a valid input for the command, then we'll add it to the simulation results.
+                if inputs_evaluation_result.inputs.get_value(&input_name).is_none()
+                    && command_instance.specification.inputs.iter().any(|i| i.name.eq(input_name))
+                {
+                    let value = match &input_value_snapshot.value_post_evaluation {
+                        ValuePostEvaluation::Value(value) => value.clone(),
+                        ValuePostEvaluation::ObjectValue(index_map) => Value::object(
+                            index_map.iter().map(|(k, (v, _))| (k.clone(), v.clone())).collect(),
+                        ),
+                    };
+
+                    inputs_evaluation_result.inputs.insert(&input_name, value);
+                }
+            }
+
+            for (output_name, output_value_snapshot) in command_snapshot.outputs.iter() {
+                // if our existing simulation results _don't_ have a value for this input that exists in the snapshot,
+                // and this input is a actually a valid input for the command, then we'll add it to the simulation results.
+                if execution_result.outputs.get(output_name).is_none()
+                    && command_instance.specification.outputs.iter().any(|i| i.name.eq(output_name))
+                {
+                    execution_result
+                        .outputs
+                        .insert(output_name.clone(), output_value_snapshot.value.clone());
+                }
+            }
+
+            self.commands_execution_results.insert(construct_did.clone(), execution_result);
+            self.commands_inputs_evaluation_results
+                .insert(construct_did.clone(), inputs_evaluation_result);
         }
         Ok(())
     }

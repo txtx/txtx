@@ -168,7 +168,7 @@ impl UnevaluatedInputsMap {
             Some(diag) => match diag {
                 Some(diag) => Err(diag.clone()),
                 None => {
-                    Err(Diagnostic::error_from_string(format!("input {} was not evaluated", key)))
+                    Err(Diagnostic::error_from_string(format!("input '{}' was not evaluated", key)))
                 }
             },
             _ => Ok(()),

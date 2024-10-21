@@ -489,16 +489,13 @@ impl RunbookWorkspaceContext {
         source_package_id: &PackageId,
         expression: &Expression,
     ) -> Result<Option<(ConstructDid, VecDeque<String>, VecDeque<Value>)>, String> {
-        println!("try_resolve_construct_reference_in_expression");
         let Some(traversal) = expression.as_traversal() else {
-            println!(" - expression is not a traversal");
             return Ok(None);
         };
         let Some(root) = traversal.expr.as_variable() else {
             if traversal.expr.is_func_call() {
                 return Err(" - properties of function results cannot be referenced in-line; the function result must be stored in a command and referenced".into());
             }
-            println!(" - expression is not a variable");
             return Ok(None);
         };
 
@@ -526,8 +523,6 @@ impl RunbookWorkspaceContext {
                 }
             }
         }
-
-        println!(" - components: {:?}", components);
 
         let mut is_root = true;
         while let Some(component) = components.pop_front() {
@@ -579,40 +574,27 @@ impl RunbookWorkspaceContext {
                 if component.eq_ignore_ascii_case("variable") {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
-                        println!("   - no input_name");
                         continue;
                     };
-                    println!("   - input_name: {:?}", input_name);
                     if let Some(construct_did) =
                         current_package.variables_did_lookup.get(&input_name)
                     {
-                        println!(
-                            "   - input traversal found construct id: {:?}, components: {:?}, subpath: {:?}",
-                            construct_did, components, subpath
-                        );
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
-                    println!("   - no construct did found for input");
                 }
 
                 // Look for actions
                 if component.eq_ignore_ascii_case("action") {
                     is_root = false;
                     let Some(action_name) = components.pop_front() else {
-                        println!("   - no action_name");
                         continue;
                     };
                     if let Some(construct_did) = current_package
                         .addons_did_lookup
                         .get(&CommandId::Action(action_name).to_string())
                     {
-                        println!(
-                            "   - action traversal found construct id: {:?}, components: {:?}, subpath: {:?}",
-                            construct_did, components, subpath
-                        );
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
-                    println!("   - no construct did found for action");
                 }
 
                 // Look for signers
