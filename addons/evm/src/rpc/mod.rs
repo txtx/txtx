@@ -62,12 +62,12 @@ impl EvmWalletRpc {
 }
 
 #[derive(Clone, Debug)]
-pub struct EVMRpc {
+pub struct EvmRpc {
     pub url: Url,
     pub provider: RootProvider<Http<Client>>,
 }
 
-impl EVMRpc {
+impl EvmRpc {
     pub fn new(url: &str) -> Result<Self, String> {
         let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
         let provider = ProviderBuilder::new().on_http(url.clone());

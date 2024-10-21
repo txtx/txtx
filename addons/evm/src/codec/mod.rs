@@ -4,7 +4,7 @@ pub mod hardhat;
 
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::{
     EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
 };
@@ -71,7 +71,7 @@ struct FilledCommonTransactionFields {
     pub deploy_code: Option<Vec<u8>>,
 }
 pub async fn build_unsigned_transaction(
-    rpc: EVMRpc,
+    rpc: EvmRpc,
     args: &ValueStore,
     fields: CommonTransactionFields,
 ) -> Result<(TransactionRequest, i128), String> {
@@ -126,7 +126,7 @@ pub async fn build_unsigned_transaction(
 }
 
 async fn build_unsigned_legacy_transaction(
-    rpc: &EVMRpc,
+    rpc: &EvmRpc,
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
@@ -156,7 +156,7 @@ async fn build_unsigned_legacy_transaction(
 }
 
 async fn build_unsigned_eip1559_transaction(
-    rpc: &EVMRpc,
+    rpc: &EvmRpc,
     args: &ValueStore,
     fields: &FilledCommonTransactionFields,
 ) -> Result<TransactionRequest, String> {
@@ -200,7 +200,7 @@ async fn build_unsigned_eip1559_transaction(
 }
 
 async fn set_gas_limit(
-    rpc: &EVMRpc,
+    rpc: &EvmRpc,
     mut tx: TransactionRequest,
     gas_limit: Option<u64>,
 ) -> Result<TransactionRequest, String> {
@@ -383,7 +383,7 @@ pub fn format_access_list_for_display(access_list: &AccessList) -> Vec<JsonValue
 
 pub async fn get_transaction_cost(
     transaction: &TypedTransaction,
-    rpc: &EVMRpc,
+    rpc: &EvmRpc,
 ) -> Result<i128, String> {
     let effective_gas_price = match &transaction {
         TypedTransaction::Legacy(tx) => tx.gas_price,

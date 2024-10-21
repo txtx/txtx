@@ -26,15 +26,15 @@ use txtx_addon_kit::{
 };
 
 #[derive(Debug)]
-pub struct EVMNetworkAddon;
+pub struct EvmNetworkAddon;
 
-impl EVMNetworkAddon {
+impl EvmNetworkAddon {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Addon for EVMNetworkAddon {
+impl Addon for EvmNetworkAddon {
     fn get_name(&self) -> &str {
         "Ethereum and EVM Compatible Blockchains (beta)"
     }
