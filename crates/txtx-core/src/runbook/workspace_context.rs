@@ -413,7 +413,7 @@ impl RunbookWorkspaceContext {
                 package.variables_dids.insert(construct_did.clone());
                 package.variables_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
-                    specification: commands::new_input_specification(),
+                    specification: commands::new_variable_specification(),
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),

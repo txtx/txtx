@@ -569,6 +569,24 @@ pub async fn handle_run_command(
                         &frontier,
                     )
                     .await;
+
+                let Some(flow_snapshot) = old.flows.get(&flow_context.name) else {
+                    println!(
+                        "{} Previous snapshot not found for flow {}",
+                        yellow!("!"),
+                        flow_context.name
+                    );
+                    continue;
+                };
+
+                flow_context
+                    .execution_context
+                    .apply_snapshot_to_execution_context(
+                        flow_snapshot,
+                        &flow_context.workspace_context,
+                    )
+                    .map_err(|e| e.message)?;
+
                 execution_context_backups
                     .insert(flow_context.name.clone(), execution_context_backup);
             }
@@ -595,14 +613,14 @@ pub async fn handle_run_command(
             let mut actions_to_execute = IndexMap::new();
 
             for flow_context_key in consolidated_changes.new_plans_to_add.iter() {
-                let running_context = runbook.find_expected_flow_context_mut(&flow_context_key);
-                running_context.execution_context.execution_mode = RunbookExecutionMode::Full;
+                let flow_context = runbook.find_expected_flow_context_mut(&flow_context_key);
+                flow_context.execution_context.execution_mode = RunbookExecutionMode::Full;
                 let pristine_execution_context =
                     execution_context_backups.remove(flow_context_key).unwrap();
-                running_context.execution_context = pristine_execution_context;
+                flow_context.execution_context = pristine_execution_context;
             }
 
-            for (running_context_key, changes) in consolidated_changes.plans_to_update.iter() {
+            for (flow_context_key, changes) in consolidated_changes.plans_to_update.iter() {
                 let critical_edits = changes
                     .constructs_to_update
                     .iter()
@@ -613,11 +631,10 @@ pub async fn handle_run_command(
                 let mut unexecuted =
                     changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
 
-                let running_context = runbook.find_expected_flow_context_mut(&running_context_key);
+                let flow_context = runbook.find_expected_flow_context_mut(&flow_context_key);
 
                 if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
-                    running_context.execution_context.execution_mode =
-                        RunbookExecutionMode::Ignored;
+                    flow_context.execution_context.execution_mode = RunbookExecutionMode::Ignored;
                     continue;
                 }
 
@@ -630,7 +647,7 @@ pub async fn handle_run_command(
                         if let Some(construct_did) = &c.construct_did {
                             let mut segment = vec![];
                             segment.push(construct_did.clone());
-                            let mut deps = running_context
+                            let mut deps = flow_context
                                 .graph_context
                                 .get_downstream_dependencies_for_construct_did(
                                     &construct_did,
@@ -652,13 +669,13 @@ pub async fn handle_run_command(
                     descendants_of_critically_changed_commands
                         .iter()
                         .map(|construct_did| {
-                            let documentation = running_context
+                            let documentation = flow_context
                                 .execution_context
                                 .commands_inputs_evaluation_results
                                 .get(construct_did)
                                 .and_then(|r| r.inputs.get_string("description"))
                                 .and_then(|d| Some(d.to_string()));
-                            let command = running_context
+                            let command = flow_context
                                 .execution_context
                                 .commands_instances
                                 .get(construct_did)
@@ -666,18 +683,18 @@ pub async fn handle_run_command(
                             (command.name.to_string(), documentation)
                         })
                         .collect();
-                actions_to_re_execute.insert(running_context_key, actions);
+                actions_to_re_execute.insert(flow_context_key, actions);
 
                 let added_actions: Vec<(String, Option<String>)> = added_construct_dids
                     .iter()
                     .map(|construct_did| {
-                        let documentation = running_context
+                        let documentation = flow_context
                             .execution_context
                             .commands_inputs_evaluation_results
                             .get(construct_did)
                             .and_then(|r| r.inputs.get_string("description"))
                             .and_then(|d| Some(d.to_string()));
-                        let command = running_context
+                        let command = flow_context
                             .execution_context
                             .commands_instances
                             .get(construct_did)
@@ -685,20 +702,20 @@ pub async fn handle_run_command(
                         (command.name.to_string(), documentation)
                     })
                     .collect();
-                actions_to_execute.insert(running_context_key, added_actions);
+                actions_to_execute.insert(flow_context_key, added_actions);
 
                 let mut great_filter = descendants_of_critically_changed_commands;
                 great_filter.append(&mut added_construct_dids);
                 great_filter.append(&mut unexecuted);
 
                 for construct_did in great_filter.iter() {
-                    running_context
+                    let _ = flow_context
                         .execution_context
                         .commands_execution_results
                         .remove(construct_did);
                 }
 
-                running_context.execution_context.order_for_commands_execution = running_context
+                flow_context.execution_context.order_for_commands_execution = flow_context
                     .execution_context
                     .order_for_commands_execution
                     .clone()
@@ -706,7 +723,7 @@ pub async fn handle_run_command(
                     .filter(|c| great_filter.contains(&c))
                     .collect();
 
-                running_context.execution_context.execution_mode =
+                flow_context.execution_context.execution_mode =
                     RunbookExecutionMode::Partial(great_filter);
             }
 

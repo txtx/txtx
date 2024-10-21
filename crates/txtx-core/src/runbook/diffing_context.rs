@@ -25,7 +25,7 @@ pub struct RunbookExecutionSnapshot {
     /// Schema version
     version: u32,
     /// Executed flows
-    flows: IndexMap<String, RunbookFlowSnapshot>,
+    pub flows: IndexMap<String, RunbookFlowSnapshot>,
     /// Snapshot of the inputs provided by the manifest and CLI
     top_level_inputs_fingerprints: IndexMap<String, Did>,
 }
@@ -89,16 +89,38 @@ pub struct CommandSnapshot {
     construct_location: FileLocation,
     construct_addon: Option<String>,
     upstream_constructs_dids: Vec<ConstructDid>,
-    inputs: IndexMap<String, CommandInputSnapshot>,
-    outputs: IndexMap<String, CommandOutputSnapshot>,
+    pub inputs: IndexMap<String, CommandInputSnapshot>,
+    pub outputs: IndexMap<String, CommandOutputSnapshot>,
     executed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandInputSnapshot {
     pub value_pre_evaluation: Option<String>,
-    pub value_post_evaluation: Value,
+    pub value_post_evaluation: ValuePostEvaluation,
     pub critical: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Post evaluation values are a bit trickier for objects, as we need to keep track of the criticality of each property.
+pub enum ValuePostEvaluation {
+    Value(Value),
+    /// If the post evaluation value is an object, store a map of the object property name, and a tuple with the value and its criticality  
+    ObjectValue(IndexMap<String, (Value, bool)>),
+}
+
+impl ValuePostEvaluation {
+    pub fn as_object(&self) -> Option<&IndexMap<String, (Value, bool)>> {
+        match self {
+            ValuePostEvaluation::ObjectValue(obj) => Some(obj),
+            _ => None,
+        }
+    }
+    pub fn as_value(&self) -> Option<&Value> {
+        match self {
+            ValuePostEvaluation::Value(value) => Some(value),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,25 +153,25 @@ impl RunbookSnapshotContext {
         flow_contexts.sort_by(|a, b| a.name.cmp(&b.name));
 
         for flow_context in flow_contexts.iter() {
-            let run_id = flow_context.name.clone();
-            let (mut run, constructs_ids_to_consider) =
+            let flow_id = flow_context.name.clone();
+            let (mut flow_snapshot, constructs_ids_to_consider) =
                 match &flow_context.execution_context.execution_mode {
                     RunbookExecutionMode::Ignored => {
                         // Runbook was fully executed, the source of truth is the snapshoted context
-                        let previous_flow = previous_snapshot
+                        let previous_flow_snapshot = previous_snapshot
                             .as_ref()
                             .expect("unexpected error: former snapshot should have been provided")
                             .flows
-                            .get(&run_id)
+                            .get(&flow_id)
                             .expect("unexpected error: former snapshot corrupted")
                             .clone();
-                        snapshot.flows.insert(run_id, previous_flow);
+                        snapshot.flows.insert(flow_id, previous_flow_snapshot);
                         continue;
                     }
                     RunbookExecutionMode::Full => {
                         // Runbook was fully executed, the source of truth is the new running context
                         let constructs_ids_to_consider = vec![];
-                        let run = RunbookFlowSnapshot {
+                        let flow_snapshot = RunbookFlowSnapshot {
                             flow_inputs_fingerprints: flow_context
                                 .sorted_evaluated_inputs_fingerprints(),
                             addon_defaults_fingerprints: flow_context
@@ -159,12 +181,12 @@ impl RunbookSnapshotContext {
                             signers: IndexMap::new(),
                             commands: IndexMap::new(),
                         };
-                        (run, constructs_ids_to_consider)
+                        (flow_snapshot, constructs_ids_to_consider)
                     }
                     RunbookExecutionMode::FullFailed => {
                         // Runbook was fully executed, the source of truth is the new running context
                         let constructs_ids_to_consider = vec![];
-                        let run = RunbookFlowSnapshot {
+                        let flow_snapshot = RunbookFlowSnapshot {
                             flow_inputs_fingerprints: flow_context
                                 .sorted_evaluated_inputs_fingerprints(),
                             addon_defaults_fingerprints: flow_context
@@ -174,19 +196,19 @@ impl RunbookSnapshotContext {
                             signers: IndexMap::new(),
                             commands: IndexMap::new(),
                         };
-                        (run, constructs_ids_to_consider)
+                        (flow_snapshot, constructs_ids_to_consider)
                     }
                     RunbookExecutionMode::Partial(updated_constructs) => {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
-                        let previous_run = previous_snapshot
+                        let previous_flow_snapshot = previous_snapshot
                             .as_ref()
                             .ok_or(diagnosed_error!("former snapshot should have been provided"))?
                             .flows
-                            .get(&run_id)
+                            .get(&flow_id)
                             .ok_or(diagnosed_error!("unexpected error: former snapshot corrupted"))?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
-                        (previous_run, constructs_ids_to_consider)
+                        (previous_flow_snapshot, constructs_ids_to_consider)
                     }
                 };
 
@@ -197,13 +219,13 @@ impl RunbookSnapshotContext {
 
             for package_id in packages {
                 let package_did = package_id.did();
-                match run.packages.get_mut(&package_did) {
+                match flow_snapshot.packages.get_mut(&package_did) {
                     Some(package) => {
                         package.name = package_id.package_name.clone();
                         package.path = package_id.package_location.clone();
                     }
                     None => {
-                        run.packages.insert(
+                        flow_snapshot.packages.insert(
                             package_did,
                             PackageSnapshot {
                                 name: package_id.package_name.clone(),
@@ -237,8 +259,8 @@ impl RunbookSnapshotContext {
                     inputs_fingerprint: Did::zero(),
                     outputs: IndexMap::new(),
                 };
-                run.signers.insert(signer_did.clone(), new_command);
-                let command_to_update = run.signers.get_mut(signer_did).unwrap();
+                flow_snapshot.signers.insert(signer_did.clone(), new_command);
+                let command_to_update = flow_snapshot.signers.get_mut(signer_did).unwrap();
 
                 if let Some(inputs_evaluations) = flow_context
                     .execution_context
@@ -299,7 +321,7 @@ impl RunbookSnapshotContext {
                     .get(construct_did)
                     .is_some();
 
-                let command_to_update = match run.commands.get_mut(construct_did) {
+                let command_to_update = match flow_snapshot.commands.get_mut(construct_did) {
                     Some(snapshot) => snapshot,
                     None => {
                         let new_command = CommandSnapshot {
@@ -313,8 +335,8 @@ impl RunbookSnapshotContext {
                             outputs: IndexMap::new(),
                             executed,
                         };
-                        run.commands.insert(construct_did.clone(), new_command);
-                        run.commands.get_mut(construct_did).unwrap()
+                        flow_snapshot.commands.insert(construct_did.clone(), new_command);
+                        flow_snapshot.commands.get_mut(construct_did).unwrap()
                     }
                 };
 
@@ -332,18 +354,42 @@ impl RunbookSnapshotContext {
                         if input.sensitive {
                             continue;
                         }
-                        let critical =
-                            flow_context.execution_context.signed_commands.contains(construct_did)
-                                && input.tainting;
+                        let critical = flow_context
+                            .execution_context
+                            .construct_did_is_signed_or_signed_upstream(construct_did)
+                            && input.tainting;
 
                         let value_pre_evaluation = command_instance
                             .get_expression_from_input(input)
                             .map(|expr| expr.to_string().trim().to_string());
                         let input_name = &input.name;
+
+                        // If the value is an object, we need to keep track of the criticality of each property
+                        let value_post_evaluation = match value.as_object() {
+                            Some(map) => {
+                                let mut object = IndexMap::new();
+                                for (k, v) in map.iter() {
+                                    // an object property is critical if the input is critical
+                                    // and the property is tainting
+                                    let object_prop_critical = match input.as_object() {
+                                        Some(object_props) => object_props
+                                            .iter()
+                                            .find(|p| p.name.eq(k))
+                                            .map(|p| critical && p.tainting)
+                                            .unwrap_or(false),
+                                        None => critical,
+                                    };
+                                    object.insert(k.clone(), (v.clone(), object_prop_critical));
+                                }
+                                ValuePostEvaluation::ObjectValue(object)
+                            }
+                            None => ValuePostEvaluation::Value(value.clone()),
+                        };
+
                         match command_to_update.inputs.get_mut(input_name) {
                             Some(input) => {
                                 input.value_pre_evaluation = value_pre_evaluation;
-                                input.value_post_evaluation = value.clone();
+                                input.value_post_evaluation = value_post_evaluation.clone();
                                 input.critical = critical;
                             }
                             None => {
@@ -351,7 +397,7 @@ impl RunbookSnapshotContext {
                                     input_name.clone(),
                                     CommandInputSnapshot {
                                         value_pre_evaluation,
-                                        value_post_evaluation: value.clone(),
+                                        value_post_evaluation: value_post_evaluation.clone(),
                                         critical,
                                     },
                                 );
@@ -400,7 +446,7 @@ impl RunbookSnapshotContext {
                 }
             }
 
-            snapshot.flows.insert(run_id, run);
+            snapshot.flows.insert(flow_id, flow_snapshot);
         }
 
         let rountrip: RunbookExecutionSnapshot = serde_json::from_value(json!(snapshot)).unwrap();
@@ -625,19 +671,22 @@ pub fn diff_command_snapshots(
                     comparable_signed_constructs_list.push((old_index + i, new_index + i));
                 }
             }
-            DiffOp::Delete { old_index: _, old_len: _, new_index: _ } => {
-                // Not true!
-                // comparable_signed_constructs_list.push((*old_index, *new_index));
-            }
             DiffOp::Insert { old_index: _, new_index, new_len } => {
                 for i in 0..*new_len {
                     let entry = new_construct_dids.get(new_index + i).unwrap().clone();
+                    if visited_constructs.contains(&entry) {
+                        continue;
+                    }
                     let command = match new_run.commands.get(&entry) {
                         Some(e) => Some(e.clone()),
                         None => None,
                     };
                     consolidated_changes.new_constructs_to_add.push((entry, command))
                 }
+            }
+            DiffOp::Delete { old_index: _, old_len: _, new_index: _ } => {
+                // Not true!
+                // comparable_signed_constructs_list.push((*old_index, *new_index));
             }
             DiffOp::Replace { old_index: _, old_len: _, new_index: _, new_len: _ } => {
                 // comparable_signed_constructs_list.push((*old_index, *new_index));
@@ -763,30 +812,38 @@ pub fn diff_command_snapshots(
                 critical,
             ));
             // Input value_post_evaluation
-            if let Some(props) = new_input.value_post_evaluation.as_object() {
-                for (prop, new_value) in props.iter() {
-                    let Some(old_value) =
-                        old_input.value_post_evaluation.as_object().and_then(|o| o.get(prop))
+            match &new_input.value_post_evaluation {
+                ValuePostEvaluation::Value(new_value_post_evaluation) => {
+                    let Some(old_value_post_evaluation) =
+                        old_input.value_post_evaluation.as_value()
                     else {
                         continue;
                     };
                     consolidated_changes.constructs_to_update.push(evaluated_diff(
                         Some(old_construct_did.clone()),
-                        TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
+                        TextDiff::from_lines(
+                            &old_value_post_evaluation.to_string(),
+                            &new_value_post_evaluation.to_string(),
+                        ),
                         format!("Non-signing command's input value_post_evaluation updated"),
                         critical,
                     ));
                 }
-            } else {
-                consolidated_changes.constructs_to_update.push(evaluated_diff(
-                    Some(old_construct_did.clone()),
-                    TextDiff::from_lines(
-                        &old_input.value_post_evaluation.to_string(),
-                        &new_input.value_post_evaluation.to_string(),
-                    ),
-                    format!("Non-signing command's input value_post_evaluation updated"),
-                    critical,
-                ));
+                ValuePostEvaluation::ObjectValue(props) => {
+                    for (prop, (new_value, new_prop_critical)) in props.iter() {
+                        let Some((old_value, _)) =
+                            old_input.value_post_evaluation.as_object().and_then(|o| o.get(prop))
+                        else {
+                            continue;
+                        };
+                        consolidated_changes.constructs_to_update.push(evaluated_diff(
+                            Some(old_construct_did.clone()),
+                            TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
+                            format!("Non-signing command's input value_post_evaluation updated"),
+                            *new_prop_critical,
+                        ));
+                    }
+                }
             }
         }
 

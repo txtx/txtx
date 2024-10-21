@@ -36,196 +36,203 @@ use super::verify_contract::VerifyEvmContract;
 use txtx_addon_kit::constants::TX_HASH;
 
 lazy_static! {
-    pub static ref EVM_DEPLOY_CONTRACT_CREATE2: PreCommandSpecification = define_command! {
-      EvmDeployContractCreate2 => {
-          name: "Deploy an EVM Contract Using a Create2 Proxy Contract",
-          matcher: "deploy_contract_create2",
-          documentation: indoc!{r#"
+    pub static ref EVM_DEPLOY_CONTRACT_CREATE2: PreCommandSpecification = {
+        let mut command = define_command! {
+          EvmDeployContractCreate2 => {
+              name: "Deploy an EVM Contract Using a Create2 Proxy Contract",
+              matcher: "deploy_contract_create2",
+              documentation: indoc!{r#"
           The `evm::deploy_contract_create2` action deploys an EVM contract using a Create2 proxy contract. 
           The Create2 proxy contract is used to deploy the contract at a deterministic address based on the contract's bytecode and the salt value. 
           If the contract has already been deployed, the action will not deploy it again. 
           By default, Foundry's factory contract (`0x4e59b44847b379578588920cA78FbF26c0B4956C`) is used.
           "#},
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-            description: {
-                documentation: "A description of the transaction",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            rpc_api_url: {
-                documentation: "The URL of the EVM API used to broadcast the transaction.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            signer: {
-                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            create2_factory_address: {
-                documentation: "To deploy the contract with an alternative factory, provide the address of the factory contract.",
-                typing: Type::addon(EVM_ADDRESS),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            create2_factory_abi: {
-                documentation: "The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            create2_factory_function_name: {
-                documentation: "If an alternative create2 factory is used, the name of the function to call.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            create2_factory_function_args: {
-                documentation: "If an alternative create2 factory is used, the arguments to pass to the function.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            amount: {
-                documentation: "The amount, in WEI, to send with the deployment.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            chain_id: {
-                documentation: "The chain id.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_price: {
-                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            contract: {
-                documentation: indoc!{r#"
+              implements_signing_capability: true,
+              implements_background_task_capability: true,
+              inputs: [
+                description: {
+                    documentation: "A description of the transaction",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                rpc_api_url: {
+                    documentation: "The URL of the EVM API used to broadcast the transaction.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                signer: {
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction.",
+                    typing: Type::string(),
+                    optional: false,
+                    tainting: true,
+                    internal: false
+                },
+                create2_factory_address: {
+                    documentation: "To deploy the contract with an alternative factory, provide the address of the factory contract.",
+                    typing: Type::addon(EVM_ADDRESS),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                create2_factory_abi: {
+                    documentation: "The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                create2_factory_function_name: {
+                    documentation: "If an alternative create2 factory is used, the name of the function to call.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                create2_factory_function_args: {
+                    documentation: "If an alternative create2 factory is used, the arguments to pass to the function.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                amount: {
+                    documentation: "The amount, in WEI, to send with the deployment.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                type: {
+                    documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                max_fee_per_gas: {
+                    documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                max_priority_fee_per_gas: {
+                    documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                chain_id: {
+                    documentation: "The chain id.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                nonce: {
+                    documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                gas_limit: {
+                    documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                gas_price: {
+                    documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                contract: {
+                    documentation: indoc!{r#"
                 The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
                 The abi field can also be provided to add type checking for the constructor arguments.
                 The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
                 "#},
-                typing: CONTRACT_METADATA.clone(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            constructor_args: {
-                documentation: "The optional constructor arguments for the deployed contract.",
-                typing: Type::array(Type::string()),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            expected_contract_address: {
-                documentation: "The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            salt: {
-                documentation: "The salt value used to calculate the contract address. This value must be a 32-byte hex string.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            verify: {
-                documentation: "Coming soon.",
-                typing: Type::bool(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            block_explorer_api_key: {
-                documentation: "Coming soon.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            }
-          ],
-          outputs: [
-              tx_hash: {
-                  documentation: "The hash of the transaction.",
-                  typing: Type::string()
-              },
-              contract_address: {
-                documentation: "The address of the deployed transaction.",
-                typing: Type::string()
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
+                    typing: CONTRACT_METADATA.clone(),
+                    optional: false,
+                    tainting: true,
+                    internal: false
+                },
+                constructor_args: {
+                    documentation: "The optional constructor arguments for the deployed contract.",
+                    typing: Type::array(Type::string()),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                expected_contract_address: {
+                    documentation: "The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                salt: {
+                    documentation: "The salt value used to calculate the contract address. This value must be a 32-byte hex string.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                verify: {
+                    documentation: "Coming soon.",
+                    typing: Type::bool(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                block_explorer_api_key: {
+                    documentation: "Coming soon.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                }
+              ],
+              outputs: [
+                  tx_hash: {
+                      documentation: "The hash of the transaction.",
+                      typing: Type::string()
+                  },
+                  contract_address: {
+                    documentation: "The address of the deployed transaction.",
+                    typing: Type::string()
+                  }
+              ],
+              example: txtx_addon_kit::indoc! {r#"
           action "my_contract" "evm::deploy_contract_create2" {
               contract = evm::get_contract_from_foundry_project("MyContract")
               salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
               signer = signer.deployer
           }
       "#},
-      }
+          }
+        };
+
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("contract_address".to_string());
+        }
+        command
     };
 }
 

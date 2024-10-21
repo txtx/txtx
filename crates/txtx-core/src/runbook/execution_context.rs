@@ -9,6 +9,7 @@ use kit::types::frontend::ActionItemStatus;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::signers::SignersState;
 use kit::types::types::RunbookSupervisionContext;
+use kit::types::types::Value;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
 use std::collections::HashMap;
@@ -21,6 +22,8 @@ use crate::eval::perform_inputs_evaluation;
 use crate::eval::CommandInputEvaluationStatus;
 use crate::eval::EvaluationPassResult;
 
+use super::diffing_context::RunbookFlowSnapshot;
+use super::diffing_context::ValuePostEvaluation;
 use super::RunbookWorkspaceContext;
 use super::RuntimeContext;
 
@@ -279,7 +282,6 @@ impl RunbookExecutionContext {
 
             self.commands_inputs_evaluation_results
                 .insert(construct_did.clone(), evaluated_inputs.clone());
-
             let execution_result = {
                 command_instance
                     .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
@@ -305,7 +307,6 @@ impl RunbookExecutionContext {
                     continue;
                 }
             };
-
             self.commands_execution_results
                 .entry(construct_did)
                 .or_insert_with(CommandExecutionResult::new)
@@ -379,5 +380,80 @@ impl RunbookExecutionContext {
                 .insert(construct_did.clone(), post_processed_inputs);
         }
         Ok(())
+    }
+
+    /// Takes a [RunbookFlowSnapshot] and applies the inputs to the `commands_inputs_evaluation_results` field
+    /// and the outputs to the `commands_execution_results` field of the associated construct in the [RunbookExecutionContext].
+    /// If an input or output value from the snapshot is already found in the simulation results, it will be ignored.
+    pub fn apply_snapshot_to_execution_context(
+        &mut self,
+        snapshot: &RunbookFlowSnapshot,
+        workspace_context: &RunbookWorkspaceContext,
+    ) -> Result<(), Diagnostic> {
+        for (construct_did, command_snapshot) in snapshot.commands.iter() {
+            let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
+                continue;
+            };
+
+            let addon_context_key =
+                (command_instance.package_id.did(), command_instance.namespace.clone());
+            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
+            let mut execution_result = self
+                .commands_execution_results
+                .get(&construct_did)
+                .cloned()
+                .unwrap_or(CommandExecutionResult::new());
+
+            let mut inputs_evaluation_result =
+                self.commands_inputs_evaluation_results.get(&construct_did).cloned().unwrap_or(
+                    CommandInputsEvaluationResult::new(
+                        &command_instance.name,
+                        &addon_defaults.store,
+                    ),
+                );
+
+            for (input_name, input_value_snapshot) in command_snapshot.inputs.iter() {
+                // if our existing simulation results _don't_ have a value for this input that exists in the snapshot,
+                // and this input is a actually a valid input for the command, then we'll add it to the simulation results.
+                if inputs_evaluation_result.inputs.get_value(&input_name).is_none()
+                    && command_instance.specification.inputs.iter().any(|i| i.name.eq(input_name))
+                {
+                    let value = match &input_value_snapshot.value_post_evaluation {
+                        ValuePostEvaluation::Value(value) => value.clone(),
+                        ValuePostEvaluation::ObjectValue(index_map) => Value::object(
+                            index_map.iter().map(|(k, (v, _))| (k.clone(), v.clone())).collect(),
+                        ),
+                    };
+
+                    inputs_evaluation_result.inputs.insert(&input_name, value);
+                }
+            }
+
+            for (output_name, output_value_snapshot) in command_snapshot.outputs.iter() {
+                // if our existing simulation results _don't_ have a value for this input that exists in the snapshot,
+                // and this input is a actually a valid input for the command, then we'll add it to the simulation results.
+                if execution_result.outputs.get(output_name).is_none()
+                    && command_instance.specification.outputs.iter().any(|i| i.name.eq(output_name))
+                {
+                    execution_result
+                        .outputs
+                        .insert(output_name.clone(), output_value_snapshot.value.clone());
+                }
+            }
+
+            self.commands_execution_results.insert(construct_did.clone(), execution_result);
+            self.commands_inputs_evaluation_results
+                .insert(construct_did.clone(), inputs_evaluation_result);
+        }
+        Ok(())
+    }
+
+    pub fn construct_did_is_signed_or_signed_upstream(&self, construct_did: &ConstructDid) -> bool {
+        self.signed_commands.contains(construct_did)
+            || self
+                .signed_commands_upstream_dependencies
+                .iter()
+                .any(|(_signed, upstream)| upstream.contains(construct_did))
     }
 }
