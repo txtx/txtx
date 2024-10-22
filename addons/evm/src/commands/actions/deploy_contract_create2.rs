@@ -214,6 +214,10 @@ lazy_static! {
                       documentation: "The hash of the transaction.",
                       typing: Type::string()
                   },
+                  abi: {
+                      documentation: "The deployed contract ABI, if it was provided as a contract input.",
+                      typing: Type::string()
+                  },
                   contract_address: {
                     documentation: "The address of the deployed transaction.",
                     typing: Type::string()
@@ -377,6 +381,11 @@ impl CommandImplementation for EvmDeployContractCreate2 {
             signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap();
         result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
 
+        let contract = values.get_expected_object("contract").unwrap();
+        if let Some(abi) = contract.get("abi") {
+            result.outputs.insert("abi".to_string(), abi.clone());
+        }
+
         let already_deployed = signer_state
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
@@ -468,6 +477,10 @@ impl CommandImplementation for EvmDeployContractCreate2 {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
+            let contract = inputs.get_expected_object("contract").unwrap();
+            if let Some(abi) = contract.get("abi") {
+                result.outputs.insert("abi".to_string(), abi.clone());
+            }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,

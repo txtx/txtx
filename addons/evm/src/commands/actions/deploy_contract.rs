@@ -162,6 +162,14 @@ lazy_static! {
               tx_hash: {
                   documentation: "The hash of the transaction.",
                   typing: Type::string()
+              },
+              abi: {
+                  documentation: "The deployed contract ABI, if it was provided as a contract input.",
+                  typing: Type::string()
+              },
+              contract_address: {
+                documentation: "The address of the deployed transaction.",
+                typing: Type::string()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -285,6 +293,13 @@ impl CommandImplementation for EvmDeployContract {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
+        let mut result: CommandExecutionResult = CommandExecutionResult::new();
+
+        let contract = values.get_expected_object("contract").unwrap();
+        if let Some(abi) = contract.get("abi") {
+            result.outputs.insert("abi".to_string(), abi.clone());
+        }
+
         let future = async move {
             let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
@@ -302,6 +317,8 @@ impl CommandImplementation for EvmDeployContract {
                 Err(err) => return Err(err),
             };
 
+            result.append(&mut res_signing);
+
             values.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
             let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
@@ -316,7 +333,7 @@ impl CommandImplementation for EvmDeployContract {
                 Err(data) => return Err((signers, signer_state, data)),
             };
 
-            res_signing.append(&mut res);
+            result.append(&mut res);
 
             let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
@@ -333,10 +350,10 @@ impl CommandImplementation for EvmDeployContract {
                     Err(data) => return Err((signers, signer_state, data)),
                 };
 
-                res_signing.append(&mut res);
+                result.append(&mut res);
             }
 
-            Ok((signers, signer_state, res_signing))
+            Ok((signers, signer_state, result))
         };
 
         Ok(Box::pin(future))
@@ -361,6 +378,11 @@ impl CommandImplementation for EvmDeployContract {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
+
+            let contract = inputs.get_expected_object("contract").unwrap();
+            if let Some(abi) = contract.get("abi") {
+                result.outputs.insert("abi".to_string(), abi.clone());
+            }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
