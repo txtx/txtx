@@ -110,7 +110,9 @@ impl RunbookExecutionContext {
                     return action_items;
                 };
 
-                let Some(value) = execution_result.outputs.get("value") else { unreachable!() };
+                let Some(value) = execution_result.outputs.get("value") else {
+                    return action_items;
+                };
 
                 let description = input_evaluations
                     .inputs
