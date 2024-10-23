@@ -570,6 +570,9 @@ pub async fn handle_run_command(
                     )
                     .await;
 
+                execution_context_backups
+                    .insert(flow_context.name.clone(), execution_context_backup);
+
                 let Some(flow_snapshot) = old.flows.get(&flow_context.name) else {
                     println!(
                         "{} Previous snapshot not found for flow {}",
@@ -586,9 +589,6 @@ pub async fn handle_run_command(
                         &flow_context.workspace_context,
                     )
                     .map_err(|e| e.message)?;
-
-                execution_context_backups
-                    .insert(flow_context.name.clone(), execution_context_backup);
             }
 
             let new = ctx
