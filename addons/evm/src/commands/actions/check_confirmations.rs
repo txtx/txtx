@@ -8,7 +8,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
-    types::{Type, Value},
+    types::Type,
 };
 use txtx_addon_kit::uuid::Uuid;
 
@@ -129,6 +129,7 @@ impl CommandImplementation for CheckEvmConfirmations {
         use crate::{
             constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
             rpc::EvmRpc,
+            typing::EvmValue,
         };
 
         let inputs = inputs.clone();
@@ -263,7 +264,7 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if let Some(contract_address) = receipt.contract_address {
                     result.outputs.insert(
                         CONTRACT_ADDRESS.to_string(),
-                        Value::string(contract_address.to_string()),
+                        EvmValue::address(contract_address.0 .0.to_vec()),
                     );
                 }
                 // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
