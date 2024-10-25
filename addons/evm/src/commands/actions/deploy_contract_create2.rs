@@ -220,7 +220,7 @@ lazy_static! {
                   },
                   contract_address: {
                     documentation: "The address of the deployed transaction.",
-                    typing: Type::string()
+                    typing: Type::addon(EVM_ADDRESS)
                   }
               ],
               example: txtx_addon_kit::indoc! {r#"
@@ -234,7 +234,7 @@ lazy_static! {
         };
 
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("contract_address".to_string());
+            spec.create_critical_output = Some(CONTRACT_ADDRESS.to_string());
         }
         command
     };
