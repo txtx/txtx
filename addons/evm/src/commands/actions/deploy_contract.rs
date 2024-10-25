@@ -24,7 +24,7 @@ use crate::constants::{
     ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, RPC_API_URL,
 };
 use crate::rpc::EvmRpc;
-use crate::typing::CONTRACT_METADATA;
+use crate::typing::{CONTRACT_METADATA, EVM_ADDRESS};
 use txtx_addon_kit::constants::TX_HASH;
 
 use super::check_confirmations::CheckEvmConfirmations;
@@ -33,152 +33,159 @@ use super::sign_transaction::SignEvmTransaction;
 use super::verify_contract::VerifyEvmContract;
 
 lazy_static! {
-    pub static ref EVM_DEPLOY_CONTRACT: PreCommandSpecification = define_command! {
-      EvmDeployContract => {
-          name: "Sign EVM Contract Deployment Transaction",
-          matcher: "deploy_contract",
-          documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.",
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-            description: {
-                documentation: "A description of the transaction",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            rpc_api_url: {
-                documentation: "The URL of the EVM API used to broadcast the transaction.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            signer: {
-                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            amount: {
-                documentation: "The amount, in WEI, to send with the deployment.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            chain_id: {
-                documentation: "The chain id.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_price: {
-                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            contract: {
-                documentation: indoc!{r#"
-                The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
-                The abi field can also be provided to add type checking for the constructor arguments.
-                The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
-                "#},
-                typing: CONTRACT_METADATA.clone(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            constructor_args: {
-                documentation: "The optional constructor arguments for the deployed contract.",
-                typing: Type::array(Type::string()),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            verify: {
-                documentation: "Coming soon.",
-                typing: Type::bool(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            block_explorer_api_key: {
-                documentation: "Coming soon.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
+    pub static ref EVM_DEPLOY_CONTRACT: PreCommandSpecification = {
+        let mut command = define_command! {
+          EvmDeployContract => {
+              name: "Sign EVM Contract Deployment Transaction",
+              matcher: "deploy_contract",
+              documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.",
+              implements_signing_capability: true,
+              implements_background_task_capability: true,
+              inputs: [
+                  description: {
+                      documentation: "A description of the transaction",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  rpc_api_url: {
+                      documentation: "The URL of the EVM API used to broadcast the transaction.",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  signer: {
+                      documentation: "A reference to a signer construct, which will be used to sign the transaction.",
+                      typing: Type::string(),
+                      optional: false,
+                      tainting: true,
+                      internal: false
+                  },
+                  amount: {
+                      documentation: "The amount, in WEI, to send with the deployment.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: true,
+                      internal: false
+                  },
+                  type: {
+                      documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  max_fee_per_gas: {
+                      documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  max_priority_fee_per_gas: {
+                      documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  chain_id: {
+                      documentation: "The chain id.",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: true,
+                      internal: false
+                  },
+                  nonce: {
+                      documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  gas_limit: {
+                      documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  gas_price: {
+                      documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  contract: {
+                      documentation: indoc!{r#"
+                    The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
+                    The abi field can also be provided to add type checking for the constructor arguments.
+                    The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
+                    "#},
+                      typing: CONTRACT_METADATA.clone(),
+                      optional: false,
+                      tainting: true,
+                      internal: false
+                  },
+                  constructor_args: {
+                      documentation: "The optional constructor arguments for the deployed contract.",
+                      typing: Type::array(Type::string()),
+                      optional: true,
+                      tainting: true,
+                      internal: false
+                  },
+                  confirmations: {
+                      documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+                      typing: Type::integer(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  },
+                  verify: {
+                      documentation: "Coming soon.",
+                      typing: Type::bool(),
+                      optional: true,
+                      tainting: true,
+                      internal: false
+                  },
+                  block_explorer_api_key: {
+                      documentation: "Coming soon.",
+                      typing: Type::string(),
+                      optional: true,
+                      tainting: false,
+                      internal: false
+                  }
+              ],
+              outputs: [
+                  tx_hash: {
+                      documentation: "The hash of the transaction.",
+                      typing: Type::string()
+                  },
+                  abi: {
+                      documentation: "The deployed contract ABI, if it was provided as a contract input.",
+                      typing: Type::string()
+                  },
+                  contract_address: {
+                      documentation: "The address of the deployed transaction.",
+                      typing: Type::addon(EVM_ADDRESS)
+                  }
+              ],
+              example: txtx_addon_kit::indoc! {r#"
+            action "my_contract" "evm::deploy_contract" {
+                contract = evm::get_contract_from_foundry_project("MyContract")
+                signer = signer.deployer
             }
-          ],
-          outputs: [
-              tx_hash: {
-                  documentation: "The hash of the transaction.",
-                  typing: Type::string()
-              },
-              abi: {
-                  documentation: "The deployed contract ABI, if it was provided as a contract input.",
-                  typing: Type::string()
-              },
-              contract_address: {
-                documentation: "The address of the deployed transaction.",
-                typing: Type::string()
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-          action "my_contract" "evm::deploy_contract" {
-              contract = evm::get_contract_from_foundry_project("MyContract")
-              signer = signer.deployer
+        "#},
           }
-      "#},
-      }
+        };
+
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some(CONTRACT_ADDRESS.to_string());
+        }
+        command
     };
 }
 
@@ -319,7 +326,7 @@ impl CommandImplementation for EvmDeployContract {
 
             result.append(&mut res_signing);
 
-            values.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
+            values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
             let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
