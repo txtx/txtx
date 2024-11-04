@@ -13,6 +13,8 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
+#[cfg(feature = "ovm")]
+use txtx_addon_network_ovm::OvmNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
 #[cfg(feature = "sp1")]
@@ -73,6 +75,8 @@ pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
         Box::new(TelegramAddon::new()),
         #[cfg(feature = "sp1")]
         Box::new(Sp1Addon::new()),
+        #[cfg(feature = "ovm")]
+        Box::new(OvmNetworkAddon::new()),
     ]
 }
 

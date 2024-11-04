@@ -11386,6 +11386,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "txtx-addon-network-ovm"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "txtx-addon-kit",
+]
+
+[[package]]
 name = "txtx-addon-network-stacks"
 version = "0.1.0"
 dependencies = [
@@ -11482,6 +11493,7 @@ dependencies = [
  "tower-lsp",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
+ "txtx-addon-network-ovm",
  "txtx-addon-network-stacks",
  "txtx-addon-network-svm",
  "txtx-addon-sp1",
