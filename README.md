@@ -23,16 +23,35 @@ ______________________________________________________________________
 
 ## What is Txtx?
 
-Txtx introduces Smart Contract Runbooks to assist developers to deploy and operate on their Smart Contracts / Programs / Scripts.
+Have you ever tried to deploy some open source Smart contracts on a local devnet, just to get stuck on the first steps of understanding how the deployment should be executed? Have you lost hundreds, thousands or millions of tokens because your master private key got compromised after copy/pasting in your deployment scripts, or missed some contracts initializations making your deploymenent vulnerable and flawed?
 
-Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management.
+**Txtx** turns the stress, pain and complexity of Smart Contract Infrastructure management into a secure, reproducible and proficient developer experience. 
 
-Thanks to infrastructure as code, developers now have the ability to enhance their Web3 operations by leveling up security, composability, and reproducibility.
+Txtx introduces **Smart Contract Runbooks** to assist developers to deploy and operate on their Smart Contracts / Solana Programs / Bitcoin Scripts.
+
+**Smart Contract Runbooks** are the blueprint for Engineering Excellence, setting the gold standard for Web3 Infrastructures. 
+
+Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management: thanks to infrastructure as code, developers now have the ability to enhance their Web3 operations by leveling up security, composability, and reproducibility.
+
+With Txtx we're introducing:
+
+- A declarative language, inspired from Hashicorp Terraform, taylored for describing your Web3 deployments and operations
+
+- A runtime allowing you to perform stateful executions: the state of your previous executions is used against the current state of your files, allowing to only execute the updates.
+
+- An optional Web UI running on your machine, guiding you through the execution of your runbooks, facilitating use of web wallets, automating wallet provisionning, distributed multisig ceremonies, etc.
+
+<div align="center">
+  <picture>
+    <source srcset="https://raw.githubusercontent.com/txtx/txtx/main/doc/assets/supervisor.png">
+    <img alt="Txtx - Supervisor" style="max-width: 60%;">
+  </picture>
+</div>
 
 > [!IMPORTANT]
 > Txtx is currently in beta: We’re still testing and refining the platform. Please use it for testing purposes only. Your feedback is welcome! 🙌
 
-## 101 Demos 
+## Txtx in action: 101 Demos 
 
 <a href="https://www.youtube.com/playlist?list=PL0FMgRjJMRzMcA23x6y_1lkxXUmuqOlKu">
   <picture>
@@ -49,7 +68,7 @@ As infrastructure complexity increases, we must be able to test and reproduce de
 
 Txtx is purpose-built for blockchain operations, drawing on the best practices that were developed over time in cloud infrastructure management.
 
-## Security
+## Focus on Security
 
 Every year, between $500M and $1B are lost due to compromised private keys. As developers, we often do exactly what we tell our users not to do: leaving our private keys too accessible for easy copying and pasting during deployments and operations.
 
@@ -75,7 +94,7 @@ brew install txtx
 
 Other installation options are available and described in our [doc website](https://docs.txtx.sh/install).
 
-## Helpful Links
+## Going Further
 
 - Documentation: https://docs.txtx.sh
 - Cases Study: https://txtx.sh/blog
