@@ -23,7 +23,7 @@ ______________________________________________________________________
 
 ## What is Txtx?
 
-Have you ever tried to deploy some open source Smart contracts on a local devnet, just to get stuck on the first steps of understanding how the deployment should be executed? Have you lost hundreds, thousands or millions of tokens because your master private key got compromised after copy/pasting in your deployment scripts, or missed some contracts initializations making your deploymenent vulnerable and flawed?
+Have you ever tried to deploy some open source Smart contracts on a local devnet, just to get stuck on the first steps of understanding how the deployment should be executed? Have you lost hundreds, thousands or millions of tokens because your master private key got compromised after copy/pasting in your deployment scripts, or missed some contracts initializations making your deployments vulnerable and flawed?
 
 **Txtx** turns the stress, pain and complexity of Smart Contract Infrastructure management into a secure, reproducible and proficient developer experience. 
 
@@ -35,7 +35,7 @@ Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management: 
 
 With Txtx we're introducing:
 
-- A declarative language, inspired from Hashicorp Terraform, taylored for describing your Web3 deployments and operations
+- A declarative language, inspired from Hashicorp Terraform, tailored for describing your Web3 deployments and operations
 
 - A runtime allowing you to perform stateful executions: the state of your previous executions is used against the current state of your files, allowing to only execute the updates.
 
