@@ -308,7 +308,7 @@ impl CommandImplementation for StacksDeployContractRequirement {
                 Value::object(indexmap! {
                     "contract_source".to_string() => Value::string(contract_source),
                     "contract_name".to_string() => Value::string(contract_id.name.to_string()),
-                    "clarity_version".to_string() => Value::integer(2),
+                    "clarity_version".to_string() => Value::integer(2), // todo: we need to deternine the right clarity version
                 }),
             );
 
