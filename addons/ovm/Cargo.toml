@@ -5,10 +5,14 @@ edition = "2021"
 
 [dependencies]
 txtx-addon-kit = { workspace = true, default-features = false}
+txtx-addon-network-evm = { workspace = true, default-features = true}
 lazy_static = "1.4.0"
 serde_json = "1.0.113"
 serde = "1"
 serde_derive = "1"
+bollard = "0.17.1"
+tar = "0.4.43"
+mustache = "0.9.0"
 
 [features]
 default = ["txtx-addon-kit/default"]
