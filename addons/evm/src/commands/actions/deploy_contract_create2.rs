@@ -550,9 +550,9 @@ async fn build_unsigned_create2_deployment(
         },
         constants::{
             CHAIN_ID, CREATE2_FACTORY_ABI, CREATE2_FACTORY_ADDRESS, CREATE2_FUNCTION_NAME,
-            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, NONCE, SALT,
-            TRANSACTION_TYPE,
+            DEFAULT_CREATE2_FACTORY_ADDRESS, EXPECTED_CONTRACT_ADDRESS, SALT, TRANSACTION_TYPE,
         },
+        signers::common::get_signer_nonce,
     };
 
     let from = signer_state.get_expected_value("signer_address")?;
@@ -568,11 +568,8 @@ async fn build_unsigned_create2_deployment(
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(signer_nonce) = signer_state
-            .get_value(NONCE)
-            .map(|v| v.expect_uint())
-            .transpose()
-            .map_err(to_diag_with_ctx)?
+        if let Some(signer_nonce) =
+            get_signer_nonce(signer_state, chain_id).map_err(to_diag_with_ctx)?
         {
             nonce = Some(signer_nonce + 1);
         }
