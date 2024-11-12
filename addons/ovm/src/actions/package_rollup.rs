@@ -2,38 +2,35 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{types::RunbookSupervisionContext, ConstructDid};
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::docker::RollupPackager;
+use crate::constants::{ROLLUP_CONTAINER_IDS, WORKING_DIR};
+use crate::typing::ROLLUP_CONTAINER_IDS_TYPE;
+
 lazy_static! {
-    pub static ref GENERATE_L2_CONFIG_FILES: PreCommandSpecification = define_command! {
-        GenerateL2ConfigFiles => {
+    pub static ref PACKAGE_ROLLUP: PreCommandSpecification = define_command! {
+        PackageRollup => {
             name: "Coming Soon",
-            matcher: "generate_l2_config_files",
-            documentation: "The `ovm::generate_l2_config_files` action takes some L2 settings and deployment addresses of the L1 contracts and generates the `genesis.json` and `rollup.json` files needed to start a L2 OP node.",
+            matcher: "package_rollup",
+            documentation: "The `ovm::package_rollup` action is coming soon.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
-                l1_rpc_api_url: {
-                    documentation: "The URL of the L1 EVM API used to fetch data.",
+                working_dir: {
+                    documentation: "Coming soon.",
                     typing: Type::string(),
                     optional: false,
                     tainting: false,
                     internal: false
                 },
-                deployment_config: {
+                rollup_container_ids: {
                     documentation: "Coming soon.",
-                    typing: Type::object(vec![]),
-                    optional: false,
-                    tainting: false,
-                    internal: false
-                },
-                l1_deployment_addresses: {
-                    documentation: "Coming soon.",
-                    typing: Type::object(vec![]),
+                    typing: ROLLUP_CONTAINER_IDS_TYPE.clone(),
                     optional: false,
                     tainting: false,
                     internal: false
@@ -56,8 +53,8 @@ lazy_static! {
     };
 }
 
-pub struct GenerateL2ConfigFiles;
-impl CommandImplementation for GenerateL2ConfigFiles {
+pub struct PackageRollup;
+impl CommandImplementation for PackageRollup {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -92,14 +89,42 @@ impl CommandImplementation for GenerateL2ConfigFiles {
 
     fn build_background_task(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         inputs: &ValueStore,
-        outputs: &ValueStore,
+        _outputs: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
-        supervision_context: &RunbookSupervisionContext,
+        _supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
+        let construct_did = construct_did.clone();
+        let inputs = inputs.clone();
+        let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+
         let future = async move {
+            let working_dir = inputs.get_expected_string(WORKING_DIR)?;
+            let rollup_container_ids = inputs.get_expected_object(ROLLUP_CONTAINER_IDS)?;
+
+            let rollup_packager = RollupPackager::new(working_dir, rollup_container_ids)
+                .map_err(|e| diagnosed_error!("Failed to package rollup: {e}"))?;
+
+            let mut status_updater =
+                StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+
+            status_updater.propagate_pending_status(
+                "Pausing, packaging, and removing rollup from Docker network",
+            );
+
+            rollup_packager.package_rollup().await.map_err(|e| {
+                let diag = diagnosed_error!("Failed to package rollup: {e}");
+                status_updater.propagate_failed_status("Failed to initialize rollup", &diag);
+                diag
+            })?;
+
+            status_updater.propagate_success_status(
+                "Complete",
+                &format!("Rollup packaged successfully - files are available at {}", working_dir),
+            );
             let result = CommandExecutionResult::new();
 
             Ok(result)
