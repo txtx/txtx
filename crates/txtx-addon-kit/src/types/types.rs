@@ -3,6 +3,7 @@ use jaq_interpret::Val;
 use serde::de::{self, Error, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
@@ -488,6 +489,28 @@ impl Value {
     pub fn compute_fingerprint(&self) -> Did {
         let bytes = self.to_bytes();
         Did::from_components(vec![bytes])
+    }
+
+    pub fn to_json(&self) -> JsonValue {
+        let json = match self {
+            Value::Bool(b) => JsonValue::Bool(*b),
+            Value::Null => JsonValue::Null,
+            Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i)),
+            Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
+            Value::String(s) => JsonValue::String(s.to_string()),
+            Value::Array(vec) => {
+                JsonValue::Array(vec.iter().map(|v| v.to_json()).collect::<Vec<JsonValue>>())
+            }
+            Value::Object(index_map) => JsonValue::Object(
+                index_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .collect::<Map<String, JsonValue>>(),
+            ),
+            Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
+            Value::Addon(_) => todo!(),
+        };
+        json
     }
 }
 
