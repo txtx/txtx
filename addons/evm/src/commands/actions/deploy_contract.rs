@@ -244,13 +244,8 @@ impl CommandImplementation for EvmDeployContract {
             .await
             .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
-            let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("command 'evm::deploy_contract': {e}"),
-                )
-            })?;
+            let bytes = get_typed_transaction_bytes(&transaction)
+                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
 
             let payload = EvmValue::transaction(bytes);
             let mut values = values.clone();
@@ -439,7 +434,8 @@ async fn build_unsigned_contract_deploy(
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
-        constants::{CHAIN_ID, NONCE, TRANSACTION_TYPE},
+        constants::{CHAIN_ID, TRANSACTION_TYPE},
+        signers::common::get_signer_nonce,
     };
 
     let from = signer_state.get_expected_value("signer_address")?.clone();
@@ -452,11 +448,8 @@ async fn build_unsigned_contract_deploy(
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
     if nonce.is_none() {
-        if let Some(signer_nonce) = signer_state
-            .get_value(NONCE)
-            .map(|v| v.expect_uint())
-            .transpose()
-            .map_err(to_diag_with_ctx)?
+        if let Some(signer_nonce) =
+            get_signer_nonce(signer_state, chain_id).map_err(to_diag_with_ctx)?
         {
             nonce = Some(signer_nonce + 1);
         }
