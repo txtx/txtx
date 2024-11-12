@@ -1,7 +1,9 @@
+use std::str::FromStr;
+
 use alloy::consensus::TxEnvelope;
 use alloy::hex;
 use alloy::network::{Ethereum, EthereumWallet};
-use alloy::primitives::{Address, Bytes, FixedBytes, Uint};
+use alloy::primitives::{Address, BlockHash, Bytes, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
@@ -13,7 +15,7 @@ use alloy_provider::utils::{
 use alloy_provider::Identity;
 use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
 use alloy_rpc_types::BlockNumberOrTag::Latest;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, FeeHistory};
+use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, BlockTransactionsKind, FeeHistory};
 use txtx_addon_kit::reqwest::{Client, Url};
 
 #[derive(Debug)]
@@ -178,5 +180,21 @@ impl EvmRpc {
         self.provider.get_block_number().await.map_err(|e| {
             RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
         })
+    }
+
+    pub async fn get_block_by_hash(&self, block_hash: &str) -> Result<Option<Block>, RpcError> {
+        let block_hash = BlockHash::from_str(&block_hash).map_err(|e| {
+            RpcError::Message(format!("error parsing block hash: {}", e.to_string()))
+        })?;
+        self.provider.get_block_by_hash(block_hash, BlockTransactionsKind::Hashes).await.map_err(
+            |e| RpcError::Message(format!("error getting block by hash: {}", e.to_string())),
+        )
+    }
+
+    pub async fn get_latest_block(&self) -> Result<Option<Block>, RpcError> {
+        self.provider
+            .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+            .await
+            .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
     }
 }
