@@ -57,6 +57,8 @@ convert_case = "0.6.0"
 rusqlite = "0.31.0"
 txtx-lsp = { path = "../txtx-lsp" }
 tower-lsp = { version = "0.20.0" }
+open = "5.3.1"
+dirs = "5.0.1"
 
 [features]
 default = ["cli"]
