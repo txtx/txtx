@@ -6,5 +6,5 @@ use rust_embed::RustEmbed;
 
 #[cfg(feature = "web_ui")]
 #[derive(RustEmbed)]
-#[folder = "../../../txtx-web-ui/dist/"]
+#[folder = "../../../txtx-supervisor-ui/dist/"]
 pub struct Asset;
