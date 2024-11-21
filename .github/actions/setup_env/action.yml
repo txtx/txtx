@@ -14,5 +14,6 @@ runs:
         echo RELAYER_BASE_URL="https://txtx.link" >> .env
         echo RELAYER_HOST="txtx.link" >> .env
         echo INFURA_API_KEY="${{ inputs.INFURA_API_KEY }}" >> .env
+        echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
         cat .env
       shell: bash
