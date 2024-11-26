@@ -1,3 +1,5 @@
+use txtx_addon_kit::{indexmap::IndexMap, types::types::Value};
+
 pub const NAMESPACE: &str = "evm";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
@@ -42,10 +44,10 @@ pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
 pub const CONTRACT_CONSTRUCTOR_ARGS: &str = "constructor_args";
 pub const ARTIFACTS: &str = "artifacts";
 pub const TX_HASH: &str = "tx_hash";
-pub const CREATE2_FACTORY_ADDRESS: &str = "create2_factory_address";
-pub const CREATE2_FACTORY_ABI: &str = "create2_factory_abi";
-pub const CREATE2_FUNCTION_NAME: &str = "create2_factory_function_name";
-pub const CREATE2_FUNCTION_ARGS: &str = "create2_factory_function_args";
+pub const FACTORY_ADDRESS: &str = "factory_address";
+pub const FACTORY_ABI: &str = "factory_abi";
+pub const FACTORY_FUNCTION_NAME: &str = "factory_function_name";
+pub const FACTORY_FUNCTION_ARGS: &str = "factory_function_args";
 pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 pub const DO_VERIFY_CONTRACT: &str = "verify";
 pub const CONTRACT: &str = "contract";
@@ -63,6 +65,8 @@ pub const DEFAULT_FOUNDRY_MANIFEST_PATH: &str = "foundry.toml";
 pub const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 pub const DEFAULT_FOUNDRY_OUT_DIR: &str = "out";
 pub const DEFAULT_FOUNDRY_SRC_DIR: &str = "src";
+pub const DEFAULT_CREATE2_SALT: &str =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
@@ -79,3 +83,7 @@ pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78
 
 // API Responses
 pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";
+
+lazy_static! {
+    pub static ref DEFAULT_PROXY_CONTRACT: IndexMap<String, Value> = IndexMap::new();
+}

@@ -179,4 +179,80 @@ lazy_static! {
             tainting: true
         }
     };
+    pub static ref CREATE2_OPTS: Type = define_map_type! {
+        salt: {
+            documentation: "The salt value used to calculate the contract address. This value must be a 32-byte hex string.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        factory_address: {
+            documentation: "To deploy the contract with an alternative factory, provide the address of the factory contract.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: true,
+            tainting: true
+        },
+        factory_abi: {
+            documentation: "The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        factory_function_name: {
+            documentation: "If an alternative create2 factory is used, the name of the function to call.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        factory_function_args: {
+            documentation: "If an alternative create2 factory is used, the arguments to pass to the function.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        }
+    };
+    pub static ref PROXY_CONTRACT_OPTS: Type = define_map_type! {
+        create_opcode: {
+            documentation: "The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        create2: {
+            documentation: "Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.",
+            typing: CREATE2_OPTS.clone(),
+            optional: true,
+            tainting: true
+        },
+        contract: {
+            documentation: indoc!{r#"
+                The proxy contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
+                The abi field can also be provided to add type checking for the constructor arguments.
+                The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
+            "#},
+            typing: CONTRACT_METADATA.clone(),
+            optional: true,
+            tainting: true
+        },
+        constructor_args: {
+            documentation: "The optional constructor arguments for the proxy contract.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        }
+    };
+    pub static ref PROXIED_CONTRACT_INITIALIZER: Type = define_map_type! {
+        function_name: {
+            documentation: "The name of the initializer function to call.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        function_args: {
+            documentation: "The arguments to pass to the initializer function.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        }
+    };
 }

@@ -23,10 +23,11 @@ use txtx_addon_kit::{
 
 use crate::{
     codec::{
-        foundry::FoundryConfig, generate_create2_address, hardhat::HardhatBuildArtifacts,
+        contract_deployment::{create_init_code, create_opts::generate_create2_address},
+        foundry::FoundryConfig,
+        hardhat::HardhatBuildArtifacts,
         string_to_address, value_to_sol_value,
     },
-    commands::actions::deploy_contract::create_init_code,
     constants::{
         DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_FOUNDRY_MANIFEST_PATH, DEFAULT_FOUNDRY_PROFILE,
         DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR, NAMESPACE,

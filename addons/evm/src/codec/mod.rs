@@ -1,3 +1,4 @@
+pub mod contract_deployment;
 pub mod crypto;
 pub mod foundry;
 pub mod hardhat;
@@ -13,9 +14,10 @@ use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
-use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256, U32};
+use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use alloy_rpc_types::AccessList;
+use contract_deployment::TransactionDeploymentRequestData;
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -275,37 +277,6 @@ pub fn string_to_address(address_str: String) -> Result<Address, String> {
     }
     let address = Address::from_hex(&address_str).map_err(|e| format!("invalid address: {}", e))?;
     Ok(address)
-}
-
-pub fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
-    let salt = hex::decode(salt).map_err(|e| format!("failed to decode salt: {e}"))?;
-    if salt.len() != 32 {
-        return Err("salt must be a 32-byte string".into());
-    }
-    Ok(salt)
-}
-
-pub fn generate_create2_address(
-    factory_address: &Value,
-    salt: &str,
-    init_code: &Vec<u8>,
-) -> Result<Address, String> {
-    let Some(factory_address_bytes) = factory_address.try_get_buffer_bytes() else {
-        return Err("failed to generate create2 address: invalid create2 factory address".into());
-    };
-    let salt_bytes =
-        salt_str_to_hex(salt).map_err(|e| format!("failed to generate create2 address: {e}"))?;
-
-    let init_code_hash = keccak256(&init_code);
-    let mut hasher = Keccak256::new();
-    hasher.update(&[0xff]);
-    hasher.update(factory_address_bytes);
-    hasher.update(&salt_bytes);
-    hasher.update(&init_code_hash);
-
-    let result = hasher.finalize();
-    let address_bytes = &result[12..32];
-    Ok(Address::from_slice(&address_bytes))
 }
 
 pub fn typed_transaction_bytes(typed_transaction: &TypedTransaction) -> Vec<u8> {
