@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::str::FromStr;
 
 use alloy::consensus::TxEnvelope;
@@ -32,6 +33,12 @@ impl std::fmt::Display for RpcError {
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
+    }
+}
+
+impl Into<String> for RpcError {
+    fn into(self) -> String {
+        self.to_string()
     }
 }
 
