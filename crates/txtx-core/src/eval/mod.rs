@@ -1306,7 +1306,9 @@ pub fn perform_inputs_evaluation(
             results.insert(&input.name, value);
         } else if let Some(object_props) = input.as_map() {
             let mut entries = vec![];
-            let blocks = command_instance.get_blocks_for_map(&input)?;
+            let Some(blocks) = command_instance.get_blocks_for_map(&input)? else {
+                continue;
+            };
             for block in blocks.iter() {
                 let mut object_values = IndexMap::new();
                 for prop in object_props.iter() {

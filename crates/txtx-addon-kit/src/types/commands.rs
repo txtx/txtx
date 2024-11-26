@@ -709,7 +709,10 @@ impl CommandInstance {
         group.value.to_string()
     }
 
-    pub fn get_blocks_for_map(&self, input: &CommandInput) -> Result<Vec<Block>, Vec<Diagnostic>> {
+    pub fn get_blocks_for_map(
+        &self,
+        input: &CommandInput,
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
         let mut entries = vec![];
 
         match &input.typing {
@@ -722,13 +725,19 @@ impl CommandInstance {
                 unreachable!()
             }
         };
-        if entries.is_empty() && !input.optional {
-            return Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for object '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]);
+
+        if entries.is_empty() {
+            if !input.optional {
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "command '{}' (type '{}') is missing value for object '{}'",
+                    self.name, self.specification.matcher, input.name
+                ))]);
+            } else {
+                return Ok(None);
+            }
+        } else {
+            Ok(Some(entries))
         }
-        Ok(entries)
     }
 
     pub fn get_expression_from_block(
