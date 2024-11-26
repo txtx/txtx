@@ -331,8 +331,7 @@ impl FunctionImplementation for EncodeEvmAddress {
         };
         let address = string_to_address(entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
-        let bytes = address.0 .0.to_vec();
-        Ok(EvmValue::address(bytes))
+        Ok(EvmValue::address(&address))
     }
 }
 
@@ -771,8 +770,7 @@ impl FunctionImplementation for GenerateCreate2Address {
 
         let create2 = generate_create2_address(&factory_address, &salt, &init_code)
             .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
-        let bytes = create2.0 .0.to_vec();
-        Ok(EvmValue::address(bytes))
+        Ok(EvmValue::address(&create2))
     }
 }
 

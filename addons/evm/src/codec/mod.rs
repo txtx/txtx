@@ -255,7 +255,7 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Int(value, _) => Value::integer(value.as_i64() as i128),
         DynSolValue::Uint(value, _) => Value::integer(value.to::<u64>() as i128),
         DynSolValue::FixedBytes(_, _) => todo!(),
-        DynSolValue::Address(value) => EvmValue::address(value.0 .0.to_vec()),
+        DynSolValue::Address(value) => EvmValue::address(&value),
         DynSolValue::Function(_) => todo!(),
         DynSolValue::Bytes(_) => todo!(),
         DynSolValue::String(value) => Value::string(value.clone()),

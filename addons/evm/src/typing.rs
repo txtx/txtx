@@ -1,3 +1,4 @@
+use alloy::primitives::Address;
 use txtx_addon_kit::types::types::{Type, Value};
 
 pub const EVM_ADDRESS: &str = "evm::address";
@@ -13,7 +14,8 @@ pub const EVM_UINT8: &str = "evm::uint8";
 pub struct EvmValue {}
 
 impl EvmValue {
-    pub fn address(bytes: Vec<u8>) -> Value {
+    pub fn address(address: &Address) -> Value {
+        let bytes = address.0 .0.to_vec();
         Value::addon(bytes, EVM_ADDRESS)
     }
 
