@@ -192,9 +192,17 @@ impl ValueStore {
         self.inputs.get_array(key).or(self.defaults.get_array(key))
     }
 
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.inputs.get_map(key).or(self.defaults.get_map(key))
+    }
+
     // Scoped values
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
         self.inputs.insert(&format!("{}:{}", scope, key), value);
+    }
+
+    pub fn clear_scoped_value(&mut self, scope: &str, key: &str) {
+        self.inputs.store.swap_remove(&format!("{}:{}", scope, key));
     }
 
     pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
@@ -299,6 +307,10 @@ pub struct ValueMap {
 impl ValueMap {
     pub fn new() -> ValueMap {
         Self { store: IndexMap::new() }
+    }
+    pub fn with_store(mut self, store: &IndexMap<String, Value>) -> Self {
+        self.store = store.clone();
+        self
     }
 
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
@@ -526,6 +538,10 @@ impl ValueMap {
     }
 
     pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
         self.store.get(key).and_then(|v| v.as_array())
     }
 

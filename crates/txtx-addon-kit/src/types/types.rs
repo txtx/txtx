@@ -375,6 +375,13 @@ impl Value {
         }
     }
 
+    pub fn as_map(&self) -> Option<&Box<Vec<Value>>> {
+        match &self {
+            Value::Array(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn as_object(&self) -> Option<&IndexMap<String, Value>> {
         match &self {
             Value::Object(value) => Some(value),
