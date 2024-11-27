@@ -11,6 +11,7 @@ pub const EVM_SIGNER_FIELD_BYTES: &str = "evm::signer_field_bytes";
 pub const EVM_UINT256: &str = "evm::uint256";
 pub const EVM_UINT32: &str = "evm::uint32";
 pub const EVM_UINT8: &str = "evm::uint8";
+pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
 
 pub struct EvmValue {}
 
@@ -54,6 +55,10 @@ impl EvmValue {
 
     pub fn uint8(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, EVM_UINT8)
+    }
+
+    pub fn function_call(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, EVM_FUNCTION_CALL)
     }
 }
 
