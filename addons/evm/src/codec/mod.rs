@@ -7,22 +7,23 @@ use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EvmRpc;
 use crate::typing::{
-    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
+    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256,
+    EVM_UINT32, EVM_UINT8,
 };
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
+use alloy::json_abi::JsonAbi;
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
-use alloy::primitives::{Address, TxKind, U256};
+use alloy::primitives::{Address, FixedBytes, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
-use alloy_rpc_types::AccessList;
-use contract_deployment::TransactionDeploymentRequestData;
+use alloy_rpc_types::{AccessList, Log};
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::types::{ObjectType, Value};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionType {
@@ -230,17 +231,24 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
             todo!()
         }
         Value::Object(_) => todo!(),
-        Value::Array(_) => todo!(),
+        Value::Array(array) => DynSolValue::Array(
+            array.iter().map(|v| value_to_sol_value(v)).collect::<Result<Vec<_>, _>>()?,
+        ),
         Value::Addon(addon) => {
             if addon.id == EVM_ADDRESS {
                 DynSolValue::Address(Address::from_slice(&addon.bytes))
             } else if addon.id == EVM_BYTES32 {
                 DynSolValue::FixedBytes(Word::from_slice(&addon.bytes), 32)
+            } else if addon.id == EVM_UINT256 {
+                DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 256)
             } else if addon.id == EVM_UINT32 {
                 DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 32)
             } else if addon.id == EVM_UINT8 {
                 DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 8)
-            } else if addon.id == EVM_BYTES || addon.id == EVM_INIT_CODE {
+            } else if addon.id == EVM_BYTES
+                || addon.id == EVM_INIT_CODE
+                || addon.id == EVM_FUNCTION_CALL
+            {
                 DynSolValue::Bytes(addon.bytes.clone())
             } else {
                 return Err(format!("unsupported addon type for encoding sol value: {}", addon.id));
@@ -372,4 +380,57 @@ pub async fn get_transaction_cost(
 
 pub fn format_transaction_cost(cost: i128) -> Result<String, String> {
     format_units(cost, "wei").map_err(|e| format!("failed to format cost: {e}"))
+}
+
+pub fn abi_decode_logs(abi_str: &str, logs: &[Log]) -> Result<Vec<Value>, String> {
+    let abi: JsonAbi =
+        serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
+
+    let logs = logs
+        .iter()
+        .filter_map(|log| {
+            let topics = log.inner.topics(); //.iter().map(|t| t.0.to_vec()).collect::<Vec<Vec<u8>>>();
+            let Some(first_topic) = topics.first() else { return None };
+            let Some(matching_event) = abi.events().find(|e| e.selector().eq(first_topic)) else {
+                return None;
+            };
+            match topics[1..]
+                .iter()
+                .enumerate()
+                .filter_map(|(i, t)| {
+                    let Some(input) = matching_event.inputs.get(i) else {
+                        return None;
+                    };
+                    let ty = input.ty.clone();
+                    match sol_internal_type_to_value(&ty, t) {
+                        Ok(value) => Some(Ok((input.name.as_ref(), value))),
+                        Err(e) => Some(Err(e)),
+                    }
+                })
+                .collect::<Result<Vec<(&str, Value)>, String>>()
+            {
+                Ok(values) => {
+                    let mut obj = ObjectType::from(values);
+                    obj.insert("event_name", Value::string(matching_event.name.clone()));
+                    return Some(Ok(obj.to_value()));
+                }
+                Err(e) => return Some(Err(e)),
+            };
+        })
+        .collect::<Result<Vec<Value>, String>>()?;
+    Ok(logs)
+}
+
+fn sol_internal_type_to_value(sol_type: &str, value: &FixedBytes<32>) -> Result<Value, String> {
+    match sol_type {
+        "address" => Ok(EvmValue::address(&Address::from_word(*value))),
+        "bytes32" => Ok(EvmValue::bytes32(value.0.to_vec())),
+        "uint256" => Ok(EvmValue::uint256(value.0.to_vec())),
+        "uint32" => Ok(EvmValue::uint32(value.0.to_vec())),
+        "uint8" => Ok(EvmValue::uint8(value.0.to_vec())),
+        "bytes" => Ok(EvmValue::bytes(value.0.to_vec())),
+        "bool" => Ok(Value::bool(value.0[31] != 0)),
+        "bytes[]" => Ok(EvmValue::bytes(value.0.to_vec())),
+        other => Err(format!("unsupported sol type for decoding: {}", other)),
+    }
 }

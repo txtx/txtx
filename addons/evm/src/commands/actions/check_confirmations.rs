@@ -56,6 +56,10 @@ lazy_static! {
                 contract_address: {
                     documentation: "The contract address from the transaction receipt.",
                     typing: Type::buffer()
+                },
+                logs: {
+                    documentation: "The decoded contract logs from the transaction receipt.",
+                    typing: Type::array(Type::array(Type::string()))
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
@@ -127,7 +131,8 @@ impl CommandImplementation for CheckEvmConfirmations {
         };
 
         use crate::{
-            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
+            codec::abi_decode_logs,
+            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, TX_HASH},
             rpc::EvmRpc,
         };
 
@@ -142,6 +147,7 @@ impl CommandImplementation for CheckEvmConfirmations {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
         };
+        let abi = inputs.get_string(CONTRACT_ABI).map(|a| a.to_string());
         let progress_tx = progress_tx.clone();
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
@@ -265,6 +271,13 @@ impl CommandImplementation for CheckEvmConfirmations {
                         CONTRACT_ADDRESS.to_string(),
                         Value::string(contract_address.to_string()),
                     );
+                }
+
+                if let Some(abi) = &abi {
+                    let logs = receipt.inner.logs();
+                    let logs = abi_decode_logs(&abi, logs)
+                        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
+                    result.outputs.insert("logs".to_string(), Value::array(logs));
                 }
                 // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
                 else if let Some(contract_address) = contract_address.clone() {

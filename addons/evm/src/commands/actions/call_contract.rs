@@ -26,7 +26,7 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::RPC_API_URL;
+use crate::constants::{CONTRACT_ABI, RPC_API_URL};
 use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 use txtx_addon_kit::constants::TX_HASH;
@@ -333,6 +333,9 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+            if let Some(contract_abi) = outputs.get_value(CONTRACT_ABI) {
+                result.outputs.insert(CONTRACT_ABI.to_string(), contract_abi.clone());
+            }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
