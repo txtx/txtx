@@ -83,10 +83,12 @@ pub fn create_init_code(
     } else {
         // if we have an abi, use it to validate whether constructor arguments are needed
         if let Some(json_abi) = json_abi {
-            if json_abi.constructor.is_some() {
-                return Err(format!(
-                    "invalid arguments: no constructor arguments provided, but abi has constructor"
-                ));
+            if let Some(constructor) = json_abi.constructor {
+                if constructor.inputs.len() > 0 {
+                    return Err(format!(
+                        "invalid arguments: no constructor arguments provided, but abi has constructor"
+                    ));
+                }
             }
         }
     };
