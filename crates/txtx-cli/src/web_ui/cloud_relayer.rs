@@ -81,7 +81,7 @@ pub async fn open_channel(
     graph_context: Data<GraphContext>,
 ) -> actix_web::Result<HttpResponse> {
     println!("POST /api/v1/channels");
-    let Some(cookie) = req.cookie("hanko") else {
+    let Some(cookie) = req.cookie("nhost") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
     };
 
@@ -162,7 +162,7 @@ pub async fn delete_channel(
     payload: Json<DeleteChannelRequest>,
 ) -> actix_web::Result<HttpResponse> {
     println!("DELETE /api/v1/channels");
-    let Some(cookie) = req.cookie("hanko") else {
+    let Some(cookie) = req.cookie("nhost") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
     };
 
