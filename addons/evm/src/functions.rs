@@ -752,7 +752,7 @@ impl FunctionImplementation for CreateInitCode {
             }
             other => return Err(format_fn_error(&prefix, 2, "array", other)),
         };
-        let init_code = create_init_code(bytecode, Some(constructor_args), None)
+        let init_code = create_init_code(bytecode, Some(constructor_args), &None)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
         Ok(EvmValue::init_code(init_code))
     }
