@@ -255,7 +255,11 @@ impl CommandImplementation for CheckEvmConfirmations {
                 }
 
                 if !receipt.status() {
-                    let diag = diagnosed_error!("transaction reverted");
+                    let diag = match rpc.trace_transaction(&tx_hash_bytes).await {
+                        Ok(trace) => diagnosed_error!("transaction reverted with trace: {}", trace),
+                        Err(_) => diagnosed_error!("transaction reverted"),
+                    };
+
                     status_update.update_status(&ProgressBarStatus::new_err(
                         "Failed",
                         &format!("Transaction Failed for Chain {}", chain_name),
