@@ -1,6 +1,6 @@
 use alloy::dyn_abi::DynSolValue;
+use alloy::json_abi::JsonAbi;
 use alloy::primitives::Address;
-use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{
@@ -23,15 +23,13 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
-use crate::codec::contract_deployment::proxy_opts::ProxyContractOpts;
-use crate::codec::contract_deployment::{get_contract_init_code, ContractDeploymentTransaction};
-use crate::codec::{
-    get_typed_transaction_bytes, string_to_address, value_to_sol_value, TransactionType,
-};
+use crate::codec::contract_deployment::{create_init_code, ContractDeploymentTransaction};
+use crate::codec::{get_typed_transaction_bytes, value_to_sol_value, TransactionType};
 
 use crate::constants::{
-    ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS, DO_VERIFY_CONTRACT,
-    EXPECTED_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE,
+    ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ABI, CONTRACT_ADDRESS,
+    CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, EXPECTED_CONTRACT_ADDRESS, RPC_API_URL,
+    TRANSACTION_TYPE,
 };
 use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
@@ -39,6 +37,9 @@ use crate::typing::{
     EvmValue, CONTRACT_METADATA, CREATE2_OPTS, PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS,
 };
 
+use super::call_contract::{
+    encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+};
 use super::check_confirmations::CheckEvmConfirmations;
 use super::sign_transaction::SignEvmTransaction;
 use super::verify_contract::VerifyEvmContract;
@@ -96,7 +97,7 @@ lazy_static! {
                         tainting: true,
                         internal: false
                     },
-                    initializers: {
+                    initializer: {
                         documentation: "An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.",
                         typing: PROXIED_CONTRACT_INITIALIZER.clone(),
                         optional: true,
@@ -273,7 +274,8 @@ impl CommandImplementation for ProxyDeployContract {
 
         use crate::{
             codec::contract_deployment::{
-                ContractDeploymentTransactionStatus, TransactionDeploymentRequestData,
+                ContractDeploymentTransactionStatus, ProxiedDeploymentTransaction,
+                TransactionDeploymentRequestData,
             },
             constants::{CHAIN_ID, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
@@ -326,11 +328,6 @@ impl CommandImplementation for ProxyDeployContract {
                 .await
                 .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
 
-            let proxy_deploy_tx = deployer
-                .get_proxy_deployment_transaction(&values)
-                .await
-                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
-
             let payload = match impl_deploy_tx {
                 ContractDeploymentTransaction::Create(status)
                 | ContractDeploymentTransaction::Create2(status) => match status {
@@ -367,6 +364,39 @@ impl CommandImplementation for ProxyDeployContract {
                         payload
                     }
                 },
+                ContractDeploymentTransaction::Proxied(ProxiedDeploymentTransaction {
+                    tx,
+                    tx_cost,
+                    expected_impl_address,
+                    expected_proxy_address,
+                }) => {
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        CONTRACT_ADDRESS,
+                        EvmValue::address(&expected_proxy_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        "impl_contract_address",
+                        EvmValue::address(&expected_impl_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        "proxy_contract_address",
+                        EvmValue::address(&expected_proxy_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        TRANSACTION_COST,
+                        Value::integer(tx_cost),
+                    );
+                    let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
+                        (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
+                    })?;
+                    println!("proxy deployment tx: {:#?}", tx);
+                    let payload = EvmValue::transaction(bytes);
+                    payload
+                }
             };
 
             let mut values = values.clone();
@@ -414,6 +444,7 @@ impl CommandImplementation for ProxyDeployContract {
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
         let signer_did = get_signer_did(&values).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+
         // insert pre-calculated contract address into outputs to be used by verify contract bg task
         let contract_address =
             signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap();
@@ -421,7 +452,7 @@ impl CommandImplementation for ProxyDeployContract {
 
         let contract = values.get_expected_object("contract").unwrap();
         if let Some(abi) = contract.get("abi") {
-            result.outputs.insert("abi".to_string(), abi.clone());
+            result.outputs.insert(CONTRACT_ABI.to_string(), abi.clone());
         }
 
         let already_deployed = signer_state
@@ -517,7 +548,7 @@ impl CommandImplementation for ProxyDeployContract {
 
             let contract = inputs.get_expected_object("contract").unwrap();
             if let Some(abi) = contract.get("abi") {
-                result.outputs.insert("abi".to_string(), abi.clone());
+                inputs.insert(CONTRACT_ABI, abi.clone());
             }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
@@ -560,27 +591,6 @@ impl CommandImplementation for ProxyDeployContract {
     }
 }
 
-enum Create2DeploymentResult {
-    AlreadyDeployed(Address),
-    NotDeployed((TransactionRequest, i128, Address)),
-}
-
-fn validate_expected_address_match(
-    expected_contract_address: Option<&str>,
-    calculated_deployed_contract_address: &Address,
-) -> Result<(), String> {
-    if let Some(expected_contract_address) = expected_contract_address {
-        let expected = string_to_address(expected_contract_address.to_string())
-            .map_err(|e| format!("invalid expected contract address: {e}"))?;
-        if !calculated_deployed_contract_address.eq(&expected) {
-            return Err(format!(
-                "contract deployment does not yield expected address: actual ({}), expected ({})",
-                calculated_deployed_contract_address, expected
-            ));
-        }
-    }
-    Ok(())
-}
 pub struct ContractDeploymentTransactionRequestBuilder {
     rpc: EvmRpc,
     chain_id: u64,
@@ -591,8 +601,8 @@ pub struct ContractDeploymentTransactionRequestBuilder {
     signer_starting_nonce: u64,
     tx_type: TransactionType,
     contract_creation_opts: ContractCreationOpts,
-    proxy_opts: Option<ProxyContractOpts>,
     expected_contract_address: Option<String>,
+    abi: Option<JsonAbi>,
 }
 
 impl ContractDeploymentTransactionRequestBuilder {
@@ -606,9 +616,45 @@ impl ContractDeploymentTransactionRequestBuilder {
         let rpc = EvmRpc::new(&rpc_api_url)?;
         let from_address = get_expected_address(from_address)?;
 
-        let proxy_opts = ProxyContractOpts::from_value_store(values)?;
+        let is_proxy_contract =
+            values.get_bool("proxied").unwrap_or(false) || values.get_value("proxy").is_some();
 
-        let init_code = get_contract_init_code(values, proxy_opts.is_some())?;
+        let contract = values.get_expected_object("contract").map_err(|e| e.to_string())?;
+
+        let constructor_args = if let Some(function_args) =
+            values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
+        {
+            if is_proxy_contract {
+                return Err(format!(
+                    "invalid arguments: constructor arguments provided, but contract is a proxy contract"
+                ));
+            }
+            let sol_args = function_args
+                .expect_array()
+                .iter()
+                .map(|v| value_to_sol_value(&v))
+                .collect::<Result<Vec<DynSolValue>, String>>()?;
+            Some(sol_args)
+        } else {
+            None
+        };
+
+        let Some(bytecode) =
+            contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
+        else {
+            return Err(format!("contract missing required bytecode"));
+        };
+
+        let json_abi: Option<JsonAbi> = match contract.get("abi") {
+            Some(abi_string) => {
+                let abi = serde_json::from_str(&abi_string.expect_string())
+                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
+                Some(abi)
+            }
+            None => None,
+        };
+
+        let init_code = create_init_code(bytecode, constructor_args, &json_abi)?;
 
         let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)?;
         let signer_starting_nonce = match nonce {
@@ -635,9 +681,6 @@ impl ContractDeploymentTransactionRequestBuilder {
             values.get_string(EXPECTED_CONTRACT_ADDRESS).map(|v| v.to_string());
 
         contract_creation_opts.validate(&rpc).await?;
-        if let Some(proxy_opts) = &proxy_opts {
-            proxy_opts.validate(&rpc).await?;
-        }
 
         Ok(Self {
             rpc,
@@ -649,33 +692,9 @@ impl ContractDeploymentTransactionRequestBuilder {
             signer_starting_nonce,
             tx_type,
             contract_creation_opts,
-            proxy_opts,
             expected_contract_address,
+            abi: json_abi,
         })
-    }
-
-    pub async fn get_proxy_deployment_transaction(
-        &self,
-        values: &ValueStore,
-    ) -> Result<Option<ContractDeploymentTransaction>, String> {
-        match &self.proxy_opts {
-            Some(proxy_opts) => Some(
-                proxy_opts
-                    .get_unsigned_proxy_deployment_transaction(
-                        &self.rpc,
-                        &EvmValue::address(&self.from_address),
-                        self.get_proxy_deployment_nonce(),
-                        self.chain_id,
-                        self.amount,
-                        self.gas_limit,
-                        &self.tx_type,
-                        values,
-                    )
-                    .await,
-            )
-            .transpose(),
-            None => Ok(None),
-        }
     }
 
     async fn get_implementation_deployment_transaction(
@@ -692,28 +711,9 @@ impl ContractDeploymentTransactionRequestBuilder {
                 self.gas_limit,
                 &self.tx_type,
                 values,
+                &self.abi,
             )
             .await
-    }
-
-    fn calculate_deployed_contract_address(&self) -> Result<Address, String> {
-        match &self.proxy_opts {
-            Some(proxy_opts) => {
-                proxy_opts.contract_creation_opts.calculate_deployed_contract_address(
-                    &self.from_address,
-                    self.get_proxy_deployment_nonce(),
-                )
-            }
-            None => self.contract_creation_opts.calculate_deployed_contract_address(
-                &self.from_address,
-                self.get_implementation_deployment_nonce(),
-            ),
-        }
-    }
-
-    /// Gets the nonce for the proxy deployment transaction, which is the starting nonce plus 1.
-    pub fn get_proxy_deployment_nonce(&self) -> u64 {
-        self.signer_starting_nonce + 1
     }
 
     /// Gets the nonce for the implementation deployment transaction.
@@ -722,9 +722,10 @@ impl ContractDeploymentTransactionRequestBuilder {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct ProxiedContractInitializer {
     function_name: String,
-    function_args: Option<Vec<DynSolValue>>,
+    function_args: Vec<DynSolValue>,
 }
 impl ProxiedContractInitializer {
     pub fn new(initializers: &Value) -> Result<Vec<Self>, String> {
@@ -754,12 +755,25 @@ impl ProxiedContractInitializer {
                     .iter()
                     .map(|v| value_to_sol_value(&v))
                     .collect::<Result<Vec<DynSolValue>, String>>()?;
-                Some(sol_args)
+                sol_args
             } else {
-                None
+                vec![]
             };
             res.push(Self { function_name: function_name.to_string(), function_args });
         }
         Ok(res)
+    }
+
+    pub fn get_fn_input_bytes(
+        &self,
+        initialized_contract_abi: &Option<JsonAbi>,
+    ) -> Result<Vec<u8>, String> {
+        if let Some(abi) = &initialized_contract_abi {
+            encode_contract_call_inputs_from_abi(&abi, &self.function_name, &self.function_args)
+                .map_err(|e| format!("failed to encode initializer function: {e}"))
+        } else {
+            encode_contract_call_inputs_from_selector(&self.function_name, &self.function_args)
+                .map_err(|e| format!("failed to encode initializer function: {e}"))
+        }
     }
 }

@@ -1,30 +1,34 @@
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex;
+use alloy::json_abi::JsonAbi;
 use alloy::primitives::Address;
 use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 
 use crate::codec::{build_unsigned_transaction, CommonTransactionFields, TransactionType};
 use crate::commands::actions::call_contract::{
-    encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+    encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
 };
 use crate::commands::actions::get_expected_address;
 use crate::constants::{
     DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_CREATE2_SALT, FACTORY_ABI, FACTORY_ADDRESS,
-    FACTORY_FUNCTION_NAME, SALT,
+    FACTORY_FUNCTION_NAME, PROXY_FACTORY_ADDRESS, SALT,
 };
 use crate::rpc::EvmRpc;
 use alloy::primitives::{keccak256, Keccak256};
 use alloy::rlp::{encode_list, BufMut, Encodable};
 
+use super::proxy_opts::ProxiedCreationOpts;
 use super::{
     ContractDeploymentTransaction, ContractDeploymentTransactionStatus,
     TransactionDeploymentRequestData,
 };
 
+#[derive(Clone, Debug)]
 pub enum ContractCreationOpts {
     Create(CreateDeploymentOpts),
     Create2(Create2DeploymentOpts),
+    Proxied(ProxiedCreationOpts),
 }
 impl ContractCreationOpts {
     pub fn default(init_code: &Vec<u8>) -> Self {
@@ -32,26 +36,37 @@ impl ContractCreationOpts {
     }
     pub fn new(values: &ValueStore, init_code: &Vec<u8>) -> Result<Self, String> {
         let create_opcode = values.get_string("create_opcode");
+        let proxied = values.get_bool("proxied").unwrap_or(false);
+        let proxy = values.get_value("proxy");
         let create2_opts = values.get_map("create2");
 
         match create_opcode {
-            Some("create") => match create2_opts {
-                Some(_) => {
+            Some("create") => {
+                if create2_opts.is_some() {
                     return Err("invalid arguments: 'create2' options specified, but 'create_opcode' field is set to 'create'".into());
                 }
-                None => Ok(ContractCreationOpts::Create(CreateDeploymentOpts::new(init_code))),
-            },
-            None | Some("create2") => match create2_opts {
-                Some(opts) => {
-                    let create2_opts =
-                        Create2DeploymentOpts::new(&opts, &values.defaults, init_code)?;
+                if proxied {
+                    return Err("invalid arguments: 'proxied' field is set to 'true', but 'create_opcode' field is set to 'create'".into());
+                }
+                if proxy.is_some() {
+                    return Err("invalid arguments: 'proxy' field is set, but 'create_opcode' field is set to 'create'".into());
+                }
+                Ok(ContractCreationOpts::Create(CreateDeploymentOpts::new(init_code)))
+            }
+            None | Some("create2") => {
+                let create2_opts = match create2_opts {
+                    Some(opts) => Create2DeploymentOpts::new(&opts, &values.defaults, init_code)?,
+                    None => Create2DeploymentOpts::default(init_code),
+                };
+                if let Some(proxy_opts) =
+                    ProxiedCreationOpts::from_value_store(values, &create2_opts)?
+                {
+                    Ok(ContractCreationOpts::Proxied(proxy_opts))
+                } else {
                     Ok(ContractCreationOpts::Create2(create2_opts))
                 }
-                None => {
-                    Ok(ContractCreationOpts::Create2(Create2DeploymentOpts::default(init_code)))
-                }
-            },
-            Some(invalid) => Err(format!("Invalid create opcode: {}", invalid)),
+            }
+            _ => Err(format!("invalid 'create_opcode' field: {}", create_opcode.unwrap())),
         }
     }
 
@@ -65,6 +80,7 @@ impl ContractCreationOpts {
         gas_limit: Option<u64>,
         tx_type: &TransactionType,
         values: &ValueStore,
+        abi: &Option<JsonAbi>,
     ) -> Result<ContractDeploymentTransaction, String> {
         match self {
             ContractCreationOpts::Create(opts) => {
@@ -93,30 +109,33 @@ impl ContractCreationOpts {
                 )
                 .await
             }
-        }
-    }
-
-    pub fn calculate_deployed_contract_address(
-        &self,
-        sender_address: &Address,
-        nonce: u64,
-    ) -> Result<Address, String> {
-        match self {
-            ContractCreationOpts::Create(opts) => {
-                opts.calculate_deployed_contract_address(sender_address, nonce)
+            ContractCreationOpts::Proxied(opts) => {
+                opts.get_deployment_via_factory_transaction(
+                    rpc,
+                    sender_address,
+                    nonce,
+                    chain_id,
+                    amount,
+                    gas_limit,
+                    tx_type,
+                    values,
+                    abi,
+                )
+                .await
             }
-            ContractCreationOpts::Create2(opts) => opts.calculate_deployed_contract_address(),
         }
     }
 
     pub async fn validate(&self, rpc: &EvmRpc) -> Result<(), String> {
         match self {
             ContractCreationOpts::Create2(opts) => opts.validate_create2_factory_address(rpc).await,
+            ContractCreationOpts::Proxied(opts) => opts.validate(rpc).await,
             _ => Ok(()),
         }
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct CreateDeploymentOpts {
     init_code: Vec<u8>,
 }
@@ -170,17 +189,53 @@ impl CreateDeploymentOpts {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Create2DeploymentOpts {
     salt: String,
-    raw_salt: Vec<u8>,
-    factory: Create2Factory,
-    init_code: Vec<u8>,
+    pub raw_salt: Vec<u8>,
+    pub factory: Create2Factory,
+    pub init_code: Vec<u8>,
 }
 impl Create2DeploymentOpts {
     pub fn default(init_code: &Vec<u8>) -> Self {
         let salt = DEFAULT_CREATE2_SALT.to_string();
         let raw_salt = salt_str_to_hex(&salt).unwrap();
         Self { salt, raw_salt, factory: Create2Factory::Default, init_code: init_code.clone() }
+    }
+
+    pub fn default_proxied() -> Self {
+        let salt = DEFAULT_CREATE2_SALT.to_string();
+        let raw_salt = salt_str_to_hex(&salt).unwrap();
+        Self { salt, raw_salt, factory: Create2Factory::Proxied, init_code: vec![] }
+    }
+
+    pub fn new_proxied(
+        values: &Box<Vec<Value>>,
+        default_values: &ValueMap,
+    ) -> Result<Self, String> {
+        if values.len() != 1 {
+            return Err(format!("'create2' field can only be specified once"));
+        }
+        let values =
+            values.first().unwrap().as_object().ok_or("'create2' field must be an object")?;
+
+        let values = ValueStore::tmp()
+            .with_inputs(&ValueMap::new().with_store(values))
+            .with_defaults(default_values);
+
+        let salt = values
+            .get_value(SALT)
+            .map(|s| s.to_string())
+            .unwrap_or(DEFAULT_CREATE2_SALT.to_string());
+
+        let raw_salt = salt_str_to_hex(&salt)?;
+        if values.get_value(FACTORY_ADDRESS).is_some() {
+            return Err(format!(
+                "invalid 'create2' field: 'factory_address' field is not allowed for proxied contracts"
+            ));
+        } else {
+            Ok(Self { salt, raw_salt, factory: Create2Factory::Proxied, init_code: vec![] })
+        }
     }
 
     pub fn new(
@@ -201,9 +256,12 @@ impl Create2DeploymentOpts {
             .with_inputs(&ValueMap::new().with_store(values))
             .with_defaults(default_values);
 
-        let salt = values.get_string(SALT).unwrap_or(DEFAULT_CREATE2_SALT);
+        let salt = values
+            .get_value(SALT)
+            .map(|s| s.to_string())
+            .unwrap_or(DEFAULT_CREATE2_SALT.to_string());
 
-        let raw_salt = salt_str_to_hex(salt)?;
+        let raw_salt = salt_str_to_hex(&salt)?;
         if let Some(custom_create2_factory_address) =
             values.get_value(FACTORY_ADDRESS).and_then(|v| Some(v.clone()))
         {
@@ -221,7 +279,7 @@ impl Create2DeploymentOpts {
             ];
 
             Ok(Self {
-                salt: salt.to_string(),
+                salt,
                 raw_salt,
                 factory: Create2Factory::Custom {
                     address: custom_create2_factory_address,
@@ -296,10 +354,11 @@ impl Create2DeploymentOpts {
             }
             Create2Factory::Custom { abi, function_name, function_args, .. } => match abi {
                 Some(abi) => {
-                    encode_contract_call_inputs_from_abi(abi, function_name, function_args)
+                    encode_contract_call_inputs_from_abi_str(abi, function_name, function_args)
                 }
                 None => encode_contract_call_inputs_from_selector(function_name, function_args),
             },
+            Create2Factory::Proxied => unreachable!(),
         }
     }
 
@@ -307,6 +366,7 @@ impl Create2DeploymentOpts {
         match &self.factory {
             Create2Factory::Default => DEFAULT_CREATE2_FACTORY_ADDRESS.to_string(),
             Create2Factory::Custom { address, .. } => address.to_string(),
+            Create2Factory::Proxied => PROXY_FACTORY_ADDRESS.to_string(),
         }
     }
 
@@ -326,6 +386,7 @@ impl Create2DeploymentOpts {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Create2Factory {
     Default,
     Custom {
@@ -334,6 +395,7 @@ pub enum Create2Factory {
         function_name: String,
         function_args: Vec<DynSolValue>,
     },
+    Proxied,
 }
 
 pub fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {

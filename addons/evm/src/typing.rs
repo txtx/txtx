@@ -233,22 +233,6 @@ lazy_static! {
             typing: CREATE2_OPTS.clone(),
             optional: true,
             tainting: true
-        },
-        contract: {
-            documentation: indoc!{r#"
-                The proxy contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
-                The abi field can also be provided to add type checking for the constructor arguments.
-                The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
-            "#},
-            typing: CONTRACT_METADATA.clone(),
-            optional: true,
-            tainting: true
-        },
-        constructor_args: {
-            documentation: "The optional constructor arguments for the proxy contract.",
-            typing: Type::array(Type::string()),
-            optional: true,
-            tainting: true
         }
     };
     pub static ref PROXIED_CONTRACT_INITIALIZER: Type = define_map_type! {
