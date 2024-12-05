@@ -174,6 +174,11 @@ impl UnevaluatedInputsMap {
             _ => Ok(()),
         }
     }
+    pub fn merge(&mut self, other: &UnevaluatedInputsMap) {
+        for (key, value) in other.map.iter() {
+            self.map.insert(key.clone(), value.clone());
+        }
+    }
 }
 
 impl Serialize for CommandInputsEvaluationResult {
