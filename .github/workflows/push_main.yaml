@@ -105,6 +105,7 @@ jobs:
           cd txtx-web-ui
           touch .env
           echo ID_SERVICE_URL="https://id.txtx.run/proxy" >> .env
+          echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
           cat .env
           cd ..
 
