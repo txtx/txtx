@@ -29,7 +29,7 @@ use crate::{
         string_to_address, value_to_sol_value,
     },
     commands::actions::call_contract::{
-        encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+        encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
     },
     constants::{
         DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_FOUNDRY_MANIFEST_PATH, DEFAULT_FOUNDRY_PROFILE,
@@ -796,7 +796,7 @@ impl FunctionImplementation for EncodeFunctionCall {
             .transpose()?;
 
         let input = if let Some(abi_str) = abi {
-            encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         } else {
             encode_contract_call_inputs_from_selector(function_name, &function_args)
