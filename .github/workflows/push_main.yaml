@@ -106,6 +106,8 @@ jobs:
           touch .env
           echo ID_SERVICE_URL="https://id.txtx.run/proxy" >> .env
           echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
+          echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
+          echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
           cat .env
           cd ..
 
