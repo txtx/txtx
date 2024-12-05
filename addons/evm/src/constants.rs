@@ -1,4 +1,7 @@
-use txtx_addon_kit::{indexmap::IndexMap, types::types::Value};
+use alloy::{contract::Interface, json_abi::JsonAbi, primitives::Address};
+use txtx_addon_kit::{hex, indexmap::IndexMap, types::types::Value};
+
+use crate::codec::foundry::FoundryCompiledOutputJson;
 
 pub const NAMESPACE: &str = "evm";
 
@@ -66,6 +69,8 @@ pub const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 pub const DEFAULT_FOUNDRY_OUT_DIR: &str = "out";
 pub const DEFAULT_FOUNDRY_SRC_DIR: &str = "src";
 pub const DEFAULT_CREATE2_SALT: &str =
+    "0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f";
+pub const EMPTY_CREATE2_SALT: &str =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 // Actions items keys
@@ -86,4 +91,16 @@ pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";
 
 lazy_static! {
     pub static ref DEFAULT_PROXY_CONTRACT: IndexMap<String, Value> = IndexMap::new();
+    pub static ref PROXY_FACTORY_ADDRESS: Address =
+        Address::from_slice(&hex::decode(&"0x96c22720d65cff923d66905a92a98dd8791a3999"[2..]).unwrap()); // created from salt 0x0000000000000000000000000000000000000000000000000000000000007f35
+
+    pub static ref ERC1967_PROXY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json")).unwrap();
+    pub static ref ERC1967_PROXY_ABI: JsonAbi = ERC1967_PROXY_COMPILED_OUTPUT.abi.clone();
+    pub static ref ERC1967_PROXY_ABI_INTERFACE: Interface = Interface::new(ERC1967_PROXY_ABI.clone());
+
+    pub static ref PROXY_FACTORY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/AtomicProxyDeploymentFactory.sol/AtomicProxyDeploymentFactory.json")).unwrap();
+    pub static ref PROXY_FACTORY_ABI: JsonAbi = PROXY_FACTORY_COMPILED_OUTPUT.abi.clone();
+    pub static ref PROXY_FACTORY_ABI_INTERFACE: Interface = Interface::new(PROXY_FACTORY_ABI.clone());
+
+    pub static ref EMPTY_CREATE2_RAW_SALT: Vec<u8> = hex::decode(&EMPTY_CREATE2_SALT[2..]).unwrap();
 }
