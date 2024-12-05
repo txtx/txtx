@@ -93,14 +93,14 @@ jobs:
           echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
           cat .env
 
-      - name: Checkout Web UI
+      - name: Checkout Supervisor UI
         uses: actions/checkout@v4
         with:
           repository: txtx/txtx-supervisor-ui
           token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
           path: txtx-supervisor-ui 
 
-      - name: Build .env file for Web UI
+      - name: Build .env file for Supervisor UI
         run: |
           cd txtx-supervisor-ui
           touch .env
@@ -109,10 +109,10 @@ jobs:
           cat .env
           cd ..
 
-      - name: Build Web UI
+      - name: Build Supervisor UI
         run: |
           cd txtx-supervisor-ui
-          npm i
+          npm run i
           npm run build
           cd ..
 
