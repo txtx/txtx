@@ -584,9 +584,11 @@ impl CommandImplementation for ProxyDeployContract {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
-            let contract = inputs.get_expected_object("contract").unwrap();
-            if let Some(abi) = contract.get("abi") {
-                inputs.insert(CONTRACT_ABI, abi.clone());
+            if let Some(impl_contract_address) = outputs.get_value(IMPL_CONTRACT_ADDRESS) {
+                result.insert(IMPL_CONTRACT_ADDRESS, impl_contract_address.clone());
+            }
+            if let Some(proxy_contract_address) = outputs.get_value(PROXY_CONTRACT_ADDRESS) {
+                result.insert(PROXY_CONTRACT_ADDRESS, proxy_contract_address.clone());
             }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
