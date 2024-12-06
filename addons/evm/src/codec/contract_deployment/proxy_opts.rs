@@ -5,7 +5,7 @@ use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 
 use crate::codec::{build_unsigned_transaction, CommonTransactionFields, TransactionType};
-use crate::commands::actions::proxy_deploy_contract::ProxiedContractInitializer;
+use crate::commands::actions::deploy_contract::ProxiedContractInitializer;
 
 use super::create_opts::{generate_create2_address, Create2DeploymentOpts, Create2Factory};
 use super::{create_init_code, ContractDeploymentTransaction};

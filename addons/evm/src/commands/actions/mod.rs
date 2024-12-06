@@ -10,15 +10,15 @@ use txtx_addon_kit::types::{
 
 pub mod call_contract;
 pub mod check_confirmations;
+pub mod deploy_contract;
 pub mod eth_call;
-pub mod proxy_deploy_contract;
 pub mod sign_transaction;
 pub mod transfer_eth;
 pub mod verify_contract;
 
 use call_contract::SIGN_EVM_CONTRACT_CALL;
+use deploy_contract::DEPLOY_CONTRACT;
 use eth_call::ETH_CALL;
-use proxy_deploy_contract::PROXY_DEPLOY_CONTRACT;
 use sign_transaction::SIGN_TRANSACTION;
 use verify_contract::VERIFY_CONTRACT;
 
@@ -35,7 +35,7 @@ lazy_static! {
         CHECK_CONFIRMATIONS.clone(),
         SIGN_TRANSACTION.clone(),
         TRANSFER_ETH.clone(),
-        PROXY_DEPLOY_CONTRACT.clone(),
+        DEPLOY_CONTRACT.clone(),
     ];
 }
 
