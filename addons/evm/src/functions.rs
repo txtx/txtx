@@ -3,7 +3,7 @@ use std::{path::Path, str::FromStr};
 use alloy::{
     dyn_abi::DynSolValue,
     hex::FromHex,
-    primitives::{Bytes, B256},
+    primitives::{Address, Bytes, B256},
 };
 use alloy_chains::ChainKind;
 use txtx_addon_kit::{
@@ -70,6 +70,22 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The input string as an Ethereum address.",
+                    typing: Type::addon(EVM_ADDRESS)
+                },
+            }
+        },
+        define_function! {
+            EvmZeroAddress => {
+                name: "zero_address",
+                documentation: "`evm::zero_address` is a constant representing the zero address.",
+                example: indoc! {r#"
+                        output "address" { 
+                            value = evm::zero_address()
+                        }
+                        "#},
+                inputs: [],
+                output: {
+                    documentation: "The zero address, `0x0000000000000000000000000000000000000000`.",
                     typing: Type::addon(EVM_ADDRESS)
                 },
             }
@@ -366,6 +382,27 @@ impl FunctionImplementation for EncodeEvmAddress {
         let address = string_to_address(entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
         Ok(EvmValue::address(&address))
+    }
+}
+
+#[derive(Clone)]
+pub struct EvmZeroAddress;
+impl FunctionImplementation for EvmZeroAddress {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        Ok(EvmValue::address(&Address::ZERO))
     }
 }
 

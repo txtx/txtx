@@ -136,6 +136,7 @@ pub fn encode_contract_deployment(
         None => Some(ClarityVersion::latest()),
         Some(1) => Some(ClarityVersion::Clarity1),
         Some(2) => Some(ClarityVersion::Clarity2),
+        Some(3) => Some(ClarityVersion::Clarity3),
         Some(n) => {
             return Err(diagnosed_error!("command {}: clarity version {} unknown", spec.matcher, n))
         }

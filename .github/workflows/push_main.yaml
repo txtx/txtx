@@ -93,25 +93,28 @@ jobs:
           echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
           cat .env
 
-      - name: Checkout Web UI
+      - name: Checkout Supervisor UI
         uses: actions/checkout@v4
         with:
-          repository: txtx/txtx-web-ui
+          repository: txtx/txtx-supervisor-ui
           token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
-          path: txtx-web-ui 
+          path: txtx-supervisor-ui 
 
-      - name: Build .env file for Web UI
+      - name: Build .env file for Supervisor UI
         run: |
-          cd txtx-web-ui
+          cd txtx-supervisor-ui
           touch .env
           echo ID_SERVICE_URL="https://id.txtx.run/proxy" >> .env
+          echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
+          echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
+          echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
           cat .env
           cd ..
 
-      - name: Build Web UI
+      - name: Build Supervisor UI
         run: |
-          cd txtx-web-ui
-          npm i
+          cd txtx-supervisor-ui
+          npm run i
           npm run build
           cd ..
 

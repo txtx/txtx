@@ -525,7 +525,8 @@ impl CommandImplementation for DeployContract {
                 (signers.clone(), signer_state.clone())
             };
 
-            values.insert(ALREADY_DEPLOYED, Value::bool(already_deployed)); // todo: delte?
+            values.insert(ALREADY_DEPLOYED, Value::bool(already_deployed)); // todo: delete?
+
             let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,

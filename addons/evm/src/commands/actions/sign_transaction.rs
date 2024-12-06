@@ -272,7 +272,6 @@ impl CommandImplementation for SignEvmTransaction {
                 })?;
                 let tx_hash = EvmValue::tx_hash(tx_hash_bytes);
                 result.outputs.insert(TX_HASH.into(), tx_hash.clone());
-                result.outputs.insert(TX_HASH.into(), tx_hash.clone());
             }
             return return_synchronous_ok(signers, signer_state, result);
         }

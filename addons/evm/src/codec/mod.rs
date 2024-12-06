@@ -231,8 +231,8 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
             todo!()
         }
         Value::Object(_) => todo!(),
-        Value::Array(array) => DynSolValue::Array(
-            array.iter().map(|v| value_to_sol_value(v)).collect::<Result<Vec<_>, _>>()?,
+        Value::Array(values) => DynSolValue::Array(
+            values.iter().map(value_to_sol_value).collect::<Result<Vec<_>, _>>()?,
         ),
         Value::Addon(addon) => {
             if addon.id == EVM_ADDRESS {
