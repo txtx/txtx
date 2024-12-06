@@ -96,7 +96,7 @@ pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";
 lazy_static! {
     pub static ref DEFAULT_PROXY_CONTRACT: IndexMap<String, Value> = IndexMap::new();
     pub static ref PROXY_FACTORY_ADDRESS: Address =
-        Address::from_slice(&hex::decode(&"0x74240e2eb14c2ed5cbfcd5f29e2c87587bac3792"[2..]).unwrap()); // created from salt 0x0000000000000000000000000000000000000000000000000000000000007f35
+        Address::from_slice(&hex::decode(&"0xfe11746aa174ced01537e8232119a0a17ed073aa"[2..]).unwrap()); // created from salt 0x0000000000000000000000000000000000000000000000000000000000007f35
 
     pub static ref ERC1967_PROXY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json")).unwrap();
     pub static ref ERC1967_PROXY_BYTECODE: String = ERC1967_PROXY_COMPILED_OUTPUT.bytecode.object.clone();

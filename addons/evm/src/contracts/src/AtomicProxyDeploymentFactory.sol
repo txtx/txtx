@@ -17,7 +17,7 @@ contract AtomicProxyDeploymentFactory {
      * @dev Deploys an implementation contract and a proxy contract, then calls a set of functions through the proxy contract.
      * @param impl_init_code The init code for deploying the implementation contract.
      * @param impl_salt The salt for deploying the implementation contract using CREATE2.
-     * @param proxy_salt The salt for deploying the implementation contract using CREATE2.
+     * @param proxy_salt The salt for deploying the proxy contract using CREATE2.
      * @param calls An array of function calls (encoded as {signature + arguments}) to execute on the proxy contract.
      */
     function deploy(
@@ -53,9 +53,9 @@ contract AtomicProxyDeploymentFactory {
     }
 
     /**
-     * @dev Deploys a contract with the given init code, optionally using CREATE2 if a salt is provided.
+     * @dev Deploys a contract with the given init code and salt, using CREATE2.
      * @param init_code The initialization bytecode of the contract to deploy.
-     * @param salt The salt for deploying the contract using CREATE2 (set to empty bytes for CREATE).
+     * @param salt The salt for deploying the contract using CREATE2.
      * @return The address of the deployed contract.
      */
     function _deployContract(bytes memory init_code, bytes32 salt)
