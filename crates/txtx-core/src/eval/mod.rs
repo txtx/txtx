@@ -789,7 +789,11 @@ pub fn eval_expression(
         }
         // Represents a variable identifier.
         Expression::Variable(_decorated_var) => {
-            unimplemented!()
+            return Err(diagnosed_error!(
+                "Directly referencing a variable is not supported. Did you mean `variable.{}`?",
+                _decorated_var.as_str()
+            )
+            .into());
         }
         // Represents conditional operator which selects one of two expressions based on the outcome of a boolean expression.
         Expression::Conditional(_conditional) => {
