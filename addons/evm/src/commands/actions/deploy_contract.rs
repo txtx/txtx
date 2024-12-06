@@ -237,10 +237,12 @@ lazy_static! {
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                    action "my_contract" "evm::deploy_contract_create2" {
+                    action "my_contract" "evm::deploy_contract" {
                         contract = evm::get_contract_from_foundry_project("MyContract")
-                        salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
                         signer = signer.deployer
+                        create2 {
+                            salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                        }
                     }
                 "#},
             }
