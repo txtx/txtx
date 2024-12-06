@@ -1594,6 +1594,9 @@ struct EvaluateMapInputResult {
     diags: Vec<Diagnostic>,
     fatal_error: bool,
 }
+/// Evaluating a map input is different from other inputs because it can contain nested blocks.
+/// For other types, once we have an input block and an identifier in the block, we can expect that identifier to point to an "attribute".
+/// For a map, it could point to another block, so we need to recursively look inside maps.
 fn evaluate_map_input(
     mut result: CommandInputsEvaluationResult,
     input_spec: &CommandInput,
