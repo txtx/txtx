@@ -7,9 +7,11 @@ use txtx_addon_kit::types::types::Value;
 use crate::codec::{build_unsigned_transaction, CommonTransactionFields, TransactionType};
 use crate::commands::actions::proxy_deploy_contract::ProxiedContractInitializer;
 
-use super::create_opts::{Create2DeploymentOpts, Create2Factory};
-use super::ContractDeploymentTransaction;
-use crate::constants::{PROXY_FACTORY_ABI_INTERFACE, PROXY_FACTORY_ADDRESS};
+use super::create_opts::{generate_create2_address, Create2DeploymentOpts, Create2Factory};
+use super::{create_init_code, ContractDeploymentTransaction};
+use crate::constants::{
+    ERC1967_PROXY_ABI, ERC1967_PROXY_BYTECODE, PROXY_FACTORY_ABI_INTERFACE, PROXY_FACTORY_ADDRESS,
+};
 use crate::rpc::EvmRpc;
 
 #[derive(Clone, Debug)]
@@ -161,7 +163,21 @@ impl ProxiedCreationOpts {
     }
 
     pub fn calculate_deployed_proxy_contract_address(&self) -> Result<Address, String> {
-        self.proxy_create2_opts.calculate_deployed_contract_address()
+        let create2_factory_address = PROXY_FACTORY_ADDRESS.to_string();
+        let init_code = create_init_code(
+            ERC1967_PROXY_BYTECODE.clone(),
+            Some(vec![
+                DynSolValue::Address(self.calculate_deployed_impl_contract_address()?),
+                DynSolValue::Bytes(vec![]),
+            ]),
+            &Some(ERC1967_PROXY_ABI.clone()),
+        )
+        .map_err(|e| format!("failed to calculate deployed proxy contract address: {e}"))?;
+        generate_create2_address(
+            &Value::string(create2_factory_address),
+            &self.proxy_create2_opts.salt,
+            &init_code,
+        )
     }
 
     pub fn calculate_deployed_impl_contract_address(&self) -> Result<Address, String> {
