@@ -23,13 +23,15 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
-use crate::codec::contract_deployment::{create_init_code, ContractDeploymentTransaction};
+use crate::codec::contract_deployment::{
+    create_init_code, AddressAbiMap, ContractDeploymentTransaction,
+};
 use crate::codec::{get_typed_transaction_bytes, value_to_sol_value, TransactionType};
 
 use crate::constants::{
-    ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ABI, CONTRACT_ADDRESS,
-    CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, EXPECTED_CONTRACT_ADDRESS, RPC_API_URL,
-    TRANSACTION_TYPE,
+    ADDRESS_ABI_MAP, ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS,
+    CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, IMPL_CONTRACT_ADDRESS, IS_PROXIED,
+    PROXY_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE,
 };
 use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
@@ -277,7 +279,10 @@ impl CommandImplementation for ProxyDeployContract {
                 ContractDeploymentTransactionStatus, ProxiedDeploymentTransaction,
                 TransactionDeploymentRequestData,
             },
-            constants::{CHAIN_ID, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
+            constants::{
+                CHAIN_ID, IMPL_CONTRACT_ADDRESS, PROXY_CONTRACT_ADDRESS, TRANSACTION_COST,
+                TRANSACTION_PAYLOAD_BYTES,
+            },
             typing::EvmValue,
         };
 
@@ -372,17 +377,22 @@ impl CommandImplementation for ProxyDeployContract {
                 }) => {
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
+                        IS_PROXIED,
+                        Value::bool(true),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
                         CONTRACT_ADDRESS,
                         EvmValue::address(&expected_proxy_address),
                     );
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
-                        "impl_contract_address",
+                        IMPL_CONTRACT_ADDRESS,
                         EvmValue::address(&expected_impl_address),
                     );
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
-                        "proxy_contract_address",
+                        PROXY_CONTRACT_ADDRESS,
                         EvmValue::address(&expected_proxy_address),
                     );
                     signer_state.insert_scoped_value(
@@ -393,7 +403,6 @@ impl CommandImplementation for ProxyDeployContract {
                     let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
                         (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
                     })?;
-                    println!("proxy deployment tx: {:#?}", tx);
                     let payload = EvmValue::transaction(bytes);
                     payload
                 }
@@ -445,20 +454,49 @@ impl CommandImplementation for ProxyDeployContract {
         let signer_did = get_signer_did(&values).unwrap();
         let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
 
+        let already_deployed = signer_state
+            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
+            .unwrap_or(false);
+
+        let is_proxied =
+            signer_state.get_scoped_bool(&construct_did.to_string(), IS_PROXIED).unwrap_or(false);
         // insert pre-calculated contract address into outputs to be used by verify contract bg task
         let contract_address =
             signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap();
         result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
-
         let contract = values.get_expected_object("contract").unwrap();
-        if let Some(abi) = contract.get("abi") {
-            result.outputs.insert(CONTRACT_ABI.to_string(), abi.clone());
+        let contract_abi = contract.get("abi");
+
+        let mut address_abi_map = AddressAbiMap::new();
+
+        // the check confirmations function can decode the receipt logs if it has the available contract abi's,
+        // so we can index the contract addresses with their abi's here
+        if is_proxied {
+            let impl_contract_value = signer_state
+                .get_scoped_value(&construct_did.to_string(), IMPL_CONTRACT_ADDRESS)
+                .unwrap();
+            let proxy_contract_value = signer_state
+                .get_scoped_value(&construct_did.to_string(), PROXY_CONTRACT_ADDRESS)
+                .unwrap();
+            let impl_contract_address = get_expected_address(impl_contract_value).unwrap();
+            let proxy_contract_address = get_expected_address(proxy_contract_value).unwrap();
+
+            result.outputs.insert(IMPL_CONTRACT_ADDRESS.to_string(), impl_contract_value.clone());
+
+            result.outputs.insert(PROXY_CONTRACT_ADDRESS.to_string(), proxy_contract_value.clone());
+
+            address_abi_map.insert_opt(&impl_contract_address, &contract_abi);
+            address_abi_map.insert_proxy_abis(&proxy_contract_address, &contract_abi);
+            address_abi_map.insert_proxy_factory_abi();
+        } else {
+            address_abi_map
+                .insert_opt(&get_expected_address(contract_address).unwrap(), &contract_abi);
         }
 
-        let already_deployed = signer_state
-            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
-            .unwrap_or(false);
+        result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
+
         result.outputs.insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
+
         let future = async move {
             // if this contract has already been deployed, we'll skip signing and confirming
             let (signers, signer_state) = if !already_deployed {

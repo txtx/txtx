@@ -178,3 +178,66 @@ pub struct TransactionDeploymentRequestData {
     pub tx_cost: i128,
     pub expected_address: Address,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddressAbiMap {
+    pub map: IndexMap<Address, Vec<Value>>,
+}
+impl AddressAbiMap {
+    pub fn new() -> Self {
+        Self { map: IndexMap::new() }
+    }
+    pub fn insert_proxy_abis(&mut self, proxy_address: &Address, impl_abi: &Option<&Value>) {
+        self.insert_opt(proxy_address, impl_abi);
+        self.insert(proxy_address, &ERC_1967_PROXY_ABI_VALUE);
+    }
+
+    pub fn insert_proxy_factory_abi(&mut self) {
+        self.insert(&PROXY_FACTORY_ADDRESS, &PROXY_FACTORY_ABI_VALUE);
+    }
+
+    pub fn insert_opt(&mut self, address: &Address, abi: &Option<&Value>) {
+        if let Some(abi) = abi {
+            self.insert(address, abi);
+        }
+    }
+    pub fn insert(&mut self, address: &Address, abi: &Value) {
+        self.map.entry(address.clone()).or_insert_with(Vec::new).push(abi.clone());
+    }
+    /// Returns a [Value::Array] representing the map, with each member of the array being a [Value::Object] with keys "address" (storing an [EvmValue::address]) and "abis" (storing an [Value::array]).
+    pub fn to_value(&self) -> Value {
+        let mut array = Vec::new();
+        for (address, abis) in &self.map {
+            let mut object = IndexMap::new();
+            object.insert("address".to_string(), EvmValue::address(address));
+            object.insert("abis".to_string(), Value::array(abis.clone()));
+            array.push(Value::object(object));
+        }
+        Value::array(array)
+    }
+    pub fn parse_value(value: &Value) -> Result<IndexMap<Address, Vec<JsonAbi>>, String> {
+        let array = value.as_array().ok_or("expected array")?;
+        let mut map = IndexMap::new();
+        for item in array.iter() {
+            let object = item.as_object().ok_or("expected object")?;
+            let address = get_expected_address(object.get("address").ok_or("missing address")?)?;
+            let abis = object
+                .get("abis")
+                .ok_or("missing abi")?
+                .as_array()
+                .ok_or("abis must be an array")?
+                .iter()
+                .map(|abi| abi.as_string().ok_or("abi must be a string".to_string()))
+                .collect::<Result<Vec<&str>, String>>()?;
+            let abis: Vec<JsonAbi> = abis
+                .iter()
+                .map(|abi| {
+                    serde_json::from_str::<JsonAbi>(abi)
+                        .map_err(|e| format!("failed to decode abi: {e}"))
+                })
+                .collect::<Result<Vec<JsonAbi>, String>>()?;
+            map.entry(address).or_insert(abis);
+        }
+        Ok(map)
+    }
+}

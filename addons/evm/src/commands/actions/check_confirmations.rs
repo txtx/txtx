@@ -132,7 +132,7 @@ impl CommandImplementation for CheckEvmConfirmations {
 
         use crate::{
             codec::abi_decode_logs,
-            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, TX_HASH},
+            constants::{ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
             rpc::EvmRpc,
         };
 
@@ -147,7 +147,7 @@ impl CommandImplementation for CheckEvmConfirmations {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
         };
-        let abi = inputs.get_string(CONTRACT_ABI).map(|a| a.to_string());
+        let address_abi_map = inputs.get_value(ADDRESS_ABI_MAP).cloned();
         let progress_tx = progress_tx.clone();
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
@@ -276,17 +276,17 @@ impl CommandImplementation for CheckEvmConfirmations {
                         Value::string(contract_address.to_string()),
                     );
                 }
+                // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
+                else if let Some(contract_address) = contract_address.clone() {
+                    result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
+                };
 
-                if let Some(abi) = &abi {
+                if let Some(abi) = &address_abi_map {
                     let logs = receipt.inner.logs();
                     let logs = abi_decode_logs(&abi, logs)
                         .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
                     result.outputs.insert("logs".to_string(), Value::array(logs));
                 }
-                // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
-                else if let Some(contract_address) = contract_address.clone() {
-                    result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
-                };
 
                 if latest_block >= included_block + confirmations_required as u64 {
                     break receipt;

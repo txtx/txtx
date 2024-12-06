@@ -13,12 +13,12 @@ use crate::typing::{
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
-use alloy::json_abi::JsonAbi;
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
 use alloy::primitives::{Address, FixedBytes, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use alloy_rpc_types::{AccessList, Log};
+use contract_deployment::AddressAbiMap;
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -382,16 +382,23 @@ pub fn format_transaction_cost(cost: i128) -> Result<String, String> {
     format_units(cost, "wei").map_err(|e| format!("failed to format cost: {e}"))
 }
 
-pub fn abi_decode_logs(abi_str: &str, logs: &[Log]) -> Result<Vec<Value>, String> {
-    let abi: JsonAbi =
-        serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
+pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, String> {
+    let abi_map = AddressAbiMap::parse_value(abi_map)
+        .map_err(|e| format!("invalid abis for transaction: {e}"))?;
 
     let logs = logs
         .iter()
         .filter_map(|log| {
-            let topics = log.inner.topics(); //.iter().map(|t| t.0.to_vec()).collect::<Vec<Vec<u8>>>();
+            let log_address = log.address();
+
+            let Some(abis) = abi_map.get(&log_address) else {
+                return None;
+            };
+            let topics = log.inner.topics();
             let Some(first_topic) = topics.first() else { return None };
-            let Some(matching_event) = abi.events().find(|e| e.selector().eq(first_topic)) else {
+            let Some(matching_event) =
+                abis.iter().find_map(|abi| abi.events().find(|e| e.selector().eq(first_topic)))
+            else {
                 return None;
             };
             match topics[1..]
@@ -410,8 +417,11 @@ pub fn abi_decode_logs(abi_str: &str, logs: &[Log]) -> Result<Vec<Value>, String
                 .collect::<Result<Vec<(&str, Value)>, String>>()
             {
                 Ok(values) => {
-                    let mut obj = ObjectType::from(values);
-                    obj.insert("event_name", Value::string(matching_event.name.clone()));
+                    let obj = ObjectType::from(vec![
+                        ("event_name", Value::string(matching_event.name.clone())),
+                        ("log_address", EvmValue::address(&log_address)),
+                        ("data", ObjectType::from(values).to_value()),
+                    ]);
                     return Some(Ok(obj.to_value()));
                 }
                 Err(e) => return Some(Err(e)),
