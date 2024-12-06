@@ -517,6 +517,24 @@ impl StatusUpdater {
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
 
+    pub fn propagate_failed_status(&mut self, new_status_msg: &str, diag: &Diagnostic) {
+        self.status_update.update_status(&ProgressBarStatus::new_err(
+            "Failed",
+            new_status_msg,
+            diag,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_success_status(&mut self, status: &str, msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Green,
+            status,
+            msg,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
     pub fn propagate_status(&mut self, new_status: ProgressBarStatus) {
         self.status_update.update_status(&new_status);
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));

@@ -14,6 +14,7 @@ members = [
     "crates/txtx-lsp",
     "addons/bitcoin",
     "addons/evm",
+    "addons/ovm",
     "addons/stacks",
     "addons/svm",
     "addons/telegram",
@@ -27,6 +28,7 @@ txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-gql = { path = "crates/txtx-gql" }
 txtx-addon-network-evm = { path = "addons/evm" }
+txtx-addon-network-ovm = { path = "addons/ovm" }
 txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
 txtx-addon-network-stacks = { path = "addons/stacks" }
 txtx-addon-network-svm = { path = "addons/svm" }
