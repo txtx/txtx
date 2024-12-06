@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 pragma experimental ABIEncoderV2;
 
-// import { DelegateCaller } from "./DelegateCaller.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract AtomicProxyDeploymentFactory {
@@ -12,56 +11,40 @@ contract AtomicProxyDeploymentFactory {
         bytes indexed data,
         bytes indexed result
     );
-    event CallData(
-        bytes indexed init_code,
-        bytes32 indexed impl_salt,
-        bytes[] indexed calls
-    );
 
-    // DelegateCaller public delegateCaller;
-
-    constructor() {
-        // delegateCaller = new DelegateCaller();
-    }
 
     /**
      * @dev Deploys an implementation contract and a proxy contract, then calls a set of functions through the proxy contract.
-     * @param impl_contract_init_code The init code for deploying the implementation contract.
+     * @param impl_init_code The init code for deploying the implementation contract.
      * @param impl_salt The salt for deploying the implementation contract using CREATE2.
      * @param proxy_salt The salt for deploying the implementation contract using CREATE2.
      * @param calls An array of function calls (encoded as {signature + arguments}) to execute on the proxy contract.
      */
     function deploy(
-        bytes memory impl_contract_init_code,
+        bytes memory impl_init_code,
         bytes32 impl_salt,
         bytes32 proxy_salt,
         bytes[] memory calls
     ) external {
-        emit CallData(impl_contract_init_code, impl_salt, calls);
-        address impl_contract = _deployContract(
-            impl_contract_init_code,
+        // deploy impl
+        address impl_address = _deployContract(
+            impl_init_code,
             impl_salt
         );
-        emit ContractDeployed(impl_contract);
+        emit ContractDeployed(impl_address);
 
-        ERC1967Proxy proxy = new ERC1967Proxy{
-            salt: proxy_salt
-        }(impl_contract, "");
-        address proxy_address = address(proxy);
-
+        // deploy proxy
+        bytes memory proxy_init_code = abi.encodePacked(
+            type(ERC1967Proxy).creationCode,
+            abi.encode(impl_address, "")
+        );
+        address proxy_address = _deployContract(
+            proxy_init_code,
+            proxy_salt
+        );
         emit ContractDeployed(proxy_address);
-        // Call functions on proxy contract
-        // for (uint256 i = 0; i < calls.length; i++) {
-        //     (bool success, bytes memory result) = address(delegateCaller).call(
-        //         abi.encodeWithSignature(
-        //             "execute(address,bytes)",
-        //             proxy_address,
-        //             calls[i]
-        //         )
-        //     );
-        //     require(success, "Function call failed");
-        //     emit FunctionCalled(proxy_address, calls[i], result);
-        // }
+
+        // call initializers
         for (uint256 i = 0; i < calls.length; i++) {
             (bool success, bytes memory result) = proxy_address.call(calls[i]);
             require(success, "Function call failed");
