@@ -60,11 +60,8 @@ impl FunctionImplementation for JsonQuery {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        println!("args: {:?}", args);
         let input_str = args.get(0).unwrap().encode_to_string();
         let filter = args.get(1).unwrap().as_string().unwrap();
-        println!("input_str: {:?}", input_str);
-        println!("filter: {}", filter);
         let input: JsonValue = serde_json::from_str(&input_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to decode input as json: {e}")))?;
 
