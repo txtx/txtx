@@ -382,6 +382,8 @@ pub fn format_transaction_cost(cost: i128) -> Result<String, String> {
     format_units(cost, "wei").map_err(|e| format!("failed to format cost: {e}"))
 }
 
+/// Decodes logs using the provided ABI map.
+/// The ABI map should be a [Value::Array] of [Value::Object]s, where each object has keys "address" (storing an [EvmValue::address]) and "abis" (storing a [Value::array] or abi strings).
 pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, String> {
     let abi_map = AddressAbiMap::parse_value(abi_map)
         .map_err(|e| format!("invalid abis for transaction: {e}"))?;
@@ -409,7 +411,7 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
                         return None;
                     };
                     let ty = input.ty.clone();
-                    match sol_internal_type_to_value(&ty, t) {
+                    match parse_fixed_bytes_to_typed_value(&ty, t) {
                         Ok(value) => Some(Ok((input.name.as_ref(), value))),
                         Err(e) => Some(Err(e)),
                     }
@@ -431,7 +433,11 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
     Ok(logs)
 }
 
-fn sol_internal_type_to_value(sol_type: &str, value: &FixedBytes<32>) -> Result<Value, String> {
+/// Takes an expected sol type and a fixed bytes value and returns an [EvmValue].
+fn parse_fixed_bytes_to_typed_value(
+    sol_type: &str,
+    value: &FixedBytes<32>,
+) -> Result<Value, String> {
     match sol_type {
         "address" => Ok(EvmValue::address(&Address::from_word(*value))),
         "bytes32" => Ok(EvmValue::bytes32(value.0.to_vec())),
