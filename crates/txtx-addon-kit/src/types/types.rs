@@ -502,7 +502,7 @@ impl Value {
         let json = match self {
             Value::Bool(b) => JsonValue::Bool(*b),
             Value::Null => JsonValue::Null,
-            Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i)),
+            Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i as i64)),
             Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
             Value::String(s) => JsonValue::String(s.to_string()),
             Value::Array(vec) => {
