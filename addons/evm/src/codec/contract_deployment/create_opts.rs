@@ -31,9 +31,6 @@ pub enum ContractCreationOpts {
     Proxied(ProxiedCreationOpts),
 }
 impl ContractCreationOpts {
-    pub fn default(init_code: &Vec<u8>) -> Self {
-        ContractCreationOpts::Create2(Create2DeploymentOpts::default(init_code))
-    }
     pub fn new(values: &ValueStore, init_code: &Vec<u8>) -> Result<Self, String> {
         let create_opcode = values.get_string("create_opcode");
         let proxied = values.get_bool("proxied").unwrap_or(false);
@@ -191,7 +188,7 @@ impl CreateDeploymentOpts {
 
 #[derive(Clone, Debug)]
 pub struct Create2DeploymentOpts {
-    salt: String,
+    pub salt: String,
     pub raw_salt: Vec<u8>,
     pub factory: Create2Factory,
     pub init_code: Vec<u8>,

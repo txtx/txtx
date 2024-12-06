@@ -633,13 +633,11 @@ pub struct ContractDeploymentTransactionRequestBuilder {
     rpc: EvmRpc,
     chain_id: u64,
     from_address: Address,
-    init_code: Vec<u8>,
     amount: u64,
     gas_limit: Option<u64>,
     signer_starting_nonce: u64,
     tx_type: TransactionType,
     contract_creation_opts: ContractCreationOpts,
-    expected_contract_address: Option<String>,
     abi: Option<JsonAbi>,
 }
 
@@ -715,22 +713,17 @@ impl ContractDeploymentTransactionRequestBuilder {
 
         let contract_creation_opts = ContractCreationOpts::new(values, &init_code)?;
 
-        let expected_contract_address =
-            values.get_string(EXPECTED_CONTRACT_ADDRESS).map(|v| v.to_string());
-
         contract_creation_opts.validate(&rpc).await?;
 
         Ok(Self {
             rpc,
             chain_id,
             from_address: from_address.clone(),
-            init_code,
             amount,
             gas_limit,
             signer_starting_nonce,
             tx_type,
             contract_creation_opts,
-            expected_contract_address,
             abi: json_abi,
         })
     }
