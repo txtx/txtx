@@ -41,6 +41,8 @@ pub const GAS_PRICE: &str = "gas_price";
 pub const MAX_FEE_PER_GAS: &str = "max_fee_per_gas";
 pub const MAX_PRIORITY_FEE_PER_GAS: &str = "max_priority_fee_per_gas";
 pub const CONTRACT_ADDRESS: &str = "contract_address";
+pub const IMPL_CONTRACT_ADDRESS: &str = "impl_contract_address";
+pub const PROXY_CONTRACT_ADDRESS: &str = "proxy_contract_address";
 pub const CONTRACT_ABI: &str = "contract_abi";
 pub const CONTRACT_FUNCTION_NAME: &str = "function_name";
 pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
@@ -57,6 +59,8 @@ pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
 pub const ALREADY_DEPLOYED: &str = "already_deployed";
 pub const TRANSACTION_COST: &str = "transaction_cost";
+pub const ADDRESS_ABI_MAP: &str = "address_abi_map";
+pub const IS_PROXIED: &str = "is_proxied";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
@@ -92,14 +96,17 @@ pub const EXPLORER_NO_CONTRACT: &str = "Unable to locate ContractCode at";
 lazy_static! {
     pub static ref DEFAULT_PROXY_CONTRACT: IndexMap<String, Value> = IndexMap::new();
     pub static ref PROXY_FACTORY_ADDRESS: Address =
-        Address::from_slice(&hex::decode(&"0x96c22720d65cff923d66905a92a98dd8791a3999"[2..]).unwrap()); // created from salt 0x0000000000000000000000000000000000000000000000000000000000007f35
+        Address::from_slice(&hex::decode(&"0xbb87003ae90f1a808f4f96527c231da4e439c32b"[2..]).unwrap()); // created from salt 0x0000000000000000000000000000000000000000000000000000000000007f35
 
     pub static ref ERC1967_PROXY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json")).unwrap();
+    pub static ref ERC1967_PROXY_BYTECODE: String = ERC1967_PROXY_COMPILED_OUTPUT.bytecode.object.clone();
     pub static ref ERC1967_PROXY_ABI: JsonAbi = ERC1967_PROXY_COMPILED_OUTPUT.abi.clone();
+    pub static ref ERC_1967_PROXY_ABI_VALUE: Value = Value::string(serde_json::to_string(&ERC1967_PROXY_COMPILED_OUTPUT.abi).unwrap());
     pub static ref ERC1967_PROXY_ABI_INTERFACE: Interface = Interface::new(ERC1967_PROXY_ABI.clone());
 
     pub static ref PROXY_FACTORY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/AtomicProxyDeploymentFactory.sol/AtomicProxyDeploymentFactory.json")).unwrap();
     pub static ref PROXY_FACTORY_ABI: JsonAbi = PROXY_FACTORY_COMPILED_OUTPUT.abi.clone();
+    pub static ref PROXY_FACTORY_ABI_VALUE: Value = Value::string(serde_json::to_string(&PROXY_FACTORY_COMPILED_OUTPUT.abi).unwrap());
     pub static ref PROXY_FACTORY_ABI_INTERFACE: Interface = Interface::new(PROXY_FACTORY_ABI.clone());
 
     pub static ref EMPTY_CREATE2_RAW_SALT: Vec<u8> = hex::decode(&EMPTY_CREATE2_SALT[2..]).unwrap();
