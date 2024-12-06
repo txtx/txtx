@@ -196,6 +196,10 @@ impl ValueStore {
         self.inputs.get_map(key).or(self.defaults.get_map(key))
     }
 
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.inputs.get_object(key).or(self.defaults.get_object(key))
+    }
+
     // Scoped values
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
         self.inputs.insert(&format!("{}:{}", scope, key), value);
@@ -543,6 +547,10 @@ impl ValueMap {
 
     pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
         self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.store.get(key).and_then(|v| v.as_object())
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
