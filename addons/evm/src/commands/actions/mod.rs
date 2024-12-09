@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
-use transfer_eth::TRANSFER_ETH;
+use send_eth::SEND_ETH;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification, diagnostics::Diagnostic, types::Value, ConstructDid, Did,
@@ -12,8 +12,8 @@ pub mod call_contract;
 pub mod check_confirmations;
 pub mod deploy_contract;
 pub mod eth_call;
+pub mod send_eth;
 pub mod sign_transaction;
-pub mod transfer_eth;
 pub mod verify_contract;
 
 use call_contract::SIGN_EVM_CONTRACT_CALL;
@@ -34,7 +34,7 @@ lazy_static! {
         VERIFY_CONTRACT.clone(),
         CHECK_CONFIRMATIONS.clone(),
         SIGN_TRANSACTION.clone(),
-        TRANSFER_ETH.clone(),
+        SEND_ETH.clone(),
         DEPLOY_CONTRACT.clone(),
     ];
 }

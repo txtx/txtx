@@ -60,7 +60,7 @@ action "init" "ovm::start_rollup" {
     proposer_secret_key = "0xc51bcf8d6e1702999d5a2ed6e14baeb5cc1925df446457d86cb3ceca2d142a1f"
 }
 
-action "bridge_tokens" "evm::transfer_eth" {
+action "bridge_tokens" "evm::send_eth" {
     description = "Bridge some tokens from L1 to L2"
     recipient_address = "0x0C5C3aF1508278cbC536827a1cCb2f69195b7068"
     amount = 1000000000000000000 // 1 eth
