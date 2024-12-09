@@ -77,6 +77,13 @@ pub fn arg_checker_with_ctx(
                                     break;
                                 }
                             }
+                            // special case for empty arrays
+                            if let Type::Array(_) = arg_type {
+                                if arg.expect_array().len() == 0 {
+                                    has_type_match = true;
+                                    break;
+                                }
+                            }
                             if arg_type.eq(typing) {
                                 has_type_match = true;
                                 break;
