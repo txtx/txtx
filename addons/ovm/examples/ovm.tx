@@ -40,7 +40,7 @@ signer "deployer" "evm::secret_key" {
     secret_key = "0x708c8e68f7cfc670783d848790a5503fb0a83580911760ca5762536bc0628969"
 }
 
-action "init" "ovm::start_rollup" {
+action "init" "ovm::setup_rollup" {
     description = "Start the rollup"
     l1_deployment_addresses = variable.l1_deployment_addresses
 
