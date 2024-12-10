@@ -20,11 +20,11 @@ use crate::constants::{
 use crate::typing::{ROLLUP_CONFIG_TYPE, ROLLUP_CONTAINER_IDS_TYPE};
 
 lazy_static! {
-    pub static ref START_ROLLUP: PreCommandSpecification = define_command! {
-        StartRollup => {
+    pub static ref SETUP_ROLLUP: PreCommandSpecification = define_command! {
+        SetupRollup => {
             name: "Coming Soon",
-            matcher: "start_rollup",
-            documentation: "The `ovm::start_rollup` action takes some L2 settings and deployment addresses of the L1 contracts and generates the `genesis.json` and `rollup.json` files needed to start a L2 OP node.",
+            matcher: "setup_rollup",
+            documentation: "The `ovm::setup_rollup` action takes some L2 settings and deployment addresses of the L1 contracts and generates the `genesis.json` and `rollup.json` files needed to start a L2 OP node.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
@@ -105,8 +105,8 @@ lazy_static! {
     };
 }
 
-pub struct StartRollup;
-impl CommandImplementation for StartRollup {
+pub struct SetupRollup;
+impl CommandImplementation for SetupRollup {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,

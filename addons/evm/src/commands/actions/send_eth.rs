@@ -30,11 +30,11 @@ use txtx_addon_kit::constants::TX_HASH;
 use super::get_signer_did;
 
 lazy_static! {
-    pub static ref TRANSFER_ETH: PreCommandSpecification = define_command! {
-        TransverEth => {
+    pub static ref SEND_ETH: PreCommandSpecification = define_command! {
+        SendEth => {
             name: "Coming soon",
-            matcher: "transfer_eth",
-            documentation: "The `evm::transfer_eth` is coming soon.",
+            matcher: "send_eth",
+            documentation: "The `evm::send_eth` is coming soon.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -143,8 +143,8 @@ lazy_static! {
     };
 }
 
-pub struct TransverEth;
-impl CommandImplementation for TransverEth {
+pub struct SendEth;
+impl CommandImplementation for SendEth {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -180,7 +180,7 @@ impl CommandImplementation for TransverEth {
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
         let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::transfer_eth".to_string());
+            build_diag_context_fn(instance_name.to_string(), "evm::send_eth".to_string());
 
         let future = async move {
             let mut actions = Actions::none();

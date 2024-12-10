@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::str::FromStr;
 
 use alloy::consensus::TxEnvelope;
@@ -13,7 +14,7 @@ use alloy_provider::utils::{
     EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
 };
 use alloy_provider::Identity;
-use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
+use alloy_rpc_types::trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions};
 use alloy_rpc_types::BlockNumberOrTag::Latest;
 use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, BlockTransactionsKind, FeeHistory};
 use txtx_addon_kit::reqwest::{Client, Url};
@@ -32,6 +33,12 @@ impl std::fmt::Display for RpcError {
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
+    }
+}
+
+impl Into<String> for RpcError {
+    fn into(self) -> String {
+        self.to_string()
     }
 }
 
@@ -153,6 +160,23 @@ impl EvmRpc {
                 e.to_string()
             ))
         })
+    }
+
+    pub async fn trace_transaction(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
+        let result = self
+            .provider
+            .debug_trace_transaction(
+                FixedBytes::from_slice(&tx_hash),
+                GethDebugTracingOptions::default(),
+            )
+            .await
+            .map_err(|e| {
+                format!("received error result from RPC API during debug_trace_transaction: {}", e)
+            })?;
+
+        let result = serde_json::to_string(&result)
+            .map_err(|e| format!("failed to serialize debug_trace_transaction response: {}", e))?;
+        Ok(result)
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {

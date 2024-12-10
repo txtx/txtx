@@ -10,6 +10,8 @@ use txtx_addon_kit::{
     },
 };
 
+use crate::std::functions::{arg_checker, hash::to_diag};
+
 lazy_static! {
     pub static ref JSON_FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         JsonQuery => {
@@ -27,7 +29,7 @@ lazy_static! {
             inputs: [
                 decoded_json: {
                     documentation: "A JSON object.",
-                    typing: vec![Type::string()]
+                    typing: vec![Type::string(), Type::object(vec![])]
                 },
                 query: {
                     documentation: "A JSON query. See the [jq](https://jqlang.github.io/jq/manual/) documentation.",
@@ -53,37 +55,45 @@ impl FunctionImplementation for JsonQuery {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Value::String(input_str) = args.get(0).unwrap() else {
-            return Err(diagnosed_error!("json query input must be a string"));
-        };
-        let Value::String(filter) = args.get(1).unwrap() else {
-            return Err(diagnosed_error!("json query filter must be a string"));
-        };
-        let input: JsonValue = serde_json::from_str(&input_str).unwrap();
+        arg_checker(fn_spec, args)?;
+        let input_str = args.get(0).unwrap().encode_to_string();
+        let filter = args.get(1).unwrap().as_string().unwrap();
+        let input: JsonValue = serde_json::from_str(&input_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to decode input as json: {e}")))?;
 
         let mut defs = ParseCtx::new(Vec::new());
 
         // parse the filter
-        let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
-        assert_eq!(errs, Vec::new());
+        let (f, errs) = jaq_parse::parse(&filter, jaq_parse::main());
+        if !errs.is_empty() {
+            return Err(to_diag(fn_spec, errs.first().unwrap().to_string()));
+        }
 
         // compile the filter in the context of the given definitions
         let f = defs.compile(f.unwrap());
-        assert!(defs.errs.is_empty());
+        let errs = defs.errs;
+        if !errs.is_empty() {
+            return Err(to_diag(fn_spec, errs.first().unwrap().0.to_string()));
+        }
 
         let inputs = RcIter::new(core::iter::empty());
-
         // iterator over the output values
         let result = f
             .run((Ctx::new([], &inputs), Val::from(input)))
             .into_iter()
             // todo: we need to allow other types other than string
-            .map(|o| Value::from_jaq_value(o.unwrap()))
-            .collect::<Vec<Value>>();
-        Ok(Value::array(result))
+            .map(|o| o.map(|v| Value::from_jaq_value(&v)))
+            .collect::<Result<Result<Vec<Value>, _>, _>>()
+            .map_err(|e| to_diag(fn_spec, e.to_string()))?
+            .map_err(|e| to_diag(fn_spec, e.to_string()))?;
+        if result.len() == 1 {
+            Ok(result.first().unwrap().clone())
+        } else {
+            Ok(Value::array(result))
+        }
     }
 }

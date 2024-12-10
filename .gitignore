@@ -3,6 +3,8 @@
 .btcdeb_history
 .env
 addons/evm/src/tests/fixtures/foundry/out/build-info
+addons/evm/src/contracts/out
+addons/evm/src/contracts/cache
 addons/sp1/examples/fibonacci/contracts/lib
 addons/sp1/examples/fibonacci/contracts/cache
 # addons/sp1/examples/fibonacci/contracts/out
