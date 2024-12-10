@@ -3,7 +3,6 @@ use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
-use std::u64;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -327,7 +326,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 )
             })?;
             let tx_nonce = tx_envelope.nonce();
-            let tx_chain_id = tx_envelope.chain_id().unwrap_or(u64::MAX);
+            let tx_chain_id = tx_envelope.chain_id().unwrap();
 
             let rpc = EvmWalletRpc::new(&rpc_api_url, eth_signer)
                 .map_err(|e| signer_err(&signers, &signer_state, e))?;
