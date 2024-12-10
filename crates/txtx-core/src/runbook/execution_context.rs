@@ -24,11 +24,13 @@ use crate::eval::EvaluationPassResult;
 
 use super::diffing_context::RunbookFlowSnapshot;
 use super::diffing_context::ValuePostEvaluation;
+use super::EmbeddableRunbook;
 use super::RunbookWorkspaceContext;
 use super::RuntimeContext;
 
 #[derive(Debug, Clone)]
 pub struct RunbookExecutionContext {
+    pub embedded_runbooks: HashMap<ConstructDid, EmbeddableRunbook>,
     /// Map of executable commands (input, output, action)
     pub commands_instances: HashMap<ConstructDid, CommandInstance>,
     /// Map of signing commands (signer)

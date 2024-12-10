@@ -2,6 +2,7 @@ use flow_context::FlowContext;
 use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
 use kit::helpers::hcl::RawHclContent;
+use kit::indexmap::IndexSet;
 use kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
 use kit::types::diagnostics::DiagnosticSpan;
 use kit::types::stores::ValueStore;
@@ -13,6 +14,7 @@ use std::collections::{HashMap, VecDeque};
 use txtx_addon_kit::helpers::fs::FileLocation;
 
 mod diffing_context;
+pub mod embaddable_runbook;
 mod execution_context;
 mod flow_context;
 mod graph_context;
@@ -25,6 +27,13 @@ pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
 pub use runtime_context::{AddonConstructFactory, RuntimeContext};
 pub use workspace_context::RunbookWorkspaceContext;
+
+pub struct RunbooksExecutionContext {
+    /// Track stack, avoid re-entrance
+    pub runbook_execution_stack: IndexSet<RunbookId>,
+
+    pub runbooks: Vec<Runbook>,
+}
 
 #[derive(Debug)]
 pub struct Runbook {

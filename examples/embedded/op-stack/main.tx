@@ -1,0 +1,36 @@
+
+flow "mainnet" {
+    chain_id = input.mainnet_chain_id
+    rpc_api_url = input.mainnet_rpc_api_url
+}
+
+flow "arbitrum" {
+    chain_id = input.arbitrum_chain_id
+    rpc_api_url = input.arbitrum_rpc_api_url
+}
+
+addon "evm" {
+    chain_id = flow.chain_id
+    rpc_api_url = flow.rpc_api_url
+}
+
+addon "ovm" {
+
+}
+
+action "setup" "ovm::setup_rollup" {
+    ...
+}
+
+action "bridge_tokens" "evm::send_eth" {
+    ...
+}
+
+runbook "deploy_usdc" {
+    location = "../usdc/main.tx"
+    input {
+        chain_id = input.chain_id
+        rpc_api_url = input.rpc_api_url
+        secret_key = input.secret_key
+    }
+}
