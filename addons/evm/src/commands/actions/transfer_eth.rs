@@ -1,7 +1,3 @@
-use alloy::contract::Interface;
-use alloy::dyn_abi::DynSolValue;
-use alloy::hex;
-use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
@@ -34,140 +30,121 @@ use txtx_addon_kit::constants::TX_HASH;
 use super::get_signer_did;
 
 lazy_static! {
-    pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
-      SignEvmContractCall => {
-          name: "Sign EVM Contract Call Transaction",
-          matcher: "call_contract",
-          documentation: "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-            description: {
-                documentation: "A description of the transaction.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            rpc_api_url: {
-                documentation: "The URL of the EVM API used to broadcast the transaction.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            signer: {
-                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            contract_address: {
-                documentation: "The address of the contract being called.",
-                typing: Type::addon(EVM_ADDRESS),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            contract_abi: {
-                documentation: "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
-                typing: Type::addon(EVM_ADDRESS),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            function_name: {
-                documentation: "The contract function to invoke.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            function_args: {
-                documentation: "The contract function arguments",
-                typing: Type::array(Type::buffer()),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            amount: {
-                documentation: "The amount, in WEI, to transfer.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            chain_id: {
-                documentation: "The chain id.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_price: {
-                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            }
-          ],
-          outputs: [
-              tx_hash: {
-                  documentation: "The hash of the transaction.",
-                  typing: Type::string()
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-            action "call_some_contract" "evm::call_contract" {
-                contract_address = input.contract_address
-                function_name = "myFunction"
-                function_args = [evm::bytes("0x1234")]
-                signer = signer.operator
-            }
-      "#},
-      }
+    pub static ref TRANSFER_ETH: PreCommandSpecification = define_command! {
+        TransverEth => {
+            name: "Coming soon",
+            matcher: "transfer_eth",
+            documentation: "The `evm::transfer_eth` is coming soon.",
+            implements_signing_capability: true,
+            implements_background_task_capability: true,
+            inputs: [
+                description: {
+                    documentation: "A description of the transaction.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                rpc_api_url: {
+                    documentation: "The URL of the EVM API used to broadcast the transaction.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                signer: {
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction.",
+                    typing: Type::string(),
+                    optional: false,
+                    tainting: true,
+                    internal: false
+                },
+                recipient_address: {
+                    documentation: "The address of the recipient.",
+                    typing: Type::addon(EVM_ADDRESS),
+                    optional: false,
+                    tainting: true,
+                    internal: false
+                },
+                amount: {
+                    documentation: "The amount, in WEI, to transfer.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                type: {
+                    documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                max_fee_per_gas: {
+                    documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                max_priority_fee_per_gas: {
+                    documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                chain_id: {
+                    documentation: "The chain id.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    internal: false
+                },
+                nonce: {
+                    documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                gas_limit: {
+                    documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                gas_price: {
+                    documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                },
+                confirmations: {
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+                    typing: Type::integer(),
+                    optional: true,
+                    tainting: false,
+                    internal: false
+                }
+            ],
+            outputs: [
+                tx_hash: {
+                    documentation: "The hash of the transaction.",
+                    typing: Type::string()
+                }
+            ],
+            example: txtx_addon_kit::indoc! {r#"
+                // Coming soon
+            "#},
+        }
     };
 }
 
-pub struct SignEvmContractCall;
-impl CommandImplementation for SignEvmContractCall {
+pub struct TransverEth;
+impl CommandImplementation for TransverEth {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -203,7 +180,7 @@ impl CommandImplementation for SignEvmContractCall {
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
         let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::call_contract".to_string());
+            build_diag_context_fn(instance_name.to_string(), "evm::transfer_eth".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -214,7 +191,7 @@ impl CommandImplementation for SignEvmContractCall {
                 return Ok((signers, signer_state, Actions::none()));
             }
             let (transaction, transaction_cost) =
-                build_unsigned_contract_call(&signer_state, &spec, &values, &to_diag_with_ctx)
+                build_unsigned_transfer(&signer_state, &spec, &values, &to_diag_with_ctx)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
@@ -353,19 +330,16 @@ impl CommandImplementation for SignEvmContractCall {
 }
 
 #[cfg(not(feature = "wasm"))]
-async fn build_unsigned_contract_call(
+async fn build_unsigned_transfer(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
     to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
-        constants::{
-            CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
-        },
+        constants::{CHAIN_ID, TRANSACTION_TYPE},
         signers::common::get_signer_nonce,
     };
 
@@ -374,18 +348,7 @@ async fn build_unsigned_contract_call(
     let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
     let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
-    let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
-    let contract_abi = values.get_string(CONTRACT_ABI);
-    let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = values
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| value_to_sol_value(&v).map_err(to_diag_with_ctx))
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
+    let recipient_address = values.get_expected_value("recipient_address")?;
 
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
@@ -401,60 +364,18 @@ async fn build_unsigned_contract_call(
 
     let rpc = EvmRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
-    let input = if let Some(abi_str) = contract_abi {
-        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
-    } else {
-        encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
-    };
-
     let common = CommonTransactionFields {
-        to: Some(contract_address.clone()),
+        to: Some(recipient_address.clone()),
         from: from.clone(),
         nonce,
         chain_id,
         amount,
         gas_limit,
         tx_type,
-        input: Some(input),
+        input: None,
         deploy_code: None,
     };
 
     let res = build_unsigned_transaction(rpc, values, common).await.map_err(to_diag_with_ctx)?;
     Ok(res)
-}
-
-pub fn encode_contract_call_inputs_from_selector(
-    function_name: &str,
-    function_args: &Vec<DynSolValue>,
-) -> Result<Vec<u8>, String> {
-    let selector =
-        hex::decode(function_name).map_err(|e| format!("failed to decode function_name: {e}"))?;
-    if selector.len() != 4 {
-        return Err(
-            "function_name must be a valid 4-byte function selector if no contract abi is provided"
-                .into(),
-        );
-    }
-    let encoded_args =
-        function_args.iter().flat_map(|v| v.abi_encode_params()).collect::<Vec<u8>>();
-    let mut data = Vec::with_capacity(encoded_args.len() + 4);
-    data.extend_from_slice(&selector[..]);
-    data.extend_from_slice(&encoded_args[..]);
-    Ok(data)
-}
-
-pub fn encode_contract_call_inputs_from_abi(
-    abi_str: &str,
-    function_name: &str,
-    function_args: &Vec<DynSolValue>,
-) -> Result<Vec<u8>, String> {
-    let abi: JsonAbi =
-        serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
-
-    let interface = Interface::new(abi);
-    interface
-        .encode_input(function_name, &function_args)
-        .map_err(|e| format!("failed to encode contract inputs: {e}"))
 }

@@ -153,6 +153,27 @@ macro_rules! define_object_type {
 }
 
 #[macro_export]
+macro_rules! define_map_type {
+    [
+        $($input_name:ident: {
+            documentation: $input_doc:expr,
+            typing: $input_ts:expr,
+            optional: $optional:expr,
+            tainting: $tainting:expr
+        }),*
+    ] => {
+        Type::map(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+            name: String::from(stringify!($input_name)),
+            documentation: String::from($input_doc),
+            typing: $input_ts,
+            optional: $optional,
+            tainting: $tainting,
+            internal: false,
+        }),*])
+    };
+}
+
+#[macro_export]
 macro_rules! define_addon_type {
     ($func_key:ident => {
         name: $fn_name:expr,

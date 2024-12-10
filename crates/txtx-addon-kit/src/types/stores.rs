@@ -145,6 +145,14 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+        match self.inputs.get_expected_map(key) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_map(key).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         match self.inputs.get_expected_object(key) {
             Ok(val) => Ok(val),
@@ -345,6 +353,21 @@ impl ValueMap {
         let Some(value) = value.as_array() else {
             return Err(Diagnostic::error_from_string(format!(
                 "value associated with '{}' type mismatch: expected array",
+                key
+            )));
+        };
+        Ok(value)
+    }
+
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+        let Some(value) = self.store.get(key) else {
+            return Err(Diagnostic::error_from_string(
+                format!("unable to retrieve map '{}'", key,),
+            ));
+        };
+        let Some(value) = value.as_array() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "value associated with '{}' type mismatch: expected map",
                 key
             )));
         };

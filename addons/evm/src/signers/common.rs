@@ -4,6 +4,7 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
+    stores::ValueStore,
     types::Value,
     ConstructDid,
 };
@@ -11,7 +12,7 @@ use txtx_addon_kit::types::{
 use crate::{
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        DEFAULT_MESSAGE, NAMESPACE,
+        DEFAULT_MESSAGE, NAMESPACE, NONCE,
     },
     rpc::EvmRpc,
 };
@@ -98,4 +99,19 @@ pub async fn get_additional_actions_for_address(
         }
     }
     Ok(action_items)
+}
+
+pub fn get_signer_nonce(signer_state: &ValueStore, chain_id: u64) -> Result<Option<u64>, String> {
+    signer_state
+        .get_scoped_value(&format!("chain_id_{}", chain_id), NONCE)
+        .map(|v| v.expect_uint())
+        .transpose()
+}
+
+pub fn set_signer_nonce(signer_state: &mut ValueStore, chain_id: u64, nonce: u64) {
+    signer_state.insert_scoped_value(
+        &format!("chain_id_{}", chain_id),
+        NONCE,
+        Value::integer(nonce as i128),
+    );
 }
