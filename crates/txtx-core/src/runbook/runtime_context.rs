@@ -418,7 +418,7 @@ impl AddonConstructFactory {
             ));
         };
         let typing = match command_id {
-            CommandId::Action(_) => CommandInstanceType::Action,
+            CommandId::Action(command_id) => CommandInstanceType::Action(command_id.clone()),
         };
         match pre_command_spec {
             PreCommandSpecification::Atomic(command_spec) => {

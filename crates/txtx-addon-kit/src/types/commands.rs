@@ -541,10 +541,36 @@ pub trait CompositeCommandImplementation {
 pub enum CommandInstanceType {
     Variable,
     Output,
-    Action,
+    Action(String),
     Prompt,
     Module,
     Addon,
+}
+
+impl CommandInstanceType {
+    pub fn to_ident(&self) -> &str {
+        match self {
+            CommandInstanceType::Variable => "variable",
+            CommandInstanceType::Output => "output",
+            CommandInstanceType::Action(_) => "action",
+            CommandInstanceType::Prompt => "prompt",
+            CommandInstanceType::Module => "module",
+            CommandInstanceType::Addon => "addon",
+        }
+    }
+    pub fn from_str(typing: &str, action_name: Option<&str>) -> Self {
+        match typing {
+            "variable" => CommandInstanceType::Variable,
+            "output" => CommandInstanceType::Output,
+            "action" => {
+                CommandInstanceType::Action(action_name.map(|n| n.to_string()).unwrap_or_default())
+            }
+            "prompt" => CommandInstanceType::Prompt,
+            "module" => CommandInstanceType::Module,
+            "addon" => CommandInstanceType::Addon,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
