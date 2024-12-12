@@ -343,12 +343,6 @@ pub async fn run_constructs_evaluation(
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
 
     for construct_did in ordered_constructs.into_iter() {
-        let Some(command_instance) =
-            runbook_execution_context.commands_instances.get(&construct_did)
-        else {
-            // runtime_context.addons.index_command_instance(namespace, package_did, block)
-            continue;
-        };
         if let Some(_) = runbook_execution_context.commands_execution_results.get(&construct_did) {
             continue;
         };
@@ -363,272 +357,320 @@ pub async fn run_constructs_evaluation(
             continue;
         }
 
-        let package_id = command_instance.package_id.clone();
-        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
-
-        let addon_context_key = (package_id.did(), command_instance.namespace.clone());
-        let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
-
-        let input_evaluation_results = runbook_execution_context
-            .commands_inputs_evaluation_results
-            .get(&construct_did.clone());
-
-        let mut cached_dependency_execution_results = genesis_dependency_execution_results.clone();
-
-        // Retrieve the construct_did of the inputs
-        // Collect the outputs
-        let references_expressions =
-            command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
-
-        for (_input, expr) in references_expressions.into_iter() {
-            if let Some((dependency, _, _)) = runbook_workspace_context
-                .try_resolve_construct_reference_in_expression(&package_id, &expr)
-                .unwrap()
+        if let Some(_) = runbook_execution_context.commands_instances.get(&construct_did) {
+            match evaluate_command_instance(
+                &construct_did,
+                &mut pass_result,
+                &mut unexecutable_nodes,
+                &mut genesis_dependency_execution_results,
+                runbook_workspace_context,
+                runbook_execution_context,
+                runtime_context,
+                supervision_context,
+                action_item_requests,
+                action_item_responses,
+                progress_tx,
+            )
+            .await
             {
-                if let Some(evaluation_result) =
-                    runbook_execution_context.commands_execution_results.get(&dependency)
-                {
-                    match cached_dependency_execution_results.merge(&dependency, evaluation_result)
-                    {
-                        Ok(_) => {}
-                        Err(_) => {
-                            continue;
-                        }
-                    }
+                LoopEvaluationResult::Continue => continue,
+                LoopEvaluationResult::Bail => {
+                    return pass_result;
                 }
             }
         }
 
-        let evaluated_inputs_res = perform_inputs_evaluation(
-            command_instance,
-            &cached_dependency_execution_results,
-            &input_evaluation_results,
-            addon_defaults,
-            &action_item_responses.get(&construct_did),
-            &package_id,
-            runbook_workspace_context,
-            runbook_execution_context,
-            runtime_context,
-            false,
-        );
-        let Some(command_instance) =
-            runbook_execution_context.commands_instances.get_mut(&construct_did)
-        else {
-            // runtime_context.addons.index_command_instance(namespace, package_did, block)
-            continue;
-        };
+pub enum LoopEvaluationResult {
+    Continue,
+    Bail,
+}
 
-        let mut evaluated_inputs = match evaluated_inputs_res {
-            Ok(result) => match result {
-                CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction(_) => continue,
-                CommandInputEvaluationStatus::Aborted(_, diags) => {
-                    pass_result.append_diagnostics(diags, construct_id);
-                    return pass_result;
+pub async fn evaluate_command_instance(
+    construct_did: &ConstructDid,
+    pass_result: &mut EvaluationPassResult,
+    unexecutable_nodes: &mut HashSet<ConstructDid>,
+    genesis_dependency_execution_results: &mut DependencyExecutionResultCache,
+    runbook_workspace_context: &RunbookWorkspaceContext,
+    runbook_execution_context: &mut RunbookExecutionContext,
+    runtime_context: &RuntimeContext,
+    supervision_context: &RunbookSupervisionContext,
+    action_item_requests: &mut BTreeMap<ConstructDid, Vec<&mut ActionItemRequest>>,
+    action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
+    progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+) -> LoopEvaluationResult {
+    let Some(command_instance) = runbook_execution_context.commands_instances.get(&construct_did)
+    else {
+        // runtime_context.addons.index_command_instance(namespace, package_did, block)
+        return LoopEvaluationResult::Continue;
+    };
+
+    let package_id = command_instance.package_id.clone();
+    let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
+
+    let addon_context_key = (package_id.did(), command_instance.namespace.clone());
+    let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
+
+    let input_evaluation_results =
+        runbook_execution_context.commands_inputs_evaluation_results.get(&construct_did.clone());
+
+    let mut cached_dependency_execution_results = genesis_dependency_execution_results.clone();
+
+    // Retrieve the construct_did of the inputs
+    // Collect the outputs
+    let references_expressions =
+        command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+
+    for (_input, expr) in references_expressions.into_iter() {
+        if let Some((dependency, _, _)) = runbook_workspace_context
+            .try_resolve_construct_reference_in_expression(&package_id, &expr)
+            .unwrap()
+        {
+            if let Some(evaluation_result) =
+                runbook_execution_context.commands_execution_results.get(&dependency)
+            {
+                match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return LoopEvaluationResult::Continue;
+                    }
                 }
-            },
-            Err(diags) => {
+            }
+        }
+    }
+
+    let evaluated_inputs_res = perform_inputs_evaluation(
+        command_instance,
+        &cached_dependency_execution_results,
+        &input_evaluation_results,
+        addon_defaults,
+        &action_item_responses.get(&construct_did),
+        &package_id,
+        runbook_workspace_context,
+        runbook_execution_context,
+        runtime_context,
+        false,
+    );
+    let Some(command_instance) =
+        runbook_execution_context.commands_instances.get_mut(&construct_did)
+    else {
+        // runtime_context.addons.index_command_instance(namespace, package_did, block)
+        return LoopEvaluationResult::Continue;
+    };
+
+    let mut evaluated_inputs = match evaluated_inputs_res {
+        Ok(result) => match result {
+            CommandInputEvaluationStatus::Complete(result) => result,
+            CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
+                return LoopEvaluationResult::Continue
+            }
+            CommandInputEvaluationStatus::Aborted(_, diags) => {
                 pass_result.append_diagnostics(diags, construct_id);
-                return pass_result;
+                return LoopEvaluationResult::Bail;
+            }
+        },
+        Err(diags) => {
+            pass_result.append_diagnostics(diags, construct_id);
+            return LoopEvaluationResult::Bail;
+        }
+    };
+
+    let execution_result = if command_instance.specification.implements_signing_capability {
+        let signers = runbook_execution_context.signers_state.take().unwrap();
+        let signers = update_signer_instances_from_action_response(
+            signers,
+            &construct_did,
+            &action_item_responses.get(&construct_did),
+        );
+        let res = command_instance
+            .check_signed_executability(
+                &construct_did,
+                &mut evaluated_inputs,
+                signers,
+                &mut runbook_execution_context.signers_instances,
+                &action_item_responses.get(&construct_did),
+                &action_item_requests.get(&construct_did),
+                supervision_context,
+            )
+            .await;
+
+        let signers = match res {
+            Ok((updated_signers, mut new_actions)) => {
+                if new_actions.has_pending_actions() {
+                    pass_result.actions.append(&mut new_actions);
+                    runbook_execution_context.signers_state = Some(updated_signers);
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
+                    }
+                    return LoopEvaluationResult::Continue;
+                }
+                pass_result.actions.append(&mut new_actions);
+                updated_signers
+            }
+            Err((updated_signers, diag)) => {
+                pass_result.push_diagnostic(&diag, construct_id);
+                runbook_execution_context.signers_state = Some(updated_signers);
+                return LoopEvaluationResult::Bail;
             }
         };
 
-        let execution_result = if command_instance.specification.implements_signing_capability {
-            let signers = runbook_execution_context.signers_state.take().unwrap();
-            let signers = update_signer_instances_from_action_response(
-                signers,
+        runbook_execution_context
+            .commands_inputs_evaluation_results
+            .insert(construct_did.clone(), evaluated_inputs.clone());
+
+        let mut empty_vec = vec![];
+        let action_items_requests =
+            action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
+        let action_items_response = action_item_responses.get(&construct_did);
+
+        let execution_result = command_instance
+            .perform_signed_execution(
                 &construct_did,
-                &action_item_responses.get(&construct_did),
-            );
-            let res = command_instance
-                .check_signed_executability(
-                    &construct_did,
-                    &mut evaluated_inputs,
-                    signers,
-                    &mut runbook_execution_context.signers_instances,
-                    &action_item_responses.get(&construct_did),
-                    &action_item_requests.get(&construct_did),
-                    supervision_context,
-                )
-                .await;
+                &evaluated_inputs,
+                signers,
+                &runbook_execution_context.signers_instances,
+                action_items_requests,
+                &action_items_response,
+                progress_tx,
+            )
+            .await;
 
-            let signers = match res {
-                Ok((updated_signers, mut new_actions)) => {
-                    if new_actions.has_pending_actions() {
-                        pass_result.actions.append(&mut new_actions);
-                        runbook_execution_context.signers_state = Some(updated_signers);
-                        if let Some(deps) =
-                            runbook_execution_context.commands_dependencies.get(&construct_did)
-                        {
-                            for dep in deps.iter() {
-                                unexecutable_nodes.insert(dep.clone());
-                            }
-                        }
-                        continue;
+        let execution_result = match execution_result {
+            // todo(lgalabru): return Diagnostic instead
+            Ok((updated_signers, result)) => {
+                runbook_execution_context.signers_state = Some(updated_signers);
+                Ok(result)
+            }
+            Err((updated_signers, diag)) => {
+                runbook_execution_context.signers_state = Some(updated_signers);
+                if let Some(deps) =
+                    runbook_execution_context.commands_dependencies.get(&construct_did)
+                {
+                    for dep in deps.iter() {
+                        unexecutable_nodes.insert(dep.clone());
                     }
+                }
+                Err(diag)
+            }
+        };
+        execution_result
+    } else {
+        match command_instance.check_executability(
+            &construct_did,
+            &mut evaluated_inputs,
+            &mut runbook_execution_context.signers_instances,
+            &action_item_responses.get(&construct_did),
+            supervision_context,
+        ) {
+            Ok(mut new_actions) => {
+                if new_actions.has_pending_actions() {
                     pass_result.actions.append(&mut new_actions);
-                    updated_signers
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
+                    }
+                    return LoopEvaluationResult::Continue;
                 }
-                Err((updated_signers, diag)) => {
-                    pass_result.push_diagnostic(&diag, construct_id);
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    return pass_result;
-                }
-            };
+                pass_result.actions.append(&mut new_actions);
+            }
+            Err(diag) => {
+                pass_result.push_diagnostic(&diag, construct_id);
+                return LoopEvaluationResult::Bail;
+            }
+        }
 
-            runbook_execution_context
-                .commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
+        runbook_execution_context
+            .commands_inputs_evaluation_results
+            .insert(construct_did.clone(), evaluated_inputs.clone());
 
-            let mut empty_vec = vec![];
-            let action_items_requests =
-                action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_did);
+        let mut empty_vec = vec![];
+        let action_items_requests =
+            action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
+        let action_items_response = action_item_responses.get(&construct_did);
 
-            let execution_result = command_instance
-                .perform_signed_execution(
+        let execution_result = {
+            command_instance
+                .perform_execution(
                     &construct_did,
                     &evaluated_inputs,
-                    signers,
-                    &runbook_execution_context.signers_instances,
                     action_items_requests,
                     &action_items_response,
                     progress_tx,
                 )
-                .await;
-
-            let execution_result = match execution_result {
-                // todo(lgalabru): return Diagnostic instead
-                Ok((updated_signers, result)) => {
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    Ok(result)
-                }
-                Err((updated_signers, diag)) => {
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    if let Some(deps) =
-                        runbook_execution_context.commands_dependencies.get(&construct_did)
-                    {
-                        for dep in deps.iter() {
-                            unexecutable_nodes.insert(dep.clone());
-                        }
-                    }
-                    Err(diag)
-                }
-            };
-            execution_result
-        } else {
-            match command_instance.check_executability(
-                &construct_did,
-                &mut evaluated_inputs,
-                &mut runbook_execution_context.signers_instances,
-                &action_item_responses.get(&construct_did),
-                supervision_context,
-            ) {
-                Ok(mut new_actions) => {
-                    if new_actions.has_pending_actions() {
-                        pass_result.actions.append(&mut new_actions);
-                        if let Some(deps) =
-                            runbook_execution_context.commands_dependencies.get(&construct_did)
-                        {
-                            for dep in deps.iter() {
-                                unexecutable_nodes.insert(dep.clone());
-                            }
-                        }
-                        continue;
-                    }
-                    pass_result.actions.append(&mut new_actions);
-                }
-                Err(diag) => {
-                    pass_result.push_diagnostic(&diag, construct_id);
-                    return pass_result;
-                }
-            }
-
-            runbook_execution_context
-                .commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
-
-            let mut empty_vec = vec![];
-            let action_items_requests =
-                action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_did);
-
-            let execution_result = {
-                command_instance
-                    .perform_execution(
-                        &construct_did,
-                        &evaluated_inputs,
-                        action_items_requests,
-                        &action_items_response,
-                        progress_tx,
-                    )
-                    .await
-            };
-
-            let execution_result = match execution_result {
-                // todo(lgalabru): return Diagnostic instead
-                Ok(result) => Ok(result),
-                Err(e) => {
-                    if let Some(deps) =
-                        runbook_execution_context.commands_dependencies.get(&construct_did)
-                    {
-                        for dep in deps.iter() {
-                            unexecutable_nodes.insert(dep.clone());
-                        }
-                    }
-                    Err(e)
-                }
-            };
-            execution_result
+                .await
         };
 
-        let mut execution_result = match execution_result {
-            Ok(res) => res,
+        let execution_result = match execution_result {
+            // todo(lgalabru): return Diagnostic instead
+            Ok(result) => Ok(result),
+            Err(e) => {
+                if let Some(deps) =
+                    runbook_execution_context.commands_dependencies.get(&construct_did)
+                {
+                    for dep in deps.iter() {
+                        unexecutable_nodes.insert(dep.clone());
+                    }
+                }
+                Err(e)
+            }
+        };
+        execution_result
+    };
+
+    let mut execution_result = match execution_result {
+        Ok(res) => res,
+        Err(diag) => {
+            pass_result.push_diagnostic(&diag, construct_id);
+            return LoopEvaluationResult::Continue;
+        }
+    };
+
+    if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
+        runbook_execution_context.execution_mode
+    {
+        executed_constructs.push(construct_did.clone());
+    }
+
+    if command_instance.specification.implements_background_task_capability {
+        let future_res = command_instance.build_background_task(
+            &construct_did,
+            &evaluated_inputs,
+            &execution_result,
+            progress_tx,
+            &pass_result.background_tasks_uuid,
+            supervision_context,
+        );
+        let future = match future_res {
+            Ok(future) => future,
             Err(diag) => {
                 pass_result.push_diagnostic(&diag, construct_id);
-                continue;
+                return LoopEvaluationResult::Bail;
             }
         };
-
-        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
-            runbook_execution_context.execution_mode
-        {
-            executed_constructs.push(construct_did.clone());
-        }
-
-        if command_instance.specification.implements_background_task_capability {
-            let future_res = command_instance.build_background_task(
-                &construct_did,
-                &evaluated_inputs,
-                &execution_result,
-                progress_tx,
-                &pass_result.background_tasks_uuid,
-                supervision_context,
-            );
-            let future = match future_res {
-                Ok(future) => future,
-                Err(diag) => {
-                    pass_result.push_diagnostic(&diag, construct_id);
-                    return pass_result;
-                }
-            };
-            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did)
-            {
-                for dep in deps.iter() {
-                    unexecutable_nodes.insert(dep.clone());
-                }
+        if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did) {
+            for dep in deps.iter() {
+                unexecutable_nodes.insert(dep.clone());
             }
-            pass_result.pending_background_tasks_futures.push(future);
-            pass_result.pending_background_tasks_constructs_uuids.push(construct_did.clone());
-        } else {
-            runbook_execution_context
-                .commands_execution_results
-                .entry(construct_did)
-                .or_insert_with(CommandExecutionResult::new)
-                .append(&mut execution_result);
         }
+        pass_result.pending_background_tasks_futures.push(future);
+        pass_result.pending_background_tasks_constructs_uuids.push(construct_did.clone());
+    } else {
+        runbook_execution_context
+            .commands_execution_results
+            .entry(construct_did.clone())
+            .or_insert_with(CommandExecutionResult::new)
+            .append(&mut execution_result);
     }
-    pass_result
+
+    LoopEvaluationResult::Continue
+}
+
 }
 
 // When the graph is being traversed, we are evaluating constructs one after the other.
