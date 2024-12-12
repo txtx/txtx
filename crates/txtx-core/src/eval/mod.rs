@@ -232,6 +232,14 @@ impl EvaluationPassResult {
         }
     }
 
+    pub fn merge(&mut self, mut other: EvaluationPassResult) {
+        self.actions.append(&mut other.actions);
+        self.diagnostics.append(&mut other.diagnostics);
+        self.pending_background_tasks_futures.append(&mut other.pending_background_tasks_futures);
+        self.pending_background_tasks_constructs_uuids
+            .append(&mut other.pending_background_tasks_constructs_uuids);
+    }
+
     pub fn compile_diagnostics_to_block(&self) -> Option<Block> {
         if self.diagnostics.is_empty() {
             return None;
