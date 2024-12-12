@@ -1,16 +1,21 @@
 use kit::channel::unbounded;
+use kit::channel::Sender;
 use kit::hcl::Span;
 use kit::indexmap::IndexMap;
 use kit::types::commands::DependencyExecutionResultCache;
 use kit::types::diagnostics::Diagnostic;
+use kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use kit::types::frontend::ActionItemRequest;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::frontend::ActionItemStatus;
+use kit::types::frontend::BlockEvent;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::signers::SignersState;
+use kit::types::stores::AddonDefaults;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::types::Value;
 use kit::types::ConstructDid;
+use kit::types::EvaluatableInput;
 use kit::uuid::Uuid;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -21,16 +26,17 @@ use txtx_addon_kit::types::signers::SignerInstance;
 use crate::eval::perform_inputs_evaluation;
 use crate::eval::CommandInputEvaluationStatus;
 use crate::eval::EvaluationPassResult;
+use crate::eval::LoopEvaluationResult;
 
 use super::diffing_context::RunbookFlowSnapshot;
 use super::diffing_context::ValuePostEvaluation;
-use super::EmbeddableRunbook;
 use super::RunbookWorkspaceContext;
 use super::RuntimeContext;
 
 #[derive(Debug, Clone)]
 pub struct RunbookExecutionContext {
-    pub embedded_runbooks: HashMap<ConstructDid, EmbeddableRunbook>,
+    /// Map of embedded runbooks
+    pub embedded_runbooks: HashMap<ConstructDid, EmbeddedRunbookInstance>,
     /// Map of executable commands (input, output, action)
     pub commands_instances: HashMap<ConstructDid, CommandInstance>,
     /// Map of signing commands (signer)
@@ -68,6 +74,7 @@ pub enum RunbookExecutionMode {
 impl RunbookExecutionContext {
     pub fn new() -> Self {
         Self {
+            embedded_runbooks: HashMap::new(),
             commands_instances: HashMap::new(),
             signers_instances: HashMap::new(),
             signers_state: Some(SignersState::new()),

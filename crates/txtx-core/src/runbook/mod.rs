@@ -196,13 +196,16 @@ impl Runbook {
                 &top_level_inputs_map.current_environment,
             )?;
             // Step 2: identify and index all the constructs (nodes)
-            flow_context.workspace_context.build_from_sources(
-                &sources,
-                &runtime_context,
-                &mut flow_context.graph_context,
-                &mut flow_context.execution_context,
-                &top_level_inputs_map.current_environment,
-            )?;
+            flow_context
+                .workspace_context
+                .build_from_sources(
+                    &sources,
+                    &runtime_context,
+                    &mut flow_context.graph_context,
+                    &mut flow_context.execution_context,
+                    &top_level_inputs_map.current_environment,
+                )
+                .await?;
             // Step 3: simulate inputs evaluation - some more edges could be hidden in there
             flow_context
                 .execution_context

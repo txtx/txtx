@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+use crate::runbook::embaddable_runbook::EmbeddedRunbookInstanceBuilder;
 use crate::runbook::RawHclContent;
 use crate::std::commands;
-use crate::types::{Package, PreConstructData};
+use crate::types::PreConstructData;
 use kit::hcl::expr::{Expression, TraversalOperator};
 use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
@@ -11,6 +12,8 @@ use kit::helpers::hcl::visit_required_string_literal_attribute;
 use kit::indexmap::IndexMap;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::Diagnostic;
+use kit::types::embedded_runbooks::{EmbeddedRunbookInstance, EmbeddedRunbookLocation};
+use kit::types::package::Package;
 use kit::types::signers::SignerInstance;
 use kit::types::stores::AddonDefaults;
 use kit::types::types::Value;
@@ -25,6 +28,7 @@ pub enum ConstructInstanceType {
     Executable(CommandInstance),
     Signing(SignerInstance),
     Import,
+    EmbeddedRunbook(EmbeddedRunbookInstance),
 }
 
 #[derive(better_debug::BetterDebug, Clone)]
@@ -87,7 +91,7 @@ impl RunbookWorkspaceContext {
         addon_defaults
     }
 
-    pub fn build_from_sources(
+    pub async fn build_from_sources(
         &mut self,
         runbook_sources: &RunbookSources,
         runtime_context: &RuntimeContext,
@@ -313,6 +317,69 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
+                    "runbook" => {
+                        let Some(runbook_name) = block.labels.get(0) else {
+                            diagnostics.push(
+                                Diagnostic::error_from_string("'runbook' syntax invalid".into())
+                                    .location(&location),
+                            );
+                            continue;
+                        };
+                        let runbook_name = runbook_name.to_string();
+                        let embedded_runbook_location =
+                            visit_required_string_literal_attribute("location", &block).unwrap();
+                        println!("Loading {runbook_name} at path ({embedded_runbook_location})");
+
+                        let imported_package_location =
+                            location.get_parent_location().map_err(|e| {
+                                vec![diagnosed_error!(
+                                    "invalid runbook location: {}",
+                                    e.to_string()
+                                )
+                                .location(&location)]
+                            })?;
+
+                        match EmbeddedRunbookLocation::from_string(
+                            &embedded_runbook_location,
+                            imported_package_location.clone(),
+                        ) {
+                            Err(e) => {
+                                diagnostics.push(diagnosed_error!(
+                                    "failed to index embedded runbook ({}): {}",
+                                    runbook_name,
+                                    e
+                                ));
+                                continue;
+                            }
+                            Ok(loc) => {
+                                let embedded_runbook =
+                                    EmbeddedRunbookInstanceBuilder::from_location(
+                                        loc,
+                                        &runbook_name.to_string(),
+                                        &package_id,
+                                        &block,
+                                        &runtime_context.addons_context,
+                                    )
+                                    .await
+                                    .map_err(|e| {
+                                        vec![diagnosed_error!(
+                                            "failed to index embedded runbook ({}): {}",
+                                            runbook_name,
+                                            e
+                                        )]
+                                    })?;
+
+                                let _ = self.index_construct(
+                                    runbook_name.to_string(),
+                                    location.clone(),
+                                    PreConstructData::EmbeddedRunbook(embedded_runbook),
+                                    &package_id,
+                                    graph_context,
+                                    execution_context,
+                                );
+                            }
+                        }
+                    }
                     "flow" | "addon" => {}
                     unknown => {
                         diagnostics.push(
@@ -462,6 +529,13 @@ impl RunbookWorkspaceContext {
                 package.signers_did_lookup.insert(construct_name, construct_did.clone());
                 ConstructInstanceType::Signing(signer_instance)
             }
+            PreConstructData::EmbeddedRunbook(embedded_runbook) => {
+                package.embeddable_runbooks_dids.insert(construct_did.clone());
+                package
+                    .embeddable_runbooks_did_lookup
+                    .insert(construct_name, construct_did.clone());
+                ConstructInstanceType::EmbeddedRunbook(embedded_runbook)
+            }
             PreConstructData::Root => unreachable!(),
         };
 
@@ -475,6 +549,9 @@ impl RunbookWorkspaceContext {
                 execution_context.signers_instances.insert(construct_did.clone(), instance);
             }
             ConstructInstanceType::Import => {}
+            ConstructInstanceType::EmbeddedRunbook(runbook) => {
+                execution_context.embedded_runbooks.insert(construct_did.clone(), runbook);
+            }
         }
 
         construct_id
@@ -526,9 +603,7 @@ impl RunbookWorkspaceContext {
 
         let mut is_root = true;
         while let Some(component) = components.pop_front() {
-            // Look for modules
             if is_root {
-                // Look for env variables
                 if component.eq_ignore_ascii_case("input") {
                     let Some(env_variable_name) = components.pop_front() else {
                         continue;
