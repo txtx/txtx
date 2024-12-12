@@ -215,6 +215,17 @@ pub struct CommandInput {
     pub sensitive: bool,
     pub internal: bool,
 }
+impl EvaluatableInput for CommandInput {
+    fn optional(&self) -> bool {
+        self.optional
+    }
+    fn typing(&self) -> &Type {
+        &self.typing
+    }
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+}
 
 impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
