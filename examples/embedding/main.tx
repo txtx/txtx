@@ -1,0 +1,9 @@
+variable "chain_id" {
+    value = "hello"
+}
+
+runbook "test" {
+    location = "./embedded-runbook.json"
+    my_input = variable.chain_id
+}
+

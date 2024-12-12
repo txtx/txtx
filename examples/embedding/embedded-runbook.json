@@ -1,0 +1,172 @@
+{
+    "specification": {
+        "runbook_id": {
+            "org": null,
+            "workspace": null,
+            "name": ""
+        },
+        "description": null,
+        "inputs": [
+            {
+                "Value": {
+                    "name": "my_input",
+                    "documentation": "",
+                    "typing": "string"
+                }
+            }
+        ],
+        "static_execution_context": {
+            "embedded_runbooks": {},
+            "commands_instances": {
+                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": ""
+                        },
+                        "package_location": {
+                            "path": "."
+                        },
+                        "package_name": "my_package"
+                    },
+                    "namespace": "std",
+                    "typing": "Variable",
+                    "name": "my_var"
+                },
+                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": ""
+                        },
+                        "package_location": {
+                            "path": "."
+                        },
+                        "package_name": "my_package"
+                    },
+                    "namespace": "std",
+                    "typing": "Output",
+                    "name": "my_output"
+                }
+            },
+            "commands_dependencies": {
+                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": [
+                    "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
+                ]
+            },
+            "signers_downstream_dependencies": [],
+            "signed_commands_upstream_dependencies": {},
+            "signed_commands": [],
+            "order_for_commands_execution": [
+                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173",
+                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
+            ],
+            "order_for_signers_initialization": [],
+            "evaluated_inputs": {
+                "uuid": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "name": "",
+                "inputs": {
+                    "store": {}
+                },
+                "defaults": {
+                    "store": {}
+                }
+            }
+        },
+        "static_workspace_context": {
+            "packages": [
+                [
+                    {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": ""
+                        },
+                        "package_location": {
+                            "path": "."
+                        },
+                        "package_name": "my_package"
+                    },
+                    {
+                        "package_id": {
+                            "runbook_id": {
+                                "org": null,
+                                "workspace": null,
+                                "name": ""
+                            },
+                            "package_location": {
+                                "path": "."
+                            },
+                            "package_name": "my_package"
+                        },
+                        "flow_inputs_dids": [],
+                        "flow_inputs_did_lookup": {},
+                        "variables_dids": [
+                            "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
+                        ],
+                        "variables_did_lookup": {
+                            "my_var": "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
+                        },
+                        "outputs_dids": [
+                            "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
+                        ],
+                        "outputs_did_lookup": {
+                            "my_output": "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
+                        },
+                        "modules_dids": [],
+                        "modules_did_lookup": {},
+                        "imports_dids": [],
+                        "imports_did_lookup": {},
+                        "commands_dids": [],
+                        "addons_did_lookup": {},
+                        "signers_dids": [],
+                        "signers_did_lookup": {},
+                        "embeddable_runbooks_dids": [],
+                        "embeddable_runbooks_did_lookup": {}
+                    }
+                ]
+            ],
+            "constructs": {
+                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": ""
+                        },
+                        "package_location": {
+                            "path": "."
+                        },
+                        "package_name": "my_package"
+                    },
+                    "construct_location": {
+                        "path": "."
+                    },
+                    "construct_type": "output",
+                    "construct_name": "my_output"
+                },
+                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": ""
+                        },
+                        "package_location": {
+                            "path": "."
+                        },
+                        "package_name": "my_package"
+                    },
+                    "construct_location": {
+                        "path": "."
+                    },
+                    "construct_type": "variable",
+                    "construct_name": "my_var"
+                }
+            }
+        }
+    },
+    "hcl": "\n        variable \"my_var\" {\n            value = input.my_input\n        }\n\n        output \"my_output\" {\n            value = variable.my_var\n        }\n        "
+}
