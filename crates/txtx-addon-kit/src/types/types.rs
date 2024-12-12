@@ -739,6 +739,34 @@ impl Type {
         };
         Ok(())
     }
+
+    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Object(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&Box<Type>> {
+        match self {
+            Type::Array(typing) => Some(typing),
+            _ => None,
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Map(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_action(&self) -> Option<&String> {
+        match self {
+            Type::Addon(action) => Some(action),
+            _ => None,
+        }
+    }
 }
 
 impl Type {

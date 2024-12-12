@@ -229,60 +229,16 @@ impl EvaluatableInput for CommandInput {
 
 impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
-        match &self.typing {
-            Type::Object(spec) => Some(spec),
-            Type::Addon(_) => None,
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_object()
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(_) => None,
-            Type::Array(array) => Some(array),
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_array()
     }
     pub fn as_action(&self) -> Option<&String> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(addon) => Some(addon),
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_action()
     }
     pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
-        match &self.typing {
-            Type::Map(spec) => Some(spec),
-            Type::Addon(_) => None,
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Object(_) => None,
-        }
+        self.typing.as_map()
     }
     pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
         self.typing.check_value(value).map_err(|e| {
