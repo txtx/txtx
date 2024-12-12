@@ -1118,7 +1118,7 @@ pub enum CommandInputEvaluationStatus {
 }
 
 pub fn perform_inputs_evaluation(
-    command_instance: &CommandInstance,
+    with_evaluatable_inputs: &impl WithEvaluatableInputs,
     dependencies_execution_results: &DependencyExecutionResultCache,
     input_evaluation_results: &Option<&CommandInputsEvaluationResult>,
     addon_defaults: &AddonDefaults,
@@ -1129,17 +1129,24 @@ pub fn perform_inputs_evaluation(
     runtime_context: &RuntimeContext,
     simulation: bool,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
+    let mut has_existing_evaluation_results = true;
     let mut results = match *input_evaluation_results {
         Some(evaluated_inputs) => {
             let mut inputs = evaluated_inputs.clone();
             inputs.inputs = inputs.inputs.with_defaults(&addon_defaults.store);
             inputs
         }
-        None => CommandInputsEvaluationResult::new(&command_instance.name, &addon_defaults.store),
+        None => {
+            has_existing_evaluation_results = false;
+            CommandInputsEvaluationResult::new(
+                &with_evaluatable_inputs.name(),
+                &addon_defaults.store,
+            )
+        }
     };
     let mut require_user_interaction = false;
     let mut diags = vec![];
-    let inputs = command_instance.specification.inputs.clone();
+    let inputs = with_evaluatable_inputs.spec_inputs();
     let mut fatal_error = false;
 
     match action_item_response {
@@ -1158,18 +1165,22 @@ pub fn perform_inputs_evaluation(
     }
 
     for input in inputs.into_iter() {
+        let input_name = input.name();
+        let input_typing = input.typing();
+        let input_optional = input.optional();
+
         if simulation {
             // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec
-            if input.name.eq("signer") {
+            if input_name.eq("signer") {
                 results.unevaluated_inputs.insert("signer".into(), None);
                 continue;
             }
-            if input.name.eq("signers") {
+            if input_name.eq("signers") {
                 results.unevaluated_inputs.insert("signers".into(), None);
                 continue;
             }
-        } else {
-            if !results.unevaluated_inputs.contains_key(&input.name) {
+        } else if has_existing_evaluation_results {
+            if !results.unevaluated_inputs.contains_key(&input_name) {
                 continue;
             }
         }
@@ -1177,7 +1188,9 @@ pub fn perform_inputs_evaluation(
             // get this object expression to check if it's a traversal. if the expected
             // object type is a traversal, we should parse it as a regular field rather than
             // looking at each property of the object
-            let Some(expr) = command_instance.get_expression_from_object(&input)? else {
+            let Some(expr) =
+                with_evaluatable_inputs.get_expression_from_object(&input_name, &input_typing)?
+            else {
                 continue;
             };
             if let Expression::Traversal(traversal) = &expr {
@@ -1194,7 +1207,7 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
@@ -1202,17 +1215,17 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.insert(input.name.clone(), None);
+                        results.unevaluated_inputs.insert(input_name.clone(), None);
                         continue;
                     }
                 };
-                results.insert(&input.name, value);
+                results.insert(&input_name, value);
                 continue;
             }
 
@@ -1230,7 +1243,7 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.to_string(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
@@ -1238,23 +1251,23 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.to_string(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.insert(input.name.clone(), None);
+                        results.unevaluated_inputs.insert(input_name.to_string(), None);
                         continue;
                     }
                 };
-                results.insert(&input.name, value);
+                results.insert(&input_name, value);
                 continue;
             }
             let mut object_values = IndexMap::new();
             for prop in object_props.iter() {
                 let Some(expr) =
-                    command_instance.get_expression_from_object_property(&input, &prop)
+                    with_evaluatable_inputs.get_expression_from_object_property(&input_name, &prop)
                 else {
                     continue;
                 };
@@ -1272,7 +1285,7 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
@@ -1280,13 +1293,13 @@ pub fn perform_inputs_evaluation(
                         if e.is_error() {
                             fatal_error = true;
                         }
-                        results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                         diags.push(e);
                         continue;
                     }
                     Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                         require_user_interaction = true;
-                        results.unevaluated_inputs.insert(input.name.clone(), None);
+                        results.unevaluated_inputs.insert(input_name.clone(), None);
                         continue;
                     }
                 };
@@ -1304,11 +1317,11 @@ pub fn perform_inputs_evaluation(
             }
 
             if !object_values.is_empty() {
-                results.insert(&input.name, Value::object(object_values));
+                results.insert(&input_name, Value::object(object_values));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
-            let Some(expr) = command_instance.get_expression_from_input(&input) else {
+            let Some(expr) = with_evaluatable_inputs.get_expression_from_input(&input_name) else {
                 continue;
             };
             let value = match eval_expression(
@@ -1334,7 +1347,7 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                    results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                     diags.push(e);
                     continue;
                 }
@@ -1342,25 +1355,30 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                    results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                     diags.push(e);
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.insert(input.name.clone(), None);
+                    results.unevaluated_inputs.insert(input_name.clone(), None);
                     continue;
                 }
             };
 
-            results.insert(&input.name, value);
+            results.insert(&input_name, value);
         } else if let Some(object_props) = input.as_map() {
             let mut entries = vec![];
-            let blocks = command_instance.get_blocks_for_map(&input)?;
+            let blocks = with_evaluatable_inputs.get_blocks_for_map(
+                &input_name,
+                &input_typing,
+                input_optional,
+            )?;
             for block in blocks.iter() {
                 let mut object_values = IndexMap::new();
                 for prop in object_props.iter() {
-                    let Some(expr) = command_instance.get_expression_from_block(&block, &prop)
+                    let Some(expr) =
+                        with_evaluatable_inputs.get_expression_from_block(&block, &prop)
                     else {
                         continue;
                     };
@@ -1377,7 +1395,7 @@ pub fn perform_inputs_evaluation(
                             if e.is_error() {
                                 fatal_error = true;
                             }
-                            results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                            results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                             diags.push(e);
                             continue;
                         }
@@ -1385,13 +1403,13 @@ pub fn perform_inputs_evaluation(
                             if e.is_error() {
                                 fatal_error = true;
                             }
-                            results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                            results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                             diags.push(e);
                             continue;
                         }
                         Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                             require_user_interaction = true;
-                            results.unevaluated_inputs.insert(input.name.clone(), None);
+                            results.unevaluated_inputs.insert(input_name.clone(), None);
                             continue;
                         }
                     };
@@ -1409,11 +1427,12 @@ pub fn perform_inputs_evaluation(
                 }
                 entries.push(Value::object(object_values));
             }
-            results.insert(&input.name, Value::array(entries));
+            results.insert(&input_name, Value::array(entries));
         } else {
-            let Some(expr) = command_instance.get_expression_from_input(&input) else {
+            let Some(expr) = with_evaluatable_inputs.get_expression_from_input(&input_name) else {
                 continue;
             };
+
             let value = match eval_expression(
                 &expr,
                 dependencies_execution_results,
@@ -1427,7 +1446,7 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                    results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                     diags.push(e);
                     continue;
                 }
@@ -1435,17 +1454,17 @@ pub fn perform_inputs_evaluation(
                     if e.is_error() {
                         fatal_error = true;
                     }
-                    results.unevaluated_inputs.insert(input.name.clone(), Some(e.clone()));
+                    results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
                     diags.push(e);
                     continue;
                 }
                 Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
                     require_user_interaction = true;
-                    results.unevaluated_inputs.insert(input.name.clone(), None);
+                    results.unevaluated_inputs.insert(input_name.clone(), None);
                     continue;
                 }
             };
-            results.insert(&input.name, value);
+            results.insert(&input_name, value);
         }
     }
 
