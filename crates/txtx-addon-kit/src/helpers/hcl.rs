@@ -8,7 +8,7 @@ use crate::{
         structure::{Block, BlockLabel},
         template::{Element, StringTemplate},
     },
-    types::commands::CommandInput,
+    types::EvaluatableInput,
 };
 
 use crate::{helpers::fs::FileLocation, types::diagnostics::Diagnostic};
@@ -96,10 +96,10 @@ pub fn build_diagnostics_for_unused_fields(
     diagnostics
 }
 
-pub fn collect_constructs_references_from_expression<'a>(
+pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
     expr: &Expression,
-    input: Option<&'a CommandInput>,
-    dependencies: &mut Vec<(Option<&'a CommandInput>, Expression)>,
+    input: Option<&'a T>,
+    dependencies: &mut Vec<(Option<&'a T>, Expression)>,
 ) {
     match expr {
         Expression::Variable(_) => {
@@ -195,7 +195,7 @@ pub fn collect_constructs_references_from_expression<'a>(
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RawHclContent(String);
 impl RawHclContent {
     pub fn from_string(s: String) -> Self {

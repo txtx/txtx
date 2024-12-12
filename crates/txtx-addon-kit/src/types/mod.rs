@@ -111,7 +111,7 @@ impl RunbookDid {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct RunbookId {
     /// Canonical name of the org authoring the workspace
     pub org: Option<String>,
@@ -153,7 +153,7 @@ impl PackageDid {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct PackageId {
     /// Id of the Runbook
     pub runbook_id: RunbookId,
@@ -215,7 +215,7 @@ impl ConstructDid {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstructId {
     /// Id of the Package
     pub package_id: PackageId,
