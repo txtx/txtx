@@ -13,6 +13,7 @@ use crate::helpers::fs::FileLocation;
 pub mod block_id;
 pub mod commands;
 pub mod diagnostics;
+pub mod embedded_runbooks;
 pub mod frontend;
 pub mod functions;
 pub mod package;
