@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
 use diagnostics::Diagnostic;
+use hcl_edit::expr::Expression;
+use hcl_edit::structure::Block;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
+use types::{ObjectProperty, Type};
 
 use crate::helpers::fs::FileLocation;
 
@@ -12,6 +15,7 @@ pub mod commands;
 pub mod diagnostics;
 pub mod frontend;
 pub mod functions;
+pub mod package;
 pub mod signers;
 pub mod stores;
 pub mod types;
@@ -272,5 +276,47 @@ pub struct AddonPostProcessingResult {
 impl AddonPostProcessingResult {
     pub fn new() -> AddonPostProcessingResult {
         AddonPostProcessingResult { dependencies: HashMap::new(), transforms: HashMap::new() }
+    }
+}
+
+pub trait WithEvaluatableInputs {
+    fn name(&self) -> String;
+    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;
+    fn get_blocks_for_map(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+        input_optional: bool,
+    ) -> Result<Vec<Block>, Vec<Diagnostic>>;
+    fn get_expression_from_block(&self, block: &Block, prop: &ObjectProperty)
+        -> Option<Expression>;
+    fn get_expression_from_object(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>>;
+    fn get_expression_from_object_property(
+        &self,
+        input_name: &str,
+        prop: &ObjectProperty,
+    ) -> Option<Expression>;
+    fn spec_inputs(&self) -> Vec<impl EvaluatableInput>;
+}
+
+pub trait EvaluatableInput {
+    fn optional(&self) -> bool;
+    fn typing(&self) -> &Type;
+    fn name(&self) -> String;
+    fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        self.typing().as_object()
+    }
+    fn as_array(&self) -> Option<&Box<Type>> {
+        self.typing().as_array()
+    }
+    fn as_action(&self) -> Option<&String> {
+        self.typing().as_action()
+    }
+    fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        self.typing().as_map()
     }
 }
