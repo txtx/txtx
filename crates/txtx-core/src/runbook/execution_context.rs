@@ -103,48 +103,79 @@ impl RunbookExecutionContext {
         let mut action_items = IndexMap::new();
 
         for construct_did in self.order_for_commands_execution.iter() {
-            let Some(command_instance) = self.commands_instances.get(&construct_did) else {
-                // runtime_context.addons.index_command_instance(namespace, package_did, block)
-                continue;
+            if let Some(command_instance) = self.commands_instances.get(&construct_did) {
+                match self.collect_command_instance_output(
+                    construct_did,
+                    command_instance,
+                    &mut action_items,
+                ) {
+                    LoopEvaluationResult::Continue => continue,
+                    LoopEvaluationResult::Bail => return action_items,
+                }
             };
-
-            if command_instance.specification.name.to_lowercase().eq("output") {
-                let Some(execution_result) = self.commands_execution_results.get(&construct_did)
-                else {
-                    return action_items;
-                };
-                let Some(input_evaluations) =
-                    self.commands_inputs_evaluation_results.get(&construct_did)
-                else {
-                    return action_items;
-                };
-
-                let Some(value) = execution_result.outputs.get("value") else {
-                    return action_items;
-                };
-
-                let description = input_evaluations
-                    .inputs
-                    .get_string("description")
-                    .and_then(|d| Some(d.to_string()));
-
-                action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
-                    ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        &command_instance.name,
-                        None,
-                        ActionItemStatus::Todo,
-                        ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                            name: command_instance.name.to_string(),
-                            description,
-                            value: value.clone(),
-                        }),
-                        "output".into(),
-                    ),
-                );
+            if let Some(embedded_runbook) = self.embedded_runbooks.get(&construct_did) {
+                for (construct_did, command_instance) in embedded_runbook
+                    .specification
+                    .static_execution_context
+                    .commands_instances
+                    .iter()
+                {
+                    let res = self.collect_command_instance_output(
+                        construct_did,
+                        command_instance,
+                        &mut action_items,
+                    );
+                    match res {
+                        LoopEvaluationResult::Continue => continue,
+                        LoopEvaluationResult::Bail => return action_items,
+                    }
+                }
             }
         }
         action_items
+    }
+
+    pub fn collect_command_instance_output(
+        &self,
+        construct_did: &ConstructDid,
+        command_instance: &CommandInstance,
+        action_items: &mut IndexMap<String, Vec<ActionItemRequest>>,
+    ) -> LoopEvaluationResult {
+        if command_instance.specification.name.to_lowercase().eq("output") {
+            let Some(execution_result) = self.commands_execution_results.get(&construct_did) else {
+                return LoopEvaluationResult::Bail;
+            };
+            let Some(input_evaluations) =
+                self.commands_inputs_evaluation_results.get(&construct_did)
+            else {
+                return LoopEvaluationResult::Bail;
+            };
+
+            let Some(value) = execution_result.outputs.get("value") else {
+                return LoopEvaluationResult::Bail;
+            };
+
+            let description = input_evaluations
+                .inputs
+                .get_string("description")
+                .and_then(|d| Some(d.to_string()));
+
+            action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
+                ActionItemRequest::new(
+                    &Some(construct_did.clone()),
+                    &command_instance.name,
+                    None,
+                    ActionItemStatus::Todo,
+                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                        name: command_instance.name.to_string(),
+                        description,
+                        value: value.clone(),
+                    }),
+                    "output".into(),
+                ),
+            );
+        }
+        LoopEvaluationResult::Continue
     }
 
     // During the simulation, our goal is to evaluate as many input evaluations as possible.
