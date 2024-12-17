@@ -172,6 +172,45 @@ impl RunbookGraphContext {
                     }
                 }
             }
+
+            // add embedded runbook constructs to graph
+            for construct_did in package.embeddable_runbooks_dids.iter() {
+                let embedded_runbook_instance =
+                    execution_context.embedded_runbooks.get(construct_did).unwrap();
+
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
+                if let Some(dependencies) = domain_specific_dependencies.get(construct_did) {
+                    for dependent_construct_did in dependencies {
+                        constructs_edges
+                            .push((construct_did.clone(), dependent_construct_did.clone()));
+                    }
+                }
+
+                for (_input, dep) in embedded_runbook_instance.collect_dependencies().iter() {
+                    let result = workspace_context
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
+                    if let Ok(Some((resolved_construct_did, _, _))) = result {
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
+                        {
+                            signers.push_front((resolved_construct_did.clone(), true));
+                            instantiated_signers.insert(resolved_construct_did.clone());
+                        }
+                        constructs_edges.push((construct_did.clone(), resolved_construct_did));
+                    } else {
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in embedded runbook '{}'",
+                                dep.to_string().trim(),
+                                embedded_runbook_instance.name,
+                            )
+                            .location(&construct_id.construct_location)
+                            .set_span_range(embedded_runbook_instance.block.span()),
+                        );
+                    }
+                }
+            }
             // todo: should we constrain to signers depending on signers?
             // add signer constructs to graph
             for construct_did in package.signers_dids.iter() {
@@ -282,7 +321,11 @@ impl RunbookGraphContext {
             execution_context.order_for_commands_execution.push(construct_did.clone());
         }
 
-        for (construct_did, _) in execution_context.commands_instances.iter() {
+        for construct_did in execution_context
+            .commands_instances
+            .keys()
+            .chain(execution_context.embedded_runbooks.keys())
+        {
             let dependencies =
                 self.get_downstream_dependencies_for_construct_did(construct_did, true);
             execution_context.commands_dependencies.insert(construct_did.clone(), dependencies);
