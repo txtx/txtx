@@ -280,6 +280,13 @@ impl AddonPostProcessingResult {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct AddonInstance {
+    pub addon_id: String,
+    pub package_id: PackageId,
+    pub block: Block,
+}
+
 pub trait WithEvaluatableInputs {
     fn name(&self) -> String;
     fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;

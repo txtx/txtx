@@ -17,6 +17,7 @@ use kit::types::package::Package;
 use kit::types::signers::SignerInstance;
 use kit::types::stores::AddonDefaults;
 use kit::types::types::Value;
+use kit::types::AddonInstance;
 use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 
 use super::{
@@ -29,6 +30,7 @@ pub enum ConstructInstanceType {
     Signing(SignerInstance),
     Import,
     EmbeddedRunbook(EmbeddedRunbookInstance),
+    Addon(AddonInstance),
 }
 
 #[derive(better_debug::BetterDebug, Clone)]
@@ -380,7 +382,24 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "flow" | "addon" => {}
+                    "addon" => {
+                        let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
+                            diagnostics.push(
+                                Diagnostic::error_from_string("addon name missing".into())
+                                    .location(&location),
+                            );
+                            continue;
+                        };
+                        let _ = self.index_construct(
+                            addon_id.to_string(),
+                            location.clone(),
+                            PreConstructData::Addon(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "flow" => {}
                     unknown => {
                         diagnostics.push(
                             Diagnostic::error_from_string(format!("unknown construct {}", unknown))
@@ -489,15 +508,12 @@ impl RunbookWorkspaceContext {
                 })
             }
             PreConstructData::Addon(block) => {
-                package.commands_dids.insert(construct_did.clone());
+                package.addons_dids.insert(construct_did.clone());
                 package.addons_did_lookup.insert(construct_name.clone(), construct_did.clone());
-                ConstructInstanceType::Executable(CommandInstance {
-                    specification: commands::new_runtime_setting(),
-                    name: construct_name.clone(),
+                ConstructInstanceType::Addon(AddonInstance {
                     block: block.clone(),
                     package_id: package_id.clone(),
-                    namespace: construct_name.clone(),
-                    typing: CommandInstanceType::Addon,
+                    addon_id: construct_name.clone(),
                 })
             }
             PreConstructData::Output(block) => {
@@ -520,7 +536,7 @@ impl RunbookWorkspaceContext {
             PreConstructData::Action(command_instance) => {
                 package.commands_dids.insert(construct_did.clone());
                 package
-                    .addons_did_lookup
+                    .commands_did_lookup
                     .insert(CommandId::Action(construct_name).to_string(), construct_did.clone());
                 ConstructInstanceType::Executable(command_instance)
             }
@@ -539,7 +555,6 @@ impl RunbookWorkspaceContext {
             PreConstructData::Root => unreachable!(),
         };
 
-        let construct_did = construct_id.did();
         graph_context.index_construct(&construct_did);
         match construct_instance_type {
             ConstructInstanceType::Executable(instance) => {
@@ -551,6 +566,9 @@ impl RunbookWorkspaceContext {
             ConstructInstanceType::Import => {}
             ConstructInstanceType::EmbeddedRunbook(runbook) => {
                 execution_context.embedded_runbooks.insert(construct_did.clone(), runbook);
+            }
+            ConstructInstanceType::Addon(instance) => {
+                execution_context.addon_instances.insert(construct_did.clone(), instance);
             }
         }
 

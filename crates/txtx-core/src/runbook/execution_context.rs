@@ -14,6 +14,7 @@ use kit::types::signers::SignersState;
 use kit::types::stores::AddonDefaults;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::types::Value;
+use kit::types::AddonInstance;
 use kit::types::ConstructDid;
 use kit::types::EvaluatableInput;
 use kit::uuid::Uuid;
@@ -35,6 +36,8 @@ use super::RuntimeContext;
 
 #[derive(Debug, Clone)]
 pub struct RunbookExecutionContext {
+    /// Map of addon instances (addon "evm" { ... })
+    pub addon_instances: HashMap<ConstructDid, AddonInstance>,
     /// Map of embedded runbooks
     pub embedded_runbooks: HashMap<ConstructDid, EmbeddedRunbookInstance>,
     /// Map of executable commands (input, output, action)
@@ -74,6 +77,7 @@ pub enum RunbookExecutionMode {
 impl RunbookExecutionContext {
     pub fn new() -> Self {
         Self {
+            addon_instances: HashMap::new(),
             embedded_runbooks: HashMap::new(),
             commands_instances: HashMap::new(),
             signers_instances: HashMap::new(),

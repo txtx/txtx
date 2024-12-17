@@ -18,7 +18,8 @@ use super::{
     signers::{SignerInstance, SignersState},
     stores::ValueStore,
     types::{ObjectProperty, Type},
-    ConstructDid, ConstructId, EvaluatableInput, PackageId, RunbookId, WithEvaluatableInputs,
+    AddonInstance, ConstructDid, ConstructId, EvaluatableInput, PackageId, RunbookId,
+    WithEvaluatableInputs,
 };
 
 #[derive(Debug, Clone)]
@@ -261,6 +262,8 @@ pub struct EmbeddedRunbookSignerInputSpecification {
 pub type SignerName = String;
 #[derive(Debug, Clone)]
 pub struct EmbeddedRunbookStaticExecutionContext {
+    /// Map of addon instances (addon "evm" { ... })
+    pub addon_instances: HashMap<ConstructDid, AddonInstance>,
     /// Map of embedded runbooks
     pub embedded_runbooks: HashMap<ConstructDid, EmbeddedRunbookInstance>,
     /// Map of executable commands (input, output, action)

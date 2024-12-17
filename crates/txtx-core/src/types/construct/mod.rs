@@ -12,7 +12,7 @@ pub enum PreConstructData {
     Import(Block),
     Action(CommandInstance),
     Signer(SignerInstance),
-    Addon(Block), // not used, remove?
+    Addon(Block),
     EmbeddedRunbook(EmbeddedRunbookInstance),
     Root,
 }

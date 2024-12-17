@@ -8,6 +8,7 @@ use kit::types::embedded_runbooks::{
     EmbeddedRunbookStaticExecutionContext, EmbeddedRunbookStaticWorkspaceContext, SignerName,
 };
 use kit::types::stores::ValueStore;
+use kit::types::AddonInstance;
 use kit::types::{commands::CommandExecutionResult, embedded_runbooks::EmbeddedRunbookInstance};
 use kit::types::{ConstructDid, ConstructId, PackageId, RunbookId};
 use serde::{Deserialize, Serialize};
@@ -86,6 +87,11 @@ impl EmbeddableRunbookContext {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut execution_context = RunbookExecutionContext {
+            addon_instances: runbook_instance
+                .specification
+                .static_execution_context
+                .addon_instances
+                .clone(),
             embedded_runbooks: runbook_instance
                 .specification
                 .static_execution_context
