@@ -381,6 +381,13 @@ impl Value {
         }
     }
 
+    pub fn as_object_mut(&mut self) -> Option<&mut IndexMap<String, Value>> {
+        match self {
+            Value::Object(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn get_keys_from_object(&self, mut keys: VecDeque<String>) -> Result<Value, Diagnostic> {
         let Some(key) = keys.pop_front() else {
             return Ok(self.clone());
