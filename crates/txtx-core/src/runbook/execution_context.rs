@@ -502,4 +502,113 @@ impl RunbookExecutionContext {
                 .iter()
                 .any(|(_signed, upstream)| upstream.contains(construct_did))
     }
+
+    /// Takes a [HashMap<ConstructDid, CommandInputsEvaluationResult>] and adds each of the entries to the `commands_inputs_evaluation_results` of [self].
+    /// If the construct_did is already found in the `commands_inputs_evaluation_results` field, the inputs will be appended to the existing inputs without overriding any existing input values.
+    pub fn append_command_inputs_evaluation_results_no_override(
+        &mut self,
+        source_inputs: &HashMap<ConstructDid, CommandInputsEvaluationResult>,
+    ) {
+        for (source_construct_did, source_results) in source_inputs.iter() {
+            if let Some(evaluated_inputs) =
+                self.commands_inputs_evaluation_results.get_mut(source_construct_did)
+            {
+                evaluated_inputs.inputs.append_no_override(&source_results.inputs);
+            } else {
+                self.commands_inputs_evaluation_results
+                    .insert(source_construct_did.clone(), source_results.clone());
+            }
+        }
+    }
+
+    /// Takes a [HashMap<ConstructDid, CommandExecutionResult>] and iterates over it, calling [self].append_command_execution_result for each entry.
+    pub fn append_commands_execution_results(
+        &mut self,
+        source_results: &HashMap<ConstructDid, CommandExecutionResult>,
+    ) {
+        for (source_construct_did, source_result) in source_results.iter() {
+            self.append_commands_execution_result(source_construct_did, source_result);
+        }
+    }
+
+    /// 1. Inserts the source result into the `commands_execution_results` of [self].
+    ///     If the `source_construct_did` is already found in the `commands_execution_results` field, the outputs will be appended to the existing outputs, overriding any existing output values.
+    /// 2. Checks if the `source_construct_did` is a construct in the `embedded_runbooks` of [self].
+    ///     If so, the outputs of the source construct will be added to the outputs of the embedded runbook construct. The outputs will be stored as results in the embedded runbook construct's execution results in the form:
+    ///    ```
+    ///     Value::object({ "construct_type": Value::object({ "construct_name": value }) })
+    ///     ```
+    ///
+    ///     For example, if the embedded construct has
+    ///     ```
+    ///     action "deploy" "evm::deploy_contract" {
+    ///         ...
+    ///     }
+    ///     ```
+    ///
+    ///     The embedded construct will have an output:
+    ///     ```
+    ///     Value::object({ "action": Value::object({ "deploy": value }) })
+    ///     ```
+    pub fn append_commands_execution_result(
+        &mut self,
+        source_construct_did: &ConstructDid,
+        source_result: &CommandExecutionResult,
+    ) {
+        self.commands_execution_results
+            .entry(source_construct_did.clone())
+            .and_modify(|execution_result| {
+                execution_result.apply(&source_result);
+            })
+            .or_insert(source_result.clone());
+
+        for (embedded_runbook_did, embedded_runbook_instance) in self.embedded_runbooks.iter() {
+            let Some(construct_id) = embedded_runbook_instance
+                .specification
+                .static_workspace_context
+                .constructs
+                .get(&source_construct_did)
+            else {
+                continue;
+            };
+
+            let value = ObjectType::from(
+                source_result.outputs.iter().map(|(k, v)| (k.as_ref(), v.clone())).collect(),
+            )
+            .to_value();
+
+            self.commands_execution_results
+                // try to get execution results for this embedded runbook id
+                .entry(embedded_runbook_did.clone())
+                // if we have some, we'll update them to include the results from its child construct's execution
+                .and_modify(|execution_results| {
+                    execution_results
+                        .outputs
+                        // check if we have any outputs for this construct type
+                        .entry(construct_id.construct_type.clone())
+                        // if we do, we'll update them to include the results from its child construct's execution
+                        .and_modify(|object_value| {
+                            object_value.as_object_mut().map(|object_props| {
+                                object_props
+                                    .insert(construct_id.construct_name.clone(), value.clone())
+                            });
+                        })
+                        // if we don't, we'll create a new object value and insert the results from its child construct's execution
+                        .or_insert(
+                            ObjectType::from(vec![(&construct_id.construct_name, value.clone())])
+                                .to_value(),
+                        );
+                })
+                // if we don't have any execution results for this embedded runbook id, we'll create a new one
+                .or_insert_with(|| {
+                    let mut res = CommandExecutionResult::new();
+                    res.insert(
+                        &construct_id.construct_type,
+                        ObjectType::from(vec![(&construct_id.construct_name, value.clone())])
+                            .to_value(),
+                    );
+                    res
+                });
+        }
+    }
 }
