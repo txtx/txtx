@@ -715,6 +715,19 @@ impl RunbookWorkspaceContext {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }
                 }
+
+                // Look for embedded runbooks
+                if component.eq_ignore_ascii_case("runbook") {
+                    is_root = false;
+                    let Some(embedded_runbook_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_did) =
+                        current_package.embeddable_runbooks_did_lookup.get(&embedded_runbook_name)
+                    {
+                        return Ok(Some((construct_did.clone(), components, subpath)));
+                    }
+                }
             }
             let Some(mut current_package) = self.packages.get(source_package_id) else {
                 return Ok(None);
