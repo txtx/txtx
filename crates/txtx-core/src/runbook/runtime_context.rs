@@ -20,6 +20,7 @@ use kit::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
 use crate::{
     eval::{self, ExpressionEvaluationStatus},
@@ -176,8 +177,6 @@ impl RuntimeContext {
 
             let mut sources = runbook_sources.to_vec_dequeue();
 
-            let dependencies_execution_results = DependencyExecutionResultCache::new();
-
             // Register standard functions at the root level
             self.register_standard_functions();
 
@@ -187,52 +186,20 @@ impl RuntimeContext {
 
                 self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
-                let mut blocks =
+                let blocks =
                     raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
 
-                while let Some(block) = blocks.pop_front() {
-                    // parse addon blocks to load that addon
-                    match block.ident.value().as_str() {
-                        "addon" => {
-                            let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                diagnostics.push(
-                                    Diagnostic::error_from_string("addon name missing".into())
-                                        .location(&location),
-                                );
-                                continue;
-                            };
-                            let addon_id = name.to_string();
-                            self.register_addon_and_remove_from_available(
-                                &addon_id,
-                                &package_id.did(),
-                            )?;
-
-                            let mut addon_defaults = AddonDefaults::new(&addon_id);
-                            for attribute in block.body.attributes() {
-                                let eval_result = eval::eval_expression(
-                                    &attribute.value,
-                                    &dependencies_execution_results,
-                                    &package_id,
-                                    runbook_workspace_context,
-                                    runbook_execution_context,
-                                    self,
-                                );
-                                let key = attribute.key.to_string();
-                                let value = match eval_result {
-                                    Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
-                                    Err(diag) => return Err(vec![diag]),
-                                    w => unimplemented!("{:?}", w),
-                                };
-                                addon_defaults.insert(&key, value);
-                            }
-
-                            runbook_workspace_context
-                                .addons_defaults
-                                .insert((package_id.did(), addon_id.clone()), addon_defaults);
-                        }
-                        _ => {}
-                    }
-                }
+                let _ = self
+                    .register_addons_from_blocks(
+                        blocks,
+                        &package_id,
+                        &location,
+                        runbook_workspace_context,
+                        runbook_execution_context,
+                    )
+                    .map_err(|diags| {
+                        diagnostics.extend(diags);
+                    });
             }
 
             if diagnostics.is_empty() {
@@ -241,6 +208,85 @@ impl RuntimeContext {
                 return Err(diagnostics);
             }
         }
+    }
+
+    pub fn register_addons_from_blocks(
+        &mut self,
+        mut blocks: VecDeque<Block>,
+        package_id: &PackageId,
+        location: &FileLocation,
+        runbook_workspace_context: &mut RunbookWorkspaceContext,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = vec![];
+        let dependencies_execution_results = DependencyExecutionResultCache::new();
+        while let Some(block) = blocks.pop_front() {
+            // parse addon blocks to load that addon
+            match block.ident.value().as_str() {
+                "addon" => {
+                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        diagnostics.push(
+                            Diagnostic::error_from_string("addon name missing".into())
+                                .location(&location),
+                        );
+                        continue;
+                    };
+                    let addon_id = name.to_string();
+                    self.register_addon(&addon_id, &package_id.did())?;
+
+                    let addon_defaults = self
+                        .generate_addon_defaults_from_block(
+                            &block,
+                            &addon_id,
+                            &package_id,
+                            &dependencies_execution_results,
+                            runbook_workspace_context,
+                            runbook_execution_context,
+                        )
+                        .map_err(|diag| vec![diag.location(&location)])?;
+
+                    runbook_workspace_context
+                        .addons_defaults
+                        .insert((package_id.did(), addon_id.clone()), addon_defaults);
+                }
+                _ => {}
+            }
+        }
+        if diagnostics.is_empty() {
+            return Ok(());
+        } else {
+            return Err(diagnostics);
+        }
+    }
+
+    pub fn generate_addon_defaults_from_block(
+        &self,
+        block: &Block,
+        addon_id: &str,
+        package_id: &PackageId,
+        dependencies_execution_results: &DependencyExecutionResultCache,
+        runbook_workspace_context: &mut RunbookWorkspaceContext,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<AddonDefaults, Diagnostic> {
+        let mut addon_defaults = AddonDefaults::new(&addon_id);
+        for attribute in block.body.attributes() {
+            let eval_result: Result<ExpressionEvaluationStatus, Diagnostic> = eval::eval_expression(
+                &attribute.value,
+                &dependencies_execution_results,
+                &package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                self,
+            );
+            let key = attribute.key.to_string();
+            let value = match eval_result {
+                Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
+                Err(diag) => return Err(diag),
+                w => unimplemented!("{:?}", w),
+            };
+            addon_defaults.insert(&key, value);
+        }
+        Ok(addon_defaults)
     }
 
     pub fn execute_function(
