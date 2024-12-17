@@ -683,7 +683,7 @@ impl RunbookWorkspaceContext {
                         continue;
                     };
                     if let Some(construct_did) = current_package
-                        .addons_did_lookup
+                        .commands_did_lookup
                         .get(&CommandId::Action(action_name).to_string())
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
