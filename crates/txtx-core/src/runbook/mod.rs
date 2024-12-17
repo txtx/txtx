@@ -54,12 +54,18 @@ pub struct Runbook {
 }
 
 impl Runbook {
+    fn get_no_addons_by_namespace(_namepace: &str) -> Option<Box<dyn Addon>> {
+        None
+    }
     pub fn new(runbook_id: RunbookId, description: Option<String>) -> Self {
         Self {
             runbook_id,
             description,
             flow_contexts: vec![],
-            runtime_context: RuntimeContext::new(vec![], AuthorizationContext::empty()),
+            runtime_context: RuntimeContext::new(
+                AuthorizationContext::empty(),
+                Runbook::get_no_addons_by_namespace,
+            ),
             sources: RunbookSources::new(),
             supervision_context: RunbookSupervisionContext::new(),
             top_level_inputs_map: RunbookTopLevelInputsMap::new(),
@@ -174,11 +180,12 @@ impl Runbook {
         sources: RunbookSources,
         top_level_inputs_map: RunbookTopLevelInputsMap,
         authorization_context: AuthorizationContext,
-        available_addons: Vec<Box<dyn Addon>>,
+        get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
     ) -> Result<bool, Vec<Diagnostic>> {
         // Re-initialize some shiny new contexts
         self.flow_contexts.clear();
-        let mut runtime_context = RuntimeContext::new(available_addons, authorization_context);
+        let mut runtime_context =
+            RuntimeContext::new(authorization_context, get_addon_by_namespace);
 
         // Index our flow contexts
         let mut flow_contexts = self
@@ -293,14 +300,13 @@ impl Runbook {
         // Rebuild contexts
         let mut inputs_map = self.top_level_inputs_map.clone();
         inputs_map.current_environment = selector;
-        let available_addons = self.runtime_context.collect_available_addons();
         let authorization_context: AuthorizationContext =
             self.runtime_context.authorization_context.clone();
         self.build_contexts_from_sources(
             self.sources.clone(),
             inputs_map,
             authorization_context,
-            available_addons,
+            self.runtime_context.addons_context.get_addon_by_namespace,
         )
         .await
     }

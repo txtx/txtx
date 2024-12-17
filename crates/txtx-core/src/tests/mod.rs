@@ -1,4 +1,4 @@
-use kit::types::block_id::BlockId;
+use kit::{types::block_id::BlockId, Addon};
 use txtx_addon_kit::types::{
     frontend::{
         ActionItemResponse, ActionItemResponseType, ActionItemStatus, ProvidedInputResponse,
@@ -8,12 +8,16 @@ use txtx_addon_kit::types::{
 };
 use txtx_test_utils::test_harness::setup_test;
 
+fn empty_fn(_: &str) -> Option<Box<dyn Addon>> {
+    None
+}
+
 #[test]
 fn test_ab_c_runbook_no_env() {
     // Load Runbook ab_c.tx
     let abc_tx = include_str!("./fixtures/ab_c.tx");
 
-    let harness = setup_test("ab_c.tx", &abc_tx, vec![]);
+    let harness = setup_test("ab_c.tx", &abc_tx, empty_fn);
 
     // runbook checklist assertions
     {

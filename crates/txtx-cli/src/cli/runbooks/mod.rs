@@ -66,6 +66,7 @@ pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
+        Box::new(StdAddon::new()),
         Box::new(SvmNetworkAddon::new()),
         Box::new(StacksNetworkAddon::new()),
         Box::new(EvmNetworkAddon::new()),
@@ -74,6 +75,15 @@ pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
         #[cfg(feature = "sp1")]
         Box::new(Sp1Addon::new()),
     ]
+}
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons = get_available_addons();
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
 }
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
@@ -201,13 +211,11 @@ pub async fn handle_check_command(
     buffer_stdin: Option<String>,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let available_addons = get_available_addons();
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
-        available_addons,
         buffer_stdin,
     )
     .await?;
@@ -517,7 +525,6 @@ pub async fn handle_run_command(
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
-        available_addons,
         buffer_stdin.clone(),
     )
     .await;
@@ -1145,7 +1152,6 @@ pub async fn load_runbook_from_manifest(
     desired_runbook_name: &str,
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
-    available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
     let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
@@ -1169,7 +1175,7 @@ pub async fn load_runbook_from_manifest(
                     runbook_sources,
                     top_level_inputs_map,
                     authorization_context,
-                    available_addons,
+                    get_addon_by_namespace,
                 )
                 .await;
             if let Err(diags) = res {
@@ -1196,14 +1202,13 @@ pub async fn load_runbook_from_file_path(
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookTopLevelInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
-    let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook
         .build_contexts_from_sources(
             runbook_sources,
             inputs_map,
             authorization_context,
-            available_addons,
+            get_addon_by_namespace,
         )
         .await;
     if let Err(diags) = res {

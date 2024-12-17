@@ -36,8 +36,6 @@ pub struct RuntimeContext {
     pub functions: HashMap<String, FunctionSpecification>,
     /// Addons instantiated by runtime
     pub addons_context: AddonsContext,
-    /// Addons available for runtime
-    pub available_addons: Vec<Box<dyn Addon>>,
     /// Number of threads allowed to work on the inputs_sets concurrently
     pub concurrency: u64,
     /// Authorizations settings to propagate to function execution
@@ -46,25 +44,15 @@ pub struct RuntimeContext {
 
 impl RuntimeContext {
     pub fn new(
-        available_addons: Vec<Box<dyn Addon>>,
         authorization_context: AuthorizationContext,
+        get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
     ) -> RuntimeContext {
         RuntimeContext {
             functions: HashMap::new(),
-            addons_context: AddonsContext::new(),
-            available_addons,
+            addons_context: AddonsContext::new(get_addon_by_namespace),
             concurrency: 1,
             authorization_context,
         }
-    }
-
-    pub fn collect_available_addons(&mut self) -> Vec<Box<dyn Addon>> {
-        let mut addons = vec![];
-        addons.append(&mut self.available_addons);
-        for (_, (addon, _)) in self.addons_context.registered_addons.drain() {
-            addons.push(addon);
-        }
-        addons
     }
 
     pub fn generate_initial_input_sets(
@@ -157,34 +145,15 @@ impl RuntimeContext {
     }
 
     /// Checks if the provided `addon_id` matches the namespace of a supported addon
-    /// that is available in the `available_addons` of the [RuntimeContext].
+    /// that is available in the `get_addon_by_namespace` fn of the [RuntimeContext].
     /// If there is no match, returns [Vec<Diagnostic>].
-    /// If there is a match, the addon is
-    ///  1. Registered to the `addons_context`, storing the [PackageDid] as additional context.
-    ///  2. Removed from the set of `available_addons`
-    pub fn register_addon_and_remove_from_available(
+    /// If there is a match, the addon is registered to the `addons_context`, storing the [PackageDid] as additional context.
+    pub fn register_addon(
         &mut self,
         addon_id: &str,
         package_did: &PackageDid,
     ) -> Result<(), Vec<Diagnostic>> {
-        if self.addons_context.is_addon_registered(addon_id) {
-            return Ok(());
-        }
-        let mut index = None;
-        for (i, addon) in self.available_addons.iter().enumerate() {
-            if addon.get_namespace().eq(addon_id) {
-                index = Some(i);
-                break;
-            }
-        }
-        let Some(index) = index else {
-            return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
-        };
-
-        let addon = self.available_addons.remove(index);
-
-        self.addons_context.register(package_did, addon, true);
-        Ok(())
+        self.addons_context.register(package_did, addon_id, true).map_err(|e| vec![e])
     }
 
     pub fn register_standard_functions(&mut self) {
@@ -216,7 +185,7 @@ impl RuntimeContext {
                 let package_id = PackageId::from_file(&location, &runbook_id, &package_name)
                     .map_err(|e| vec![e])?;
 
-                self.addons_context.register(&package_id.did(), Box::new(StdAddon::new()), false);
+                self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
                 let mut blocks =
                     raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
@@ -314,21 +283,51 @@ impl RuntimeContext {
 pub struct AddonsContext {
     pub registered_addons: HashMap<String, (Box<dyn Addon>, bool)>,
     pub addon_construct_factories: HashMap<(PackageDid, String), AddonConstructFactory>,
+    /// Function to get an available addon by namespace
+    pub get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
 }
 
 impl AddonsContext {
-    pub fn new() -> Self {
-        Self { registered_addons: HashMap::new(), addon_construct_factories: HashMap::new() }
+    pub fn new(get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>) -> Self {
+        Self {
+            registered_addons: HashMap::new(),
+            addon_construct_factories: HashMap::new(),
+            get_addon_by_namespace,
+        }
     }
 
     pub fn is_addon_registered(&self, addon_id: &str) -> bool {
         self.registered_addons.get(addon_id).is_some()
     }
 
-    pub fn register(&mut self, package_did: &PackageDid, addon: Box<dyn Addon>, scope: bool) {
-        let key = addon.get_namespace().to_string();
-        if self.is_addon_registered(&key) {
-            return;
+    /// Registers an addon with this new package if the addon has already been registered
+    /// by a different package.
+    pub fn register_if_already_registered(
+        &mut self,
+        package_did: &PackageDid,
+        addon_id: &str,
+        scope: bool,
+    ) -> Result<(), Diagnostic> {
+        if self.is_addon_registered(&addon_id) {
+            self.register(package_did, addon_id, scope)?;
+            Ok(())
+        } else {
+            Err(diagnosed_error!("addon '{}' not registered", addon_id))
+        }
+    }
+
+    pub fn register(
+        &mut self,
+        package_did: &PackageDid,
+        addon_id: &str,
+        scope: bool,
+    ) -> Result<(), Diagnostic> {
+        let key = (package_did.clone(), addon_id.to_string());
+        let Some(addon) = (self.get_addon_by_namespace)(addon_id) else {
+            return Err(diagnosed_error!("unable to find addon {}", addon_id));
+        };
+        if self.addon_construct_factories.contains_key(&key) {
+            return Ok(());
         }
 
         // Build and register factory
@@ -337,8 +336,9 @@ impl AddonsContext {
             commands: addon.build_command_lookup(),
             signers: addon.build_signer_lookup(),
         };
-        self.registered_addons.insert(addon.get_namespace().to_string(), (addon, scope));
-        self.addon_construct_factories.insert((package_did.clone(), key.clone()), factory);
+        self.registered_addons.insert(addon_id.to_string(), (addon, scope));
+        self.addon_construct_factories.insert(key, factory);
+        Ok(())
     }
 
     fn get_factory(

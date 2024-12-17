@@ -438,14 +438,18 @@ fn stable_kahn_toposort(dag: &Dag<ConstructDid, u32>) -> IndexSet<NodeIndex> {
 #[cfg(test)]
 mod tests {
 
+    use kit::Addon;
     use txtx_test_utils::test_harness::build_runbook_from_fixture;
 
     use test_case::test_case;
 
+    fn empty_fn(_: &str) -> Option<Box<dyn Addon>> {
+        None
+    }
     #[tokio::test]
     async fn it_rejects_circular_dependency_runbooks() {
         let fixture = include_str!("../tests/fixtures/circular.tx");
-        let Err(e) = build_runbook_from_fixture("circular.tx", fixture, vec![]).await else {
+        let Err(e) = build_runbook_from_fixture("circular.tx", fixture, empty_fn).await else {
             panic!("Missing expected error on circular dependency");
         };
         assert_eq!(e.get(0).unwrap().message, format!("Cycling dependency"));
@@ -463,7 +467,7 @@ mod tests {
         fixture: &str,
         construct_names: Vec<&str>,
     ) {
-        let runbook = build_runbook_from_fixture("test.tx", fixture, vec![]).await.unwrap();
+        let runbook = build_runbook_from_fixture("test.tx", fixture, empty_fn).await.unwrap();
         let execution_context = runbook.flow_contexts[0].execution_context.clone();
         let order_for_execution = execution_context.order_for_commands_execution;
         let commands_instances = execution_context.commands_instances;
