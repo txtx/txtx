@@ -109,7 +109,7 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
     }
 
     fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
-        self.specification.inputs.iter().map(|x| x.clone()).collect()
+        self.specification.inputs.iter().filter_map(|i| i.as_value()).collect()
     }
 }
 
@@ -204,6 +204,12 @@ pub struct EmbeddedRunbookInstanceSpecification {
     pub static_workspace_context: EmbeddedRunbookStaticWorkspaceContext,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EmbeddedRunbookInputSpecification {
+    Value(EmbeddedRunbookValueInputSpecification),
+    Signer(EmbeddedRunbookSignerInputSpecification),
+}
+
 impl EvaluatableInput for EmbeddedRunbookInputSpecification {
     fn name(&self) -> String {
         match self {
@@ -224,12 +230,23 @@ impl EvaluatableInput for EmbeddedRunbookInputSpecification {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EmbeddedRunbookInputSpecification {
-    Value(EmbeddedRunbookValueInputSpecification),
-    Signer(EmbeddedRunbookSignerInputSpecification),
-}
 impl EmbeddedRunbookInputSpecification {
+    pub fn as_value(&self) -> Option<Self> {
+        match self {
+            EmbeddedRunbookInputSpecification::Value(value_spec) => {
+                Some(EmbeddedRunbookInputSpecification::Value(value_spec.clone()))
+            }
+            EmbeddedRunbookInputSpecification::Signer(_) => None,
+        }
+    }
+
+    pub fn new_value(name: &String, typing: &Type, documentation: &String) -> Self {
+        EmbeddedRunbookInputSpecification::Value(EmbeddedRunbookValueInputSpecification {
+            name: name.clone(),
+            documentation: documentation.clone(),
+            typing: typing.clone(),
+        })
+    }
     pub fn from_command_input(command_input: &CommandInput) -> Self {
         EmbeddedRunbookInputSpecification::Value(EmbeddedRunbookValueInputSpecification {
             name: command_input.name.clone(),
