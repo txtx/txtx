@@ -491,7 +491,7 @@ pub async fn evaluate_command_instance(
         Ok(result) => match result {
             CommandInputEvaluationStatus::Complete(result) => result,
             CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
-                return LoopEvaluationResult::Continue
+                return LoopEvaluationResult::Continue;
             }
             CommandInputEvaluationStatus::Aborted(_, diags) => {
                 pass_result.append_diagnostics(diags, construct_id);
@@ -787,8 +787,20 @@ pub async fn evaluate_embedded_runbook_instance(
         EmbeddedRunbookStatefulExecutionContext::new(
             &runbook_execution_context.signers_instances,
             &runbook_execution_context.signers_state,
+            &runbook_workspace_context
+                .constructs
+                .iter()
+                .filter_map(|(did, id)| {
+                    if runbook_execution_context.signers_instances.contains_key(did) {
+                        Some((did.clone(), id.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
         ),
         &evaluated_inputs.inputs,
+        runtime_context,
     ) {
         Ok(res) => res,
         Err(diag) => {
@@ -813,47 +825,19 @@ pub async fn evaluate_embedded_runbook_instance(
         .commands_inputs_evaluation_results
         .insert(construct_did.clone(), evaluated_inputs.clone());
 
-    for (construct_did, r) in executable_embedded_runbook
-        .context
-        .execution_context
-        .commands_inputs_evaluation_results
-        .iter()
-    {
-        if let Some(evaluated_inputs) =
-            runbook_execution_context.commands_inputs_evaluation_results.get_mut(construct_did)
-        {
-            evaluated_inputs.inputs.append_no_override(&r.inputs);
-        } else {
-            runbook_execution_context
-                .commands_inputs_evaluation_results
-                .insert(construct_did.clone(), r.clone());
-        }
-    }
-
-    for (construct_did, r) in
-        executable_embedded_runbook.context.execution_context.commands_execution_results.iter()
-    {
-        if let Some(execution_results) =
-            runbook_execution_context.commands_execution_results.get_mut(construct_did)
-        {
-            execution_results.apply(r);
-        } else {
-            runbook_execution_context
-                .commands_execution_results
-                .insert(construct_did.clone(), r.clone());
-        }
-    }
+    // update the runbook's context with the results of the embedded runbook
+    runbook_execution_context.append_command_inputs_evaluation_results_no_override(
+        &executable_embedded_runbook.context.execution_context.commands_inputs_evaluation_results,
+    );
 
     runbook_execution_context.signers_state =
         executable_embedded_runbook.context.execution_context.signers_state;
 
-    // runbook_execution_context.commands_inputs_evaluation_results.insert
-
-    let has_diags = !result.diagnostics.is_empty();
-    let has_pending_actions = result.actions.has_pending_actions();
-    let has_pending_background_tasks = !result.pending_background_tasks_futures.is_empty();
-
     pass_result.merge(result);
+
+    let has_diags = !pass_result.diagnostics.is_empty();
+    let has_pending_actions = pass_result.actions.has_pending_actions();
+    let has_pending_background_tasks = !pass_result.pending_background_tasks_futures.is_empty();
 
     if has_diags || has_pending_actions || has_pending_background_tasks {
         if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did) {
@@ -862,6 +846,11 @@ pub async fn evaluate_embedded_runbook_instance(
             }
         }
         return LoopEvaluationResult::Continue;
+    } else {
+        // loop over all of the results of executing this embedded runbook and merge them into the current runbook's context
+        runbook_execution_context.append_commands_execution_results(
+            &executable_embedded_runbook.context.execution_context.commands_execution_results,
+        );
     }
 
     LoopEvaluationResult::Continue

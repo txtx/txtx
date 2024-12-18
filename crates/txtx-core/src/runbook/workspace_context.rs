@@ -8,11 +8,13 @@ use kit::hcl::expr::{Expression, TraversalOperator};
 use kit::hcl::structure::BlockLabel;
 use kit::hcl::Span;
 use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use kit::helpers::hcl::visit_required_string_literal_attribute;
+use kit::helpers::hcl::{
+    visit_optional_untyped_attribute, visit_required_string_literal_attribute,
+};
 use kit::indexmap::IndexMap;
 use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::{EmbeddedRunbookInstance, EmbeddedRunbookLocation};
+use kit::types::embedded_runbooks::{EmbeddedRunbookInputSpecification, EmbeddedRunbookInstance};
 use kit::types::package::Package;
 use kit::types::signers::SignerInstance;
 use kit::types::stores::AddonDefaults;
@@ -96,7 +98,7 @@ impl RunbookWorkspaceContext {
     pub async fn build_from_sources(
         &mut self,
         runbook_sources: &RunbookSources,
-        runtime_context: &RuntimeContext,
+        runtime_context: &mut RuntimeContext,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
         environment_selector: &Option<String>,
@@ -341,26 +343,26 @@ impl RunbookWorkspaceContext {
                                 .location(&location)]
                             })?;
 
-                        match EmbeddedRunbookLocation::from_string(
+                        match FileLocation::try_parse(
                             &embedded_runbook_location,
-                            imported_package_location.clone(),
+                            Some(&imported_package_location),
                         ) {
-                            Err(e) => {
+                            None => {
                                 diagnostics.push(diagnosed_error!(
-                                    "failed to index embedded runbook ({}): {}",
+                                    "failed to index embedded runbook ({}): could not find runbook at location {}",
                                     runbook_name,
                                     embedded_runbook_location
                                 ));
                                 continue;
                             }
-                            Ok(loc) => {
+                            Some(loc) => {
                                 let embedded_runbook =
                                     EmbeddedRunbookInstanceBuilder::from_location(
                                         loc,
                                         &runbook_name.to_string(),
                                         &package_id,
                                         &block,
-                                        &runtime_context.addons_context,
+                                        &mut runtime_context.addons_context,
                                     )
                                     .await
                                     .map_err(|e| {

@@ -16,7 +16,7 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 mod diffing_context;
 pub mod embaddable_runbook;
 mod execution_context;
-mod flow_context;
+pub mod flow_context;
 mod graph_context;
 mod runtime_context;
 mod workspace_context;
@@ -207,7 +207,7 @@ impl Runbook {
                 .workspace_context
                 .build_from_sources(
                     &sources,
-                    &runtime_context,
+                    &mut runtime_context,
                     &mut flow_context.graph_context,
                     &mut flow_context.execution_context,
                     &top_level_inputs_map.current_environment,

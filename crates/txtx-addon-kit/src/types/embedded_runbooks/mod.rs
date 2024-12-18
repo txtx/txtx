@@ -25,7 +25,6 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct EmbeddedRunbookInstance {
     pub name: String,
-    pub hcl: RawHclContent,
     pub block: Block,
     pub package_id: PackageId,
     pub specification: EmbeddedRunbookInstanceSpecification,
@@ -114,6 +113,20 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
 }
 
 impl EmbeddedRunbookInstance {
+    pub fn new(
+        name: &str,
+        block: &Block,
+        package_id: &PackageId,
+        specification: EmbeddedRunbookInstanceSpecification,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            block: block.clone(),
+            package_id: package_id.clone(),
+            specification,
+        }
+    }
+
     pub fn get_expressions_referencing_commands_from_runbook_inputs(
         &self,
     ) -> Result<Vec<(Option<&EmbeddedRunbookInputSpecification>, Expression)>, String> {
@@ -255,6 +268,7 @@ impl EmbeddedRunbookInstance {
 pub struct EmbeddedRunbookInstanceSpecification {
     pub runbook_id: RunbookId,
     pub description: Option<String>,
+    pub hcl: RawHclContent,
     pub inputs: Vec<EmbeddedRunbookInputSpecification>,
     pub static_execution_context: EmbeddedRunbookStaticExecutionContext,
     pub static_workspace_context: EmbeddedRunbookStaticWorkspaceContext,
@@ -325,6 +339,7 @@ pub struct EmbeddedRunbookValueInputSpecification {
     pub documentation: String,
     pub typing: Type,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddedRunbookSignerInputSpecification {
     pub name: String,
@@ -344,6 +359,7 @@ pub struct EmbeddedRunbookStaticExecutionContext {
     /// Constructs depending on a given Construct.
     pub commands_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
     /// Constructs depending on a given Construct performing signing.
+    /// The signer is delineated by the name of the signer as used by the embedded runbook.
     pub signers_downstream_dependencies: Vec<(SignerName, Vec<ConstructDid>)>,
     /// Constructs depending on a given Construct being signed.
     pub signed_commands_upstream_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
@@ -370,12 +386,14 @@ pub struct EmbeddedRunbookStatefulExecutionContext {
     pub signer_did_lookup: HashMap<SignerName, ConstructDid>,
     pub signers_instances: HashMap<ConstructDid, SignerInstance>,
     pub signers_state: Option<SignersState>,
+    pub signers_construct_id_lookup: HashMap<ConstructDid, ConstructId>,
 }
 
 impl EmbeddedRunbookStatefulExecutionContext {
     pub fn new(
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers_state: &Option<SignersState>,
+        signers_construct_id_lookup: &HashMap<ConstructDid, ConstructId>,
     ) -> Self {
         let signer_did_lookup = signers_instances
             .iter()
@@ -386,44 +404,7 @@ impl EmbeddedRunbookStatefulExecutionContext {
             signer_did_lookup,
             signers_instances: signers_instances.clone(),
             signers_state: signers_state.clone(),
-        }
-    }
-}
-
-pub enum EmbeddedRunbookLocation {
-    Local(FileLocation),
-    Remote(Url),
-}
-impl EmbeddedRunbookLocation {
-    pub fn from_string(
-        location: &str,
-        mut package_file_location: FileLocation,
-    ) -> Result<Self, String> {
-        let loc =
-            if location.starts_with("http") {
-                Self::Remote(Url::parse(location).map_err(|e| {
-                    format!("invalid url for embedded runbook ({}): {}", location, e)
-                })?)
-            } else {
-                package_file_location.append_path(location).map_err(|e| {
-                    format!("invalid file location for embedded runbook ({}): {}", location, e)
-                })?;
-                Self::Local(package_file_location)
-            };
-        Ok(loc)
-    }
-    pub async fn get_content(&self) -> Result<Vec<u8>, Diagnostic> {
-        match self {
-            EmbeddedRunbookLocation::Local(file_location) => {
-                file_location.read_content().map_err(|e| {
-                    Diagnostic::error_from_string(format!(
-                        "failed to read embedded runbook: {}",
-                        e.to_string()
-                    ))
-                    .location(file_location)
-                })
-            }
-            EmbeddedRunbookLocation::Remote(url) => todo!(),
+            signers_construct_id_lookup: signers_construct_id_lookup.clone(),
         }
     }
 }

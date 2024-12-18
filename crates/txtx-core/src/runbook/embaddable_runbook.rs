@@ -1,11 +1,12 @@
 use kit::hcl::structure::Block;
+use kit::helpers::fs::FileLocation;
 use kit::helpers::hcl::RawHclContent;
-use kit::types::commands::{CommandInstance, CommandInstanceType};
+use kit::types::commands::{CommandInstance, CommandInstanceType, DependencyExecutionResultCache};
 use kit::types::diagnostics::Diagnostic;
 use kit::types::embedded_runbooks::{
     EmbeddedRunbookInputSpecification, EmbeddedRunbookInstanceSpecification,
-    EmbeddedRunbookLocation, EmbeddedRunbookStatefulExecutionContext,
-    EmbeddedRunbookStaticExecutionContext, EmbeddedRunbookStaticWorkspaceContext, SignerName,
+    EmbeddedRunbookStatefulExecutionContext, EmbeddedRunbookStaticExecutionContext,
+    EmbeddedRunbookStaticWorkspaceContext, SignerName,
 };
 use kit::types::stores::ValueStore;
 use kit::types::AddonInstance;
@@ -19,7 +20,9 @@ use crate::std::commands;
 use kit::types::package::Package;
 
 use super::runtime_context::AddonsContext;
-use super::{RunbookExecutionContext, RunbookExecutionMode, RunbookWorkspaceContext};
+use super::{
+    RunbookExecutionContext, RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext,
+};
 
 fn search_in_blocks(blocks: &VecDeque<Block>, ident: &str, name: &str) -> Option<Block> {
     for block in blocks {
@@ -34,9 +37,10 @@ fn search_in_blocks(blocks: &VecDeque<Block>, ident: &str, name: &str) -> Option
     None
 }
 
+/// Combines the [EmbeddedRunbookInstance] with the [EmbeddingRunbookContext] to create an executable runbook instance
 pub struct ExecutableEmbeddedRunbookInstance {
     pub runbook: EmbeddedRunbookInstance,
-    pub context: EmbeddableRunbookContext,
+    pub context: EmbeddingRunbookContext,
 }
 
 impl ExecutableEmbeddedRunbookInstance {
@@ -44,30 +48,33 @@ impl ExecutableEmbeddedRunbookInstance {
         runbook_instance: EmbeddedRunbookInstance,
         signers_context: EmbeddedRunbookStatefulExecutionContext,
         top_level_inputs: &ValueStore,
+        runtime_context: &RuntimeContext,
     ) -> Result<Self, Diagnostic> {
-        let context =
-            EmbeddableRunbookContext::new(&runbook_instance, &signers_context, top_level_inputs)?;
+        let context = EmbeddingRunbookContext::new(
+            &runbook_instance,
+            &signers_context,
+            top_level_inputs,
+            runtime_context,
+        )?;
         Ok(Self { runbook: runbook_instance, context })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct EmbeddableRunbookContext {
+/// The context of the top-level runbook (the embedding runbook) that is needed to execute an embedded runbook instance.
+pub struct EmbeddingRunbookContext {
     /// The execution context contains all the data related to the execution of the runbook
     pub execution_context: RunbookExecutionContext,
     /// The workspace context keeps track of packages and constructs reachable
     pub workspace_context: RunbookWorkspaceContext,
-    /// The set of environment variables used during the execution
-    pub inputs: ValueStore,
-    /// The evaluated inputs to this flow
-    pub evaluated_inputs: ValueStore,
 }
 
-impl EmbeddableRunbookContext {
+impl EmbeddingRunbookContext {
     pub fn new(
         runbook_instance: &EmbeddedRunbookInstance,
         signers_context: &EmbeddedRunbookStatefulExecutionContext,
         top_level_inputs: &ValueStore,
+        runtime_context: &RuntimeContext,
     ) -> Result<Self, Diagnostic> {
         let signers_downstream_dependencies = runbook_instance
             .specification
@@ -139,8 +146,45 @@ impl EmbeddableRunbookContext {
             RunbookWorkspaceContext::new(runbook_instance.specification.runbook_id.clone());
         workspace_context.packages =
             runbook_instance.specification.static_workspace_context.packages.clone();
+
         workspace_context.constructs =
             runbook_instance.specification.static_workspace_context.constructs.clone();
+
+        // for each package that we cloned from the embedded runbook's static context,
+        // swap out the reference to the static context's signer DID with the corresponding signer for
+        // this execution
+        for (_, package) in workspace_context.packages.iter_mut() {
+            for (signer_name, signer_did) in package.signers_did_lookup.iter_mut() {
+                if let Some(new_signer_did) = signers_context.signer_did_lookup.get(signer_name) {
+                    let original_did = signer_did.clone();
+                    *signer_did = new_signer_did.clone();
+                    let removed = package.signers_dids.remove(&original_did);
+                    if removed {
+                        package.signers_dids.insert(new_signer_did.clone());
+                    }
+                    let new_signer_id = signers_context
+                        .signers_construct_id_lookup
+                        .get(&new_signer_did).
+                        expect("signer did found in signer did lookup, but not in signer construct id lookup");
+                    let removed = workspace_context.constructs.remove(&original_did);
+                    if removed.is_some() {
+                        workspace_context
+                            .constructs
+                            .insert(new_signer_did.clone(), new_signer_id.clone());
+                    };
+                    execution_context.order_for_commands_execution.iter_mut().for_each(|did| {
+                        if did.0.eq(&original_did.0) {
+                            *did = new_signer_did.clone();
+                        }
+                    });
+                    execution_context.order_for_signers_initialization.iter_mut().for_each(|did| {
+                        if did.0.eq(&original_did.0) {
+                            *did = new_signer_did.clone();
+                        }
+                    });
+                }
+            }
+        }
 
         for (key, value) in top_level_inputs.iter() {
             let construct_did = workspace_context.index_top_level_input(key, value);
@@ -149,12 +193,29 @@ impl EmbeddableRunbookContext {
             execution_context.commands_execution_results.insert(construct_did, result);
         }
 
-        Ok(Self {
-            execution_context,
-            workspace_context,
-            inputs: top_level_inputs.clone(),
-            evaluated_inputs: ValueStore::tmp(),
-        })
+        for (_, addon_instance) in execution_context.addon_instances.iter() {
+            let defaults = runtime_context
+                .generate_addon_defaults_from_block(
+                    &addon_instance.block,
+                    &addon_instance.addon_id,
+                    &addon_instance.package_id,
+                    &DependencyExecutionResultCache::new(),
+                    &mut workspace_context,
+                    &execution_context,
+                )
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                    "error generating addon defaults for addon instance in embedded runbook: {}",
+                    e
+                ))
+                })?;
+            workspace_context.addons_defaults.insert(
+                (addon_instance.package_id.did(), addon_instance.addon_id.to_string()),
+                defaults,
+            );
+        }
+
+        Ok(Self { execution_context, workspace_context })
     }
 
     pub fn index_top_level_inputs(&mut self, inputs_set: &ValueStore) {
@@ -170,64 +231,61 @@ impl EmbeddableRunbookContext {
 pub struct EmbeddedRunbookInstanceBuilder {}
 impl EmbeddedRunbookInstanceBuilder {
     pub async fn from_location(
-        embedded_runbook_location: EmbeddedRunbookLocation,
+        embedded_runbook_location: FileLocation,
         embedded_runbook_name: &str,
         package_id: &PackageId,
         block: &Block,
-        addons_context: &AddonsContext,
+        addons_context: &mut AddonsContext,
     ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
-        let bytes = embedded_runbook_location.get_content().await.map_err(|e| {
+        let bytes = embedded_runbook_location.read_content().map_err(|e| {
             Diagnostic::error_from_string(format!("error reading embedded runbook content: {}", e))
         })?;
 
-        let publishable_runbook_instance = serde_json::from_slice::<
-            TopLevelPublishableEmbeddedRunbookInstance,
-        >(&bytes)
-        .map_err(|e| {
-            Diagnostic::error_from_string(format!(
-                "error deserializing embedded runbook instance: {}",
-                e
-            ))
-        })?;
+        let publishable_runbook_instance_specification =
+            serde_json::from_slice::<PublishableEmbeddedRunbookInstanceSpecification>(&bytes)
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "error deserializing embedded runbook instance: {}",
+                        e
+                    ))
+                })?;
 
-        publishable_runbook_instance.into_embedded_runbook_instance(
-            embedded_runbook_name,
-            package_id,
-            block,
-            addons_context,
-        )
+        let spec = publishable_runbook_instance_specification
+            .into_embedded_runbook_instance_specification(addons_context)?;
+
+        Ok(EmbeddedRunbookInstance::new(embedded_runbook_name, block, package_id, spec))
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopLevelPublishableEmbeddedRunbookInstance {
-    pub specification: PublishableEmbeddedRunbookInstanceSpecification,
-    pub hcl: RawHclContent,
+pub struct PublishableAddonInstance {
+    pub package_id: PackageId,
+    pub addon_id: String,
 }
-impl TopLevelPublishableEmbeddedRunbookInstance {
-    pub fn into_embedded_runbook_instance(
+impl PublishableAddonInstance {
+    pub fn into_addon_instance(
         self,
-        instance_name: &str,
-        package_id: &PackageId,
-        block: &Block,
-        addons_context: &AddonsContext,
-    ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
-        let embedded_runbook_blocks = self.hcl.into_blocks()?;
-        Ok(EmbeddedRunbookInstance {
-            name: instance_name.into(),
-            package_id: package_id.clone(),
-            specification: self.specification.into_embedded_runbook_instance_specification(
-                addons_context,
-                &embedded_runbook_blocks,
-            )?,
-            block: block.clone(),
-            hcl: self.hcl,
-        })
+        blocks: &VecDeque<Block>,
+    ) -> Result<AddonInstance, Diagnostic> {
+        let block = search_in_blocks(&blocks, "addon", &self.addon_id).ok_or(
+            Diagnostic::error_from_string(format!(
+                "block not found for addon instance: {}",
+                self.addon_id
+            )),
+        )?;
+        Ok(AddonInstance { package_id: self.package_id, addon_id: self.addon_id, block })
+    }
+
+    pub fn from_addon_instance(addon_instance: &AddonInstance) -> Self {
+        Self {
+            package_id: addon_instance.package_id.clone(),
+            addon_id: addon_instance.addon_id.clone(),
+        }
     }
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublishableEmbeddedRunbookInstance {
-    pub hcl: RawHclContent,
     pub instance_name: String,
     pub package_id: PackageId,
     pub specification: PublishableEmbeddedRunbookInstanceSpecification,
@@ -236,7 +294,7 @@ pub struct PublishableEmbeddedRunbookInstance {
 impl PublishableEmbeddedRunbookInstance {
     pub fn into_embedded_runbook_instance(
         self,
-        addons_context: &AddonsContext,
+        addons_context: &mut AddonsContext,
         blocks: &VecDeque<Block>,
     ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
         let block = search_in_blocks(blocks, "runbook", &self.instance_name).ok_or(
@@ -245,21 +303,17 @@ impl PublishableEmbeddedRunbookInstance {
                 self.instance_name
             )),
         )?;
-        let embedded_runbook_blocks = self.hcl.into_blocks()?;
         Ok(EmbeddedRunbookInstance {
             name: self.instance_name,
             package_id: self.package_id,
-            specification: self.specification.into_embedded_runbook_instance_specification(
-                addons_context,
-                &embedded_runbook_blocks,
-            )?,
+            specification: self
+                .specification
+                .into_embedded_runbook_instance_specification(addons_context)?,
             block: block.clone(),
-            hcl: self.hcl,
         })
     }
     pub fn from_embedded_runbook_instance(instance: &EmbeddedRunbookInstance) -> Self {
         Self {
-            hcl: instance.hcl.clone(),
             instance_name: instance.name.clone(),
             package_id: instance.package_id.clone(),
             specification: PublishableEmbeddedRunbookInstanceSpecification::from_embedded_runbook_instance_specification(&instance.specification),
@@ -271,6 +325,7 @@ impl PublishableEmbeddedRunbookInstance {
 pub struct PublishableEmbeddedRunbookInstanceSpecification {
     pub runbook_id: RunbookId,
     pub description: Option<String>,
+    pub hcl: RawHclContent,
     pub inputs: Vec<EmbeddedRunbookInputSpecification>,
     pub static_execution_context: PublishableExecutionContext,
     pub static_workspace_context: PublishableWorkspaceContext,
@@ -279,16 +334,17 @@ pub struct PublishableEmbeddedRunbookInstanceSpecification {
 impl PublishableEmbeddedRunbookInstanceSpecification {
     pub fn into_embedded_runbook_instance_specification(
         self,
-        addons_context: &AddonsContext,
-        blocks: &VecDeque<Block>,
+        addons_context: &mut AddonsContext,
     ) -> Result<EmbeddedRunbookInstanceSpecification, Diagnostic> {
+        let blocks = self.hcl.into_blocks()?;
         Ok(EmbeddedRunbookInstanceSpecification {
             runbook_id: self.runbook_id,
             description: self.description,
+            hcl: self.hcl,
             inputs: self.inputs,
             static_execution_context: self
                 .static_execution_context
-                .into_static_execution_context(addons_context, blocks)?,
+                .into_static_execution_context(addons_context, &blocks)?,
             static_workspace_context: self.static_workspace_context.into_workspace_context(),
         })
     }
@@ -298,6 +354,7 @@ impl PublishableEmbeddedRunbookInstanceSpecification {
         Self {
             runbook_id: specification.runbook_id.clone(),
             description: specification.description.clone(),
+            hcl: specification.hcl.clone(),
             inputs: specification.inputs.clone(),
             static_execution_context: PublishableExecutionContext::from_static_execution_context(
                 &specification.static_execution_context,
@@ -311,6 +368,8 @@ impl PublishableEmbeddedRunbookInstanceSpecification {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublishableExecutionContext {
+    /// Map of addon instances (addon "evm" { ... })
+    pub addon_instances: HashMap<ConstructDid, PublishableAddonInstance>,
     /// Map of embedded runbooks
     pub embedded_runbooks: HashMap<ConstructDid, PublishableEmbeddedRunbookInstance>,
     /// Map of executable commands (input, output, action)
@@ -334,9 +393,13 @@ pub struct PublishableExecutionContext {
 impl PublishableExecutionContext {
     pub fn into_static_execution_context(
         self,
-        addons_context: &AddonsContext,
+        addons_context: &mut AddonsContext,
         blocks: &VecDeque<Block>,
     ) -> Result<EmbeddedRunbookStaticExecutionContext, Diagnostic> {
+        let mut addon_instances = HashMap::new();
+        for (did, instance) in self.addon_instances {
+            addon_instances.insert(did, instance.into_addon_instance(blocks)?);
+        }
         let mut embedded_runbooks = HashMap::new();
         for (did, instance) in self.embedded_runbooks {
             embedded_runbooks
@@ -345,9 +408,10 @@ impl PublishableExecutionContext {
         let mut commands_instances = HashMap::new();
         for (did, instance) in self.commands_instances {
             commands_instances
-                .insert(did, instance.into_command_instance(&addons_context, &blocks).unwrap());
+                .insert(did, instance.into_command_instance(addons_context, &blocks)?);
         }
         Ok(EmbeddedRunbookStaticExecutionContext {
+            addon_instances,
             embedded_runbooks,
             commands_instances,
             commands_dependencies: self.commands_dependencies,
@@ -364,6 +428,11 @@ impl PublishableExecutionContext {
         static_execution_context: &EmbeddedRunbookStaticExecutionContext,
     ) -> Self {
         Self {
+            addon_instances: static_execution_context
+                .addon_instances
+                .iter()
+                .map(|(c, i)| (c.clone(), PublishableAddonInstance::from_addon_instance(i)))
+                .collect(),
             embedded_runbooks: static_execution_context
                 .embedded_runbooks
                 .iter()
@@ -435,7 +504,7 @@ pub struct PublishableCommandInstance {
 impl PublishableCommandInstance {
     pub fn into_command_instance(
         self,
-        addons_context: &AddonsContext,
+        addons_context: &mut AddonsContext,
         blocks: &VecDeque<Block>,
     ) -> Result<CommandInstance, Diagnostic> {
         let block = search_in_blocks(&blocks, self.typing.to_ident(), &self.name).ok_or(
@@ -462,21 +531,32 @@ impl PublishableCommandInstance {
                 namespace: self.namespace.clone(),
                 typing: CommandInstanceType::Output,
             },
-            CommandInstanceType::Action(command_id) => addons_context
-                .create_action_instance(
-                    &self.namespace,
-                    &command_id,
-                    &self.name,
-                    &self.package_id,
-                    &block,
-                    &self.package_id.package_location,
-                )
-                .map_err(|diag| {
-                    Diagnostic::error_from_string(format!(
-                        "invalid embedded runbook action: {}",
-                        diag.message
-                    ))
-                })?,
+            CommandInstanceType::Action(command_id) => {
+                addons_context
+                    .register_if_already_registered(&self.package_id.did(), &self.namespace, true)
+                    .map_err(|diag| {
+                        Diagnostic::error_from_string(format!(
+                            "unable to register addon '{}' for embedded runbook action: {}",
+                            self.namespace, diag.message
+                        ))
+                    })?;
+
+                addons_context
+                    .create_action_instance(
+                        &self.namespace,
+                        &command_id,
+                        &self.name,
+                        &self.package_id,
+                        &block,
+                        &self.package_id.package_location,
+                    )
+                    .map_err(|diag| {
+                        Diagnostic::error_from_string(format!(
+                            "invalid embedded runbook action: {}",
+                            diag.message
+                        ))
+                    })?
+            }
             CommandInstanceType::Prompt => todo!(),
             CommandInstanceType::Module => CommandInstance {
                 specification: commands::new_module_specification(),
@@ -567,43 +647,42 @@ mod tests {
             construct_name: my_output_name.to_string(),
         };
 
-        let inst = TopLevelPublishableEmbeddedRunbookInstance {
-            specification: PublishableEmbeddedRunbookInstanceSpecification {
-                runbook_id: RunbookId::zero(),
-                description: None,
-                inputs: vec![EmbeddedRunbookInputSpecification::Value(
-                    EmbeddedRunbookValueInputSpecification {
-                        name: "my_input".to_string(),
-                        documentation: "".to_string(),
-                        typing: Type::String,
-                    },
-                )],
-                static_execution_context: PublishableExecutionContext {
-                    embedded_runbooks: HashMap::new(),
-                    commands_instances: HashMap::from([
-                        (my_var_id.clone(), my_var_inst),
-                        (my_output_id.clone(), my_output_inst),
-                    ]),
-                    signers_downstream_dependencies: vec![],
-                    signed_commands_upstream_dependencies: HashMap::new(),
-                    signed_commands: HashSet::new(),
-                    commands_dependencies: HashMap::from([(
-                        my_output_id.clone(),
-                        vec![my_var_id.clone()],
-                    )]),
-                    order_for_commands_execution: vec![my_var_id.clone(), my_output_id.clone()],
-                    order_for_signers_initialization: vec![],
-                    evaluated_inputs: ValueStore::tmp(),
-                },
-                static_workspace_context: PublishableWorkspaceContext {
-                    packages: HashMap::from([(package_id, package)]),
-                    constructs: HashMap::from([
-                        (my_var_id.clone(), my_var_construct_id),
-                        (my_output_id.clone(), my_output_construct_id),
-                    ]),
-                },
-            },
+        let inst = PublishableEmbeddedRunbookInstanceSpecification {
+            runbook_id: RunbookId::zero(),
+            description: None,
             hcl: RawHclContent::from_string(hcl_str.to_string()),
+            inputs: vec![EmbeddedRunbookInputSpecification::Value(
+                EmbeddedRunbookValueInputSpecification {
+                    name: "my_input".to_string(),
+                    documentation: "".to_string(),
+                    typing: Type::String,
+                },
+            )],
+            static_execution_context: PublishableExecutionContext {
+                addon_instances: HashMap::new(),
+                embedded_runbooks: HashMap::new(),
+                commands_instances: HashMap::from([
+                    (my_var_id.clone(), my_var_inst),
+                    (my_output_id.clone(), my_output_inst),
+                ]),
+                signers_downstream_dependencies: vec![],
+                signed_commands_upstream_dependencies: HashMap::new(),
+                signed_commands: HashSet::new(),
+                commands_dependencies: HashMap::from([(
+                    my_output_id.clone(),
+                    vec![my_var_id.clone()],
+                )]),
+                order_for_commands_execution: vec![my_var_id.clone(), my_output_id.clone()],
+                order_for_signers_initialization: vec![],
+                evaluated_inputs: ValueStore::tmp(),
+            },
+            static_workspace_context: PublishableWorkspaceContext {
+                packages: HashMap::from([(package_id, package)]),
+                constructs: HashMap::from([
+                    (my_var_id.clone(), my_var_construct_id),
+                    (my_output_id.clone(), my_output_construct_id),
+                ]),
+            },
         };
         let str = serde_json::to_string_pretty(&inst).unwrap();
         println!("{}", str);
