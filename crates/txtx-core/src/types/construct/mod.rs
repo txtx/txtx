@@ -27,7 +27,7 @@ impl PreConstructData {
             PreConstructData::Action(_) => "action",
             PreConstructData::Signer(_) => "signer",
             PreConstructData::Addon(_) => "addon",
-            PreConstructData::EmbeddedRunbook(_) => "embeddable_runbook",
+            PreConstructData::EmbeddedRunbook(_) => "runbook",
             PreConstructData::Root => unreachable!(),
         }
     }

@@ -349,7 +349,7 @@ impl RunbookWorkspaceContext {
                                 diagnostics.push(diagnosed_error!(
                                     "failed to index embedded runbook ({}): {}",
                                     runbook_name,
-                                    e
+                                    embedded_runbook_location
                                 ));
                                 continue;
                             }
@@ -546,10 +546,8 @@ impl RunbookWorkspaceContext {
                 ConstructInstanceType::Signing(signer_instance)
             }
             PreConstructData::EmbeddedRunbook(embedded_runbook) => {
-                package.embeddable_runbooks_dids.insert(construct_did.clone());
-                package
-                    .embeddable_runbooks_did_lookup
-                    .insert(construct_name, construct_did.clone());
+                package.embedded_runbooks_dids.insert(construct_did.clone());
+                package.embedded_runbooks_did_lookup.insert(construct_name, construct_did.clone());
                 ConstructInstanceType::EmbeddedRunbook(embedded_runbook)
             }
             PreConstructData::Root => unreachable!(),
@@ -723,7 +721,7 @@ impl RunbookWorkspaceContext {
                         continue;
                     };
                     if let Some(construct_did) =
-                        current_package.embeddable_runbooks_did_lookup.get(&embedded_runbook_name)
+                        current_package.embedded_runbooks_did_lookup.get(&embedded_runbook_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }

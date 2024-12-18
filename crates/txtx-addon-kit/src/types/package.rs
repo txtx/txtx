@@ -22,8 +22,8 @@ pub struct Package {
     pub addons_did_lookup: HashMap<String, ConstructDid>,
     pub signers_dids: HashSet<ConstructDid>,
     pub signers_did_lookup: HashMap<String, ConstructDid>,
-    pub embeddable_runbooks_dids: HashSet<ConstructDid>,
-    pub embeddable_runbooks_did_lookup: HashMap<String, ConstructDid>,
+    pub embedded_runbooks_dids: HashSet<ConstructDid>,
+    pub embedded_runbooks_did_lookup: HashMap<String, ConstructDid>,
 }
 
 impl Package {
@@ -46,8 +46,8 @@ impl Package {
             addons_did_lookup: HashMap::new(),
             signers_dids: HashSet::new(),
             signers_did_lookup: HashMap::new(),
-            embeddable_runbooks_dids: HashSet::new(),
-            embeddable_runbooks_did_lookup: HashMap::new(),
+            embedded_runbooks_dids: HashSet::new(),
+            embedded_runbooks_did_lookup: HashMap::new(),
         }
     }
 }

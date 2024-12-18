@@ -174,7 +174,7 @@ impl RunbookGraphContext {
             }
 
             // add embedded runbook constructs to graph
-            for construct_did in package.embeddable_runbooks_dids.iter() {
+            for construct_did in package.embedded_runbooks_dids.iter() {
                 let embedded_runbook_instance =
                     execution_context.embedded_runbooks.get(construct_did).unwrap();
 
