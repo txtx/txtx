@@ -3,67 +3,102 @@
         "runbook_id": {
             "org": null,
             "workspace": null,
-            "name": ""
+            "name": "it"
         },
         "description": null,
         "inputs": [
             {
                 "Value": {
-                    "name": "my_input",
+                    "name": "chain_id",
+                    "documentation": "",
+                    "typing": "integer"
+                }
+            },
+            {
+                "Value": {
+                    "name": "rpc_api_url",
                     "documentation": "",
                     "typing": "string"
+                }
+            },
+            {
+                "Signer": {
+                    "name": "deployer",
+                    "documentation": "",
+                    "namespace": "evm"
                 }
             }
         ],
         "static_execution_context": {
+            "addon_instances": {
+                "0xc69d331cee28e89939b583fb2c46c4bb5b775101a7540287bdc743647aea314c": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": "it"
+                        },
+                        "package_location": {
+                            "path": "./examples/embeddable"
+                        },
+                        "package_name": "it"
+                    },
+                    "addon_id": "evm"
+                }
+            },
             "embedded_runbooks": {},
             "commands_instances": {
-                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173": {
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5": {
                     "package_id": {
                         "runbook_id": {
                             "org": null,
                             "workspace": null,
-                            "name": ""
+                            "name": "it"
                         },
                         "package_location": {
-                            "path": "."
+                            "path": "./examples/embeddable"
                         },
-                        "package_name": "my_package"
+                        "package_name": "it"
                     },
-                    "namespace": "std",
-                    "typing": "Variable",
-                    "name": "my_var"
-                },
-                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": {
-                    "package_id": {
-                        "runbook_id": {
-                            "org": null,
-                            "workspace": null,
-                            "name": ""
-                        },
-                        "package_location": {
-                            "path": "."
-                        },
-                        "package_name": "my_package"
+                    "namespace": "evm",
+                    "typing": {
+                        "Action": "deploy_contract"
                     },
-                    "namespace": "std",
-                    "typing": "Output",
-                    "name": "my_output"
+                    "name": "deploy1"
                 }
             },
             "commands_dependencies": {
-                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": [
-                    "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5": []
+            },
+            "signers_downstream_dependencies": [
+                [
+                    "deployer",
+                    [
+                        "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5"
+                    ]
+                ]
+            ],
+            "signed_commands_upstream_dependencies": {
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5": [
+                    "0x7f255f6c1dd35f23b84b79df47910ec48d07dd95b72f393183c58c25334cd7de"
                 ]
             },
-            "signers_downstream_dependencies": [],
-            "signed_commands_upstream_dependencies": {},
-            "signed_commands": [],
-            "order_for_commands_execution": [
-                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173",
-                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
+            "signed_commands": [
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5"
             ],
-            "order_for_signers_initialization": [],
+            "order_for_commands_execution": [
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0xa5f92c6a47d690f4ace22b6bf6fba9be155ba373a342ac18d926fde3b7ab6771",
+                "0xeb5f59a7ca486b69f769b28215cb5e621e253871129f1a5610358d9f1938444c",
+                "0x7f255f6c1dd35f23b84b79df47910ec48d07dd95b72f393183c58c25334cd7de",
+                "0xc69d331cee28e89939b583fb2c46c4bb5b775101a7540287bdc743647aea314c",
+                "0xb3996b5e0bf6a0dac9776338f00e657645ae3e1a14a665aeca009754ada03d49",
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5"
+            ],
+            "order_for_signers_initialization": [
+                "0x7f255f6c1dd35f23b84b79df47910ec48d07dd95b72f393183c58c25334cd7de",
+                "0xb3996b5e0bf6a0dac9776338f00e657645ae3e1a14a665aeca009754ada03d49"
+            ],
             "evaluated_inputs": {
                 "uuid": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "name": "",
@@ -82,91 +117,115 @@
                         "runbook_id": {
                             "org": null,
                             "workspace": null,
-                            "name": ""
+                            "name": "it"
                         },
                         "package_location": {
-                            "path": "."
+                            "path": "./examples/embeddable"
                         },
-                        "package_name": "my_package"
+                        "package_name": "it"
                     },
                     {
                         "package_id": {
                             "runbook_id": {
                                 "org": null,
                                 "workspace": null,
-                                "name": ""
+                                "name": "it"
                             },
                             "package_location": {
-                                "path": "."
+                                "path": "./examples/embeddable"
                             },
-                            "package_name": "my_package"
+                            "package_name": "it"
                         },
                         "flow_inputs_dids": [],
                         "flow_inputs_did_lookup": {},
-                        "variables_dids": [
-                            "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
-                        ],
-                        "variables_did_lookup": {
-                            "my_var": "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173"
-                        },
-                        "outputs_dids": [
-                            "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
-                        ],
-                        "outputs_did_lookup": {
-                            "my_output": "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801"
-                        },
+                        "variables_dids": [],
+                        "variables_did_lookup": {},
+                        "outputs_dids": [],
+                        "outputs_did_lookup": {},
                         "modules_dids": [],
                         "modules_did_lookup": {},
                         "imports_dids": [],
                         "imports_did_lookup": {},
-                        "commands_dids": [],
-                        "addons_did_lookup": {},
-                        "signers_dids": [],
-                        "signers_did_lookup": {},
+                        "commands_dids": [
+                            "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5"
+                        ],
+                        "commands_did_lookup": {
+                            "action::deploy1": "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5"
+                        },
+                        "addons_dids": [
+                            "0xc69d331cee28e89939b583fb2c46c4bb5b775101a7540287bdc743647aea314c"
+                        ],
+                        "addons_did_lookup": {
+                            "evm": "0xc69d331cee28e89939b583fb2c46c4bb5b775101a7540287bdc743647aea314c"
+                        },
+                        "signers_dids": [
+                            "0xb3996b5e0bf6a0dac9776338f00e657645ae3e1a14a665aeca009754ada03d49"
+                        ],
+                        "signers_did_lookup": {
+                            "deployer": "0xb3996b5e0bf6a0dac9776338f00e657645ae3e1a14a665aeca009754ada03d49"
+                        },
                         "embeddable_runbooks_dids": [],
                         "embeddable_runbooks_did_lookup": {}
                     }
                 ]
             ],
             "constructs": {
-                "0x1cddb4d833f5d0069959941f9348e6665d81acd1f1417eefbf4849210e6b2801": {
+                "0xc69d331cee28e89939b583fb2c46c4bb5b775101a7540287bdc743647aea314c": {
                     "package_id": {
                         "runbook_id": {
                             "org": null,
                             "workspace": null,
-                            "name": ""
+                            "name": "it"
                         },
                         "package_location": {
-                            "path": "."
+                            "path": "./examples/embeddable"
                         },
-                        "package_name": "my_package"
+                        "package_name": "it"
                     },
                     "construct_location": {
-                        "path": "."
+                        "path": "./main.tx"
                     },
-                    "construct_type": "output",
-                    "construct_name": "my_output"
+                    "construct_type": "addon",
+                    "construct_name": "evm"
                 },
-                "0x632b4223c02361002567b22ffc593c4c6877bf848c33ea4437f246922df1f173": {
+                "0xb3996b5e0bf6a0dac9776338f00e657645ae3e1a14a665aeca009754ada03d49": {
                     "package_id": {
                         "runbook_id": {
                             "org": null,
                             "workspace": null,
-                            "name": ""
+                            "name": "it"
                         },
                         "package_location": {
-                            "path": "."
+                            "path": "./examples/embeddable"
                         },
-                        "package_name": "my_package"
+                        "package_name": "it"
                     },
                     "construct_location": {
-                        "path": "."
+                        "path": "./main.tx"
                     },
-                    "construct_type": "variable",
-                    "construct_name": "my_var"
+                    "construct_type": "signer",
+                    "construct_name": "deployer"
+                },
+                "0x0380c5fe288b6d58000fae3022de2851b924801c7b6f1ac4735356132515d2f5": {
+                    "package_id": {
+                        "runbook_id": {
+                            "org": null,
+                            "workspace": null,
+                            "name": "it"
+                        },
+                        "package_location": {
+                            "path": "./examples/embeddable"
+                        },
+                        "package_name": "it"
+                    },
+                    "construct_location": {
+                        "path": "./main.tx"
+                    },
+                    "construct_type": "action",
+                    "construct_name": "deploy1"
                 }
             }
         }
     },
-    "hcl": "\n        variable \"my_var\" {\n            value = input.my_input\n        }\n\n        output \"my_output\" {\n            value = variable.my_var\n        }\n        "
+    "hcl": "addon \"evm\" {\n    chain_id = input.chain_id\n    rpc_api_url = input.rpc_api_url\n}\n\nsigner \"deployer\" \"evm::secret_key\" {\n    secret_key = input.secret_key\n}\n\n\naction \"deploy1\" \"evm::deploy_contract\" {\n    contract = {\n        bytecode: \"0x6080604052348015600f57600080fd5b506106228061001f6000396000f3fe608060405234801561001057600080fd5b50600436106100625760003560e01c80632e64cec1146100675780636057361d1461007e5780636f760f41146100935780638bab8dd5146100a65780639e7a13ad146100d1578063b15962bc146100f2575b600080fd5b6001545b6040519081526020015b60405180910390f35b61009161008c3660046102d3565b600155565b005b6100916100a1366004610391565b6100fa565b61006b6100b43660046103d6565b805160208183018101805160008252928201919093012091525481565b6100e46100df3660046102d3565b610182565b604051610075929190610437565b61009161023e565b6040805180820190915282815260208101829052600280546001810182556000829052825191027f405787fa12a823e0f2b7631cc41b3ba8828b3321ca811111fa75cd3aa3bb5ace0190819061015090826104fb565b506020820151816001015550508060008360405161016e91906105ba565b908152604051908190036020019020555050565b6002818154811061019257600080fd5b90600052602060002090600202016000915090508060000180546101b590610472565b80601f01602080910402602001604051908101604052809291908181526020018280546101e190610472565b801561022e5780601f106102035761010080835404028352916020019161022e565b820191906000526020600020905b81548152906001019060200180831161021157829003601f168201915b5050505050908060010154905082565b600280548061024f5761024f6105d6565b6000828152602081206000199092019160028302019061026f828261027d565b600182016000905550509055565b50805461028990610472565b6000825580601f10610299575050565b601f0160209004906000526020600020908101906102b791906102ba565b50565b5b808211156102cf57600081556001016102bb565b5090565b6000602082840312156102e557600080fd5b5035919050565b634e487b7160e01b600052604160045260246000fd5b600082601f83011261031357600080fd5b813567ffffffffffffffff81111561032d5761032d6102ec565b604051601f8201601f19908116603f0116810167ffffffffffffffff8111828210171561035c5761035c6102ec565b60405281815283820160200185101561037457600080fd5b816020850160208301376000918101602001919091529392505050565b600080604083850312156103a457600080fd5b823567ffffffffffffffff8111156103bb57600080fd5b6103c785828601610302565b95602094909401359450505050565b6000602082840312156103e857600080fd5b813567ffffffffffffffff8111156103ff57600080fd5b61040b84828501610302565b949350505050565b60005b8381101561042e578181015183820152602001610416565b50506000910152565b6040815260008351806040840152610456816060850160208801610413565b602083019390935250601f91909101601f191601606001919050565b600181811c9082168061048657607f821691505b6020821081036104a657634e487b7160e01b600052602260045260246000fd5b50919050565b601f8211156104f657806000526020600020601f840160051c810160208510156104d35750805b601f840160051c820191505b818110156104f357600081556001016104df565b50505b505050565b815167ffffffffffffffff811115610515576105156102ec565b610529816105238454610472565b846104ac565b6020601f82116001811461055d57600083156105455750848201515b600019600385901b1c1916600184901b1784556104f3565b600084815260208120601f198516915b8281101561058d578785015182556020948501946001909201910161056d565b50848210156105ab5786840151600019600387901b60f8161c191681555b50505050600190811b01905550565b600082516105cc818460208701610413565b9190910192915050565b634e487b7160e01b600052603160045260246000fdfea2646970667358221220a7cb1e0f0b89278c0840139f26b3c4b39b168cdaa0c8e125386a16ecceb61eb364736f6c634300081a0033\"\n    }\n    signer = signer.deployer\n}\n\n"
 }
