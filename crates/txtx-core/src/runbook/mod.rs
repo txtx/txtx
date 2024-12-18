@@ -14,7 +14,7 @@ use std::collections::{HashMap, VecDeque};
 use txtx_addon_kit::helpers::fs::FileLocation;
 
 mod diffing_context;
-pub mod embaddable_runbook;
+pub mod embedded_runbook;
 mod execution_context;
 pub mod flow_context;
 mod graph_context;

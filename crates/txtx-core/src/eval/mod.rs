@@ -1,4 +1,4 @@
-use crate::runbook::embaddable_runbook::ExecutableEmbeddedRunbookInstance;
+use crate::runbook::embedded_runbook::ExecutableEmbeddedRunbookInstance;
 use crate::runbook::{
     get_source_context_for_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext,
     RuntimeContext,

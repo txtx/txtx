@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
-use crate::runbook::embaddable_runbook::EmbeddedRunbookInstanceBuilder;
+use crate::runbook::embedded_runbook::EmbeddedRunbookInstanceBuilder;
 use crate::runbook::RawHclContent;
 use crate::std::commands;
 use crate::types::PreConstructData;
