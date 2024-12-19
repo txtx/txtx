@@ -8,12 +8,13 @@ use txtx_addon_kit::{
     },
     Addon,
 };
-use txtx_test_utils::test_harness::setup_test;
+use txtx_test_utils::{test_harness::setup_test, StdAddon};
 
 use crate::StacksNetworkAddon;
 
 pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
-    let available_addons = vec![Box::new(StacksNetworkAddon::new())];
+    let available_addons: Vec<Box<dyn Addon>> =
+        vec![Box::new(StdAddon::new()), Box::new(StacksNetworkAddon::new())];
     for addon in available_addons.into_iter() {
         if namespace.starts_with(&format!("{}", addon.get_namespace())) {
             return Some(addon);

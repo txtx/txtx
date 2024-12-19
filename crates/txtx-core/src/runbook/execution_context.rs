@@ -748,19 +748,19 @@ impl RunbookExecutionContext {
     ///     If the `source_construct_did` is already found in the `commands_execution_results` field, the outputs will be appended to the existing outputs, overriding any existing output values.
     /// 2. Checks if the `source_construct_did` is a construct in the `embedded_runbooks` of [self].
     ///     If so, the outputs of the source construct will be added to the outputs of the embedded runbook construct. The outputs will be stored as results in the embedded runbook construct's execution results in the form:
-    ///    ```
+    ///    ```ignore
     ///     Value::object({ "construct_type": Value::object({ "construct_name": value }) })
     ///     ```
     ///
     ///     For example, if the embedded construct has
-    ///     ```
+    ///     ```ignore
     ///     action "deploy" "evm::deploy_contract" {
     ///         ...
     ///     }
     ///     ```
     ///
     ///     The embedded construct will have an output:
-    ///     ```
+    ///     ```ignore
     ///     Value::object({ "action": Value::object({ "deploy": value }) })
     ///     ```
     pub fn append_commands_execution_result(
