@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
-use send_eth::SEND_ETH;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification, diagnostics::Diagnostic, types::Value, ConstructDid, Did,
@@ -19,6 +18,7 @@ pub mod verify_contract;
 use call_contract::SIGN_EVM_CONTRACT_CALL;
 use deploy_contract::DEPLOY_CONTRACT;
 use eth_call::ETH_CALL;
+use send_eth::SEND_ETH;
 use sign_transaction::SIGN_TRANSACTION;
 use verify_contract::VERIFY_CONTRACT;
 
