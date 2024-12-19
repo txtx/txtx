@@ -1,14 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use hcl_edit::{expr::Expression, structure::Block};
-use url::Url;
 
-use crate::helpers::{
-    fs::FileLocation,
-    hcl::{
-        collect_constructs_references_from_expression, get_object_expression_key,
-        visit_optional_untyped_attribute, RawHclContent,
-    },
+use crate::helpers::hcl::{
+    collect_constructs_references_from_expression, get_object_expression_key,
+    visit_optional_untyped_attribute,
 };
 
 use super::{
@@ -268,7 +264,6 @@ impl EmbeddedRunbookInstance {
 pub struct EmbeddedRunbookInstanceSpecification {
     pub runbook_id: RunbookId,
     pub description: Option<String>,
-    pub hcl: RawHclContent,
     pub inputs: Vec<EmbeddedRunbookInputSpecification>,
     pub static_execution_context: EmbeddedRunbookStaticExecutionContext,
     pub static_workspace_context: EmbeddedRunbookStaticWorkspaceContext,

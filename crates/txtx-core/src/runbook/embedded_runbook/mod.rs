@@ -1,41 +1,20 @@
+pub mod publishable;
+
 use kit::hcl::structure::Block;
 use kit::helpers::fs::FileLocation;
-use kit::helpers::hcl::RawHclContent;
-use kit::types::commands::{CommandInstance, CommandInstanceType, DependencyExecutionResultCache};
+use kit::types::commands::DependencyExecutionResultCache;
 use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::{
-    EmbeddedRunbookInputSpecification, EmbeddedRunbookInstanceSpecification,
-    EmbeddedRunbookStatefulExecutionContext, EmbeddedRunbookStaticExecutionContext,
-    EmbeddedRunbookStaticWorkspaceContext, SignerName,
-};
+use kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
 use kit::types::stores::ValueStore;
-use kit::types::AddonInstance;
+use kit::types::PackageId;
 use kit::types::{commands::CommandExecutionResult, embedded_runbooks::EmbeddedRunbookInstance};
-use kit::types::{ConstructDid, ConstructId, PackageId, RunbookId};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use std::collections::{HashMap, HashSet, VecDeque};
-
-use crate::std::commands;
-use kit::types::package::Package;
+use publishable::PublishableEmbeddedRunbookSpecification;
+use std::collections::HashMap;
 
 use super::runtime_context::AddonsContext;
 use super::{
     RunbookExecutionContext, RunbookExecutionMode, RunbookWorkspaceContext, RuntimeContext,
 };
-
-fn search_in_blocks(blocks: &VecDeque<Block>, ident: &str, name: &str) -> Option<Block> {
-    for block in blocks {
-        if block.ident.to_string().eq(ident) {
-            if let Some(block_name) = block.labels.get(0) {
-                if block_name.to_string().eq(name) {
-                    return Some(block.clone());
-                }
-            }
-        }
-    }
-    None
-}
 
 /// Combines the [EmbeddedRunbookInstance] with the [EmbeddingRunbookContext] to create an executable runbook instance
 pub struct ExecutableEmbeddedRunbookInstance {
@@ -241,14 +220,15 @@ impl EmbeddedRunbookInstanceBuilder {
             Diagnostic::error_from_string(format!("error reading embedded runbook content: {}", e))
         })?;
 
-        let publishable_runbook_instance_specification =
-            serde_json::from_slice::<PublishableEmbeddedRunbookInstanceSpecification>(&bytes)
-                .map_err(|e| {
-                    Diagnostic::error_from_string(format!(
-                        "error deserializing embedded runbook instance: {}",
-                        e
-                    ))
-                })?;
+        let publishable_runbook_instance_specification = serde_json::from_slice::<
+            PublishableEmbeddedRunbookSpecification,
+        >(&bytes)
+        .map_err(|e| {
+            Diagnostic::error_from_string(format!(
+                "error deserializing embedded runbook instance: {}",
+                e
+            ))
+        })?;
 
         let spec = publishable_runbook_instance_specification
             .into_embedded_runbook_instance_specification(addons_context)?;
@@ -257,337 +237,22 @@ impl EmbeddedRunbookInstanceBuilder {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableAddonInstance {
-    pub package_id: PackageId,
-    pub addon_id: String,
-}
-impl PublishableAddonInstance {
-    pub fn into_addon_instance(
-        self,
-        blocks: &VecDeque<Block>,
-    ) -> Result<AddonInstance, Diagnostic> {
-        let block = search_in_blocks(&blocks, "addon", &self.addon_id).ok_or(
-            Diagnostic::error_from_string(format!(
-                "block not found for addon instance: {}",
-                self.addon_id
-            )),
-        )?;
-        Ok(AddonInstance { package_id: self.package_id, addon_id: self.addon_id, block })
-    }
-
-    pub fn from_addon_instance(addon_instance: &AddonInstance) -> Self {
-        Self {
-            package_id: addon_instance.package_id.clone(),
-            addon_id: addon_instance.addon_id.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableEmbeddedRunbookInstance {
-    pub instance_name: String,
-    pub package_id: PackageId,
-    pub specification: PublishableEmbeddedRunbookInstanceSpecification,
-}
-
-impl PublishableEmbeddedRunbookInstance {
-    pub fn into_embedded_runbook_instance(
-        self,
-        addons_context: &mut AddonsContext,
-        blocks: &VecDeque<Block>,
-    ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
-        let block = search_in_blocks(blocks, "runbook", &self.instance_name).ok_or(
-            Diagnostic::error_from_string(format!(
-                "block not found for embedded runbook instance: {}",
-                self.instance_name
-            )),
-        )?;
-        Ok(EmbeddedRunbookInstance {
-            name: self.instance_name,
-            package_id: self.package_id,
-            specification: self
-                .specification
-                .into_embedded_runbook_instance_specification(addons_context)?,
-            block: block.clone(),
-        })
-    }
-    pub fn from_embedded_runbook_instance(instance: &EmbeddedRunbookInstance) -> Self {
-        Self {
-            instance_name: instance.name.clone(),
-            package_id: instance.package_id.clone(),
-            specification: PublishableEmbeddedRunbookInstanceSpecification::from_embedded_runbook_instance_specification(&instance.specification),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableEmbeddedRunbookInstanceSpecification {
-    pub runbook_id: RunbookId,
-    pub description: Option<String>,
-    pub hcl: RawHclContent,
-    pub inputs: Vec<EmbeddedRunbookInputSpecification>,
-    pub static_execution_context: PublishableExecutionContext,
-    pub static_workspace_context: PublishableWorkspaceContext,
-}
-
-impl PublishableEmbeddedRunbookInstanceSpecification {
-    pub fn into_embedded_runbook_instance_specification(
-        self,
-        addons_context: &mut AddonsContext,
-    ) -> Result<EmbeddedRunbookInstanceSpecification, Diagnostic> {
-        let blocks = self.hcl.into_blocks()?;
-        Ok(EmbeddedRunbookInstanceSpecification {
-            runbook_id: self.runbook_id,
-            description: self.description,
-            hcl: self.hcl,
-            inputs: self.inputs,
-            static_execution_context: self
-                .static_execution_context
-                .into_static_execution_context(addons_context, &blocks)?,
-            static_workspace_context: self.static_workspace_context.into_workspace_context(),
-        })
-    }
-    pub fn from_embedded_runbook_instance_specification(
-        specification: &EmbeddedRunbookInstanceSpecification,
-    ) -> Self {
-        Self {
-            runbook_id: specification.runbook_id.clone(),
-            description: specification.description.clone(),
-            hcl: specification.hcl.clone(),
-            inputs: specification.inputs.clone(),
-            static_execution_context: PublishableExecutionContext::from_static_execution_context(
-                &specification.static_execution_context,
-            ),
-            static_workspace_context: PublishableWorkspaceContext::from_static_workspace_context(
-                &specification.static_workspace_context,
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableExecutionContext {
-    /// Map of addon instances (addon "evm" { ... })
-    pub addon_instances: HashMap<ConstructDid, PublishableAddonInstance>,
-    /// Map of embedded runbooks
-    pub embedded_runbooks: HashMap<ConstructDid, PublishableEmbeddedRunbookInstance>,
-    /// Map of executable commands (input, output, action)
-    pub commands_instances: HashMap<ConstructDid, PublishableCommandInstance>,
-    /// Commands dependencies
-    pub commands_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
-    /// Constructs depending on a given Construct performing signing.
-    pub signers_downstream_dependencies: Vec<(SignerName, Vec<ConstructDid>)>,
-    /// Constructs depending on a given Construct being signed.
-    pub signed_commands_upstream_dependencies: HashMap<ConstructDid, Vec<ConstructDid>>,
-    /// Constructs depending on a given Construct being signed.
-    pub signed_commands: HashSet<ConstructDid>,
-    /// Commands execution order
-    pub order_for_commands_execution: Vec<ConstructDid>,
-    /// Signing commands initialization order
-    pub order_for_signers_initialization: Vec<ConstructDid>,
-    /// Published evaluated inputs
-    pub evaluated_inputs: ValueStore,
-}
-
-impl PublishableExecutionContext {
-    pub fn into_static_execution_context(
-        self,
-        addons_context: &mut AddonsContext,
-        blocks: &VecDeque<Block>,
-    ) -> Result<EmbeddedRunbookStaticExecutionContext, Diagnostic> {
-        let mut addon_instances = HashMap::new();
-        for (did, instance) in self.addon_instances {
-            addon_instances.insert(did, instance.into_addon_instance(blocks)?);
-        }
-        let mut embedded_runbooks = HashMap::new();
-        for (did, instance) in self.embedded_runbooks {
-            embedded_runbooks
-                .insert(did, instance.into_embedded_runbook_instance(addons_context, blocks)?);
-        }
-        let mut commands_instances = HashMap::new();
-        for (did, instance) in self.commands_instances {
-            commands_instances
-                .insert(did, instance.into_command_instance(addons_context, &blocks)?);
-        }
-        Ok(EmbeddedRunbookStaticExecutionContext {
-            addon_instances,
-            embedded_runbooks,
-            commands_instances,
-            commands_dependencies: self.commands_dependencies,
-            signers_downstream_dependencies: self.signers_downstream_dependencies,
-            signed_commands_upstream_dependencies: self.signed_commands_upstream_dependencies,
-            signed_commands: self.signed_commands,
-            order_for_commands_execution: self.order_for_commands_execution,
-            order_for_signers_initialization: self.order_for_signers_initialization,
-            evaluated_inputs: self.evaluated_inputs,
-        })
-    }
-
-    pub fn from_static_execution_context(
-        static_execution_context: &EmbeddedRunbookStaticExecutionContext,
-    ) -> Self {
-        Self {
-            addon_instances: static_execution_context
-                .addon_instances
-                .iter()
-                .map(|(c, i)| (c.clone(), PublishableAddonInstance::from_addon_instance(i)))
-                .collect(),
-            embedded_runbooks: static_execution_context
-                .embedded_runbooks
-                .iter()
-                .map(|(c, i)| {
-                    (
-                        c.clone(),
-                        PublishableEmbeddedRunbookInstance::from_embedded_runbook_instance(i),
-                    )
-                })
-                .collect(),
-            commands_instances: static_execution_context
-                .commands_instances
-                .iter()
-                .map(|(c, i)| (c.clone(), PublishableCommandInstance::from_command_instance(i)))
-                .collect(),
-            commands_dependencies: static_execution_context.commands_dependencies.clone(),
-            signers_downstream_dependencies: static_execution_context
-                .signers_downstream_dependencies
-                .clone(),
-            signed_commands_upstream_dependencies: static_execution_context
-                .signed_commands_upstream_dependencies
-                .clone(),
-            signed_commands: static_execution_context.signed_commands.clone(),
-            order_for_commands_execution: static_execution_context
-                .order_for_commands_execution
-                .clone(),
-            order_for_signers_initialization: static_execution_context
-                .order_for_signers_initialization
-                .clone(),
-            evaluated_inputs: static_execution_context.evaluated_inputs.clone(),
-        }
-    }
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableWorkspaceContext {
-    /// Map of packages. A package is either a standalone .tx file, or a directory enclosing multiple .tx files
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub packages: HashMap<PackageId, Package>,
-    /// Map of constructs. A construct refers to root level objects (input, action, output, signer, import, ...)
-    pub constructs: HashMap<ConstructDid, ConstructId>,
-}
-impl PublishableWorkspaceContext {
-    pub fn into_workspace_context(self) -> EmbeddedRunbookStaticWorkspaceContext {
-        EmbeddedRunbookStaticWorkspaceContext {
-            packages: self.packages,
-            constructs: self.constructs,
-        }
-    }
-    pub fn from_static_workspace_context(
-        static_workspace_context: &EmbeddedRunbookStaticWorkspaceContext,
-    ) -> Self {
-        Self {
-            packages: static_workspace_context.packages.clone(),
-            constructs: static_workspace_context.constructs.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublishableCommandInstance {
-    pub package_id: PackageId,
-    pub namespace: String,
-    pub typing: CommandInstanceType,
-    pub name: String,
-}
-
-impl PublishableCommandInstance {
-    pub fn into_command_instance(
-        self,
-        addons_context: &mut AddonsContext,
-        blocks: &VecDeque<Block>,
-    ) -> Result<CommandInstance, Diagnostic> {
-        let block = search_in_blocks(&blocks, self.typing.to_ident(), &self.name).ok_or(
-            Diagnostic::error_from_string(format!(
-                "block not found for command instance: {} {}",
-                self.typing.to_ident(),
-                self.name
-            )),
-        )?;
-        let command_instance = match self.typing {
-            CommandInstanceType::Variable => CommandInstance {
-                specification: commands::new_variable_specification(),
-                name: self.name.clone(),
-                block: block.clone(),
-                package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
-                typing: CommandInstanceType::Variable,
-            },
-            CommandInstanceType::Output => CommandInstance {
-                specification: commands::new_output_specification(),
-                name: self.name.clone(),
-                block: block.clone(),
-                package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
-                typing: CommandInstanceType::Output,
-            },
-            CommandInstanceType::Action(command_id) => {
-                addons_context
-                    .register_if_already_registered(&self.package_id.did(), &self.namespace, true)
-                    .map_err(|diag| {
-                        Diagnostic::error_from_string(format!(
-                            "unable to register addon '{}' for embedded runbook action: {}",
-                            self.namespace, diag.message
-                        ))
-                    })?;
-
-                addons_context
-                    .create_action_instance(
-                        &self.namespace,
-                        &command_id,
-                        &self.name,
-                        &self.package_id,
-                        &block,
-                        &self.package_id.package_location,
-                    )
-                    .map_err(|diag| {
-                        Diagnostic::error_from_string(format!(
-                            "invalid embedded runbook action: {}",
-                            diag.message
-                        ))
-                    })?
-            }
-            CommandInstanceType::Prompt => todo!(),
-            CommandInstanceType::Module => CommandInstance {
-                specification: commands::new_module_specification(),
-                name: self.name.clone(),
-                block: block.clone(),
-                package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
-                typing: CommandInstanceType::Module,
-            },
-            CommandInstanceType::Addon => todo!(),
-        };
-        Ok(command_instance)
-    }
-
-    pub fn from_command_instance(command_instance: &CommandInstance) -> Self {
-        Self {
-            package_id: command_instance.package_id.clone(),
-            namespace: command_instance.namespace.clone(),
-            typing: command_instance.typing.clone(),
-            name: command_instance.name.clone(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use kit::helpers::fs::FileLocation;
+    use kit::helpers::hcl::RawHclContent;
+    use kit::types::commands::CommandInstanceType;
+    use kit::types::embedded_runbooks::EmbeddedRunbookInputSpecification;
     use kit::types::embedded_runbooks::EmbeddedRunbookValueInputSpecification;
+    use kit::types::package::Package;
     use kit::types::types::Type;
+    use kit::types::ConstructDid;
+    use kit::types::ConstructId;
     use kit::types::Did;
 
+    use super::publishable::*;
     use super::*;
     use crate::kit::types::stores::ValueStore;
     use crate::kit::types::PackageId;
@@ -595,11 +260,12 @@ mod tests {
 
     #[test]
     fn make_publishable() {
-        let hcl_str = r#"
+        let variable_hcl = r#"
         variable "my_var" {
             value = input.my_input
         }
-
+        "#;
+        let output_hcl = r#"
         output "my_output" {
             value = variable.my_var
         }
@@ -620,12 +286,14 @@ mod tests {
             namespace: "std".to_string(),
             typing: CommandInstanceType::Variable,
             name: my_var_name.to_string(),
+            hcl: RawHclContent::from_string(variable_hcl.into()),
         };
         let my_output_inst = PublishableCommandInstance {
             package_id: package_id.clone(),
             namespace: "std".to_string(),
             typing: CommandInstanceType::Output,
             name: my_output_name.to_string(),
+            hcl: RawHclContent::from_string(output_hcl.into()),
         };
 
         let mut package = Package::new(&package_id);
@@ -647,10 +315,9 @@ mod tests {
             construct_name: my_output_name.to_string(),
         };
 
-        let inst = PublishableEmbeddedRunbookInstanceSpecification {
+        let inst = PublishableEmbeddedRunbookSpecification {
             runbook_id: RunbookId::zero(),
             description: None,
-            hcl: RawHclContent::from_string(hcl_str.to_string()),
             inputs: vec![EmbeddedRunbookInputSpecification::Value(
                 EmbeddedRunbookValueInputSpecification {
                     name: "my_input".to_string(),
