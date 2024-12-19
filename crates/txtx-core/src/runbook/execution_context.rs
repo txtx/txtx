@@ -414,65 +414,97 @@ impl RunbookExecutionContext {
         runtime_context: &RuntimeContext,
         workspace_context: &RunbookWorkspaceContext,
     ) -> Result<(), Diagnostic> {
-        for (construct_did, command_instance) in self.commands_instances.iter() {
-            let inputs_simulation_results =
-                self.commands_inputs_evaluation_results.get(&construct_did);
-
-            let cached_dependency_execution_results = DependencyExecutionResultCache::new();
-
-            let package_id = command_instance.package_id.clone();
-            let construct_id = &workspace_context.expect_construct_id(&construct_did);
-            let addon_context_key = (package_id.did(), command_instance.namespace.clone());
-            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
-
-            let evaluated_inputs_res = perform_inputs_evaluation(
+        let command_instances = self.commands_instances.clone();
+        for (construct_did, command_instance) in command_instances.iter() {
+            self.simulate_command_instance_inputs_execution(
+                construct_did,
                 command_instance,
-                &cached_dependency_execution_results,
-                &inputs_simulation_results,
-                &addon_defaults,
-                &None,
-                &command_instance.package_id,
-                workspace_context,
-                self,
                 runtime_context,
-                true,
-            );
-
-            let evaluated_inputs = match evaluated_inputs_res {
-                Ok(result) => match result {
-                    CommandInputEvaluationStatus::Complete(result) => result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, _diags) => results,
-                },
-                Err(_d) => {
-                    // if we failed to evaluated inputs during simulation, swallow the error, but ensure we
-                    // re-evaluate all of the inputs in the actual execution by adding each required input
-                    // to the unevaluated_inputs map.
-                    let mut inputs = CommandInputsEvaluationResult::new(
-                        &command_instance.name,
-                        &addon_defaults.store,
-                    );
-                    for input in command_instance.specification.inputs.iter() {
-                        if input.optional {
-                            continue;
-                        }
-                        inputs.unevaluated_inputs.insert(input.name.clone(), None);
-                    }
-                    continue;
-                }
-            };
-
-            let post_processed_inputs = command_instance
-                .post_process_inputs_evaluations(evaluated_inputs.clone())
-                .await
-                .map_err(|d| {
-                    d.location(&construct_id.construct_location)
-                        .set_span_range(command_instance.block.span())
-                })?;
-
-            self.commands_inputs_evaluation_results
-                .insert(construct_did.clone(), post_processed_inputs);
+                workspace_context,
+            )
+            .await?;
         }
+
+        // let embedded_runbooks = self.embedded_runbooks.clone();
+        // for (construct_did, embedded_runbook) in embedded_runbooks.iter() {
+        //     self.simulate_embedded_runbook_instance_inputs_execution(
+        //         construct_did,
+        //         embedded_runbook,
+        //         runtime_context,
+        //         workspace_context,
+        //     )
+        //     .await?;
+        // }
+        Ok(())
+    }
+
+    async fn simulate_command_instance_inputs_execution(
+        &mut self,
+        construct_did: &ConstructDid,
+        command_instance: &CommandInstance,
+        runtime_context: &RuntimeContext,
+        workspace_context: &RunbookWorkspaceContext,
+    ) -> Result<(), Diagnostic> {
+        let inputs_simulation_results = self.commands_inputs_evaluation_results.get(&construct_did);
+
+        let cached_dependency_execution_results = DependencyExecutionResultCache::new();
+
+        let package_id = command_instance.package_id.clone();
+        let construct_id = &workspace_context.expect_construct_id(&construct_did);
+        let addon_context_key = (package_id.did(), command_instance.namespace.clone());
+        let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
+        let evaluated_inputs_res = perform_inputs_evaluation(
+            command_instance,
+            &cached_dependency_execution_results,
+            &inputs_simulation_results,
+            &addon_defaults,
+            &None,
+            &command_instance.package_id,
+            workspace_context,
+            self,
+            runtime_context,
+            true,
+        );
+
+        let evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                CommandInputEvaluationStatus::Aborted(results, _diags) => results,
+            },
+            Err(_d) => {
+                // if we failed to evaluated inputs during simulation, swallow the error, but ensure we
+                // re-evaluate all of the inputs in the actual execution by adding each required input
+                // to the unevaluated_inputs map.
+                let mut inputs = CommandInputsEvaluationResult::new(
+                    &command_instance.name,
+                    &addon_defaults.store,
+                );
+                for input in command_instance.specification.inputs.iter() {
+                    if input.optional {
+                        continue;
+                    }
+                    inputs.unevaluated_inputs.insert(input.name.clone(), None);
+                }
+
+                inputs
+            }
+        };
+
+        let post_processed_inputs = command_instance
+            .post_process_inputs_evaluations(evaluated_inputs.clone())
+            .await
+            .map_err(|d| {
+                d.location(&construct_id.construct_location)
+                    .set_span_range(command_instance.block.span())
+            })?;
+
+        self.commands_inputs_evaluation_results
+            .insert(construct_did.clone(), post_processed_inputs);
+
+        Ok(())
+    }
         Ok(())
     }
 
