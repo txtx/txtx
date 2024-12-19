@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "../lib/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract AtomicProxyDeploymentFactory {
     event ContractDeployed(address indexed contract_address);
