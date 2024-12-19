@@ -4,12 +4,16 @@ addon "evm" {
     rpc_api_url = input.rpc_api_url
 }
 
-signer "deployer" "evm::web_wallet" {
-    expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+// signer "deployer" "evm::web_wallet" {
+//     expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+// }
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xfe3d11cd8ccdfffd13130d4fdcd26e97db3ab4c9e043961c2923850b7034f4a1"
 }
 
 runbook "test" {
-    location = "./embedded-runbook.json"
+    location = "../embeddable/embeddable.output.json"
     chain_id = input.chain_id
     rpc_api_url = input.rpc_api_url
     deployer = signer.deployer
