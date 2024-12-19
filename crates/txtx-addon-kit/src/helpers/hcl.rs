@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use hcl_edit::expr::Object;
+use hcl_edit::{expr::Object, structure::Body};
 
 use crate::{
     hcl::{
@@ -216,6 +216,17 @@ impl RawHclContent {
         })?;
         Ok(content.into_blocks().into_iter().collect::<VecDeque<Block>>())
     }
+
+    pub fn into_block_instance(&self) -> Result<Block, Diagnostic> {
+        let mut blocks = self.into_blocks()?;
+        if blocks.len() != 1 {
+            return Err(Diagnostic::error_from_string(
+                "expected exactly one block instance".into(),
+            ));
+        }
+        Ok(blocks.pop_front().unwrap())
+    }
+
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         let mut bytes = vec![0u8; 2 * self.0.len()];
         crate::hex::encode_to_slice(self.0.clone(), &mut bytes).map_err(|e| {
@@ -225,5 +236,75 @@ impl RawHclContent {
     }
     pub fn to_string(&self) -> String {
         self.0.clone()
+    }
+    pub fn from_block(block: &Block) -> Self {
+        RawHclContent::from_string(
+            Body::builder().block(block.clone()).build().to_string().trim().to_string(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_to_raw_hcl() {
+        let addon_block_str = r#"
+            addon "evm" {
+                test = "hi"
+                chain_id = input.chain_id
+                rpc_api_url = input.rpc_api_url
+            }
+        "#
+        .trim();
+
+        let signer_block_str = r#"
+        signer "deployer" "evm::web_wallet" {
+            expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+        }
+        "#
+        .trim();
+
+        let runbook_block_str = r#"
+            runbook "test" {
+                location = "./embedded-runbook.json"
+                chain_id = input.chain_id
+                rpc_api_url = input.rpc_api_url
+                deployer = signer.deployer
+            }
+        "#
+        .trim();
+
+        let output_block_str = r#"
+            output "contract_address1" {
+                value = runbook.test.action.deploy1.contract_address
+            }
+        "#
+        .trim();
+
+        let input = format!(
+            r#"
+        {addon_block_str}
+
+        {signer_block_str}
+
+        {runbook_block_str}
+
+        {output_block_str}
+        "#
+        );
+
+        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
+        let blocks = raw_hcl.into_blocks().unwrap();
+        assert_eq!(blocks.len(), 4);
+        let addon_block = RawHclContent::from_block(&blocks[0]).to_string();
+        assert_eq!(addon_block, addon_block_str);
+        let signer_block = RawHclContent::from_block(&blocks[1]).to_string();
+        assert_eq!(signer_block, signer_block_str);
+        let runbook_block = RawHclContent::from_block(&blocks[2]).to_string();
+        assert_eq!(runbook_block, runbook_block_str);
+        let output_block = RawHclContent::from_block(&blocks[3]).to_string();
+        assert_eq!(output_block, output_block_str);
     }
 }
