@@ -12,6 +12,7 @@ use kit::types::frontend::BlockEvent;
 use kit::types::frontend::DisplayOutputRequest;
 use kit::types::signers::SignersState;
 use kit::types::stores::AddonDefaults;
+use kit::types::types::ObjectType;
 use kit::types::types::RunbookSupervisionContext;
 use kit::types::types::Value;
 use kit::types::AddonInstance;
@@ -201,163 +202,210 @@ impl RunbookExecutionContext {
         let (tx, _rx) = unbounded();
 
         for construct_did in ordered_constructs.into_iter() {
-            // Is a command being considered? (vs signer, env, etc)
-            let Some(command_instance) = self.commands_instances.get(&construct_did) else {
-                continue;
-            };
-
-            // Construct was already executed
-            if let Some(_) = self.commands_execution_results.get(&construct_did) {
-                continue;
-            };
-
-            let construct_id = workspace_context.expect_construct_id(&construct_did);
-
-            let addon_context_key =
-                (command_instance.package_id.did(), command_instance.namespace.clone());
-            let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
-
-            let input_evaluation_results =
-                self.commands_inputs_evaluation_results.get(&construct_did);
-
-            let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
-
-            // Retrieve the construct_did of the inputs
-            // Collect the outputs
-            let references_expressions =
-                command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
-
-            // For each input referencing another construct_did, we'll resolve the reference
-            // and make sure we have the evaluation results, and seed a temporary, lighter map.
-            // This step could probably be removed.
-            for (_input, expr) in references_expressions.into_iter() {
-                let Some((dependency, _, _)) = workspace_context
-                    .try_resolve_construct_reference_in_expression(
-                        &command_instance.package_id,
-                        &expr,
+            if let Some(_) = self.commands_instances.get(&construct_did) {
+                match self
+                    .simulate_command_instance(
+                        &construct_did,
+                        &mut pass_result,
+                        &mut unexecutable_nodes,
+                        runtime_context,
+                        workspace_context,
+                        supervision_context,
+                        constructs_dids_frontier,
+                        &tx,
                     )
-                    .unwrap()
-                else {
-                    continue;
-                };
-
-                let Some(evaluation_result) = self.commands_execution_results.get(&dependency)
-                else {
-                    continue;
-                };
-
-                match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
-                    Ok(_) => (),
-                    Err(_) => {
-                        continue;
-                    }
-                };
-            }
-
-            // After this evaluation, commands should be able to tweak / override
-            let evaluated_inputs_res = perform_inputs_evaluation(
-                command_instance,
-                &cached_dependency_execution_results,
-                &input_evaluation_results,
-                &addon_defaults,
-                &None,
-                &command_instance.package_id,
-                workspace_context,
-                self,
-                runtime_context,
-                false,
-            );
-
-            let mut evaluated_inputs = match evaluated_inputs_res {
-                Ok(result) => match result {
-                    CommandInputEvaluationStatus::Complete(result) => result,
-                    CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
-                    CommandInputEvaluationStatus::Aborted(results, _) => results,
-                },
-                Err(diags) => {
-                    pass_result.append_diagnostics(diags, &construct_id);
-                    continue;
-                }
-            };
-
-            // Inject the evaluated inputs
-            self.commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
-
-            // Did we reach the frontier?
-            if constructs_dids_frontier.contains(&construct_did) {
-                if let Some(deps) = self.commands_dependencies.get(&construct_did) {
-                    for dep in deps.iter() {
-                        unexecutable_nodes.insert(dep.clone());
-                    }
-                }
-                continue;
-            }
-
-            if command_instance.specification.implements_signing_capability {
-                continue;
-            }
-
-            // This time, we borrow a mutable reference
-            let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
-                continue;
-            };
-
-            match command_instance.check_executability(
-                &construct_did,
-                &mut evaluated_inputs,
-                &mut self.signers_instances,
-                &None,
-                supervision_context,
-            ) {
-                Ok(new_actions) => {
-                    if new_actions.has_pending_actions() {
-                        if let Some(deps) = self.commands_dependencies.get(&construct_did) {
-                            for dep in deps.iter() {
-                                unexecutable_nodes.insert(dep.clone());
-                            }
-                        }
-                        continue;
-                    }
-                }
-                Err(diag) => {
-                    pass_result.push_diagnostic(&diag, &construct_id);
-                    continue;
-                }
-            }
-
-            self.commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
-            let execution_result = {
-                command_instance
-                    .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
                     .await
+                {
+                    LoopEvaluationResult::Continue => continue,
+                    LoopEvaluationResult::Bail => return pass_result,
+                };
+            };
+            if let Some(_) = self.embedded_runbooks.get(&construct_did) {
+                match self
+                    .simulate_embedded_runbook(
+                        &construct_did,
+                        &mut pass_result,
+                        &mut unexecutable_nodes,
+                        runtime_context,
+                        workspace_context,
+                        supervision_context,
+                        constructs_dids_frontier,
+                        &tx,
+                    )
+                    .await
+                {
+                    LoopEvaluationResult::Continue => continue,
+                    LoopEvaluationResult::Bail => return pass_result,
+                };
+            };
+        }
+        pass_result
+    }
+
+    async fn simulate_command_instance(
+        &mut self,
+        construct_did: &ConstructDid,
+        pass_result: &mut EvaluationPassResult,
+        unexecutable_nodes: &mut HashSet<ConstructDid>,
+        runtime_context: &RuntimeContext,
+        workspace_context: &RunbookWorkspaceContext,
+        supervision_context: &RunbookSupervisionContext,
+        constructs_dids_frontier: &HashSet<ConstructDid>,
+        tx: &Sender<BlockEvent>,
+    ) -> LoopEvaluationResult {
+        // Is a command being considered? (vs signer, env, etc)
+        let Some(command_instance) = self.commands_instances.get(&construct_did) else {
+            return LoopEvaluationResult::Continue;
+        };
+        // Construct was already executed
+        if let Some(_) = self.commands_execution_results.get(&construct_did) {
+            return LoopEvaluationResult::Continue;
+        };
+
+        let construct_id = workspace_context.expect_construct_id(&construct_did);
+
+        let addon_context_key =
+            (command_instance.package_id.did(), command_instance.namespace.clone());
+        let addon_defaults = workspace_context.get_addon_defaults(&addon_context_key);
+
+        let input_evaluation_results = self.commands_inputs_evaluation_results.get(&construct_did);
+
+        let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
+
+        // Retrieve the construct_did of the inputs
+        // Collect the outputs
+        let references_expressions =
+            command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+
+        // For each input referencing another construct_did, we'll resolve the reference
+        // and make sure we have the evaluation results, and seed a temporary, lighter map.
+        // This step could probably be removed.
+        for (_input, expr) in references_expressions.into_iter() {
+            let Some((dependency, _, _)) = workspace_context
+                .try_resolve_construct_reference_in_expression(&command_instance.package_id, &expr)
+                .unwrap()
+            else {
+                continue;
             };
 
-            let execution_result = match execution_result {
-                Ok(result) => Ok(result),
-                Err(e) => {
+            let Some(evaluation_result) = self.commands_execution_results.get(&dependency) else {
+                continue;
+            };
+
+            match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
+                Ok(_) => (),
+                Err(_) => {
+                    continue;
+                }
+            };
+        }
+
+        // After this evaluation, commands should be able to tweak / override
+        let evaluated_inputs_res = perform_inputs_evaluation(
+            command_instance,
+            &cached_dependency_execution_results,
+            &input_evaluation_results,
+            &addon_defaults,
+            &None,
+            &command_instance.package_id,
+            workspace_context,
+            self,
+            runtime_context,
+            false,
+        );
+
+        let mut evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                CommandInputEvaluationStatus::Aborted(results, _) => results,
+            },
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, &construct_id);
+                return LoopEvaluationResult::Continue;
+            }
+        };
+
+        // Inject the evaluated inputs
+        self.commands_inputs_evaluation_results
+            .insert(construct_did.clone(), evaluated_inputs.clone());
+
+        // Did we reach the frontier?
+        if constructs_dids_frontier.contains(&construct_did) {
+            if let Some(deps) = self.commands_dependencies.get(&construct_did) {
+                for dep in deps.iter() {
+                    unexecutable_nodes.insert(dep.clone());
+                }
+            }
+            return LoopEvaluationResult::Continue;
+        }
+
+        if command_instance.specification.implements_signing_capability {
+            return LoopEvaluationResult::Continue;
+        }
+
+        // This time, we borrow a mutable reference
+        let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
+            return LoopEvaluationResult::Continue;
+        };
+
+        match command_instance.check_executability(
+            &construct_did,
+            &mut evaluated_inputs,
+            &mut self.signers_instances,
+            &None,
+            supervision_context,
+        ) {
+            Ok(new_actions) => {
+                if new_actions.has_pending_actions() {
                     if let Some(deps) = self.commands_dependencies.get(&construct_did) {
                         for dep in deps.iter() {
                             unexecutable_nodes.insert(dep.clone());
                         }
                     }
-                    Err(e)
+                    return LoopEvaluationResult::Continue;
                 }
-            };
-
-            let mut execution_result = match execution_result {
-                Ok(res) => res,
-                Err(diag) => {
-                    pass_result.push_diagnostic(&diag, &construct_id);
-                    continue;
-                }
-            };
-            self.commands_execution_results
-                .entry(construct_did)
-                .or_insert_with(CommandExecutionResult::new)
-                .append(&mut execution_result);
+            }
+            Err(diag) => {
+                pass_result.push_diagnostic(&diag, &construct_id);
+                return LoopEvaluationResult::Continue;
+            }
         }
+
+        self.commands_inputs_evaluation_results
+            .insert(construct_did.clone(), evaluated_inputs.clone());
+        let execution_result = {
+            command_instance
+                .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
+                .await
+        };
+
+        let execution_result = match execution_result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                if let Some(deps) = self.commands_dependencies.get(&construct_did) {
+                    for dep in deps.iter() {
+                        unexecutable_nodes.insert(dep.clone());
+                    }
+                }
+                Err(e)
+            }
+        };
+
+        let mut execution_result = match execution_result {
+            Ok(res) => res,
+            Err(diag) => {
+                pass_result.push_diagnostic(&diag, &construct_id);
+                return LoopEvaluationResult::Continue;
+            }
+        };
+        self.commands_execution_results
+            .entry(construct_did.clone())
+            .or_insert_with(CommandExecutionResult::new)
+            .append(&mut execution_result);
+
+        LoopEvaluationResult::Continue
+    }
         pass_result
     }
 
