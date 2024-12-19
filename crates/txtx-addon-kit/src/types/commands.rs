@@ -558,19 +558,6 @@ impl CommandInstanceType {
             CommandInstanceType::Addon => "addon",
         }
     }
-    pub fn from_str(typing: &str, action_name: Option<&str>) -> Self {
-        match typing {
-            "variable" => CommandInstanceType::Variable,
-            "output" => CommandInstanceType::Output,
-            "action" => {
-                CommandInstanceType::Action(action_name.map(|n| n.to_string()).unwrap_or_default())
-            }
-            "prompt" => CommandInstanceType::Prompt,
-            "module" => CommandInstanceType::Module,
-            "addon" => CommandInstanceType::Addon,
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
