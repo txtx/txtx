@@ -644,6 +644,42 @@ impl RunbookWorkspaceContext {
         embedded_runbook_inputs
     }
 
+    /// Iterates over the attributes of `embedded_runbook_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following addon instance:
+    /// ```hcl
+    /// runbook "some_book" {
+    ///     chain_id = input.chain_id
+    /// }
+    /// ```
+    ///
+    /// would generate and embedded runbook input with the name `chain_id` and type [Type::Integer].
+    pub fn get_embedded_runbook_input_from_embedded_runbook_instance_input_referencing_top_level_input(
+        &self,
+        embedded_runbook_instance: &EmbeddedRunbookInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for input in embedded_runbook_instance.specification.inputs.iter() {
+            let EmbeddedRunbookInputSpecification::Value(input) = input else {
+                continue;
+            };
+            let res =
+                visit_optional_untyped_attribute(&input.name, &embedded_runbook_instance.block);
+            if let Some(expr) = res {
+                if let Some(input_name) =
+                    self.get_top_level_input_name_from_expression_reference(&expr)
+                {
+                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                        &input_name,
+                        &input.typing,
+                        &input.documentation,
+                    ));
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
     fn get_top_level_input_name_from_expression_reference(
         &self,
         expression: &Expression,

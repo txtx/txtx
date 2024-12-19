@@ -115,8 +115,14 @@ impl PublishableEmbeddedRunbookSpecification {
                     embedded_runbook,
                 ),
             );
-            // todo: check embedded runbook inputs to see if they are referencing top-level inputs
-            // and add to referenced_top_level_input_construct_ids accordingly
+
+            embedded_runbook_input_specifications.append(
+                &mut flow_context
+                    .workspace_context
+                    .get_embedded_runbook_input_from_embedded_runbook_instance_input_referencing_top_level_input(
+                        embedded_runbook,
+                    ),
+            );
         }
 
         // Collect signers downstream dependencies
