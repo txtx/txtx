@@ -15,6 +15,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::runbook::runtime_context::AddonsContext;
 use crate::std::commands;
+use crate::types::Runbook;
 use kit::types::package::Package;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl PublishableEmbeddedRunbookSpecification {
             static_workspace_context: self.static_workspace_context.into_workspace_context(),
         })
     }
+
     pub fn from_embedded_runbook_instance_specification(
         specification: &EmbeddedRunbookInstanceSpecification,
     ) -> Self {
@@ -55,6 +57,126 @@ impl PublishableEmbeddedRunbookSpecification {
                 &specification.static_workspace_context,
             ),
         }
+    }
+
+    pub fn build_from_runbook(runbook: &Runbook) -> Result<Self, Diagnostic> {
+        let mut publishable_commands_instances = HashMap::new();
+        let mut publishable_embedded_runbook_instances = HashMap::new();
+        let mut publishable_signers_downstream_dependencies = vec![];
+        let mut embedded_runbook_input_specifications = vec![];
+
+        let flow_context = runbook.flow_contexts.first().expect(
+            "runbook must have at least one flow context be published as an embeddable runbook",
+        );
+
+        // Validate that there are no flow inputs used
+        if flow_context.workspace_context.packages.values().any(|p| !p.flow_inputs_dids.is_empty())
+        {
+            return Err(
+                diagnosed_error!("flow inputs cannot be used in embeddable runbooks; consider replacing flow input references (`flow.*`) with top-level input references (`input.*`)"));
+        }
+
+        // Collect command instances
+        for (construct_did, command_instance) in
+            flow_context.execution_context.commands_instances.iter()
+        {
+            publishable_commands_instances.insert(
+                construct_did.clone(),
+                PublishableCommandInstance::from_command_instance(command_instance),
+            );
+
+            embedded_runbook_input_specifications.append(
+            &mut flow_context
+                .workspace_context
+                .get_embedded_runbook_input_from_command_instance_input_referencing_top_level_input(
+                    command_instance,
+                ),
+            );
+        }
+
+        // Collect addon instances
+        for (_, addon_instance) in flow_context.execution_context.addon_instances.iter() {
+            embedded_runbook_input_specifications.append(
+                &mut flow_context
+                    .workspace_context
+                    .get_embedded_runbook_input_from_addon_instance_input_referencing_top_level_input(
+                        addon_instance,
+                    ),
+            );
+        }
+
+        // Collect embedded runbook instances
+        for (construct_did, embedded_runbook) in
+            flow_context.execution_context.embedded_runbooks.iter()
+        {
+            publishable_embedded_runbook_instances.insert(
+                construct_did.clone(),
+                PublishableEmbeddedRunbookInstance::from_embedded_runbook_instance(
+                    embedded_runbook,
+                ),
+            );
+            // todo: check embedded runbook inputs to see if they are referencing top-level inputs
+            // and add to referenced_top_level_input_construct_ids accordingly
+        }
+
+        // Collect signers downstream dependencies
+        for (construct_did, deps) in
+            flow_context.execution_context.signers_downstream_dependencies.iter()
+        {
+            let Some(signer) = flow_context.execution_context.signers_instances.get(&construct_did)
+            else {
+                continue;
+            };
+
+            publishable_signers_downstream_dependencies.push((signer.name.clone(), deps.clone()));
+        }
+
+        // Collect embedded runbook inputs from signers
+        let mut signer_inputs = flow_context
+            .execution_context
+            .signers_instances
+            .values()
+            .map(|s| EmbeddedRunbookInputSpecification::from_signer_instance(s))
+            .collect::<Vec<_>>();
+        embedded_runbook_input_specifications.append(&mut signer_inputs);
+
+        Ok(Self {
+            runbook_id: runbook.runbook_id.clone(),
+            description: runbook.description.clone(),
+            inputs: embedded_runbook_input_specifications,
+            static_execution_context: PublishableExecutionContext {
+                addon_instances: flow_context
+                    .execution_context
+                    .addon_instances
+                    .iter()
+                    .map(|(id, instance)| {
+                        (id.clone(), PublishableAddonInstance::from_addon_instance(instance))
+                    })
+                    .collect(),
+                embedded_runbooks: publishable_embedded_runbook_instances,
+                commands_instances: publishable_commands_instances,
+                commands_dependencies: flow_context.execution_context.commands_dependencies.clone(),
+                signers_downstream_dependencies: publishable_signers_downstream_dependencies,
+                signed_commands_upstream_dependencies: flow_context
+                    .execution_context
+                    .signed_commands_upstream_dependencies
+                    .clone(),
+                signed_commands: flow_context.execution_context.signed_commands.clone(),
+                order_for_commands_execution: flow_context
+                    .execution_context
+                    .order_for_commands_execution
+                    .clone(),
+                order_for_signers_initialization: flow_context
+                    .execution_context
+                    .order_for_signers_initialization
+                    .clone(),
+                evaluated_inputs: ValueStore::tmp(), // todo, clone from flow context, after sanitize
+            },
+            static_workspace_context: PublishableWorkspaceContext {
+                packages: flow_context.workspace_context.packages.clone(),
+                constructs: flow_context.workspace_context.constructs.clone(),
+            },
+        })
     }
 }
 
