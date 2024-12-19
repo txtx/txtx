@@ -575,6 +575,99 @@ impl RunbookWorkspaceContext {
         construct_id
     }
 
+    /// Iterates over the attributes of `command_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following command instance:
+    /// ```hcl
+    /// action "deploy" "evm::deploy_contract" {
+    ///     ...
+    ///     create2 {
+    ///         salt = input.salt
+    ///     }
+    /// }
+    /// ```
+    /// would generate and embedded runbook input with the name `salt` and type [Type::String].
+    pub fn get_embedded_runbook_input_from_command_instance_input_referencing_top_level_input(
+        &self,
+        command_instance: &CommandInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for input in command_instance.specification.inputs.iter() {
+            let res = visit_optional_untyped_attribute(&input.name, &command_instance.block);
+            if let Some(expr) = res {
+                if let Some(input_name) =
+                    self.get_top_level_input_name_from_expression_reference(&expr)
+                {
+                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                        &input_name,
+                        &input.typing,
+                        &input.documentation,
+                    ));
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
+    /// Iterates over the attributes of `addon_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following addon instance:
+    /// ```hcl
+    /// addon "evm" {
+    ///     chain_id = input.chain_id
+    /// }
+    /// ```
+    ///
+    /// would generate and embedded runbook input with the name `chain_id` and type [Type::Integer].
+    pub fn get_embedded_runbook_input_from_addon_instance_input_referencing_top_level_input(
+        &self,
+        addon_instance: &AddonInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for attribute in addon_instance.block.body.attributes() {
+            let expr = &attribute.value;
+            if let Some(input_name) = self.get_top_level_input_name_from_expression_reference(&expr)
+            {
+                let addon_defaults = self.get_addon_defaults(&(
+                    addon_instance.package_id.did(),
+                    addon_instance.addon_id.clone(),
+                ));
+                if let Some(value) = addon_defaults.store.get_value(&input_name) {
+                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                        &input_name,
+                        &value.get_type(),
+                        &"".into(),
+                    ));
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
+    fn get_top_level_input_name_from_expression_reference(
+        &self,
+        expression: &Expression,
+    ) -> Option<String> {
+        let Some(traversal) = expression.as_traversal() else {
+            return None;
+        };
+        let Some(root) = traversal.expr.as_variable() else {
+            return None;
+        };
+        if root.eq_ignore_ascii_case("input") {
+            let Some(TraversalOperator::GetAttr(value)) =
+                traversal.operators.first().map(|op| op.value())
+            else {
+                return None;
+            };
+            let top_level_input_name = value.to_string();
+            if let Some(_) = self.top_level_inputs_did_lookup.get(&top_level_input_name) {
+                return Some(top_level_input_name);
+            };
+        }
+        None
+    }
+
     /// Expects `expression` to be a traversal and `package_did_source` to be indexed in the runbook's `packages`.
     /// Iterates over the operators of `expression` to see if any of the blocks it references are cached as a
     /// `module`, `output`, `input`, `action`, or `prompt` in the package.
