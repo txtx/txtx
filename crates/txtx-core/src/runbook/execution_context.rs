@@ -220,24 +220,24 @@ impl RunbookExecutionContext {
                     LoopEvaluationResult::Bail => return pass_result,
                 };
             };
-            if let Some(_) = self.embedded_runbooks.get(&construct_did) {
-                match self
-                    .simulate_embedded_runbook(
-                        &construct_did,
-                        &mut pass_result,
-                        &mut unexecutable_nodes,
-                        runtime_context,
-                        workspace_context,
-                        supervision_context,
-                        constructs_dids_frontier,
-                        &tx,
-                    )
-                    .await
-                {
-                    LoopEvaluationResult::Continue => continue,
-                    LoopEvaluationResult::Bail => return pass_result,
-                };
-            };
+            // if let Some(_) = self.embedded_runbooks.get(&construct_did) {
+            //     match self
+            //         .simulate_embedded_runbook(
+            //             &construct_did,
+            //             &mut pass_result,
+            //             &mut unexecutable_nodes,
+            //             runtime_context,
+            //             workspace_context,
+            //             supervision_context,
+            //             constructs_dids_frontier,
+            //             &tx,
+            //         )
+            //         .await
+            //     {
+            //         LoopEvaluationResult::Continue => continue,
+            //         LoopEvaluationResult::Bail => return pass_result,
+            //     };
+            // };
         }
         pass_result
     }
@@ -406,7 +406,89 @@ impl RunbookExecutionContext {
 
         LoopEvaluationResult::Continue
     }
-        pass_result
+
+    async fn simulate_embedded_runbook(
+        &mut self,
+        construct_did: &ConstructDid,
+        pass_result: &mut EvaluationPassResult,
+        _unexecutable_nodes: &mut HashSet<ConstructDid>,
+        runtime_context: &RuntimeContext,
+        workspace_context: &RunbookWorkspaceContext,
+        _supervision_context: &RunbookSupervisionContext,
+        _constructs_dids_frontier: &HashSet<ConstructDid>,
+        _tx: &Sender<BlockEvent>,
+    ) -> LoopEvaluationResult {
+        let Some(embedded_runbook) = self.embedded_runbooks.get(&construct_did) else {
+            return LoopEvaluationResult::Continue;
+        };
+        // Construct was already executed
+        if let Some(_) = self.commands_execution_results.get(&construct_did) {
+            return LoopEvaluationResult::Continue;
+        };
+
+        let construct_id = workspace_context.expect_construct_id(&construct_did);
+
+        let input_evaluation_results = self.commands_inputs_evaluation_results.get(&construct_did);
+
+        let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
+
+        // Retrieve the construct_did of the inputs
+        // Collect the outputs
+        let references_expressions =
+            embedded_runbook.get_expressions_referencing_commands_from_runbook_inputs().unwrap();
+
+        // For each input referencing another construct_did, we'll resolve the reference
+        // and make sure we have the evaluation results, and seed a temporary, lighter map.
+        // This step could probably be removed.
+        for (_input, expr) in references_expressions.into_iter() {
+            let Some((dependency, _, _)) = workspace_context
+                .try_resolve_construct_reference_in_expression(&embedded_runbook.package_id, &expr)
+                .unwrap()
+            else {
+                continue;
+            };
+
+            let Some(evaluation_result) = self.commands_execution_results.get(&dependency) else {
+                continue;
+            };
+
+            match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
+                Ok(_) => (),
+                Err(_) => continue,
+            };
+        }
+
+        // After this evaluation, commands should be able to tweak / override
+        let evaluated_inputs_res = perform_inputs_evaluation(
+            embedded_runbook,
+            &cached_dependency_execution_results,
+            &input_evaluation_results,
+            &AddonDefaults::new("tmp"),
+            &None,
+            &embedded_runbook.package_id,
+            workspace_context,
+            self,
+            runtime_context,
+            false,
+        );
+
+        let evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                CommandInputEvaluationStatus::Aborted(results, _) => results,
+            },
+            Err(diags) => {
+                pass_result.append_diagnostics(diags, &construct_id);
+                return LoopEvaluationResult::Continue;
+            }
+        };
+
+        // Inject the evaluated inputs
+        self.commands_inputs_evaluation_results
+            .insert(construct_did.clone(), evaluated_inputs.clone());
+
+        LoopEvaluationResult::Continue
     }
 
     pub async fn simulate_inputs_execution(
@@ -505,6 +587,57 @@ impl RunbookExecutionContext {
 
         Ok(())
     }
+
+    async fn simulate_embedded_runbook_instance_inputs_execution(
+        &mut self,
+        construct_did: &ConstructDid,
+        embedded_runbook: &EmbeddedRunbookInstance,
+        runtime_context: &RuntimeContext,
+        workspace_context: &RunbookWorkspaceContext,
+    ) -> Result<(), Diagnostic> {
+        let inputs_simulation_results = self.commands_inputs_evaluation_results.get(&construct_did);
+
+        let cached_dependency_execution_results = DependencyExecutionResultCache::new();
+
+        let package_id = embedded_runbook.package_id.clone();
+        let addon_defaults = &AddonDefaults::new("tmp");
+
+        let evaluated_inputs_res = perform_inputs_evaluation(
+            embedded_runbook,
+            &cached_dependency_execution_results,
+            &inputs_simulation_results,
+            &addon_defaults,
+            &None,
+            &package_id,
+            workspace_context,
+            self,
+            runtime_context,
+            true,
+        );
+
+        let evaluated_inputs = match evaluated_inputs_res {
+            Ok(result) => match result {
+                CommandInputEvaluationStatus::Complete(result) => result,
+                CommandInputEvaluationStatus::NeedsUserInteraction(result) => result,
+                CommandInputEvaluationStatus::Aborted(results, _diags) => results,
+            },
+            Err(_d) => {
+                // if we failed to evaluated inputs during simulation, swallow the error, but ensure we
+                // re-evaluate all of the inputs in the actual execution by adding each required input
+                // to the unevaluated_inputs map.
+                let mut inputs = CommandInputsEvaluationResult::new(
+                    &embedded_runbook.name,
+                    &addon_defaults.store,
+                );
+                for input in embedded_runbook.specification.inputs.iter() {
+                    inputs.unevaluated_inputs.insert(input.name(), None);
+                }
+                inputs
+            }
+        };
+
+        self.commands_inputs_evaluation_results.insert(construct_did.clone(), evaluated_inputs);
+
         Ok(())
     }
 

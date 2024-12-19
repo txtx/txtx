@@ -460,9 +460,7 @@ pub async fn evaluate_command_instance(
             {
                 match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
                     Ok(_) => {}
-                    Err(_) => {
-                        return LoopEvaluationResult::Continue;
-                    }
+                    Err(_) => continue,
                 }
             }
         }
@@ -743,9 +741,7 @@ pub async fn evaluate_embedded_runbook_instance(
             {
                 match cached_dependency_execution_results.merge(&dependency, evaluation_result) {
                     Ok(_) => {}
-                    Err(_) => {
-                        return LoopEvaluationResult::Continue;
-                    }
+                    Err(_) => continue,
                 }
             }
         }
