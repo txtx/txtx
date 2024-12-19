@@ -23,17 +23,21 @@ use txtx_addon_kit::{
 
 use crate::{
     codec::{
-        foundry::FoundryConfig, generate_create2_address, hardhat::HardhatBuildArtifacts,
+        contract_deployment::{create_init_code, create_opts::generate_create2_address},
+        foundry::FoundryConfig,
+        hardhat::HardhatBuildArtifacts,
         string_to_address, value_to_sol_value,
     },
-    commands::actions::deploy_contract::create_init_code,
+    commands::actions::call_contract::{
+        encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
+    },
     constants::{
         DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_FOUNDRY_MANIFEST_PATH, DEFAULT_FOUNDRY_PROFILE,
         DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR, NAMESPACE,
     },
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
-        EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
+        EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
     },
 };
 const INFURA_API_KEY: &str = "";
@@ -286,7 +290,37 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "Coming Soon",
-                    typing: DEPLOYMENT_ARTIFACTS_TYPE.clone()
+                    typing: Type::addon(EVM_INIT_CODE)
+                },
+            }
+        },
+        define_function! {
+            EncodeFunctionCall => {
+                name: "encode_function_call",
+                documentation: "Coming soon",
+                example: indoc! {r#"
+                        // Coming Soon
+                        "#},
+                inputs: [
+                    function_name: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    function_args: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::array(Type::string()), Type::array(Type::integer()), Type::array(Type::addon(EVM_ADDRESS))],
+                        optional: false
+                    },
+                    abi: {
+                        documentation: "Coming Soon",
+                        typing: vec![Type::string()],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: Type::addon(EVM_FUNCTION_CALL)
                 },
             }
         },
@@ -347,8 +381,7 @@ impl FunctionImplementation for EncodeEvmAddress {
         };
         let address = string_to_address(entry)
             .map_err(|e| diagnosed_error!("'evm::address' function: {e}"))?;
-        let bytes = address.0 .0.to_vec();
-        Ok(EvmValue::address(bytes))
+        Ok(EvmValue::address(&address))
     }
 }
 
@@ -369,9 +402,7 @@ impl FunctionImplementation for EvmZeroAddress {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let zero_address = Address::ZERO;
-        let bytes = zero_address.0 .0.to_vec();
-        Ok(EvmValue::address(bytes))
+        Ok(EvmValue::address(&Address::ZERO))
     }
 }
 
@@ -758,9 +789,57 @@ impl FunctionImplementation for CreateInitCode {
             }
             other => return Err(format_fn_error(&prefix, 2, "array", other)),
         };
-        let init_code = create_init_code(bytecode, Some(constructor_args), None)
+        let init_code = create_init_code(bytecode, Some(constructor_args), &None)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
         Ok(EvmValue::init_code(init_code))
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodeFunctionCall;
+impl FunctionImplementation for EncodeFunctionCall {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let function_name = args.get(0).unwrap().as_string().unwrap();
+        let function_args = args
+            .get(1)
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| value_to_sol_value(&v).map_err(|e| to_diag(fn_spec, e)))
+            .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
+
+        let abi = args
+            .get(2)
+            .map(|abi| {
+                abi.as_string().ok_or(to_diag(
+                    fn_spec,
+                    format!("argument #3 (abi) should be of type (string)"),
+                ))
+            })
+            .transpose()?;
+
+        let input = if let Some(abi_str) = abi {
+            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+                .map_err(|e| to_diag(fn_spec, e))?
+        } else {
+            encode_contract_call_inputs_from_selector(function_name, &function_args)
+                .map_err(|e| to_diag(fn_spec, e))?
+        };
+        Ok(EvmValue::function_call(input))
     }
 }
 
@@ -810,8 +889,7 @@ impl FunctionImplementation for GenerateCreate2Address {
 
         let create2 = generate_create2_address(&factory_address, &salt, &init_code)
             .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
-        let bytes = create2.0 .0.to_vec();
-        Ok(EvmValue::address(bytes))
+        Ok(EvmValue::address(&create2))
     }
 }
 
