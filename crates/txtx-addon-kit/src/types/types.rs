@@ -389,6 +389,13 @@ impl Value {
         }
     }
 
+    pub fn as_object_mut(&mut self) -> Option<&mut IndexMap<String, Value>> {
+        match self {
+            Value::Object(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn get_keys_from_object(&self, mut keys: VecDeque<String>) -> Result<Value, Diagnostic> {
         let Some(key) = keys.pop_front() else {
             return Ok(self.clone());
@@ -816,6 +823,34 @@ impl Type {
             } //  => todo!(),
         };
         Ok(())
+    }
+
+    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Object(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&Box<Type>> {
+        match self {
+            Type::Array(typing) => Some(typing),
+            _ => None,
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Map(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_action(&self) -> Option<&String> {
+        match self {
+            Type::Addon(action) => Some(action),
+            _ => None,
+        }
     }
 }
 

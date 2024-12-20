@@ -22,6 +22,7 @@ use ::std::pin::Pin;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 
+use crate::runbook::flow_context::FlowContext;
 use constants::ACTION_ITEM_ENV;
 use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
@@ -145,34 +146,17 @@ pub async fn start_unsupervised_runbook_runloop(
             if background_tasks_futures.is_empty() {
                 // sleep(time::Duration::from_secs(3));
             } else {
-                let results = kit::futures::future::join_all(background_tasks_futures).await;
-                for (construct_did, result) in
-                    background_tasks_contructs_dids.into_iter().zip(results)
-                {
-                    match result {
-                        Ok(result) => {
-                            flow_context
-                                .execution_context
-                                .commands_execution_results
-                                .insert(construct_did, result);
-                        }
-                        Err(mut diag) => {
-                            let construct_id =
-                                flow_context.workspace_context.expect_construct_id(&construct_did);
-                            diag = diag.location(&construct_id.construct_location);
-                            if let Some(command_instance) = flow_context
-                                .execution_context
-                                .commands_instances
-                                .get_mut(&construct_did)
-                            {
-                                diag = diag.set_span_range(command_instance.block.span());
-                                diag.span =
-                                    get_source_context_for_diagnostic(&diag, &runbook.sources);
-                            };
-                            return Err(vec![diag]);
-                        }
-                    }
-                }
+                process_background_tasks(
+                    None,
+                    background_tasks_contructs_dids,
+                    background_tasks_futures,
+                    flow_context,
+                )
+                .await
+                .map_err(|mut diag| {
+                    diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
+                    vec![diag]
+                })?;
                 background_tasks_futures = vec![];
                 background_tasks_contructs_dids = vec![];
             }
@@ -279,15 +263,23 @@ pub async fn start_supervised_runbook_runloop(
             ActionItemResponseType::ValidateBlock => {
                 // Handle background tasks
                 if !background_tasks_futures.is_empty() {
+                    // todo: we still need to figure out how to have multiple flows in a supervised execution
+                    let flow_context = runbook.flow_contexts.first_mut().unwrap();
                     process_background_tasks(
-                        block_tx.clone(),
-                        background_tasks_handle_uuid,
+                        Some(SupervisedBackgroundTaskContext::new(
+                            &block_tx,
+                            &background_tasks_handle_uuid,
+                            &action_item_id,
+                        )),
                         background_tasks_contructs_dids,
                         background_tasks_futures,
-                        runbook,
-                        &action_item_id,
+                        flow_context,
                     )
-                    .await?;
+                    .await
+                    .map_err(|mut diag| {
+                        diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
+                        vec![diag]
+                    })?;
                     background_tasks_futures = vec![];
                     background_tasks_contructs_dids = vec![];
                 }
@@ -672,64 +664,99 @@ pub async fn build_genesis_panel(
     Ok(panels)
 }
 
-pub async fn process_background_tasks(
+#[derive(Debug, Clone)]
+pub struct SupervisedBackgroundTaskContext {
     block_tx: Sender<BlockEvent>,
     background_tasks_handle_uuid: Uuid,
+    action_item_id: BlockId,
+}
+impl SupervisedBackgroundTaskContext {
+    pub fn new(
+        block_tx: &Sender<BlockEvent>,
+        background_tasks_handle_uuid: &Uuid,
+        action_item_id: &BlockId,
+    ) -> Self {
+        SupervisedBackgroundTaskContext {
+            block_tx: block_tx.clone(),
+            background_tasks_handle_uuid: background_tasks_handle_uuid.clone(),
+            action_item_id: action_item_id.clone(),
+        }
+    }
+}
+
+pub async fn process_background_tasks(
+    supervised_context: Option<SupervisedBackgroundTaskContext>,
     background_tasks_contructs_dids: Vec<ConstructDid>,
     background_tasks_futures: Vec<
         Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>,
     >,
-    runbook: &mut Runbook,
-    action_item_id: &BlockId,
-) -> Result<(), Vec<Diagnostic>> {
-    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![NormalizedActionItemRequestUpdate {
-        id: action_item_id.clone(),
-        action_status: Some(ActionItemStatus::Success(None)),
-        action_type: None,
-    }]));
-    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
-        &background_tasks_handle_uuid,
-        Panel::ProgressBar(vec![]),
-    )));
+    flow_context: &mut FlowContext,
+) -> Result<(), Diagnostic> {
+    if let Some(SupervisedBackgroundTaskContext {
+        block_tx,
+        background_tasks_handle_uuid,
+        action_item_id,
+    }) = supervised_context.as_ref()
+    {
+        let _ =
+            block_tx.send(BlockEvent::UpdateActionItems(vec![NormalizedActionItemRequestUpdate {
+                id: action_item_id.clone(),
+                action_status: Some(ActionItemStatus::Success(None)),
+                action_type: None,
+            }]));
+        let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
+            &background_tasks_handle_uuid,
+            Panel::ProgressBar(vec![]),
+        )));
+    }
 
     let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
         kit::futures::future::join_all(background_tasks_futures).await;
     for (construct_did, result) in background_tasks_contructs_dids.into_iter().zip(results) {
         match result {
             Ok(result) => {
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                running_context
+                flow_context
                     .execution_context
-                    .commands_execution_results
-                    .insert(construct_did, result);
+                    .append_commands_execution_result(&construct_did, &result);
             }
             Err(mut diag) => {
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
                 let construct_id =
-                    running_context.workspace_context.expect_construct_id(&construct_did);
+                    flow_context.workspace_context.expect_construct_id(&construct_did);
                 diag = diag.location(&construct_id.construct_location);
                 if let Some(command_instance) =
-                    running_context.execution_context.commands_instances.get_mut(&construct_did)
+                    flow_context.execution_context.commands_instances.get_mut(&construct_did)
                 {
                     diag = diag.set_span_range(command_instance.block.span());
-                    diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
                 };
-                let diags = vec![diag];
-                let _ = block_tx.send(BlockEvent::Error(Block {
-                    uuid: Uuid::new_v4(),
-                    visible: true,
-                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&diags)),
-                }));
-                let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-                    ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
-                ));
-                return Err(diags);
+                if let Some(SupervisedBackgroundTaskContext {
+                    block_tx,
+                    background_tasks_handle_uuid,
+                    ..
+                }) = supervised_context.as_ref()
+                {
+                    let _ = block_tx.send(BlockEvent::Error(Block {
+                        uuid: Uuid::new_v4(),
+                        visible: true,
+                        panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&vec![
+                            diag.clone()
+                        ])),
+                    }));
+                    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+                        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+                    ));
+                }
+                return Err(diag);
             }
         }
     }
 
-    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
-    ));
+    if let Some(SupervisedBackgroundTaskContext {
+        block_tx, background_tasks_handle_uuid, ..
+    }) = supervised_context.as_ref()
+    {
+        let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+            ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
+        ));
+    }
     Ok(())
 }

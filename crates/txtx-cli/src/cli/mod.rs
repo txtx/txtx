@@ -54,6 +54,11 @@ enum Command {
     /// Check the executability of a runbook
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbook),
+    /// Publish a runbook, allowing it to be called by other runbooks.
+    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
+    /// However, the published runbook will have the inputs removed.
+    #[clap(name = "publish", bin_name = "publish")]
+    Publish(PublishRunbook),
     /// Run, runbook, run!
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
@@ -111,6 +116,24 @@ pub struct CheckRunbook {
     /// A set of inputs to use for batch processing
     #[arg(long = "input")]
     pub inputs: Vec<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct PublishRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
+    pub runbook: String,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
+    pub inputs: Vec<String>,
+    /// The destination to publish the runbook to. By default, the published runbook will be at /manifest/path/<runbook-id>.output.json
+    #[arg(long = "destination", short = 'd')]
+    pub destination: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -233,6 +256,9 @@ async fn handle_command(
     match opts.command {
         Command::Check(cmd) => {
             runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
+        }
+        Command::Publish(cmd) => {
+            runbooks::handle_publish_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::Run(cmd) => {
             runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
