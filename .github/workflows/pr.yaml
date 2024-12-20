@@ -29,6 +29,9 @@ jobs:
           rustup target add wasm32-unknown-unknown
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Cache cargo
         uses: actions/cache@v3
         with:
@@ -65,13 +68,19 @@ jobs:
           rustup target add wasm32-unknown-unknown
           echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Cache cargo
         uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/
             ./target/wasm32-unknown-unknown/release/
-          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock', './crates/txtx-cli/build.rs', 'addons/evm/src/contracts/**') }}
+
+      - name: Build Project
+        run: cargo build --all --release
 
       - name: Run Tests
         run: cargo test --all

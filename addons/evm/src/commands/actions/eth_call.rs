@@ -202,7 +202,7 @@ async fn build_eth_call(
         },
         commands::actions::{
             call_contract::{
-                encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+                encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
             },
             get_common_tx_params_from_args,
         },
@@ -243,7 +243,7 @@ async fn build_eth_call(
             .unwrap_or(Ok(vec![]))?;
 
         if let Some(abi_str) = contract_abi {
-            encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
                 .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
         } else {
             encode_contract_call_inputs_from_selector(function_name, &function_args)

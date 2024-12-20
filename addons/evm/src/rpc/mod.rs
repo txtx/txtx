@@ -1,7 +1,10 @@
+use std::fmt::Debug;
+use std::str::FromStr;
+
 use alloy::consensus::TxEnvelope;
 use alloy::hex;
 use alloy::network::{Ethereum, EthereumWallet};
-use alloy::primitives::{Address, Bytes, FixedBytes, Uint};
+use alloy::primitives::{Address, BlockHash, Bytes, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
@@ -11,9 +14,9 @@ use alloy_provider::utils::{
     EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
 };
 use alloy_provider::Identity;
-use alloy_rpc_types::trace::geth::GethDebugTracingCallOptions;
+use alloy_rpc_types::trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions};
 use alloy_rpc_types::BlockNumberOrTag::Latest;
-use alloy_rpc_types::{BlockId, BlockNumberOrTag, FeeHistory};
+use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, BlockTransactionsKind, FeeHistory};
 use txtx_addon_kit::reqwest::{Client, Url};
 
 #[derive(Debug)]
@@ -30,6 +33,12 @@ impl std::fmt::Display for RpcError {
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
+    }
+}
+
+impl Into<String> for RpcError {
+    fn into(self) -> String {
+        self.to_string()
     }
 }
 
@@ -153,6 +162,23 @@ impl EvmRpc {
         })
     }
 
+    pub async fn trace_transaction(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
+        let result = self
+            .provider
+            .debug_trace_transaction(
+                FixedBytes::from_slice(&tx_hash),
+                GethDebugTracingOptions::default(),
+            )
+            .await
+            .map_err(|e| {
+                format!("received error result from RPC API during debug_trace_transaction: {}", e)
+            })?;
+
+        let result = serde_json::to_string(&result)
+            .map_err(|e| format!("failed to serialize debug_trace_transaction response: {}", e))?;
+        Ok(result)
+    }
+
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
         let result = self
             .provider
@@ -178,5 +204,21 @@ impl EvmRpc {
         self.provider.get_block_number().await.map_err(|e| {
             RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
         })
+    }
+
+    pub async fn get_block_by_hash(&self, block_hash: &str) -> Result<Option<Block>, RpcError> {
+        let block_hash = BlockHash::from_str(&block_hash).map_err(|e| {
+            RpcError::Message(format!("error parsing block hash: {}", e.to_string()))
+        })?;
+        self.provider.get_block_by_hash(block_hash, BlockTransactionsKind::Hashes).await.map_err(
+            |e| RpcError::Message(format!("error getting block by hash: {}", e.to_string())),
+        )
+    }
+
+    pub async fn get_latest_block(&self) -> Result<Option<Block>, RpcError> {
+        self.provider
+            .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+            .await
+            .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
     }
 }

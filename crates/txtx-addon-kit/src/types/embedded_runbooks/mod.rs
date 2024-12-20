@@ -40,7 +40,7 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Vec<Block>, Vec<super::diagnostics::Diagnostic>> {
+    ) -> Result<Option<Vec<Block>>, Vec<super::diagnostics::Diagnostic>> {
         let mut entries = vec![];
 
         match &input_typing {
@@ -53,13 +53,17 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
                 unreachable!()
             }
         };
-        if entries.is_empty() && !input_optional {
-            return Err(vec![Diagnostic::error_from_string(format!(
-                "embedded runbook '{}' is missing value for object '{}'",
-                self.name, input_name
-            ))]);
+        if entries.is_empty() {
+            if !input_optional {
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "embedded runbook '{}' is missing value for object '{}'",
+                    self.name, input_name
+                ))]);
+            } else {
+                return Ok(None);
+            }
         }
-        Ok(entries)
+        Ok(Some(entries))
     }
 
     fn get_expression_from_block(

@@ -8,8 +8,12 @@ use kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
     TX_HASH,
 };
+use kit::hcl::structure::Block as HclBlock;
+use kit::helpers::hcl::visit_optional_untyped_attribute;
 use kit::indexmap::IndexMap;
-use kit::types::commands::{CommandExecutionFuture, DependencyExecutionResultCache};
+use kit::types::commands::{
+    CommandExecutionFuture, DependencyExecutionResultCache, UnevaluatedInputsMap,
+};
 use kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
 use kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
@@ -17,7 +21,7 @@ use kit::types::frontend::{
 };
 use kit::types::signers::SignersState;
 use kit::types::stores::AddonDefaults;
-use kit::types::types::RunbookSupervisionContext;
+use kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
 use kit::types::{ConstructId, PackageId};
 use kit::types::{EvaluatableInput, WithEvaluatableInputs};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -1014,7 +1018,11 @@ pub fn eval_expression(
         }
         // Represents a variable identifier.
         Expression::Variable(_decorated_var) => {
-            unimplemented!()
+            return Err(diagnosed_error!(
+                "Directly referencing a variable is not supported. Did you mean `variable.{}`?",
+                _decorated_var.as_str()
+            )
+            .into());
         }
         // Represents conditional operator which selects one of two expressions based on the outcome of a boolean expression.
         Expression::Conditional(_conditional) => {
@@ -1546,67 +1554,30 @@ pub fn perform_inputs_evaluation(
             };
 
             results.insert(&input_name, value);
-        } else if let Some(object_props) = input.as_map() {
-            let mut entries = vec![];
-            let blocks = with_evaluatable_inputs.get_blocks_for_map(
-                &input_name,
-                &input_typing,
-                input_optional,
-            )?;
-            for block in blocks.iter() {
-                let mut object_values = IndexMap::new();
-                for prop in object_props.iter() {
-                    let Some(expr) =
-                        with_evaluatable_inputs.get_expression_from_block(&block, &prop)
-                    else {
-                        continue;
-                    };
-                    let value = match eval_expression(
-                        &expr,
-                        dependencies_execution_results,
-                        package_id,
-                        runbook_workspace_context,
-                        runbook_execution_context,
-                        runtime_context,
-                    ) {
-                        Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                        Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                            if e.is_error() {
-                                fatal_error = true;
-                            }
-                            results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
-                            diags.push(e);
-                            continue;
-                        }
-                        Err(e) => {
-                            if e.is_error() {
-                                fatal_error = true;
-                            }
-                            results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
-                            diags.push(e);
-                            continue;
-                        }
-                        Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                            require_user_interaction = true;
-                            results.unevaluated_inputs.insert(input_name.clone(), None);
-                            continue;
-                        }
-                    };
-
-                    match value.clone() {
-                        Value::Object(obj) => {
-                            for (k, v) in obj.into_iter() {
-                                object_values.insert(k, v);
-                            }
-                        }
-                        v => {
-                            object_values.insert(prop.name.to_string(), v);
-                        }
-                    };
+        } else if let Some(_) = input.as_map() {
+            match evaluate_map_input(
+                results.clone(),
+                &input,
+                with_evaluatable_inputs,
+                dependencies_execution_results,
+                package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                runtime_context,
+            ) {
+                Ok(Some(res)) => {
+                    if res.fatal_error {
+                        fatal_error = true;
+                    }
+                    if res.require_user_interaction {
+                        require_user_interaction = true;
+                    }
+                    results = res.result;
+                    diags.extend(res.diags);
                 }
-                entries.push(Value::object(object_values));
-            }
-            results.insert(&input_name, Value::array(entries));
+                Ok(None) => continue,
+                Err(e) => return Err(e),
+            };
         } else {
             let Some(expr) = with_evaluatable_inputs.get_expression_from_input(&input_name) else {
                 continue;
@@ -1857,4 +1828,200 @@ pub fn perform_signer_inputs_evaluation(
         (false, _) => CommandInputEvaluationStatus::NeedsUserInteraction(results),
     };
     Ok(status)
+}
+
+#[derive(Clone, Debug)]
+struct EvaluateMapInputResult {
+    result: CommandInputsEvaluationResult,
+    require_user_interaction: bool,
+    diags: Vec<Diagnostic>,
+    fatal_error: bool,
+}
+/// Evaluating a map input is different from other inputs because it can contain nested blocks.
+/// For other types, once we have an input block and an identifier in the block, we can expect that identifier to point to an "attribute".
+/// For a map, it could point to another block, so we need to recursively look inside maps.
+fn evaluate_map_input(
+    mut result: CommandInputsEvaluationResult,
+    input_spec: &impl EvaluatableInput,
+    with_evaluatable_inputs: &impl WithEvaluatableInputs,
+    dependencies_execution_results: &DependencyExecutionResultCache,
+    package_id: &PackageId,
+    runbook_workspace_context: &RunbookWorkspaceContext,
+    runbook_execution_context: &RunbookExecutionContext,
+    runtime_context: &RuntimeContext,
+) -> Result<Option<EvaluateMapInputResult>, Vec<Diagnostic>> {
+    let input_name = input_spec.name();
+    let input_typing = input_spec.typing();
+    let input_optional = input_spec.optional();
+
+    let spec_object_props = input_spec.as_map().expect("expected input to be a map");
+
+    let Some(blocks) =
+        with_evaluatable_inputs.get_blocks_for_map(&input_name, &input_typing, input_optional)?
+    else {
+        return Ok(None);
+    };
+    let res = EvaluateMapObjectPropResult::new();
+    match evaluate_map_object_prop(
+        &input_name,
+        res,
+        blocks,
+        spec_object_props,
+        dependencies_execution_results,
+        package_id,
+        runbook_workspace_context,
+        runbook_execution_context,
+        runtime_context,
+    ) {
+        Ok(Some(res)) => {
+            result.insert(&input_name, Value::array(res.entries));
+            result.unevaluated_inputs.merge(&res.unevaluated_inputs);
+            return Ok(Some(EvaluateMapInputResult {
+                result,
+                require_user_interaction: res.require_user_interaction,
+                diags: res.diags,
+                fatal_error: res.fatal_error,
+            }));
+        }
+        Ok(None) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+}
+
+#[derive(Clone, Debug)]
+struct EvaluateMapObjectPropResult {
+    entries: Vec<Value>,
+    unevaluated_inputs: UnevaluatedInputsMap,
+    require_user_interaction: bool,
+    diags: Vec<Diagnostic>,
+    fatal_error: bool,
+}
+impl EvaluateMapObjectPropResult {
+    fn new() -> Self {
+        Self {
+            entries: vec![],
+            unevaluated_inputs: UnevaluatedInputsMap::new(),
+            require_user_interaction: false,
+            diags: vec![],
+            fatal_error: false,
+        }
+    }
+}
+
+fn evaluate_map_object_prop(
+    spec_input_name: &str,
+    mut parent_result: EvaluateMapObjectPropResult,
+    blocks: Vec<HclBlock>,
+    spec_object_props: &Vec<ObjectProperty>,
+    dependencies_execution_results: &DependencyExecutionResultCache,
+    package_id: &PackageId,
+    runbook_workspace_context: &RunbookWorkspaceContext,
+    runbook_execution_context: &RunbookExecutionContext,
+    runtime_context: &RuntimeContext,
+) -> Result<Option<EvaluateMapObjectPropResult>, Vec<Diagnostic>> {
+    for block in blocks.iter() {
+        let mut object_values = IndexMap::new();
+        for spec_object_prop in spec_object_props.iter() {
+            let value = if let Some(expr) =
+                visit_optional_untyped_attribute(&spec_object_prop.name, &block)
+            {
+                let value = match eval_expression(
+                    &expr,
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    runtime_context,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                        if e.is_error() {
+                            parent_result.fatal_error = true;
+                        }
+                        parent_result
+                            .unevaluated_inputs
+                            .insert(spec_input_name.to_string(), Some(e.clone()));
+                        parent_result.diags.push(e);
+                        continue;
+                    }
+                    Err(e) => {
+                        if e.is_error() {
+                            parent_result.fatal_error = true;
+                        }
+                        parent_result
+                            .unevaluated_inputs
+                            .insert(spec_input_name.to_string(), Some(e.clone()));
+                        parent_result.diags.push(e);
+                        continue;
+                    }
+                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                        parent_result.require_user_interaction = true;
+                        parent_result.unevaluated_inputs.insert(spec_input_name.to_string(), None);
+                        continue;
+                    }
+                };
+                value
+            } else {
+                let child_map_blocks = block
+                    .body
+                    .get_blocks(&spec_object_prop.name)
+                    .into_iter()
+                    .map(|b| b.clone())
+                    .collect::<Vec<_>>();
+                if child_map_blocks.is_empty() {
+                    continue;
+                }
+                let Type::Map(ref child_map_spec_object_props) = spec_object_prop.typing else {
+                    return Err(vec![diagnosed_error!(
+                        "expected type {} for property {}, found map",
+                        spec_object_prop.typing.to_string(),
+                        spec_object_prop.name
+                    )]);
+                };
+                match evaluate_map_object_prop(
+                    spec_input_name,
+                    parent_result.clone(),
+                    child_map_blocks,
+                    child_map_spec_object_props,
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    runtime_context,
+                ) {
+                    Ok(Some(res)) => {
+                        parent_result.unevaluated_inputs = res.unevaluated_inputs;
+                        let mut diags = parent_result.diags.clone();
+                        diags.extend(res.diags);
+                        parent_result.diags = diags;
+                        if res.fatal_error {
+                            parent_result.fatal_error = true;
+                            continue;
+                        }
+                        if res.require_user_interaction {
+                            parent_result.require_user_interaction = true;
+                            continue;
+                        }
+                        Value::array(res.entries)
+                    }
+                    Ok(None) => continue,
+                    Err(e) => return Err(e),
+                }
+            };
+
+            match value.clone() {
+                Value::Object(obj) => {
+                    for (k, v) in obj.into_iter() {
+                        object_values.insert(k, v);
+                    }
+                }
+                v => {
+                    object_values.insert(spec_object_prop.name.to_string(), v);
+                }
+            };
+        }
+        parent_result.entries.push(Value::object(object_values));
+    }
+
+    Ok(Some(parent_result))
 }

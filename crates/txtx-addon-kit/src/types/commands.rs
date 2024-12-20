@@ -174,6 +174,11 @@ impl UnevaluatedInputsMap {
             _ => Ok(()),
         }
     }
+    pub fn merge(&mut self, other: &UnevaluatedInputsMap) {
+        for (key, value) in other.map.iter() {
+            self.map.insert(key.clone(), value.clone());
+        }
+    }
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -603,7 +608,7 @@ impl WithEvaluatableInputs for CommandInstance {
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Vec<Block>, Vec<Diagnostic>> {
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
         let mut entries = vec![];
 
         match &input_typing {
@@ -616,13 +621,17 @@ impl WithEvaluatableInputs for CommandInstance {
                 unreachable!()
             }
         };
-        if entries.is_empty() && !input_optional {
-            return Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for object '{}'",
-                self.name, self.specification.matcher, input_name
-            ))]);
+        if entries.is_empty() {
+            if !input_optional {
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "command '{}' (type '{}') is missing value for object '{}'",
+                    self.name, self.specification.matcher, input_name
+                ))]);
+            } else {
+                return Ok(None);
+            }
         }
-        Ok(entries)
+        Ok(Some(entries))
     }
 
     fn get_expression_from_block(

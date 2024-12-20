@@ -1,0 +1,93 @@
+addon "ovm" {
+    l1_rpc_api_url = "http://localhost:9999"
+    working_dir = "/tmp/ovm"
+}
+addon "evm" {}
+
+variable "l1_deployment_addresses" {
+    value = {
+        "AddressManager": "0x2021fD587B7Bc8EF1Aa8370aE2f91516C6D29648",
+        "DisputeGameFactory": "0x06a0Bf963662754C68612af8e6229b726C826E7F",
+        "DisputeGameFactoryProxy": "0xE163428C3A1e539586b9d01663C4812cF11e221f",
+        "L1CrossDomainMessenger": "0xD9E1f575Ca0C2612ae1BE934cc3dbD9970D2DdeC",
+        "L1CrossDomainMessengerProxy": "0x9D6F091239552bB98A22FF695f63bDF282FE8a7b",
+        "L1ERC721Bridge": "0xDf066f6930E6e87bb93A38F573D68e65b8da3E39",
+        "L1ERC721BridgeProxy": "0x87EaE5Ea46dEe0e3e8993036E284fA4Aaf15A641",
+        "L1StandardBridge": "0x50d9AEB686810E9cf4979bfCAA3990fCa74e0830",
+        "L1StandardBridgeProxy": "0x0C5C3aF1508278cbC536827a1cCb2f69195b7068",
+        "L2OutputOracle": "0x0fA6ac773c5E2fcaFb6aa8825245f266b810D0BF",
+        "L2OutputOracleProxy": "0xd175D46c2016E8f4aC49db91d929134fb38DEDAE",
+        "Mips": "0xb69a4f34fd8170FA3050297F8F132682822Bbb6E",
+        "OptimismMintableERC20Factory": "0xE3E0228213325f4d89044bea2f5236C48d16ad6f",
+        "OptimismMintableERC20FactoryProxy": "0x499467B8984877dA39Eca9D933545adcc95FB967",
+        "OptimismPortal": "0x0D8D2f43375e4c76d0AC5a6b48E640c58F549278",
+        "OptimismPortalProxy": "0x498D7D81fe926d5C5b98435C5acfA7e6B3319940",
+        "PreimageOracle": "0xF25e2d47Ac5B668150a2a023051715B5aA0C904B",
+        "ProtocolVersions": "0x6226b256912843C624B163b1CC9dB13D96894b03",
+        "ProtocolVersionsProxy": "0x1cA58C594C4Db979e0aaD6B821018074CBFa3d48",
+        "ProxyAdmin": "0xa869413806d4496BE149896d0c01f5b78e790d23",
+        "SafeProxyFactory": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2",
+        "SafeSingleton": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552",
+        "SuperchainConfig": "0xdD6191EE7b7aeCca6f14Ef2bCF76183467D6ED0E",
+        "SuperchainConfigProxy": "0x3389EA8C39393D0073920EF23e9f4F73C3930637",
+        "SystemConfig": "0x5fEE6D8c69e309d636A40492CD10950fA9422E69",
+        "SystemConfigProxy": "0x677209694761A0B010c1C94503b0C310f0e6Bd21",
+        "SystemOwnerSafe": "0x44e5a74148BFAf7713Bf3bA050896982e69bBFea"
+    }
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0x708c8e68f7cfc670783d848790a5503fb0a83580911760ca5762536bc0628969"
+}
+
+action "init" "ovm::setup_rollup" {
+    description = "Start the rollup"
+    l1_deployment_addresses = variable.l1_deployment_addresses
+
+    rollup_config {
+        l1_chain_id = 11155111
+        l2_chain_id = 42069
+        p2p_sequencer_address = "0x6bD1f2D7dC7D2825c1842742948833e9eBFAa53b"
+        batch_sender_address = "0xBBFe9114E6159C89571f0c8d7D2C177fCEe51B4E"
+        l2_output_oracle_proposer = "0x0246e8ACC16e29e8CC5E633815b504681371a177"
+        proxy_admin_owner = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
+        l1_block_time = 5
+    }
+
+    l1_rpc_kind = "infura"
+    sequencer_secret_key = "0xf044e9107ef8a741a2e958d03aa5e99a7c525c4eb74158917a80b70435de6198"
+    batcher_secret_key = "0xfe3d11cd8ccdfffd13130d4fdcd26e97db3ab4c9e043961c2923850b7034f4a1"
+    proposer_secret_key = "0xc51bcf8d6e1702999d5a2ed6e14baeb5cc1925df446457d86cb3ceca2d142a1f"
+}
+
+action "bridge_tokens" "evm::send_eth" {
+    description = "Bridge some tokens from L1 to L2"
+    recipient_address = "0x0C5C3aF1508278cbC536827a1cCb2f69195b7068"
+    amount = 1000000000000000000 // 1 eth
+    signer = signer.deployer
+
+    rpc_api_url = "http://localhost:9999"
+    chain_id = 11155111
+    confirmations = 20
+    depends_on = [action.init]
+}
+action "deploy_contract" "evm::deploy_contract" {
+    description = "Deploy the SimpleStorage contract to the L2"
+    contract = evm::get_contract_from_foundry_project("SimpleStorage")
+    signer = signer.deployer
+    
+    rpc_api_url = "http://localhost:8545"
+    chain_id = 42069
+    depends_on = [action.bridge_tokens]
+}
+
+action "package" "ovm::package_rollup" {
+    description = "Package the rollup"
+    rollup_container_ids = action.init.rollup_container_ids
+    depends_on = [action.deploy_contract]
+}
+
+output "contract_address" {
+    description = "The address of the deployed SimpleStorage contract"
+    value = action.deploy_contract.contract_address
+}

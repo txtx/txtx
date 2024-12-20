@@ -3,6 +3,7 @@ use jaq_interpret::Val;
 use serde::de::{self, Error, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
@@ -374,6 +375,13 @@ impl Value {
         }
     }
 
+    pub fn as_map(&self) -> Option<&Box<Vec<Value>>> {
+        match &self {
+            Value::Array(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn as_object(&self) -> Option<&IndexMap<String, Value>> {
         match &self {
             Value::Object(value) => Some(value),
@@ -496,6 +504,28 @@ impl Value {
         let bytes = self.to_bytes();
         Did::from_components(vec![bytes])
     }
+
+    pub fn to_json(&self) -> JsonValue {
+        let json = match self {
+            Value::Bool(b) => JsonValue::Bool(*b),
+            Value::Null => JsonValue::Null,
+            Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i as i64)),
+            Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
+            Value::String(s) => JsonValue::String(s.to_string()),
+            Value::Array(vec) => {
+                JsonValue::Array(vec.iter().map(|v| v.to_json()).collect::<Vec<JsonValue>>())
+            }
+            Value::Object(index_map) => JsonValue::Object(
+                index_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .collect::<Map<String, JsonValue>>(),
+            ),
+            Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
+            Value::Addon(_) => todo!(),
+        };
+        json
+    }
 }
 
 fn i128_to_u64(i128: i128) -> Result<u64, String> {
@@ -533,29 +563,74 @@ impl Value {
         }
     }
 
-    pub fn from_jaq_value(value: Val) -> Value {
-        match value {
-            Val::Null => Value::null(),
-            Val::Bool(val) => Value::bool(val),
-            Val::Num(val) => Value::integer(val.parse::<i128>().unwrap()),
-            Val::Int(val) => Value::integer(i128::try_from(val).unwrap()),
-            Val::Float(val) => Value::float(val),
-            Val::Str(val) => Value::string(val.to_string()),
-            Val::Arr(val) => {
-                let mut arr = vec![];
-                val.iter().for_each(|v| {
-                    arr.push(Value::from_jaq_value(v.clone()));
-                });
-                Value::array(arr)
+    /// The same as [Value::to_string], but strings are wrapped in double quotes.
+    /// This is useful for generating JSON-formatted strings.
+    /// I don't know if there are side effects to the [Value::to_string] method having
+    /// the double quoted strings, so I'm keeping this separate for now.
+    pub fn encode_to_string(&self) -> String {
+        match self {
+            Value::String(val) => format!(r#""{val}""#),
+            Value::Bool(val) => val.to_string(),
+            Value::Integer(val) => val.to_string(),
+            Value::Float(val) => val.to_string(),
+            Value::Null => "null".to_string(),
+            Value::Buffer(bytes) => {
+                format!(r#""0x{}""#, hex::encode(&bytes))
             }
-            Val::Obj(val) => {
-                let mut obj = IndexMap::new();
-                val.iter().for_each(|(k, v)| {
-                    obj.insert(k.to_string(), Value::from_jaq_value(v.clone()));
-                });
-                Value::Object(obj)
+            Value::Object(obj) => {
+                let mut res = "{".to_string();
+                let len = obj.len();
+                for (i, (k, v)) in obj.iter().enumerate() {
+                    res.push_str(&format!(
+                        r#"
+    "{}": {}{}"#,
+                        k,
+                        v.encode_to_string(),
+                        if i == (len - 1) { "" } else { "," }
+                    ));
+                }
+                res.push_str(&format!(
+                    r#"
+}}"#
+                ));
+                res
             }
+            Value::Array(array) => {
+                format!(
+                    "[{}]",
+                    array.iter().map(|e| e.encode_to_string()).collect::<Vec<_>>().join(", ")
+                )
+            }
+            Value::Addon(addon_value) => addon_value.encode_to_string(),
         }
+    }
+
+    pub fn from_jaq_value(value: &Val) -> Result<Value, String> {
+        let res = match value {
+            Val::Null => Value::null(),
+            Val::Bool(val) => Value::bool(*val),
+            Val::Num(val) => val
+                .parse::<i128>()
+                .map(Value::integer)
+                .map_err(|e| format!("Failed to parse number: {}", e))?,
+            Val::Int(val) => i128::try_from(*val)
+                .map(Value::integer)
+                .map_err(|e| format!("Failed to convert integer: {}", e))?,
+            Val::Float(val) => Value::float(*val),
+            Val::Str(val) => Value::string(val.to_string()),
+            Val::Arr(val) => Value::array(
+                val.iter()
+                    .map(|v| Value::from_jaq_value(v))
+                    .collect::<Result<Vec<Value>, String>>()?,
+            ),
+            Val::Obj(val) => ObjectType::from(
+                val.iter()
+                    .map(|(k, v)| Value::from_jaq_value(v).map(|v| (k.as_str(), v)))
+                    .collect::<Result<Vec<(&str, Value)>, String>>()?,
+            )
+            .to_value(),
+        };
+        Ok(res)
     }
     pub fn get_type(&self) -> Type {
         match self {
@@ -638,6 +713,9 @@ pub struct AddonData {
 impl AddonData {
     pub fn to_string(&self) -> String {
         format!("0x{}", hex::encode(&self.bytes))
+    }
+    pub fn encode_to_string(&self) -> String {
+        format!(r#""0x{}""#, hex::encode(&self.bytes))
     }
 }
 

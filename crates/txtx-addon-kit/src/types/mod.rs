@@ -295,7 +295,7 @@ pub trait WithEvaluatableInputs {
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Vec<Block>, Vec<Diagnostic>>;
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>>;
     fn get_expression_from_block(&self, block: &Block, prop: &ObjectProperty)
         -> Option<Expression>;
     fn get_expression_from_object(

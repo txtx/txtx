@@ -145,6 +145,14 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+        match self.inputs.get_expected_map(key) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_map(key).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         match self.inputs.get_expected_object(key) {
             Ok(val) => Ok(val),
@@ -184,9 +192,21 @@ impl ValueStore {
         self.inputs.get_array(key).or(self.defaults.get_array(key))
     }
 
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.inputs.get_map(key).or(self.defaults.get_map(key))
+    }
+
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.inputs.get_object(key).or(self.defaults.get_object(key))
+    }
+
     // Scoped values
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
         self.inputs.insert(&format!("{}:{}", scope, key), value);
+    }
+
+    pub fn clear_scoped_value(&mut self, scope: &str, key: &str) {
+        self.inputs.store.swap_remove(&format!("{}:{}", scope, key));
     }
 
     pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
@@ -292,6 +312,10 @@ impl ValueMap {
     pub fn new() -> ValueMap {
         Self { store: IndexMap::new() }
     }
+    pub fn with_store(mut self, store: &IndexMap<String, Value>) -> Self {
+        self.store = store.clone();
+        self
+    }
 
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.store.get(key) else {
@@ -345,6 +369,21 @@ impl ValueMap {
         let Some(value) = value.as_array() else {
             return Err(Diagnostic::error_from_string(format!(
                 "value associated with '{}' type mismatch: expected array",
+                key
+            )));
+        };
+        Ok(value)
+    }
+
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+        let Some(value) = self.store.get(key) else {
+            return Err(Diagnostic::error_from_string(
+                format!("unable to retrieve map '{}'", key,),
+            ));
+        };
+        let Some(value) = value.as_array() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "value associated with '{}' type mismatch: expected map",
                 key
             )));
         };
@@ -504,6 +543,14 @@ impl ValueMap {
 
     pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
         self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.store.get(key).and_then(|v| v.as_object())
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
