@@ -35,7 +35,7 @@ jobs:
           path: |
             ~/.cargo/
             ./target/wasm32-unknown-unknown/release/
-          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}
+          key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock') }}-${{ github.run_id }}
 
       - name: Build WASM for txtx-core
         run: cargo build --package txtx-core --release --locked --target wasm32-unknown-unknown --features wasm --no-default-features
