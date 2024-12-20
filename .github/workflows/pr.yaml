@@ -74,7 +74,7 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock', './crates/txtx-cli/build.rs', 'addons/evm/src/contracts/**') }}
 
       - name: Build Project
-        run: cargo build --all --release
+        run: cargo build --all --release --verbose
 
       - name: Run Tests
         run: cargo test --all
