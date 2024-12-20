@@ -26,7 +26,7 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::RPC_API_URL;
+use crate::constants::{CONTRACT_ABI, RPC_API_URL};
 use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 use txtx_addon_kit::constants::TX_HASH;
@@ -333,6 +333,9 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+            if let Some(contract_abi) = outputs.get_value(CONTRACT_ABI) {
+                result.outputs.insert(CONTRACT_ABI.to_string(), contract_abi.clone());
+            }
             let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
@@ -402,7 +405,7 @@ async fn build_unsigned_contract_call(
     let rpc = EvmRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
 
     let input = if let Some(abi_str) = contract_abi {
-        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
+        encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
             .map_err(to_diag_with_ctx)?
     } else {
         encode_contract_call_inputs_from_selector(function_name, &function_args)
@@ -445,7 +448,7 @@ pub fn encode_contract_call_inputs_from_selector(
     Ok(data)
 }
 
-pub fn encode_contract_call_inputs_from_abi(
+pub fn encode_contract_call_inputs_from_abi_str(
     abi_str: &str,
     function_name: &str,
     function_args: &Vec<DynSolValue>,
@@ -453,7 +456,15 @@ pub fn encode_contract_call_inputs_from_abi(
     let abi: JsonAbi =
         serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
 
-    let interface = Interface::new(abi);
+    encode_contract_call_inputs_from_abi(&abi, function_name, function_args)
+}
+
+pub fn encode_contract_call_inputs_from_abi(
+    abi: &JsonAbi,
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let interface = Interface::new(abi.clone());
     interface
         .encode_input(function_name, &function_args)
         .map_err(|e| format!("failed to encode contract inputs: {e}"))
