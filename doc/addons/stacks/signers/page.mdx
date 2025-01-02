@@ -1,0 +1,233 @@
+export const metadata = {
+    title: "Stacks Blockchain (rc1) Signers",
+    description: "Signers for Stacks Blockchain (rc1)",
+};
+
+# Stacks Blockchain (rc1) Signers {{ id: "stacks-signers" }}
+
+
+
+## secret_key {{ tag: 'signer' }}
+
+The `stacks::secret_key` signer can be used to synchronously sign a transaction.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="secret_key" type="">
+    The secret key used to sign messages and transactions.
+  </Property>
+
+
+  <Property name="mnemonic" type="">
+    The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.
+  </Property>
+
+
+  <Property name="derivation_path" type="">
+    The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.
+  </Property>
+
+
+  <Property name="is_encrypted" type="">
+    Coming soon
+  </Property>
+
+
+  <Property name="password" type="">
+    Coming soon
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `secret_key` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="public_key">
+    The public key of the account generated from the secret key.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using secret_key">
+
+
+```hcl {{ title: 'main.tx' }}
+// we can create a secret key signer by providing a mnemonic and computing the secret key
+signer "bob" "stacks::secret_key" {
+    mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
+    derivation_path = "m/44'/5757'/0'/0/0"
+}
+// or we can create one by providing the secret key directly
+signer "bob_again" "stacks::secret_key" {
+    secret_key = "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## web_wallet {{ tag: 'signer' }}
+
+The `stacks::web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+This allows a Runbook operator to sign the transaction with the browser signer of their choice.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="expected_address" type="">
+    The Stacks address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `web_wallet` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="address">
+    The address of the account generated from the public key.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using web_wallet">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "alice" "stacks::web_wallet" {
+    expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## multisig {{ tag: 'signer' }}
+
+The `multisig` signer creates an ordered, `n` of `n` multisig.
+Each of the specified signers can be any other supported signer type, and will be prompted to sign in the appropriate order.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="signers" type="">
+    A list of signers that make up the multisig.
+  </Property>
+
+
+  <Property name="expected_address" type="">
+    The multisig address that is expected to be created from combining the public keys of all parties. Omitting this field will allow any address to be used for this signer.
+  </Property>
+
+
+  <Property name="required_signatures" type="">
+    The number of signatures required. This value must be between 1 and the number of signers. If this value is equal to the number of signers, an `n` of `n` multisig address is generated. If this value is less than the number of signers, an `m` of `n` multisig address is generated. If omitted, the number of signers will be used.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `multisig` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signers">
+    The list of signers that make up the multisig.
+  </Property>
+
+
+  <Property name="address">
+    The address of the account generated from the public key.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using multisig">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "alice" "stacks::web_wallet" {
+    expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+
+signer "bob" "stacks::web_wallet" {
+    expected_address = "ST2NEB84ASENDXKYGJPQW86YXQCEFEX2ZQPG87ND"
+}
+
+signer "alice_and_bob" "stacks::multisig" {
+    signers = [signer.alice, signer.bob]
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+

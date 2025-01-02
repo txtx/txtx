@@ -1,0 +1,23 @@
+variable "url" {
+    value = "https://example.com"
+}
+action "get" "std::send_http_request" {
+    url = variable.url
+    method = "GET"
+}
+variable "get_status" {
+    value = action.get.status_code
+}
+output "get_status_out" {
+    value = variable.get_status
+}
+variable "post_status" {
+    value = action.post.status_code
+}
+output "post_status_out" {
+    value = variable.post_status
+}
+action "post" "std::send_http_request" {
+    url = variable.url
+    method = "POST"
+}

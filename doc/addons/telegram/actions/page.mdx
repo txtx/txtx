@@ -1,0 +1,147 @@
+export const metadata = {
+    title: "Telegram Notifications (alpha) Actions",
+    description: "Actions for Telegram Notifications (alpha)",
+};
+
+# Telegram Notifications (alpha) Actions {{ id: "telegram-actions" }}
+
+
+
+## send_message {{ tag: 'action' }}
+
+The `telegram::send_message` ...
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the call.
+  </Property>
+
+
+  <Property name="telegram_bot_api_token" type="required">
+    Coming soon
+  </Property>
+
+
+  <Property name="telegram_chat_id" type="required">
+    Coming soon
+  </Property>
+
+
+  <Property name="message" type="required">
+    Message to send.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `send_message` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="result">
+    The contract call result.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using send_message">
+
+
+```hcl {{ title: 'main.tx' }}
+action "notify_team" "telegram::send_message" {
+    description = "Notify team"
+    message = "myFunction"
+    telegram_bot_api_token = env.telegram_bot_api_token
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## setup_chat {{ tag: 'action' }}
+
+The `telegram::setup_chat` ...
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the call.
+  </Property>
+
+
+  <Property name="telegram_bot_api_token" type="required">
+    Coming soon
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `setup_chat` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="result">
+    The chat_id.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using setup_chat">
+
+
+```hcl {{ title: 'main.tx' }}
+action "setup_bot_chat" "telegram::setup_chat" {
+    description = "Handshake"
+    telegram_bot_api_token = env.telegram_bot_api_token
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+

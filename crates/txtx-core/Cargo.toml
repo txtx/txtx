@@ -1,0 +1,41 @@
+[package]
+name = "txtx-core"
+description = "Primitives for parsing, analyzing and executing Txtx runbooks"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+daggy = "0.8.0"
+base64 = "0.22.1"
+# txtx-addon-kit = { version = "0.1", optional = true }
+txtx-addon-kit = { workspace = true, default-features = false}
+getrandom = { version = "0.2", features = ["js"] }
+lazy_static = "1.4.0"
+jaq-interpret = "1.2.1"
+jaq-parse = "1.0.2"
+serde_json = { version = "1", features = ["preserve_order"] } 
+petgraph = "0.6.5"
+libsecp256k1 = "0.7.0"
+ripemd = "0.1.3"
+serde = "1"
+serde_derive = "1"
+serde_yml = "0.0.11"
+chrono = "0.4.38"
+similar = "2.5.0"
+better-debug = "1.0.1"
+
+[dev-dependencies]
+txtx-test-utils = {path = "../../crates/txtx-test-utils"}
+tokio = "1.37.0"
+test-case = "3.3"
+
+[features]
+default = ["txtx-addon-kit/default"]
+wasm = ["txtx-addon-kit/wasm"]
+
+[lib]
+crate-type = ["lib", "cdylib"] 

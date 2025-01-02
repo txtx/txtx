@@ -1,0 +1,20 @@
+[package]
+name = "txtx-test-utils"
+version = "0.1.0"
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+txtx-addon-kit = { workspace = true, default-features = false }
+txtx-core = { workspace = true, default-features = false}
+hiro-system-kit = "0.3.4"
+
+[dev-dependencies]
+test-case = "*"
+hiro-system-kit = "0.3.4"
+

@@ -1,0 +1,9 @@
+variable "n" {
+    description = "Number of Fibonacci round to execute"
+    value = "10"
+}
+
+variable "fibonacci_contract" {
+    description = "The fibonacci contrat artifacts"
+    value = evm::get_contract_from_foundry_project("Fibonacci", "contracts/foundry.toml")
+}

@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Stacks Blockchain (beta) Functions",
-    description: "Functions for Stacks Blockchain (beta)",
+    title: "Stacks Blockchain (rc1) Functions",
+    description: "Functions for Stacks Blockchain (rc1)",
 };
 
-# Stacks Blockchain (beta) Functions {{ id: "stacks-functions" }}
+# Stacks Blockchain (rc1) Functions {{ id: "stacks-functions" }}
 
 
 ## cv_some {{ tag: 'function' }}
@@ -534,7 +534,7 @@ output "my_tuple" {
 
 ```hcl {{ title: 'main.tx' }}
 output "my_buffer" { 
-  value = stacks::cv_buff("0x010203")
+  value = stacks::cv_buff("0x010203") 
 }
 // > my_buffer: 0x0200000003010203
 
@@ -561,7 +561,7 @@ output "my_buffer" {
 <Row>
   <Col>
 
-Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.
+`stacks::cv_ok` returns the given Clarity value wrapped in an `Ok` Clarity type.
 
 ### Inputs
 
@@ -588,7 +588,11 @@ Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok`
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+output "ok" { 
+  value = stacks::cv_ok(1) 
+}
+// > ok: 0x070100000000000000000000000000000001
+
 ```
 
 
@@ -612,7 +616,7 @@ Coming soon - `stacks::cv_ok` returns the given Clarity value wrapped in an `Ok`
 <Row>
   <Col>
 
-Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.
+`stacks::cv_err` returns the given Clarity value wrapped in an `Err` Clarity type.
 
 ### Inputs
 
@@ -639,7 +643,11 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+output "err" { 
+  value = stacks::cv_err(1) 
+}
+// > err: 0x080100000000000000000000000000000001
+
 ```
 
 
@@ -671,7 +679,7 @@ Coming soon - `stacks::cv_err` returns the given Clarity value wrapped in an `Er
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -704,7 +712,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_sends_more_than("origin", 100)]
+    post_condition = [stacks::revert_if_account_sends_more_than("signer", 100)]
 }
 
 ```
@@ -738,7 +746,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -771,7 +779,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_not_sending_exactly("origin", 100)]
+    post_condition = [stacks::revert_if_account_not_sending_exactly("signer", 100)]
 }
 
 ```
@@ -805,7 +813,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="account_address">
-    The address of the account that the post condition will check. Use `"origin"` to apply this post condition to the transaction sender.
+    The address of the account that the post condition will check. Use `"signer"` to apply this post condition to the transaction sender.
   </Property>
 
 
@@ -838,7 +846,7 @@ action "my_tx" "stacks::call_contract" {
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.some-contract"
     function_name = "some-function"
     function_args = []
-    post_condition = [stacks::revert_if_account_not_sending_at_least("origin", 100)]
+    post_condition = [stacks::revert_if_account_not_sending_at_least("signer", 100)]
 }
 
 ```
@@ -877,7 +885,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check ({{principal}}.{{contract_name}}::{{non_fungible_storage}}).
+    The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).
   </Property>
 
 
@@ -950,7 +958,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="contract_asset_id">
-    The NFT Contract Asset Id to check ({{principal}}.{{contract_name}}::{{non_fungible_storage}}).
+    The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).
   </Property>
 
 
@@ -1004,12 +1012,12 @@ action "my_tx" "stacks::call_contract" {
 ---
 
 
-## decode_ok {{ tag: 'function' }}
+## decode_response {{ tag: 'function' }}
 
 <Row>
   <Col>
 
-`stacks::decode_ok` returns the inner value as a Clarity buffer.
+`stacks::decode_response` returns the inner value of a Clarity Response as a Clarity buffer.
 
 ### Inputs
 
@@ -1017,7 +1025,7 @@ action "my_tx" "stacks::call_contract" {
 
 
   <Property name="clarity_value">
-    Any valid Clarity value.
+    Any Clarity Response (`(ok <inner>)` or `(err <inner>)`) type.
   </Property>
 
 
@@ -1027,16 +1035,89 @@ action "my_tx" "stacks::call_contract" {
 
 <Properties>
   <Property name="value">
-    The inner value that was wrapped in an `(ok <inner>)` Clarity type.
+    The inner value that was wrapped in a Clarity Response type.
   </Property>
 </Properties>
 
 
-<CodeGroup title="Example using decode_ok">
+<CodeGroup title="Example using decode_response">
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming soon 
+variable "ok_uint" {
+    value = stacks::cv_ok(1)
+}
+output "ok" {
+    value = variable.ok_uint
+}
+output "decoded_ok" {
+    value = stacks::decode_response(variable.ok_uint)
+} 
+// > ok: 0x070100000000000000000000000000000001
+// > decoded_ok: 0x0100000000000000000000000000000001
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_contract_from_clarinet_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`stacks::get_contract_from_clarinet_project` retrieves the source of a contract present in a Clarinet manifest.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="contract_name">
+    Contract name of the contract source to fetch.
+  </Property>
+
+
+  <Property name="clarinet_manifest_path">
+    The path of the Clarinet.toml file. Defaults to `./Clarinet.toml`.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The source code of the contract
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_contract_from_clarinet_project">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "contract_source" {
+    value = stacks::get_contract_from_clarinet_project("my-contract")
+}
+output "contract_source" {
+    value = variable.contract_source
+}
+
 ```
 
 

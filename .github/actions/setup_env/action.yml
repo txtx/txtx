@@ -1,0 +1,19 @@
+name: Setup Environment Variables
+description: Set up the txtx .env file.
+
+inputs:
+  infura_api_key:
+    description: 'The Infura API key'
+    required: true
+    
+runs:
+  using: 'composite'
+  steps:
+    - run: |
+        touch .env
+        echo RELAYER_BASE_URL="https://txtx.link" >> .env
+        echo RELAYER_HOST="txtx.link" >> .env
+        echo INFURA_API_KEY="${{ inputs.INFURA_API_KEY }}" >> .env
+        echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
+        cat .env
+      shell: bash

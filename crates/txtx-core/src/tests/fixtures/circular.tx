@@ -1,0 +1,6 @@
+variable "a" {
+    value = variable.b
+}
+variable "b" {
+    value = variable.a
+}
