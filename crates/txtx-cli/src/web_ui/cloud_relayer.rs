@@ -81,7 +81,7 @@ pub async fn open_channel(
     graph_context: Data<GraphContext>,
 ) -> actix_web::Result<HttpResponse> {
     println!("POST /api/v1/channels");
-    let Some(cookie) = req.cookie("hanko") else {
+    let Some(cookie) = req.cookie("nhost") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
     };
 
@@ -114,12 +114,19 @@ pub async fn open_channel(
         .send()
         .await
         .map_err(ErrorInternalServerError)?;
+
+    if let Err(e) = res.error_for_status_ref() {
+        let msg = res.text().await.unwrap_or_default();
+        return Ok(HttpResponseBuilder::new(
+            StatusCode::from_u16(e.status().map(|s| s.as_u16()).unwrap_or(500))
+                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+        )
+        .body(msg));
+    }
+
     let body = match res.status() {
         ReqwestStatusCode::OK => {
             res.json::<OpenChannelResponse>().await.map_err(ErrorInternalServerError)?
-        }
-        ReqwestStatusCode::UNAUTHORIZED => {
-            return Ok(HttpResponse::Unauthorized().body("Unauthorized"))
         }
         _ => return Ok(HttpResponse::InternalServerError().body("Internal Server Error")),
     };
@@ -162,7 +169,7 @@ pub async fn delete_channel(
     payload: Json<DeleteChannelRequest>,
 ) -> actix_web::Result<HttpResponse> {
     println!("DELETE /api/v1/channels");
-    let Some(cookie) = req.cookie("hanko") else {
+    let Some(cookie) = req.cookie("nhost") else {
         return Ok(HttpResponse::Unauthorized().body("No auth data provided"));
     };
 
@@ -316,9 +323,6 @@ pub async fn start_relayer_event_runloop(
                         if let Some(channel_data) = channel_data.read().await.clone() {
                             let _ = send_delete_channel(&channel_data.operator_token, Json(DeleteChannelRequest { slug: channel_data.slug })).await;
                         }
-
-
-
                         break;
                     }
                 }
@@ -381,8 +385,7 @@ impl RelayerWebSocketChannel {
             Some(tokio_tungstenite::Connector::NativeTls(TlsConnector::new().unwrap())),
         )
         .await
-        .map_err(|e| format!("relayer ws channel failed: {}", e))
-        .unwrap();
+        .map_err(|e| format!("relayer ws channel failed: {}", e))?;
 
         let (write, mut read) = ws_stream.split();
 

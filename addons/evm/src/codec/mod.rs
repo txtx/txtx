@@ -1,3 +1,4 @@
+pub mod contract_deployment;
 pub mod crypto;
 pub mod foundry;
 pub mod hardhat;
@@ -6,21 +7,23 @@ use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EvmRpc;
 use crate::typing::{
-    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
+    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256,
+    EVM_UINT32, EVM_UINT8,
 };
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
-use alloy::primitives::{keccak256, Address, Keccak256, TxKind, U256, U32};
+use alloy::primitives::{Address, FixedBytes, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
-use alloy_rpc_types::AccessList;
+use alloy_rpc_types::{AccessList, Log};
+use contract_deployment::AddressAbiMap;
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::types::{ObjectType, Value};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionType {
@@ -236,11 +239,16 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
                 DynSolValue::Address(Address::from_slice(&addon.bytes))
             } else if addon.id == EVM_BYTES32 {
                 DynSolValue::FixedBytes(Word::from_slice(&addon.bytes), 32)
+            } else if addon.id == EVM_UINT256 {
+                DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 256)
             } else if addon.id == EVM_UINT32 {
                 DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 32)
             } else if addon.id == EVM_UINT8 {
                 DynSolValue::Uint(U256::from_be_slice(&addon.bytes), 8)
-            } else if addon.id == EVM_BYTES || addon.id == EVM_INIT_CODE {
+            } else if addon.id == EVM_BYTES
+                || addon.id == EVM_INIT_CODE
+                || addon.id == EVM_FUNCTION_CALL
+            {
                 DynSolValue::Bytes(addon.bytes.clone())
             } else {
                 return Err(format!("unsupported addon type for encoding sol value: {}", addon.id));
@@ -257,7 +265,7 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Int(value, _) => Value::integer(value.as_i64() as i128),
         DynSolValue::Uint(value, _) => Value::integer(value.to::<u64>() as i128),
         DynSolValue::FixedBytes(_, _) => todo!(),
-        DynSolValue::Address(value) => EvmValue::address(value.0 .0.to_vec()),
+        DynSolValue::Address(value) => EvmValue::address(&value),
         DynSolValue::Function(_) => todo!(),
         DynSolValue::Bytes(_) => todo!(),
         DynSolValue::String(value) => Value::string(value.clone()),
@@ -277,37 +285,6 @@ pub fn string_to_address(address_str: String) -> Result<Address, String> {
     }
     let address = Address::from_hex(&address_str).map_err(|e| format!("invalid address: {}", e))?;
     Ok(address)
-}
-
-pub fn salt_str_to_hex(salt: &str) -> Result<Vec<u8>, String> {
-    let salt = hex::decode(salt).map_err(|e| format!("failed to decode salt: {e}"))?;
-    if salt.len() != 32 {
-        return Err("salt must be a 32-byte string".into());
-    }
-    Ok(salt)
-}
-
-pub fn generate_create2_address(
-    factory_address: &Value,
-    salt: &str,
-    init_code: &Vec<u8>,
-) -> Result<Address, String> {
-    let Some(factory_address_bytes) = factory_address.try_get_buffer_bytes() else {
-        return Err("failed to generate create2 address: invalid create2 factory address".into());
-    };
-    let salt_bytes =
-        salt_str_to_hex(salt).map_err(|e| format!("failed to generate create2 address: {e}"))?;
-
-    let init_code_hash = keccak256(&init_code);
-    let mut hasher = Keccak256::new();
-    hasher.update(&[0xff]);
-    hasher.update(factory_address_bytes);
-    hasher.update(&salt_bytes);
-    hasher.update(&init_code_hash);
-
-    let result = hasher.finalize();
-    let address_bytes = &result[12..32];
-    Ok(Address::from_slice(&address_bytes))
 }
 
 pub fn typed_transaction_bytes(typed_transaction: &TypedTransaction) -> Vec<u8> {
@@ -403,4 +380,73 @@ pub async fn get_transaction_cost(
 
 pub fn format_transaction_cost(cost: i128) -> Result<String, String> {
     format_units(cost, "wei").map_err(|e| format!("failed to format cost: {e}"))
+}
+
+/// Decodes logs using the provided ABI map.
+/// The ABI map should be a [Value::Array] of [Value::Object]s, where each object has keys "address" (storing an [EvmValue::address]) and "abis" (storing a [Value::array] or abi strings).
+pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, String> {
+    let abi_map = AddressAbiMap::parse_value(abi_map)
+        .map_err(|e| format!("invalid abis for transaction: {e}"))?;
+
+    let logs = logs
+        .iter()
+        .filter_map(|log| {
+            let log_address = log.address();
+
+            let Some(abis) = abi_map.get(&log_address) else {
+                return None;
+            };
+            let topics = log.inner.topics();
+            let Some(first_topic) = topics.first() else { return None };
+            let Some(matching_event) =
+                abis.iter().find_map(|abi| abi.events().find(|e| e.selector().eq(first_topic)))
+            else {
+                return None;
+            };
+            match topics[1..]
+                .iter()
+                .enumerate()
+                .filter_map(|(i, t)| {
+                    let Some(input) = matching_event.inputs.get(i) else {
+                        return None;
+                    };
+                    let ty = input.ty.clone();
+                    match parse_fixed_bytes_to_typed_value(&ty, t) {
+                        Ok(value) => Some(Ok((input.name.as_ref(), value))),
+                        Err(e) => Some(Err(e)),
+                    }
+                })
+                .collect::<Result<Vec<(&str, Value)>, String>>()
+            {
+                Ok(values) => {
+                    let obj = ObjectType::from(vec![
+                        ("event_name", Value::string(matching_event.name.clone())),
+                        ("log_address", EvmValue::address(&log_address)),
+                        ("data", ObjectType::from(values).to_value()),
+                    ]);
+                    return Some(Ok(obj.to_value()));
+                }
+                Err(e) => return Some(Err(e)),
+            };
+        })
+        .collect::<Result<Vec<Value>, String>>()?;
+    Ok(logs)
+}
+
+/// Takes an expected sol type and a fixed bytes value and returns an [EvmValue].
+fn parse_fixed_bytes_to_typed_value(
+    sol_type: &str,
+    value: &FixedBytes<32>,
+) -> Result<Value, String> {
+    match sol_type {
+        "address" => Ok(EvmValue::address(&Address::from_word(*value))),
+        "bytes32" => Ok(EvmValue::bytes32(value.0.to_vec())),
+        "uint256" => Ok(EvmValue::uint256(value.0.to_vec())),
+        "uint32" => Ok(EvmValue::uint32(value.0.to_vec())),
+        "uint8" => Ok(EvmValue::uint8(value.0.to_vec())),
+        "bytes" => Ok(EvmValue::bytes(value.0.to_vec())),
+        "bool" => Ok(Value::bool(value.0[31] != 0)),
+        "bytes[]" => Ok(EvmValue::bytes(value.0.to_vec())),
+        other => Err(format!("unsupported sol type for decoding: {}", other)),
+    }
 }

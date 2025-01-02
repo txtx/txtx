@@ -3,6 +3,7 @@ use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
+use std::u64;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -28,8 +29,7 @@ use txtx_addon_kit::types::{
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID,
-    FORMATTED_TRANSACTION, NONCE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
-    TX_HASH,
+    FORMATTED_TRANSACTION, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES, TX_HASH,
 };
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
@@ -38,6 +38,8 @@ use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
 
 use crate::constants::PUBLIC_KEYS;
 use crate::signers::namespaced_err_fn;
+
+use super::common::set_signer_nonce;
 
 lazy_static! {
     pub static ref EVM_SECRET_KEY_SIGNER: SignerSpecification = define_signer! {
@@ -325,6 +327,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 )
             })?;
             let tx_nonce = tx_envelope.nonce();
+            let tx_chain_id = tx_envelope.chain_id().unwrap();
 
             let rpc = EvmWalletRpc::new(&rpc_api_url, eth_signer)
                 .map_err(|e| signer_err(&signers, &signer_state, e))?;
@@ -334,7 +337,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 .map_err(|e| signer_err(&signers, &signer_state, e.to_string()))?;
 
             result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
-            signer_state.insert(NONCE, Value::integer(tx_nonce.into()));
+            set_signer_nonce(&mut signer_state, tx_chain_id, tx_nonce);
             Ok((signers, signer_state, result))
         };
         Ok(Box::pin(future))
