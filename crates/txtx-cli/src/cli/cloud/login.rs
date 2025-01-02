@@ -13,7 +13,7 @@ use txtx_core::kit::{channel, reqwest};
 use crate::cli::{Context, LoginCommand};
 
 use super::{AuthConfig, AuthUser};
-use crate::cli::auth::{AUTH_CALLBACK_PORT, AUTH_SERVICE_URL};
+use crate::cli::cloud::{AUTH_CALLBACK_PORT, AUTH_SERVICE_URL};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

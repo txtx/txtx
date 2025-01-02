@@ -4,7 +4,7 @@ use dotenvy_macro::dotenv;
 use serde::{Deserialize, Serialize};
 use txtx_core::kit::reqwest;
 
-use super::{AuthCommand, Context};
+use super::{CloudCommand, Context};
 
 pub mod login;
 
@@ -101,8 +101,8 @@ pub struct AuthUser {
     display_name: String,
 }
 
-pub async fn handle_auth_command(cmd: &AuthCommand, _ctx: &Context) -> Result<(), String> {
+pub async fn handle_auth_command(cmd: &CloudCommand, _ctx: &Context) -> Result<(), String> {
     match cmd {
-        AuthCommand::Login(login_command) => login::handle_login_command(login_command, _ctx).await,
+        CloudCommand::Login(login_command) => login::handle_login_command(login_command, _ctx).await,
     }
 }

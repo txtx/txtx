@@ -4,7 +4,7 @@ use hiro_system_kit::{self, Logger};
 use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
 use std::process;
 
-mod auth;
+mod cloud;
 mod docs;
 mod lsp;
 mod runbooks;
@@ -68,12 +68,12 @@ enum Command {
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
     /// Authentication management
-    #[clap(subcommand, name = "auth", bin_name = "auth")]
-    Auth(AuthCommand),
+    #[clap(subcommand, name = "cloud", bin_name = "cloud")]
+    Cloud(CloudCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
-pub enum AuthCommand {
+pub enum CloudCommand {
     #[clap(name = "login", bin_name = "login")]
     Login(LoginCommand),
 }
@@ -280,7 +280,7 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
-        Command::Auth(cmd) => auth::handle_auth_command(&cmd, ctx).await?,
+        Command::Cloud(cmd) => cloud::handle_auth_command(&cmd, ctx).await?,
     }
     Ok(())
 }
