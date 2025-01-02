@@ -274,6 +274,7 @@ pub struct EmbeddedRunbookInstanceSpecification {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EmbeddedRunbookInputSpecification {
     Value(EmbeddedRunbookValueInputSpecification),
     Signer(EmbeddedRunbookSignerInputSpecification),
