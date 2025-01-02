@@ -28,6 +28,7 @@ chrono = "0.4.38"
 similar = "2.5.0"
 better-debug = "1.0.1"
 serde_with = "3.11.0"
+jsonschema = "0.26.2"
 
 [dev-dependencies]
 txtx-test-utils = {path = "../../crates/txtx-test-utils"}
