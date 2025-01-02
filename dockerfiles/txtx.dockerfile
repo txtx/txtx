@@ -8,7 +8,7 @@ RUN rustup update 1.75.0 && rustup default 1.75.0
 
 COPY ./txtx /src/txtx
 
-COPY ./txtx-web-ui /src/txtx-web-ui
+COPY ./txtx-supervisor-ui /src/txtx-supervisor-ui
 
 WORKDIR /src/txtx
 
