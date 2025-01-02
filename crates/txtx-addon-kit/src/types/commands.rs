@@ -34,7 +34,7 @@ use super::{
     },
     stores::ValueMap,
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    ConstructDid, Did, PackageId,
+    ConstructDid, Did, EvaluatableInput, PackageId, WithEvaluatableInputs,
 };
 
 #[derive(Clone, Debug)]
@@ -220,63 +220,30 @@ pub struct CommandInput {
     pub sensitive: bool,
     pub internal: bool,
 }
+impl EvaluatableInput for CommandInput {
+    fn optional(&self) -> bool {
+        self.optional
+    }
+    fn typing(&self) -> &Type {
+        &self.typing
+    }
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+}
 
 impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
-        match &self.typing {
-            Type::Object(spec) => Some(spec),
-            Type::Addon(_) => None,
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_object()
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(_) => None,
-            Type::Array(array) => Some(array),
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_array()
     }
     pub fn as_action(&self) -> Option<&String> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(addon) => Some(addon),
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Map(_) => None,
-        }
+        self.typing.as_action()
     }
     pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
-        match &self.typing {
-            Type::Map(spec) => Some(spec),
-            Type::Addon(_) => None,
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-            Type::Object(_) => None,
-        }
+        self.typing.as_map()
     }
     pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
         self.typing.check_value(value).map_err(|e| {
@@ -579,10 +546,23 @@ pub trait CompositeCommandImplementation {
 pub enum CommandInstanceType {
     Variable,
     Output,
-    Action,
+    Action(String),
     Prompt,
     Module,
     Addon,
+}
+
+impl CommandInstanceType {
+    pub fn to_ident(&self) -> &str {
+        match self {
+            CommandInstanceType::Variable => "variable",
+            CommandInstanceType::Output => "output",
+            CommandInstanceType::Action(_) => "action",
+            CommandInstanceType::Prompt => "prompt",
+            CommandInstanceType::Module => "module",
+            CommandInstanceType::Addon => "addon",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -611,6 +591,91 @@ impl Serialize for CommandInstance {
         ser.serialize_field("namespace", &self.namespace)?;
         ser.serialize_field("typing", &self.typing)?;
         ser.end()
+    }
+}
+
+impl WithEvaluatableInputs for CommandInstance {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
+    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input_name, &self.block)
+    }
+
+    fn get_blocks_for_map(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+        input_optional: bool,
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
+        let mut entries = vec![];
+
+        match &input_typing {
+            Type::Map(_) => {
+                for block in self.block.body.get_blocks(&input_name) {
+                    entries.push(block.clone());
+                }
+            }
+            _ => {
+                unreachable!()
+            }
+        };
+        if entries.is_empty() {
+            if !input_optional {
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "command '{}' (type '{}') is missing value for object '{}'",
+                    self.name, self.specification.matcher, input_name
+                ))]);
+            } else {
+                return Ok(None);
+            }
+        }
+        Ok(Some(entries))
+    }
+
+    fn get_expression_from_block(
+        &self,
+        block: &Block,
+        prop: &ObjectProperty,
+    ) -> Option<Expression> {
+        visit_optional_untyped_attribute(&prop.name, &block)
+    }
+
+    fn get_expression_from_object(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+        match &input_typing {
+            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input_name, &self.block)),
+            _ => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') expected object for input '{}'",
+                self.name, self.specification.matcher, input_name
+            ))]),
+        }
+    }
+
+    fn get_expression_from_object_property(
+        &self,
+        input_name: &str,
+        prop: &ObjectProperty,
+    ) -> Option<Expression> {
+        let expr = visit_optional_untyped_attribute(&input_name, &self.block);
+        match expr {
+            Some(expr) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = get_object_expression_key(object_expr, &prop.name);
+                match expr_res {
+                    Some(expression) => Some(expression.expr().clone()),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    }
+    fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
+        self.specification.inputs.iter().map(|x| x.clone()).collect()
     }
 }
 
@@ -702,87 +767,11 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input.name, &self.block)
-    }
-
     pub fn get_group(&self) -> String {
         let Some(group) = self.block.body.get_attribute("group") else {
             return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
-    }
-
-    pub fn get_blocks_for_map(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
-        let mut entries = vec![];
-
-        match &input.typing {
-            Type::Map(_) => {
-                for block in self.block.body.get_blocks(&input.name) {
-                    entries.push(block.clone());
-                }
-            }
-            _ => {
-                unreachable!()
-            }
-        };
-
-        if entries.is_empty() {
-            if !input.optional {
-                return Err(vec![Diagnostic::error_from_string(format!(
-                    "command '{}' (type '{}') is missing value for object '{}'",
-                    self.name, self.specification.matcher, input.name
-                ))]);
-            } else {
-                return Ok(None);
-            }
-        } else {
-            Ok(Some(entries))
-        }
-    }
-
-    pub fn get_expression_from_block(
-        &self,
-        block: &Block,
-        prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        visit_optional_untyped_attribute(&prop.name, &block)
-    }
-
-    pub fn get_expression_from_object(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        match &input.typing {
-            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input.name, &self.block)),
-            _ => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') expected object for input '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
-    }
-
-    pub fn get_expression_from_object_property(
-        &self,
-        input: &CommandInput,
-        prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        let expr = visit_optional_untyped_attribute(&input.name, &self.block);
-        match expr {
-            Some(expr) => {
-                let object_expr = expr.as_object().unwrap();
-                let expr_res = get_object_expression_key(object_expr, &prop.name);
-                match expr_res {
-                    Some(expression) => Some(expression.expr().clone()),
-                    None => None,
-                }
-            }
-            None => None,
-        }
     }
 
     pub fn check_executability(

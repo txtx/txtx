@@ -1,4 +1,4 @@
-use kit::types::block_id::BlockId;
+use kit::{types::block_id::BlockId, Addon};
 use txtx_addon_kit::types::{
     frontend::{
         ActionItemResponse, ActionItemResponseType, ActionItemStatus, ProvidedInputResponse,
@@ -8,12 +8,24 @@ use txtx_addon_kit::types::{
 };
 use txtx_test_utils::test_harness::setup_test;
 
+use crate::std::StdAddon;
+
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new())];
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
+}
+
 #[test]
 fn test_ab_c_runbook_no_env() {
     // Load Runbook ab_c.tx
     let abc_tx = include_str!("./fixtures/ab_c.tx");
 
-    let harness = setup_test("ab_c.tx", &abc_tx, vec![]);
+    let harness = setup_test("ab_c.tx", &abc_tx, get_addon_by_namespace);
 
     // runbook checklist assertions
     {

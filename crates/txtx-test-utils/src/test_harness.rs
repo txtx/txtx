@@ -213,7 +213,7 @@ pub fn runbook_sources_from_fixture(filename: &str, fixture: &str) -> RunbookSou
 pub async fn build_runbook_from_fixture(
     file_name: &str,
     fixture: &str,
-    available_addons: Vec<Box<dyn Addon>>,
+    get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
 ) -> Result<Runbook, Vec<Diagnostic>> {
     let runbook_sources = runbook_sources_from_fixture(file_name, fixture);
     let runbook_inputs = RunbookTopLevelInputsMap::new();
@@ -227,7 +227,7 @@ pub async fn build_runbook_from_fixture(
             runbook_sources,
             runbook_inputs,
             authorization_context,
-            available_addons,
+            get_addon_by_namespace,
         )
         .await?;
     Ok(runbook)
@@ -236,9 +236,9 @@ pub async fn build_runbook_from_fixture(
 pub fn setup_test(
     file_name: &str,
     fixture: &str,
-    available_addons: Vec<Box<dyn Addon>>,
+    get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
 ) -> TestHarness {
-    let future = build_runbook_from_fixture(file_name, fixture, available_addons);
+    let future = build_runbook_from_fixture(file_name, fixture, get_addon_by_namespace);
     let mut runbook = block_on(future).expect("unable to build runbook from fixture");
 
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();

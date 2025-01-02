@@ -20,7 +20,10 @@ use txtx_addon_network_svm::SvmNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
-use txtx_core::kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore};
+use txtx_core::{
+    kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
+    runbook::embedded_runbook::publishable::PublishableEmbeddedRunbookSpecification,
+};
 use txtx_core::{
     kit::{
         channel::{self, unbounded},
@@ -49,10 +52,11 @@ use txtx_core::{
         RunbookTopLevelInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
+    std::StdAddon,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks, PublishRunbook};
 use crate::{
     cli::templates::{build_manifest_data, build_runbook_data},
     web_ui::{
@@ -68,6 +72,7 @@ pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
+        Box::new(StdAddon::new()),
         Box::new(SvmNetworkAddon::new()),
         Box::new(StacksNetworkAddon::new()),
         Box::new(EvmNetworkAddon::new()),
@@ -78,6 +83,15 @@ pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
         #[cfg(feature = "ovm")]
         Box::new(OvmNetworkAddon::new()),
     ]
+}
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons = get_available_addons();
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
 }
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
@@ -200,18 +214,83 @@ pub fn display_snapshot_diffing(
     Some(consolidated_changes)
 }
 
+pub async fn handle_publish_command(
+    cmd: &PublishRunbook,
+    buffer_stdin: Option<String>,
+    _ctx: &Context,
+) -> Result<(), String> {
+    let (manifest, _runbook_name, mut runbook, _runbook_state) = load_runbook_from_manifest(
+        &cmd.manifest_path,
+        &cmd.runbook,
+        &cmd.environment,
+        &cmd.inputs,
+        buffer_stdin,
+    )
+    .await?;
+
+    {
+        let run = runbook.flow_contexts.first_mut().expect("no flow contexts found");
+        let frontier = HashSet::new();
+        let _res = run
+            .execution_context
+            .simulate_execution(
+                &runbook.runtime_context,
+                &run.workspace_context,
+                &runbook.supervision_context,
+                &frontier,
+            )
+            .await;
+    }
+
+    let publishable = PublishableEmbeddedRunbookSpecification::build_from_runbook(&runbook)
+        .map_err(|diag| {
+            format!("failed to build publishable version of runbook: {}", diag.message)
+        })?;
+
+    let publishable = serde_json::to_vec_pretty(&publishable)
+        .map_err(|e| format!("failed to publish runbook: {}", e))?;
+
+    let dest = match &cmd.destination {
+        None => {
+            let mut dest = match manifest.location {
+                Some(location) => location
+                    .get_parent_location()
+                    .map_err(|e| format!("unable to create destination path: {}", e))?,
+                None => FileLocation::working_dir(),
+            };
+            dest.append_path(&format!("{}.output.json", runbook.runbook_id.name))
+                .map_err(|e| format!("unable to create destination path: {}", e))?;
+            dest
+        }
+        Some(dest) => FileLocation::from_path_string(&dest)
+            .map_err(|e| format!("unable to create destination path: {}", e))?,
+    };
+
+    dest.write_content(&publishable)
+        .map_err(|e| format!("unable to write to destination: {}", e))?;
+
+    match &dest {
+        FileLocation::FileSystem { .. } => {
+            println!("{} {}", green!("Created file"), dest.to_string())
+        }
+        FileLocation::Url { url } => {
+            println!("{} {}", green!("Published runbook to"), url.to_string())
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn handle_check_command(
     cmd: &CheckRunbook,
     buffer_stdin: Option<String>,
     _ctx: &Context,
 ) -> Result<(), String> {
-    let available_addons = get_available_addons();
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
-        available_addons,
         buffer_stdin,
     )
     .await?;
@@ -521,7 +600,6 @@ pub async fn handle_run_command(
         &cmd.runbook,
         &cmd.environment,
         &cmd.inputs,
-        available_addons,
         buffer_stdin.clone(),
     )
     .await;
@@ -1149,7 +1227,6 @@ pub async fn load_runbook_from_manifest(
     desired_runbook_name: &str,
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
-    available_addons: Vec<Box<dyn Addon>>,
     buffer_stdin: Option<String>,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
     let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
@@ -1173,7 +1250,7 @@ pub async fn load_runbook_from_manifest(
                     runbook_sources,
                     top_level_inputs_map,
                     authorization_context,
-                    available_addons,
+                    get_addon_by_namespace,
                 )
                 .await;
             if let Err(diags) = res {
@@ -1200,14 +1277,13 @@ pub async fn load_runbook_from_file_path(
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookTopLevelInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
-    let available_addons = get_available_addons();
     let authorization_context = AuthorizationContext::new(location);
     let res = runbook
         .build_contexts_from_sources(
             runbook_sources,
             inputs_map,
             authorization_context,
-            available_addons,
+            get_addon_by_namespace,
         )
         .await;
     if let Err(diags) = res {
