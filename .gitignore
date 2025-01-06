@@ -1,6 +1,8 @@
 /target
 .DS_Store
 .btcdeb_history
+crates/txtx-supervisor-ui/node_modules
+crates/txtx-supervisor-ui/.parcel-cache
 .env
 addons/evm/src/tests/fixtures/foundry/out/build-info
 addons/evm/src/contracts/out
