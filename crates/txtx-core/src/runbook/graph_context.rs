@@ -172,6 +172,45 @@ impl RunbookGraphContext {
                     }
                 }
             }
+
+            // add embedded runbook constructs to graph
+            for construct_did in package.embedded_runbooks_dids.iter() {
+                let embedded_runbook_instance =
+                    execution_context.embedded_runbooks.get(construct_did).unwrap();
+
+                let construct_id = workspace_context.constructs.get(construct_did).unwrap();
+
+                if let Some(dependencies) = domain_specific_dependencies.get(construct_did) {
+                    for dependent_construct_did in dependencies {
+                        constructs_edges
+                            .push((construct_did.clone(), dependent_construct_did.clone()));
+                    }
+                }
+
+                for (_input, dep) in embedded_runbook_instance.collect_dependencies().iter() {
+                    let result = workspace_context
+                        .try_resolve_construct_reference_in_expression(package_id, dep);
+                    if let Ok(Some((resolved_construct_did, _, _))) = result {
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
+                        {
+                            signers.push_front((resolved_construct_did.clone(), true));
+                            instantiated_signers.insert(resolved_construct_did.clone());
+                        }
+                        constructs_edges.push((construct_did.clone(), resolved_construct_did));
+                    } else {
+                        diags.push(
+                            diagnosed_error!(
+                                "unable to resolve '{}' in embedded runbook '{}'",
+                                dep.to_string().trim(),
+                                embedded_runbook_instance.name,
+                            )
+                            .location(&construct_id.construct_location)
+                            .set_span_range(embedded_runbook_instance.block.span()),
+                        );
+                    }
+                }
+            }
             // todo: should we constrain to signers depending on signers?
             // add signer constructs to graph
             for construct_did in package.signers_dids.iter() {
@@ -282,7 +321,11 @@ impl RunbookGraphContext {
             execution_context.order_for_commands_execution.push(construct_did.clone());
         }
 
-        for (construct_did, _) in execution_context.commands_instances.iter() {
+        for construct_did in execution_context
+            .commands_instances
+            .keys()
+            .chain(execution_context.embedded_runbooks.keys())
+        {
             let dependencies =
                 self.get_downstream_dependencies_for_construct_did(construct_did, true);
             execution_context.commands_dependencies.insert(construct_did.clone(), dependencies);
@@ -442,10 +485,14 @@ mod tests {
 
     use test_case::test_case;
 
+    use crate::tests::get_addon_by_namespace;
+
     #[tokio::test]
     async fn it_rejects_circular_dependency_runbooks() {
         let fixture = include_str!("../tests/fixtures/circular.tx");
-        let Err(e) = build_runbook_from_fixture("circular.tx", fixture, vec![]).await else {
+        let Err(e) =
+            build_runbook_from_fixture("circular.tx", fixture, get_addon_by_namespace).await
+        else {
             panic!("Missing expected error on circular dependency");
         };
         assert_eq!(e.get(0).unwrap().message, format!("Cycling dependency"));
@@ -463,7 +510,8 @@ mod tests {
         fixture: &str,
         construct_names: Vec<&str>,
     ) {
-        let runbook = build_runbook_from_fixture("test.tx", fixture, vec![]).await.unwrap();
+        let runbook =
+            build_runbook_from_fixture("test.tx", fixture, get_addon_by_namespace).await.unwrap();
         let execution_context = runbook.flow_contexts[0].execution_context.clone();
         let order_for_execution = execution_context.order_for_commands_execution;
         let commands_instances = execution_context.commands_instances;

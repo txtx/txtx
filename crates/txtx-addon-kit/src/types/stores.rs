@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use super::{commands::CommandInput, diagnostics::Diagnostic, types::Value, Did, CACHED_NONCE};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValueStore {
     pub uuid: Did,
     pub name: String,

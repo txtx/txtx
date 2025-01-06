@@ -1,20 +1,34 @@
-use txtx_addon_kit::types::{
-    frontend::{
-        ActionItemRequestType, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
-        ProvidePublicKeyResponse, ProvideSignedTransactionResponse, ReviewedInputResponse,
+use txtx_addon_kit::{
+    types::{
+        frontend::{
+            ActionItemRequestType, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
+            ProvidePublicKeyResponse, ProvideSignedTransactionResponse, ReviewedInputResponse,
+        },
+        types::Value,
     },
-    types::Value,
+    Addon,
 };
-use txtx_test_utils::test_harness::setup_test;
+use txtx_test_utils::{test_harness::setup_test, StdAddon};
 
 use crate::StacksNetworkAddon;
+
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons: Vec<Box<dyn Addon>> =
+        vec![Box::new(StdAddon::new()), Box::new(StacksNetworkAddon::new())];
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
+}
 
 #[test]
 fn test_signer_runbook_no_env() {
     // Load Runbook signer.tx
     let var_name = include_str!("./fixtures/signer.tx");
     let signer_tx = var_name;
-    let harness = setup_test("signer.tx", signer_tx, vec![Box::new(StacksNetworkAddon::new())]);
+    let harness = setup_test("signer.tx", signer_tx, get_addon_by_namespace);
 
     let action_panel_data =
         harness.expect_action_panel(None, "runbook checklist", vec![vec![3, 1]]);
@@ -159,7 +173,7 @@ fn test_signer_runbook_no_env() {
 #[test]
 fn test_multisig_runbook_no_env() {
     let multisig_tx = include_str!("./fixtures/multisig.tx");
-    let harness = setup_test("multisig.tx", multisig_tx, vec![Box::new(StacksNetworkAddon::new())]);
+    let harness = setup_test("multisig.tx", multisig_tx, get_addon_by_namespace);
 
     let modal_panel_data = harness.expect_modal(
         None,

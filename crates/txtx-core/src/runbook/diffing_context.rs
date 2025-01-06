@@ -2,7 +2,10 @@ use super::{FlowContext, RunbookExecutionMode, RunbookTopLevelInputsMap};
 use kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
-    types::{diagnostics::Diagnostic, types::Value, ConstructDid, Did, PackageDid, RunbookId},
+    types::{
+        diagnostics::Diagnostic, types::Value, ConstructDid, Did, PackageDid, RunbookId,
+        WithEvaluatableInputs,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -360,7 +363,7 @@ impl RunbookSnapshotContext {
                             && input.tainting;
 
                         let value_pre_evaluation = command_instance
-                            .get_expression_from_input(input)
+                            .get_expression_from_input(&input.name)
                             .map(|expr| expr.to_string().trim().to_string());
                         let input_name = &input.name;
 

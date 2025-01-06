@@ -1,8 +1,8 @@
-use kit::types::PackageId;
 use std::collections::{HashMap, HashSet};
-use txtx_addon_kit::types::ConstructDid;
 
-#[derive(Clone, Debug)]
+use super::{ConstructDid, PackageId};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Package {
     /// Id of the Package
     pub package_id: PackageId,
@@ -17,9 +17,13 @@ pub struct Package {
     pub imports_dids: HashSet<ConstructDid>,
     pub imports_did_lookup: HashMap<String, ConstructDid>,
     pub commands_dids: HashSet<ConstructDid>,
+    pub commands_did_lookup: HashMap<String, ConstructDid>,
+    pub addons_dids: HashSet<ConstructDid>,
     pub addons_did_lookup: HashMap<String, ConstructDid>,
     pub signers_dids: HashSet<ConstructDid>,
     pub signers_did_lookup: HashMap<String, ConstructDid>,
+    pub embedded_runbooks_dids: HashSet<ConstructDid>,
+    pub embedded_runbooks_did_lookup: HashMap<String, ConstructDid>,
 }
 
 impl Package {
@@ -37,9 +41,13 @@ impl Package {
             imports_dids: HashSet::new(),
             imports_did_lookup: HashMap::new(),
             commands_dids: HashSet::new(),
+            commands_did_lookup: HashMap::new(),
+            addons_dids: HashSet::new(),
             addons_did_lookup: HashMap::new(),
             signers_dids: HashSet::new(),
             signers_did_lookup: HashMap::new(),
+            embedded_runbooks_dids: HashSet::new(),
+            embedded_runbooks_did_lookup: HashMap::new(),
         }
     }
 }
