@@ -1,5 +1,6 @@
 pub const NAMESPACE: &str = "svm";
 pub const SIGNERS: &str = "signers";
+pub const SIGNER: &str = "signer";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
@@ -25,6 +26,7 @@ pub const COMMITMENT_LEVEL: &str = "commitment_level";
 pub const DO_AWAIT_CONFIRMATION: &str = "do_await_confirmation";
 pub const SIGNATURE: &str = "signature";
 pub const IS_ARRAY: &str = "is_array";
+pub const AMOUNT: &str = "amount";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
