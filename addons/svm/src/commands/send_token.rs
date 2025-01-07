@@ -110,7 +110,8 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: true
                 }
             ],
             outputs: [

@@ -58,7 +58,8 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: true
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
