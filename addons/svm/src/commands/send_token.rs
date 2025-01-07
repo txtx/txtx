@@ -476,15 +476,16 @@ impl CommandImplementation for SendToken {
         let mut status_updater =
             StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
         let recipient_token_address =
-            SvmValue::expect_pubkey(outputs.get_expected_value(RECIPIENT_TOKEN_ADDRESS).unwrap());
+            SvmValue::to_pubkey(outputs.get_expected_value(RECIPIENT_TOKEN_ADDRESS).unwrap())
+                .unwrap();
         let recipient_address =
-            SvmValue::expect_pubkey(outputs.get_expected_value(RECIPIENT_ADDRESS).unwrap());
+            SvmValue::to_pubkey(outputs.get_expected_value(RECIPIENT_ADDRESS).unwrap()).unwrap();
         let source_token_address =
-            SvmValue::expect_pubkey(outputs.get_expected_value(SOURCE_TOKEN_ADDRESS).unwrap());
+            SvmValue::to_pubkey(outputs.get_expected_value(SOURCE_TOKEN_ADDRESS).unwrap()).unwrap();
         let authority_address =
-            SvmValue::expect_pubkey(outputs.get_expected_value(AUTHORITY_ADDRESS).unwrap());
+            SvmValue::to_pubkey(outputs.get_expected_value(AUTHORITY_ADDRESS).unwrap()).unwrap();
         let token_mint_address =
-            SvmValue::expect_pubkey(outputs.get_expected_value(TOKEN_MINT_ADDRESS).unwrap());
+            SvmValue::to_pubkey(outputs.get_expected_value(TOKEN_MINT_ADDRESS).unwrap()).unwrap();
         let is_funding_recipient = outputs.get_bool(IS_FUNDING_RECIPIENT).unwrap_or(false);
 
         status_updater.propagate_info(&format!("Transferring token {}", token_mint_address));
