@@ -2,6 +2,7 @@ use crate::constants::{SIGNER, SIGNERS};
 // use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
 use process_instructions::PROCESS_INSTRUCTIONS;
+use send_sol::SEND_SOL;
 use send_transaction::SEND_TRANSACTION;
 use sign_transaction::SIGN_TRANSACTION;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
@@ -10,6 +11,7 @@ use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
 
 pub mod deploy_program;
 pub mod process_instructions;
+pub mod send_sol;
 pub mod send_transaction;
 pub mod sign_transaction;
 
@@ -33,5 +35,6 @@ lazy_static! {
         SEND_TRANSACTION.clone(),
         PROCESS_INSTRUCTIONS.clone(),
         DEPLOY_PROGRAM.clone(),
+        SEND_SOL.clone(),
     ];
 }
