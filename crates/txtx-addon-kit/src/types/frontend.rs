@@ -459,6 +459,7 @@ pub enum ProgressBarStatusColor {
     Green,
     Yellow,
     Red,
+    Purple,
 }
 impl ProgressBarStatusColor {
     pub fn to_string(&self) -> String {
@@ -466,6 +467,7 @@ impl ProgressBarStatusColor {
             ProgressBarStatusColor::Green => "Green".into(),
             ProgressBarStatusColor::Yellow => "Yellow".into(),
             ProgressBarStatusColor::Red => "Red".into(),
+            ProgressBarStatusColor::Purple => "Purple".into(),
         }
     }
 }
@@ -508,6 +510,16 @@ impl StatusUpdater {
         );
         StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
     }
+
+    pub fn propagate_info(&mut self, info: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Purple,
+            "Info",
+            info,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
     pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
         self.status_update.update_status(&ProgressBarStatus::new_msg(
             ProgressBarStatusColor::Yellow,
