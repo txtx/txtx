@@ -157,7 +157,7 @@ impl CommandImplementation for SendTransaction {
             let mut status_updater =
                 StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
-            let mut result = CommandExecutionResult::new();
+            let mut result = CommandExecutionResult::from_value_store(&outputs);
 
             let transaction_bytes = signed_transaction_value
                 .expect_buffer_bytes_result()
