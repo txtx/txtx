@@ -71,14 +71,12 @@ impl SvmValue {
         Value::addon(bytes, SVM_PUBKEY)
     }
 
-    pub fn expect_pubkey(value: &Value) -> Pubkey {
-        let addon_data = value.expect_addon_data();
-        if addon_data.id != SVM_PUBKEY {
-            panic!("Expected pubkey, got {:?}", addon_data.id);
-        }
-        let bytes: [u8; 32] =
-            addon_data.bytes[0..32].try_into().expect("slice with incorrect length");
-        Pubkey::new_from_array(bytes)
+    pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
+        let bytes = value.to_bytes();
+        let bytes: [u8; 32] = bytes[0..32]
+            .try_into()
+            .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+        Ok(Pubkey::new_from_array(bytes))
     }
 
     pub fn transaction_with_keypairs(transaction_bytes: Vec<u8>, keypairs: Vec<&Keypair>) -> Value {
