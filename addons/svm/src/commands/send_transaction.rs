@@ -170,12 +170,12 @@ impl CommandImplementation for SendTransaction {
                     ));
                     diag
                 })?;
-            result.outputs.insert(SIGNATURE.into(), Value::string(signature));
+            result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));
 
             status_updater.propagate_status(ProgressBarStatus::new_msg(
                 ProgressBarStatusColor::Green,
                 "Complete",
-                "Transaction broadcasting complete",
+                &format!("Transaction {} broadcasting complete", signature),
             ));
             Ok(result)
         };
@@ -193,6 +193,7 @@ pub fn send_transaction(
     let transaction: Transaction = serde_json::from_slice(&transaction_bytes).map_err(|e| {
         diagnosed_error!("unable to deserialize transaction from bytes ({})", e.to_string())
     })?;
+
     let signature = if do_await_confirmation {
         rpc_client.send_and_confirm_transaction(&transaction).map_err(|e| {
             diagnosed_error!("unable to send and confirm transaction ({})", e.to_string())
