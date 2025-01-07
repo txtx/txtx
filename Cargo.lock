@@ -1270,6 +1270,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_matches"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
 name = "async-channel"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10250,6 +10256,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-associated-token-account"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68034596cf4804880d265f834af1ff2f821ad5293e41fa0f8f59086c181fc38e"
+dependencies = [
+ "assert_matches",
+ "borsh 1.5.1",
+ "num-derive",
+ "num-traits",
+ "solana-program",
+ "spl-token",
+ "spl-token-2022",
+ "thiserror",
+]
+
+[[package]]
 name = "spl-discriminator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11565,6 +11587,8 @@ dependencies = [
  "serde_json",
  "solana-client",
  "solana-sdk",
+ "spl-associated-token-account",
+ "spl-token",
  "tiny-bip39",
  "txtx-addon-kit",
  "txtx-test-utils",
@@ -11650,6 +11674,7 @@ version = "0.1.16"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
+ "bs58 0.5.1",
  "chrono",
  "daggy",
  "getrandom 0.2.15",
