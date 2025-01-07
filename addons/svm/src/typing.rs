@@ -1,4 +1,4 @@
-use solana_sdk::signature::Keypair;
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use txtx_addon_kit::types::types::{Type, Value};
 
 pub const SVM_ADDRESS: &str = "svm::address";
@@ -69,6 +69,16 @@ impl SvmValue {
 
     pub fn pubkey(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_PUBKEY)
+    }
+
+    pub fn expect_pubkey(value: &Value) -> Pubkey {
+        let addon_data = value.expect_addon_data();
+        if addon_data.id != SVM_PUBKEY {
+            panic!("Expected pubkey, got {:?}", addon_data.id);
+        }
+        let bytes: [u8; 32] =
+            addon_data.bytes[0..32].try_into().expect("slice with incorrect length");
+        Pubkey::new_from_array(bytes)
     }
 
     pub fn transaction_with_keypairs(transaction_bytes: Vec<u8>, keypairs: Vec<&Keypair>) -> Value {
