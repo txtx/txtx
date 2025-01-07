@@ -16,6 +16,8 @@ use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnos
 
 use crate::constants::{IS_ARRAY, TRANSACTION_BYTES};
 
+use super::get_signer_did;
+
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
       SignTransaction => {
@@ -99,7 +101,18 @@ impl CommandImplementation for SignTransaction {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 
-        let signers_did = get_signers_did(values).unwrap();
+        use crate::commands::get_signer_did;
+
+        // todo: we need to make getting either "signers" or "signer" key more robust, and actually call `check_signability` for each signer
+        let (signer_did, signer_instance) = if let Ok(signers_did) = get_signers_did(values) {
+            let first_signer_did = signers_did.first().unwrap();
+            let first_signer = signers_instances.get(&first_signer_did).unwrap();
+            (first_signer_did.clone(), first_signer.clone())
+        } else {
+            let signer_did = get_signer_did(values).unwrap();
+            let signer_instance = signers_instances.get(&signer_did).unwrap();
+            (signer_did, signer_instance.clone())
+        };
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let args = values.clone();
@@ -109,9 +122,7 @@ impl CommandImplementation for SignTransaction {
         let future = async move {
             let mut actions = Actions::none();
 
-            let first_signer_did = signers_did.first().unwrap();
-            let first_signer = signers_instances.get(&first_signer_did).unwrap();
-            let signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
+            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
             if signer_state
                 .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
@@ -129,12 +140,12 @@ impl CommandImplementation for SignTransaction {
                 args.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
             let (signers, signer_state, mut signer_actions) =
-                (first_signer.specification.check_signability)(
+                (signer_instance.specification.check_signability)(
                     &construct_did,
                     &instance_name,
                     &description,
                     &payload,
-                    &first_signer.specification,
+                    &signer_instance.specification,
                     &args,
                     signer_state,
                     signers,
@@ -155,27 +166,35 @@ impl CommandImplementation for SignTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signers_did = get_signers_did(values).unwrap();
-        let first_signer_did = signers_did.first().unwrap();
+        // todo: we need to make getting either "signers" or "signer" key more robust, and actually call `check_signability` for each signer
+        let (signer_did, _signer_instance) = if let Ok(signers_did) = get_signers_did(values) {
+            let first_signer_did = signers_did.first().unwrap();
+            let first_signer = signers_instances.get(&first_signer_did).unwrap();
+            (first_signer_did.clone(), first_signer.clone())
+        } else {
+            let signer_did = get_signer_did(values).unwrap();
+            let signer_instance = signers_instances.get(&signer_did).unwrap();
+            (signer_did, signer_instance.clone())
+        };
 
-        let first_signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
+        let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Some(signed_transaction_bytes) = first_signer_state
+        if let Some(signed_transaction_bytes) = signer_state
             .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
         {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
                 .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
-            return return_synchronous_ok(signers, first_signer_state, result);
+            return return_synchronous_ok(signers, signer_state, result);
         }
 
-        let signer = signers_instances.get(&first_signer_did).unwrap();
+        let signer_instance = signers_instances.get(&signer_did).unwrap();
 
         let payload = if values.get_bool(IS_ARRAY).unwrap_or(false) {
             values.get_value(TRANSACTION_BYTES).unwrap().clone()
         } else {
-            first_signer_state
+            signer_state
                 .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
                 .unwrap()
                 .clone()
@@ -183,13 +202,13 @@ impl CommandImplementation for SignTransaction {
 
         let title = values.get_expected_string("description").unwrap_or("New Transaction".into());
 
-        let res = (signer.specification.sign)(
+        let res = (signer_instance.specification.sign)(
             construct_did,
             title,
             &payload,
-            &signer.specification,
+            &signer_instance.specification,
             &values,
-            first_signer_state,
+            signer_state,
             signers,
             signers_instances,
         );
