@@ -86,14 +86,14 @@ lazy_static! {
                     internal: false
                 },
                 signers: {
-                    documentation: "Set of references to a signer construct, which will be used to sign the transaction.",
+                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 commitment_level: {
-                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
+                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
