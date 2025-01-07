@@ -18,7 +18,7 @@ use txtx_addon_kit::{
 use crate::{
     codec::{anchor::AnchorProgramArtifacts, idl::IdlRef},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
-    typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, SVM_ACCOUNT, SVM_IDL, SVM_PUBKEY},
+    typing::{ANCHOR_PROGRAM_ARTIFACTS, SVM_ACCOUNT, SVM_IDL, SVM_PUBKEY},
 };
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
@@ -175,6 +175,52 @@ lazy_static! {
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone()
                 },
             }
+        },
+        define_function! {
+            SolToLamports => {
+                name: "sol_to_lamports",
+                documentation: "`svm::sol_to_lamports` converts the provided SOL amount to lamports.",
+                example: indoc! {r#"
+                    output "lamports" {
+                        value = svm::sol_to_lamports(1.1)
+                    }
+                    // lamports: 1100000000
+                "#},
+                inputs: [
+                    program_name: {
+                        documentation: "The amount of SOL to convert to lamports.",
+                        typing: vec![Type::integer(), Type::float()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The amount of SOL provided, represented as lamports.",
+                    typing: Type::integer()
+                },
+            }
+        },
+        define_function! {
+            LamportsToSol => {
+                name: "lamports_to_sol",
+                documentation: "`svm::lamports_to_sol` converts the provided number of lamports amount to SOL.",
+                example: indoc! {r#"
+                    output "sol" {
+                        value = svm::lamports_to_sol(1100000000)
+                    }
+                    // sol: 1.1
+                "#},
+                inputs: [
+                    program_name: {
+                        documentation: "The amount of lamports to convert to SOL.",
+                        typing: vec![Type::integer()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The number of lamports provided, represented as SOL.",
+                    typing: Type::integer()
+                },
+            }
         }
     ];
 }
@@ -194,6 +240,7 @@ impl FunctionImplementation for SystemProgramId {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
         Ok(Value::string(system_program::id().to_string()))
     }
 }
@@ -353,4 +400,54 @@ fn get_path_from_path_str(
         workspace_loc
     };
     Ok(path)
+}
+
+pub struct SolToLamports;
+impl FunctionImplementation for SolToLamports {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let sol = args.get(0).unwrap();
+        let sol = match sol {
+            Value::Integer(i) => *i as f64,
+            Value::Float(f) => *f,
+            _ => unreachable!(),
+        };
+        let lamports = solana_sdk::native_token::sol_to_lamports(sol);
+        Ok(Value::integer(lamports as i128))
+    }
+}
+
+pub struct LamportsToSol;
+impl FunctionImplementation for LamportsToSol {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let lamports = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
+
+        let sol = solana_sdk::native_token::lamports_to_sol(lamports);
+        Ok(Value::float(sol))
+    }
 }
