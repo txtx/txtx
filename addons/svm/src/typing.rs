@@ -116,4 +116,18 @@ lazy_static! {
             tainting: true
         }
     };
+    pub static ref PDA_RESULT: Type = define_object_type! {
+        pda: {
+            documentation: "The program derived address.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        bump_seed: {
+            documentation: "The bump seed.",
+            typing: Type::integer(),
+            optional: false,
+            tainting: true
+        }
+    };
 }
