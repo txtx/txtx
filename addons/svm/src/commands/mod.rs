@@ -1,4 +1,4 @@
-use crate::constants::SIGNERS;
+use crate::constants::{SIGNER, SIGNERS};
 // use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
 use process_instructions::PROCESS_INSTRUCTIONS;
@@ -20,6 +20,10 @@ fn get_signers_did(args: &ValueStore) -> Result<Vec<ConstructDid>, Diagnostic> {
         res.push(ConstructDid(Did::from_hex_string(signer.expect_string())));
     }
     Ok(res)
+}
+fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
+    let signer = args.get_expected_string(SIGNER)?;
+    Ok(ConstructDid(Did::from_hex_string(signer)))
 }
 
 lazy_static! {
