@@ -7,7 +7,6 @@ use futures::future;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use super::Did;
 use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
@@ -19,6 +18,7 @@ use super::{
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, PackageId,
 };
+use super::{AuthorizationContext, Did};
 
 #[derive(Debug, Clone)]
 pub struct SignersState {
@@ -144,6 +144,7 @@ pub type SignerCheckActivabilityClosure = fn(
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
     bool,
     bool,
 ) -> SignerActionsFutureResult;
@@ -348,6 +349,7 @@ impl SignerInstance {
         _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
+        authorization_context: &AuthorizationContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
@@ -377,6 +379,7 @@ impl SignerInstance {
                                 signers,
                                 signers_instances,
                                 &supervision_context,
+                                &authorization_context,
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
@@ -424,6 +427,7 @@ impl SignerInstance {
             signers,
             signers_instances,
             &supervision_context,
+            &authorization_context,
             is_balance_check_required,
             is_public_key_required,
         );
@@ -512,6 +516,7 @@ pub trait SignerImplementation {
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _authorization_context: &AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {

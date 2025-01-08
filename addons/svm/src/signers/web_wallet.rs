@@ -90,6 +90,7 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {

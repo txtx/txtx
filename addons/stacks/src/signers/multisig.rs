@@ -123,6 +123,7 @@ impl SignerImplementation for StacksConnect {
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -136,6 +137,7 @@ impl SignerImplementation for StacksConnect {
         let values = values.clone();
         let signers_instances = signers_instances.clone();
         let supervision_context = supervision_context.clone();
+        let auth_ctx = auth_ctx.clone();
         let instance_name = instance_name.to_string();
         let expected_address: Option<String> = None;
 
@@ -214,6 +216,7 @@ impl SignerImplementation for StacksConnect {
                     signers,
                     &signers_instances,
                     &supervision_context,
+                    &auth_ctx,
                     false,
                     true,
                 )?;
