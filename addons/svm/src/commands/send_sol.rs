@@ -182,7 +182,13 @@ impl CommandImplementation for SendSol {
         })?;
         let transaction = Transaction::new_unsigned(message);
 
-        let transaction_bytes = serde_json::to_vec(&transaction).unwrap();
+        let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                to_diag_with_ctx(format!("failed to serialize transaction: {}", e)),
+            )
+        })?;
 
         let mut args = args.clone();
         args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
