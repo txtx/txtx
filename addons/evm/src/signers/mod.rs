@@ -1,6 +1,6 @@
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
-    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
+    signers::{err_to_signer_ctx_diag, SignerSpecification},
 };
 
 pub mod common;
@@ -18,6 +18,6 @@ lazy_static! {
 }
 
 pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
+    let error_fn = err_to_signer_ctx_diag(NAMESPACE.to_string());
     error_fn
 }

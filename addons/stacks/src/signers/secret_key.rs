@@ -13,9 +13,9 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
-    return_synchronous_result, signer_diag_with_ctx, signer_err_fn, CheckSignabilityOk,
-    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerInstance,
-    SignerSignFutureResult, SignersState,
+    add_ctx_to_signer_result_diag, return_synchronous_result, signer_actions_future_result_fn,
+    CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult,
+    SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
@@ -133,8 +133,11 @@ impl SignerImplementation for StacksSecretKey {
         use crate::signers::DEFAULT_DERIVATION_PATH;
         use crate::{constants::CHECKED_PUBLIC_KEY, signers::namespaced_err_fn};
 
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            instance_name,
+            namespaced_err_fn(),
+        ));
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
@@ -221,8 +224,11 @@ impl SignerImplementation for StacksSecretKey {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_err_fn(),
+        ));
 
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
@@ -294,8 +300,11 @@ impl SignerImplementation for StacksSecretKey {
     ) -> SignerSignFutureResult {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_err_fn(),
+        ));
         let mut result = CommandExecutionResult::new();
 
         let network_id = values

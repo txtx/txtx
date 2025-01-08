@@ -564,7 +564,7 @@ pub trait SignerImplementation {
     }
 }
 
-pub fn signer_diag_with_namespace_ctx(
+pub fn err_to_signer_ctx_diag(
     namespace: String,
 ) -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
     let signer_diag_with_ctx = move |signer_spec: &SignerSpecification,
@@ -579,18 +579,18 @@ pub fn signer_diag_with_namespace_ctx(
     return signer_diag_with_ctx;
 }
 
-pub fn signer_diag_with_ctx<'a>(
+pub fn add_ctx_to_signer_result_diag<'a>(
     signer_spec: &'a SignerSpecification,
     signer_instance_name: &'a str,
-    signer_diag_with_ctx: impl Fn(&SignerSpecification, &str, String) -> Diagnostic + 'a,
+    err_to_signer_ctx_diag: impl Fn(&SignerSpecification, &str, String) -> Diagnostic + 'a,
 ) -> impl Fn(String) -> Diagnostic + 'a {
-    let signer_diag_with_ctx = move |e: String| -> Diagnostic {
-        signer_diag_with_ctx(signer_spec, signer_instance_name, e)
+    let diag_with_signer_ctx = move |e: String| -> Diagnostic {
+        err_to_signer_ctx_diag(signer_spec, signer_instance_name, e)
     };
-    return signer_diag_with_ctx;
+    return diag_with_signer_ctx;
 }
 
-pub fn signer_err_fn(
+pub fn signer_actions_future_result_fn(
     signer_diag_with_ctx: impl Fn(String) -> Diagnostic,
 ) -> impl for<'a, 'b> Fn(
     &'a SignersState,

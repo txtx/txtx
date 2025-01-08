@@ -12,7 +12,7 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
     SignerSignFutureResult, SignerSpecification, SignersState,
 };
-use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
+use txtx_addon_kit::types::signers::{add_ctx_to_signer_result_diag, signer_actions_future_result_fn};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -109,7 +109,7 @@ impl SignerImplementation for EvmWebWallet {
         };
 
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &instance_name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &instance_name, namespaced_err_fn()));
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data =
@@ -194,7 +194,7 @@ impl SignerImplementation for EvmWebWallet {
         let spec = spec.clone();
         let future = async move {
             let signer_err =
-                signer_err_fn(signer_diag_with_ctx(&spec, &instance_name, namespaced_err_fn()));
+                signer_actions_future_result_fn(add_ctx_to_signer_result_diag(&spec, &instance_name, namespaced_err_fn()));
             let mut actions = Actions::none();
             let res = get_additional_actions_for_address(
                 &expected_address,
@@ -236,7 +236,7 @@ impl SignerImplementation for EvmWebWallet {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
 
         let mut result = CommandExecutionResult::new();
         let public_key = signer_state
@@ -270,7 +270,7 @@ impl SignerImplementation for EvmWebWallet {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
 
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, TX_HASH) {

@@ -10,7 +10,7 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
-    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
+    signers::{err_to_signer_ctx_diag, SignerSpecification},
     types::Value,
     ConstructDid,
 };
@@ -25,8 +25,8 @@ lazy_static! {
         vec![SVM_SECRET_KEY.clone(), SVM_WEB_WALLET.clone()];
 }
 
-pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
+pub fn namespaced_signer_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
+    let error_fn = err_to_signer_ctx_diag(NAMESPACE.to_string());
     error_fn
 }
 
