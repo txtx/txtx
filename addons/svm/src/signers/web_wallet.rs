@@ -8,11 +8,13 @@ use txtx_addon_kit::types::frontend::{
     ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
+    add_ctx_to_signer_result_diag, signer_actions_future_result_fn,
+};
+use txtx_addon_kit::types::signers::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
     SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
     SignerSignFutureResult, SignerSpecification, SignersState,
 };
-use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -28,7 +30,7 @@ use crate::constants::{
     FORMATTED_TRANSACTION, IS_SIGNABLE, NAMESPACE, NETWORK_ID, REQUESTED_STARTUP_DATA, RPC_API_URL,
 };
 
-use super::{get_additional_actions_for_address, namespaced_err_fn};
+use super::{get_additional_actions_for_address, namespaced_signer_err_fn};
 
 lazy_static! {
     pub static ref SVM_WEB_WALLET: SignerSpecification = {
@@ -98,8 +100,9 @@ impl SignerImplementation for SvmWebWallet {
 
         use crate::{codec::public_key_from_str, constants::NETWORK_ID};
 
-        let diag_with_ctx_fn = signer_diag_with_ctx(spec, instance_name, namespaced_err_fn());
-        let signer_err = signer_err_fn(&diag_with_ctx_fn);
+        let diag_with_ctx_fn =
+            add_ctx_to_signer_result_diag(spec, instance_name, namespaced_signer_err_fn());
+        let signer_err = signer_actions_future_result_fn(&diag_with_ctx_fn);
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
 
@@ -205,8 +208,11 @@ impl SignerImplementation for SvmWebWallet {
     ) -> SignerActivateFutureResult {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let _signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let _signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_signer_err_fn(),
+        ));
 
         let mut result = CommandExecutionResult::new();
 
@@ -233,8 +239,11 @@ impl SignerImplementation for SvmWebWallet {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_signer_err_fn(),
+        ));
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {

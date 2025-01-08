@@ -15,9 +15,9 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
-    return_synchronous_result, signer_diag_with_ctx, signer_err_fn, CheckSignabilityOk,
-    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerInstance,
-    SignerSignFutureResult, SignersState,
+    add_ctx_to_signer_result_diag, return_synchronous_result, signer_actions_future_result_fn,
+    CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult,
+    SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
@@ -39,7 +39,7 @@ use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
-use super::namespaced_err_fn;
+use super::namespaced_signer_err_fn;
 
 lazy_static! {
     pub static ref SVM_SECRET_KEY: SignerSpecification = define_signer! {
@@ -138,16 +138,19 @@ impl SignerImplementation for SvmSecretKey {
                 DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
                 PASSWORD, SECRET_KEY,
             },
-            signers::namespaced_err_fn,
+            signers::namespaced_signer_err_fn,
         };
         use solana_sdk::{signature::Keypair, signer::Signer};
         use txtx_addon_kit::{
             crypto::secret_key_bytes_from_mnemonic,
-            types::signers::{signer_diag_with_ctx, signer_err_fn},
+            types::signers::{add_ctx_to_signer_result_diag, signer_actions_future_result_fn},
         };
 
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            instance_name,
+            namespaced_signer_err_fn(),
+        ));
         let mut actions = Actions::none();
 
         if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
@@ -276,8 +279,11 @@ impl SignerImplementation for SvmSecretKey {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let _signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let _signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_signer_err_fn(),
+        ));
 
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
@@ -374,8 +380,11 @@ impl SignerImplementation for SvmSecretKey {
     ) -> SignerSignFutureResult {
         let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_signer_err_fn(),
+        ));
         let mut result = CommandExecutionResult::new();
 
         let secret_key_bytes = signer_state

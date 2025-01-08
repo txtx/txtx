@@ -22,8 +22,8 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, OpenModalData,
 };
 use txtx_addon_kit::types::signers::{
-    consolidate_signer_activate_result, consolidate_signer_result, signer_diag_with_ctx,
-    signer_err_fn, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    consolidate_signer_activate_result, consolidate_signer_result, add_ctx_to_signer_result_diag,
+    signer_actions_future_result_fn, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
     SignerActivateFutureResult, SignerImplementation, SignerInstance, SignerSignFutureResult,
     SignerSpecification, SignersState,
 };
@@ -155,7 +155,7 @@ impl SignerImplementation for StacksConnect {
         let spec = spec.clone();
         let future = async move {
             let signer_err =
-                signer_err_fn(signer_diag_with_ctx(&spec, &instance_name, namespaced_err_fn()));
+                signer_actions_future_result_fn(add_ctx_to_signer_result_diag(&spec, &instance_name, namespaced_err_fn()));
 
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
@@ -343,7 +343,7 @@ impl SignerImplementation for StacksConnect {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
 
         let values = values.clone();
         let public_key = signer_state

@@ -11,11 +11,13 @@ use txtx_addon_kit::types::frontend::{
     ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
+    add_ctx_to_signer_result_diag, signer_actions_future_result_fn,
+};
+use txtx_addon_kit::types::signers::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
     SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
     SignerSignFutureResult, SignerSpecification, SignersState,
 };
-use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -102,8 +104,11 @@ impl SignerImplementation for StacksWebWallet {
         use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
 
         use crate::constants::RPC_API_AUTH_TOKEN;
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            instance_name,
+            namespaced_err_fn(),
+        ));
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data =
@@ -237,8 +242,11 @@ impl SignerImplementation for StacksWebWallet {
     ) -> SignerActivateFutureResult {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_err_fn(),
+        ));
 
         let mut result = CommandExecutionResult::new();
         let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
@@ -281,8 +289,11 @@ impl SignerImplementation for StacksWebWallet {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
+            spec,
+            &signer_instance.name,
+            namespaced_err_fn(),
+        ));
 
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)

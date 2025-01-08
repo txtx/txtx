@@ -34,7 +34,7 @@ use crate::constants::{
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
-use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
+use txtx_addon_kit::types::signers::{add_ctx_to_signer_result_diag, signer_actions_future_result_fn};
 
 use crate::constants::PUBLIC_KEYS;
 use crate::signers::namespaced_err_fn;
@@ -136,7 +136,7 @@ impl SignerImplementation for EvmSecretKeySigner {
             mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer,
         };
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, instance_name, namespaced_err_fn()));
 
         let mut actions = Actions::none();
 
@@ -196,7 +196,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(&spec, &signer_instance.name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(&spec, &signer_instance.name, namespaced_err_fn()));
 
         let mut result = CommandExecutionResult::new();
         let address = signer_state
@@ -221,7 +221,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         let signer_did = ConstructDid(signer_state.uuid.clone());
         let signer_instance = signers_instances.get(&signer_did).unwrap();
         let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
 
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
@@ -286,7 +286,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         let future = async move {
             let signer_did = ConstructDid(signer_state.uuid.clone());
             let signer_instance = signers_instances.get(&signer_did).unwrap();
-            let signer_err = signer_err_fn(signer_diag_with_ctx(
+            let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
                 &spec,
                 &signer_instance.name,
                 namespaced_err_fn(),
