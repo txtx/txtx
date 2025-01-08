@@ -36,7 +36,7 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
 
     display_documentation(&addons);
     generate_mdx(&addons);
-    generate_json(&addons);
+    generate_json(&addons).map_err(|e| format!("Failed to generate JSON documentation: {}", e))?;
     Ok(())
 }
 
