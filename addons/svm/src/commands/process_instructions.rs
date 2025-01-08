@@ -246,7 +246,13 @@ impl CommandImplementation for ProcessInstructions {
                     )
                 })?;
 
-            let _ = transaction.verify_and_hash_message().unwrap();
+            let _ = transaction.verify_and_hash_message().map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to verify and hash transaction message: {}", e),
+                )
+            })?;
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
