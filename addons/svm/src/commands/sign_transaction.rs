@@ -101,18 +101,9 @@ impl CommandImplementation for SignTransaction {
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 
-        use crate::commands::get_signer_did;
-
         // todo: we need to make getting either "signers" or "signer" key more robust, and actually call `check_signability` for each signer
-        let (signer_did, signer_instance) = if let Ok(signers_did) = get_signers_did(values) {
-            let first_signer_did = signers_did.first().unwrap();
-            let first_signer = signers_instances.get(&first_signer_did).unwrap();
-            (first_signer_did.clone(), first_signer.clone())
-        } else {
-            let signer_did = get_signer_did(values).unwrap();
-            let signer_instance = signers_instances.get(&signer_did).unwrap();
-            (signer_did, signer_instance.clone())
-        };
+        let (signer_did, signer_instance) =
+            get_signer_and_instance(values, signers_instances).unwrap();
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let args = values.clone();
@@ -167,15 +158,8 @@ impl CommandImplementation for SignTransaction {
         mut signers: SignersState,
     ) -> SignerSignFutureResult {
         // todo: we need to make getting either "signers" or "signer" key more robust, and actually call `check_signability` for each signer
-        let (signer_did, _signer_instance) = if let Ok(signers_did) = get_signers_did(values) {
-            let first_signer_did = signers_did.first().unwrap();
-            let first_signer = signers_instances.get(&first_signer_did).unwrap();
-            (first_signer_did.clone(), first_signer.clone())
-        } else {
-            let signer_did = get_signer_did(values).unwrap();
-            let signer_instance = signers_instances.get(&signer_did).unwrap();
-            (signer_did, signer_instance.clone())
-        };
+        let (signer_did, _signer_instance) =
+            get_signer_and_instance(values, signers_instances).unwrap();
 
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
@@ -213,5 +197,29 @@ impl CommandImplementation for SignTransaction {
             signers_instances,
         );
         res
+    }
+}
+
+// todo: we need to make getting either "signers" or "signer" key more robust, and actually call `check_signability` for each signer
+fn get_signer_and_instance(
+    values: &ValueStore,
+    signers_instances: &HashMap<ConstructDid, SignerInstance>,
+) -> Result<(ConstructDid, SignerInstance), Diagnostic> {
+    match get_signers_did(values) {
+        Ok(signers_did) => {
+            let first_signer_did =
+                signers_did.first().ok_or_else(|| diagnosed_error!("No signers found"))?;
+            let first_signer = signers_instances
+                .get(first_signer_did)
+                .ok_or_else(|| diagnosed_error!("Signer instance not found"))?;
+            Ok((first_signer_did.clone(), first_signer.clone()))
+        }
+        Err(_) => {
+            let signer_did = get_signer_did(values)?;
+            let signer_instance = signers_instances
+                .get(&signer_did)
+                .ok_or_else(|| diagnosed_error!("Signer instance not found"))?;
+            Ok((signer_did, signer_instance.clone()))
+        }
     }
 }
