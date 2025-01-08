@@ -15,6 +15,12 @@ pub const PROGRAM_DEPLOYMENT_KEYPAIR: &str = "program_deployment_keypair";
 // Signers
 pub const IS_SIGNABLE: &str = "is_signable";
 pub const FORMATTED_TRANSACTION: &str = "formatted_transaction";
+pub const SECRET_KEY: &str = "secret_key";
+pub const MNEMONIC: &str = "mnemonic";
+pub const DERIVATION_PATH: &str = "derivation_path";
+pub const IS_ENCRYPTED: &str = "is_encrypted";
+pub const PASSWORD: &str = "password";
+pub const KEYPAIR_JSON: &str = "keypair_json";
 
 // Defaults keys
 pub const RPC_API_URL: &str = "rpc_api_url";
