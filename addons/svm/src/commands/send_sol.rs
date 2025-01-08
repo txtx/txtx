@@ -78,7 +78,7 @@ lazy_static! {
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
