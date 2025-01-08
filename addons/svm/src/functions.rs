@@ -228,10 +228,10 @@ lazy_static! {
         define_function! {
             FindPda => {
                 name: "find_pda",
-                documentation: "`svm::find_pda` finds a valid pda using the provided program id and seed.",
+                documentation: "`svm::find_pda` finds a valid pda using the provided program id and seeds.",
                 example: indoc! {r#"
                     variable "pda" {
-                        value = svm::find_pda("3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6", "data")
+                        value = svm::find_pda("3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6", ["data"])
                     }
                     output "pda" {
                         value = std::encode_base58(variable.pda.pda)
@@ -248,9 +248,9 @@ lazy_static! {
                         typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
                         optional: false
                     },
-                    seed: {
-                        documentation: "An optional seed that will be used to derive the PDA.",
-                        typing: vec![Type::string()],
+                    seeds: {
+                        documentation: "An optional array of seeds that will be used to derive the PDA.",
+                        typing: vec![Type::array(Type::string())],
                         optional: true
                     }
                 ],
@@ -525,9 +525,26 @@ impl FunctionImplementation for FindPda {
         let program_id = SvmValue::to_pubkey(args.get(0).unwrap())
             .map_err(|e| to_diag(fn_spec, format!("invalid program id for finding pda: {e}")))?;
 
-        let seed = args.get(1).map(|v| v.to_bytes()).unwrap_or_default();
+        let seeds: Vec<Vec<u8>> = args
+            .get(1)
+            .map(|v| {
+                v.as_array()
+                    .ok_or_else(|| to_diag(fn_spec, "seeds must be an array".to_string()))?
+                    .iter()
+                    .map(|s| {
+                        let bytes = s.to_bytes();
+                        if bytes.is_empty() {
+                            return Err(to_diag(fn_spec, "seed cannot be empty".to_string()));
+                        }
+                        Ok(bytes)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
 
-        let (pda, bump) = Pubkey::try_find_program_address(&[&seed], &program_id)
+        let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+        let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
             .ok_or(to_diag(fn_spec, "failed to find pda".to_string()))?;
         let obj = ObjectType::from(vec![
             ("pda", SvmValue::pubkey(pda.to_bytes().to_vec())),
