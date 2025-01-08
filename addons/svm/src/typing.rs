@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use txtx_addon_kit::types::types::{Type, Value};
+use txtx_addon_kit::types::types::{ObjectProperty, Type, Value};
 
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
@@ -125,6 +125,7 @@ lazy_static! {
             tainting: true
         }
     };
+
     pub static ref PDA_RESULT: Type = define_object_type! {
         pda: {
             documentation: "The program derived address.",
@@ -139,4 +140,31 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref ACCOUNT_META_TYPE: Type = Type::map(vec![
+        ObjectProperty {
+            name: "public_key".into(),
+            documentation: "The public key of the account.".into(),
+            typing: Type::string(),
+            optional: false,
+            tainting: true,
+            internal: false,
+        },
+        ObjectProperty {
+            name: "is_signer".into(),
+            documentation: "Specifies if the account is a signer on the instruction. The default is 'false'.".into(),
+            typing: Type::string(),
+            optional: true,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "is_writable".into(),
+            documentation: "Specifies if the account is written to by the instruction. The default is 'false'.".into(),
+            typing: Type::string(),
+            optional: true,
+            tainting: true,
+            internal: false
+        }
+    ]);
 }
