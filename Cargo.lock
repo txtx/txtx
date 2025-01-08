@@ -11474,6 +11474,7 @@ name = "txtx-addon-kit"
 version = "0.1.16"
 dependencies = [
  "crossbeam-channel",
+ "dirs",
  "dotenvy_macro",
  "futures",
  "getrandom 0.2.15",

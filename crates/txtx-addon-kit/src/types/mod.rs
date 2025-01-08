@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use diagnostics::Diagnostic;
 use hcl_edit::expr::Expression;
@@ -260,6 +261,32 @@ impl AuthorizationContext {
 
     pub fn empty() -> Self {
         Self { workspace_location: FileLocation::working_dir() }
+    }
+
+    pub fn get_path_from_str(&self, path_str: &str) -> Result<FileLocation, String> {
+        let path = Path::new(path_str);
+
+        let path = if path.starts_with("~") {
+            if let Some(home) = dirs::home_dir() {
+                let path = home.join(path_str.trim_start_matches("~/"));
+                FileLocation::from_path(path)
+            } else {
+                return Err(format!("unable to resolve home directory in path {}", path_str));
+            }
+        } else if path.is_absolute() {
+            FileLocation::from_path(path.to_path_buf())
+        } else {
+            let mut workspace_loc = self
+                .workspace_location
+                .get_parent_location()
+                .map_err(|e| format!("unable to read workspace location: {e}"))?;
+
+            workspace_loc
+                .append_path(&path_str.to_string())
+                .map_err(|e| format!("invalid path: {}", e))?;
+            workspace_loc
+        };
+        Ok(path)
     }
 }
 
