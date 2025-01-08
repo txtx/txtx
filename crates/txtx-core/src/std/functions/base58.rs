@@ -27,7 +27,7 @@ pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
-        Base64Decode => {
+        Base58Encode => {
             name: "encode_base58",
             documentation: "`encode_base58` encodes a hex string as a base58 string.",
             example: indoc!{r#"
@@ -37,7 +37,7 @@ lazy_static! {
             > encoded: CctJBuDbaFtojUWfQ3iEcq77eFDjojCtoS4Q59f6bUtF
           "#},
             inputs: [
-                base64_string: {
+                hex_string: {
                     documentation: "The hex string to encode.",
                     typing: vec![Type::string(), Type::addon("any")]
                 }
@@ -50,8 +50,8 @@ lazy_static! {
     },];
 }
 
-pub struct Base64Decode;
-impl FunctionImplementation for Base64Decode {
+pub struct Base58Encode;
+impl FunctionImplementation for Base58Encode {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
