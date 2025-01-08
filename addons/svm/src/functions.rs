@@ -1,9 +1,6 @@
-use std::path::Path;
-
 use anchor_lang_idl::types::Idl;
 use solana_sdk::system_program;
 use txtx_addon_kit::{
-    helpers::fs::FileLocation,
     indexmap::indexmap,
     types::{
         diagnostics::Diagnostic,
@@ -334,7 +331,8 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
         let arguments =
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
-        let idl_path = get_path_from_path_str(idl_path_str, auth_ctx)
+        let idl_path = auth_ctx
+            .get_path_from_str(idl_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
         let idl_ref = IdlRef::new(idl_path).map_err(|e| to_diag(fn_spec, e))?;
@@ -369,7 +367,8 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
         let target_path_str =
             args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_ANCHOR_TARGET_PATH);
 
-        let target_path = get_path_from_path_str(target_path_str, auth_ctx)
+        let target_path = auth_ctx
+            .get_path_from_str(target_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get anchor target path: {e}")))?;
 
         let anchor_program_artifacts =
@@ -379,27 +378,6 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
         let value = anchor_program_artifacts.to_value().map_err(|e| to_diag(fn_spec, e))?;
         Ok(value)
     }
-}
-
-fn get_path_from_path_str(
-    path_str: &str,
-    auth_ctx: &AuthorizationContext,
-) -> Result<FileLocation, String> {
-    let path = Path::new(path_str);
-    let path = if path.is_absolute() {
-        FileLocation::from_path(path.to_path_buf())
-    } else {
-        let mut workspace_loc = auth_ctx
-            .workspace_location
-            .get_parent_location()
-            .map_err(|e| format!("unable to read workspace location: {e}"))?;
-
-        workspace_loc
-            .append_path(&path_str.to_string())
-            .map_err(|e| format!("invalid path: {}", e))?;
-        workspace_loc
-    };
-    Ok(path)
 }
 
 pub struct SolToLamports;
