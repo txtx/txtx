@@ -218,7 +218,7 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The number of lamports provided, represented as SOL.",
-                    typing: Type::integer()
+                    typing: Type::float()
                 },
             }
         }
