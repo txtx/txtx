@@ -1,16 +1,13 @@
-use std::path::Path;
-
 use anchor_lang_idl::types::Idl;
-use solana_sdk::system_program;
+use solana_sdk::{pubkey::Pubkey, system_program};
 use txtx_addon_kit::{
-    helpers::fs::FileLocation,
     indexmap::indexmap,
     types::{
         diagnostics::Diagnostic,
         functions::{
             arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
         },
-        types::{Type, Value},
+        types::{ObjectType, Type, Value},
         AuthorizationContext,
     },
 };
@@ -18,7 +15,10 @@ use txtx_addon_kit::{
 use crate::{
     codec::{anchor::AnchorProgramArtifacts, idl::IdlRef},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
-    typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, SVM_ACCOUNT, SVM_IDL, SVM_PUBKEY},
+    typing::{
+        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, PDA_RESULT, SVM_ACCOUNT, SVM_ADDRESS, SVM_IDL,
+        SVM_PUBKEY,
+    },
 };
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
@@ -175,6 +175,87 @@ lazy_static! {
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone()
                 },
             }
+        },
+        define_function! {
+            SolToLamports => {
+                name: "sol_to_lamports",
+                documentation: "`svm::sol_to_lamports` converts the provided SOL amount to lamports.",
+                example: indoc! {r#"
+                    output "lamports" {
+                        value = svm::sol_to_lamports(1.1)
+                    }
+                    // lamports: 1100000000
+                "#},
+                inputs: [
+                    sol_amount: {
+                        documentation: "The amount of SOL to convert to lamports.",
+                        typing: vec![Type::integer(), Type::float()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The amount of SOL provided, represented as lamports.",
+                    typing: Type::integer()
+                },
+            }
+        },
+        define_function! {
+            LamportsToSol => {
+                name: "lamports_to_sol",
+                documentation: "`svm::lamports_to_sol` converts the provided number of lamports amount to SOL.",
+                example: indoc! {r#"
+                    output "sol" {
+                        value = svm::lamports_to_sol(1100000000)
+                    }
+                    // sol: 1.1
+                "#},
+                inputs: [
+                    lamports_amount: {
+                        documentation: "The amount of lamports to convert to SOL.",
+                        typing: vec![Type::integer()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The number of lamports provided, represented as SOL.",
+                    typing: Type::float()
+                },
+            }
+        },
+        define_function! {
+            FindPda => {
+                name: "find_pda",
+                documentation: "`svm::find_pda` finds a valid pda using the provided program id and seeds.",
+                example: indoc! {r#"
+                    variable "pda" {
+                        value = svm::find_pda("3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6", ["data"])
+                    }
+                    output "pda" {
+                        value = std::encode_base58(variable.pda.pda)
+                    }
+                    output "bump" {
+                        value = variable.pda.bump_seed
+                    }
+                    // > pda: 4amHoWMBgLkPfM8Nq9ZP33Liq9FCuqrLoU1feejkdsUJ
+                    // > bump: 252
+                "#},
+                inputs: [
+                    program_id: {
+                        documentation: "The address of the program the PDA is derived from.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: false
+                    },
+                    seeds: {
+                        documentation: "An optional array of seeds that will be used to derive the PDA.",
+                        typing: vec![Type::array(Type::string())],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "An object containing the PDA address and associated bump seed.",
+                    typing: PDA_RESULT.clone()
+                },
+            }
         }
     ];
 }
@@ -194,6 +275,7 @@ impl FunctionImplementation for SystemProgramId {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
         Ok(Value::string(system_program::id().to_string()))
     }
 }
@@ -287,7 +369,8 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
         let arguments =
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
-        let idl_path = get_path_from_path_str(idl_path_str, auth_ctx)
+        let idl_path = auth_ctx
+            .get_path_from_str(idl_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
         let idl_ref = IdlRef::new(idl_path).map_err(|e| to_diag(fn_spec, e))?;
@@ -322,7 +405,8 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
         let target_path_str =
             args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_ANCHOR_TARGET_PATH);
 
-        let target_path = get_path_from_path_str(target_path_str, auth_ctx)
+        let target_path = auth_ctx
+            .get_path_from_str(target_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get anchor target path: {e}")))?;
 
         let anchor_program_artifacts =
@@ -334,23 +418,117 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     }
 }
 
-fn get_path_from_path_str(
-    path_str: &str,
-    auth_ctx: &AuthorizationContext,
-) -> Result<FileLocation, String> {
-    let path = Path::new(path_str);
-    let path = if path.is_absolute() {
-        FileLocation::from_path(path.to_path_buf())
-    } else {
-        let mut workspace_loc = auth_ctx
-            .workspace_location
-            .get_parent_location()
-            .map_err(|e| format!("unable to read workspace location: {e}"))?;
+pub struct SolToLamports;
+impl FunctionImplementation for SolToLamports {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
 
-        workspace_loc
-            .append_path(&path_str.to_string())
-            .map_err(|e| format!("invalid path: {}", e))?;
-        workspace_loc
-    };
-    Ok(path)
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let sol = args.get(0).unwrap();
+        let sol = match sol {
+            Value::Integer(i) => {
+                if *i < 0 {
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                }
+                if *i > (1u64 << 53) as i128 {
+                    return Err(to_diag(
+                        fn_spec,
+                        "SOL amount too large for precise conversion".into(),
+                    ));
+                }
+                *i as f64
+            }
+            Value::Float(f) => {
+                if *f < 0.0 {
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                }
+                *f
+            }
+            _ => unreachable!(),
+        };
+        let lamports = solana_sdk::native_token::sol_to_lamports(sol);
+        Ok(Value::integer(lamports as i128))
+    }
+}
+
+pub struct LamportsToSol;
+impl FunctionImplementation for LamportsToSol {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let lamports = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
+
+        let sol = solana_sdk::native_token::lamports_to_sol(lamports);
+        Ok(Value::float(sol))
+    }
+}
+
+pub struct FindPda;
+impl FunctionImplementation for FindPda {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let program_id = SvmValue::to_pubkey(args.get(0).unwrap())
+            .map_err(|e| to_diag(fn_spec, format!("invalid program id for finding pda: {e}")))?;
+
+        let seeds: Vec<Vec<u8>> = args
+            .get(1)
+            .map(|v| {
+                v.as_array()
+                    .ok_or_else(|| to_diag(fn_spec, "seeds must be an array".to_string()))?
+                    .iter()
+                    .map(|s| {
+                        let bytes = s.to_bytes();
+                        if bytes.is_empty() {
+                            return Err(to_diag(fn_spec, "seed cannot be empty".to_string()));
+                        }
+                        Ok(bytes)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+        let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
+            .ok_or(to_diag(fn_spec, "failed to find pda".to_string()))?;
+        let obj = ObjectType::from(vec![
+            ("pda", SvmValue::pubkey(pda.to_bytes().to_vec())),
+            ("bump_seed", Value::integer(bump as i128)),
+        ])
+        .to_value();
+        Ok(obj)
+    }
 }

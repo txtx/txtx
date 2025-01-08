@@ -1,3 +1,8 @@
+use std::path::Path;
+
+use crate::helpers::fs::FileLocation;
+use crate::types::AuthorizationContext;
+
 use super::types::Value;
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -53,4 +58,16 @@ fn it_rejects_invalid_keys() {
         }
         Ok(_) => panic!("missing expected error for invalid value key"),
     }
+}
+
+#[test_case("~/home/path", dirs::home_dir().unwrap().join("home/path").to_str().unwrap())]
+#[test_case("/absolute/path", "/absolute/path")]
+#[test_case("./relative/path", "/workspace/./relative/path"; "current directory")]
+#[test_case("../relative/path", "/workspace/../relative/path"; "parent directory")]
+fn test_auth_context_get_path_from_str(path_str: &str, expected: &str) {
+    let auth_context = AuthorizationContext::new(FileLocation::from_path(
+        Path::new("/workspace/txtx.yml").to_path_buf(),
+    ));
+    let result = auth_context.get_path_from_str(path_str).unwrap();
+    assert_eq!(result.to_string(), expected);
 }

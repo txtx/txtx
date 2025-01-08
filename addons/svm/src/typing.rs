@@ -1,4 +1,4 @@
-use solana_sdk::signature::Keypair;
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use txtx_addon_kit::types::types::{Type, Value};
 
 pub const SVM_ADDRESS: &str = "svm::address";
@@ -71,6 +71,14 @@ impl SvmValue {
         Value::addon(bytes, SVM_PUBKEY)
     }
 
+    pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
+        let bytes = value.to_bytes();
+        let bytes: [u8; 32] = bytes[0..32]
+            .try_into()
+            .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+        Ok(Pubkey::new_from_array(bytes))
+    }
+
     pub fn transaction_with_keypairs(transaction_bytes: Vec<u8>, keypairs: Vec<&Keypair>) -> Value {
         let keypairs_bytes: Vec<Vec<u8>> =
             keypairs.iter().map(|keypair| keypair.to_bytes().to_vec()).collect();
@@ -104,6 +112,20 @@ lazy_static! {
         program_id: {
             documentation: "The program id.",
             typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        }
+    };
+    pub static ref PDA_RESULT: Type = define_object_type! {
+        pda: {
+            documentation: "The program derived address.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        bump_seed: {
+            documentation: "The bump seed.",
+            typing: Type::integer(),
             optional: false,
             tainting: true
         }

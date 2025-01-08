@@ -1000,7 +1000,8 @@ impl CommandInstance {
             signers,
         );
         let res = consolidate_signer_future_result(future)
-            .await?
+            .await
+            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))?
             .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
         let (signer_state, mut actions) = res?;
         consolidated_actions.append(&mut actions);

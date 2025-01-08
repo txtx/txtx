@@ -157,6 +157,7 @@ pub async fn run_signers_evaluation(
                 &action_item_requests.get(&construct_did),
                 &action_item_responses.get(&construct_did),
                 supervision_context,
+                &runtime_context.authorization_context,
                 instantiated,
                 instantiated,
             )

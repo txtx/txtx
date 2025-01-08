@@ -122,6 +122,7 @@ impl SignerImplementation for StacksSecretKey {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {

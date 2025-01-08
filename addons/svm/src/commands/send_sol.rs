@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::helpers::build_diag_context_fn;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -18,75 +18,51 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{PROGRAM_ID, RPC_API_URL, TRANSACTION_BYTES};
-use crate::typing::{SvmValue, SVM_ACCOUNT};
+use crate::constants::{
+    AMOUNT, CHECKED_PUBLIC_KEY, NAMESPACE, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES,
+};
+use crate::typing::SvmValue;
 
-use super::get_signers_did;
+use super::get_signer_did;
 use super::sign_transaction::SignTransaction;
 
 lazy_static! {
-    pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
-        ProcessInstructions => {
-            name: "Process SVM Instructions",
-            matcher: "process_instructions",
-            documentation: "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
+    pub static ref SEND_SOL: PreCommandSpecification = define_command! {
+        SendSol => {
+            name: "Send SOL",
+            matcher: "send_sol",
+            documentation: "The `svm::send_sol` action encodes a transaction which sends SOL, signs it, and broadcasts it to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the transaction",
+                    documentation: "A description of the transaction.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
                     internal: false
                 },
-                instruction: {
-                    documentation: "Instructions to process",
-                    typing: Type::map(vec![
-                        ObjectProperty {
-                            name: "description".into(),
-                            documentation: "Description of the instruction".into(),
-                            typing: Type::string(),
-                            optional: true,
-                            tainting: false,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "program_id".into(),
-                            documentation: "Specifies the program being invoked".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "accounts".into(),
-                            documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
-                            typing: Type::array(Type::Addon(SVM_ACCOUNT.into())), // TODO - should be an object
-                            optional: false,
-                            tainting: true,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "data".into(),
-                            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler (function arguments)".into(),
-                            typing: Type::buffer(),
-                            optional: true,
-                            tainting: true,
-                            internal: false
-                        }
-                    ]),
+                amount: {
+                    documentation: "The amount, in lamports, to send.",
+                    typing: Type::integer(),
+                    optional: false,
+                    tainting: false,
+                    internal: false
+                },
+                recipient: {
+                    documentation: "The address of the recipient.",
+                    typing: Type::string(),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
-                signers: {
-                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                signer: {
+                    documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
@@ -121,24 +97,20 @@ lazy_static! {
                     typing: Type::string()
                 }
             ],
-            example: txtx_addon_kit::indoc! {r#"
-
-            action "program_call" "svm::process_instructions" {
-                description = "Invoke instructions"
-                instruction {
-                    program_id = variable.program
-                    accounts = [svm::account(signer.caller.address, true, true)]
-                    data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
-                }
-                signers = [signer.caller]
-            }
-    "#},
+            example: txtx_addon_kit::indoc! {
+                r#"action "send_sol" "svm::send_sol" {
+                    description = "Send some SOL"
+                    amount = evm::sol_to_lamports(1)
+                    signers = [signer.caller]
+                    recipient = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+                }"#
+            },
       }
     };
 }
 
-pub struct ProcessInstructions;
-impl CommandImplementation for ProcessInstructions {
+pub struct SendSol;
+impl CommandImplementation for SendSol {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -155,49 +127,68 @@ impl CommandImplementation for ProcessInstructions {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signers_did = get_signers_did(args).unwrap();
+        let to_diag_with_ctx = build_diag_context_fn(
+            instance_name.to_string(),
+            format!("{}::{}", NAMESPACE, spec.matcher),
+        );
 
-        // TODO: revisit pattern and leverage `check_instantiability` instead`.
-        let mut instructions = vec![];
-        let instructions_data = args
-            .get_expected_array("instruction")
-            .unwrap()
-            .iter()
-            .map(|i| i.expect_object())
-            .collect::<Vec<_>>();
-        let rpc_api_url = args.get_expected_string(RPC_API_URL).unwrap().to_string();
+        let signer_did = get_signer_did(args).unwrap();
+        let signer_state = signers.get_signer_state(&signer_did).unwrap();
 
-        for instruction_data in instructions_data.iter() {
-            let program_id = instruction_data.get(PROGRAM_ID).unwrap().expect_string();
-            let accounts = instruction_data
-                .get("accounts")
-                .unwrap()
-                .expect_array()
-                .iter()
-                .map(|a| {
-                    let account = a.expect_object();
-                    let pubkey = account.get("public_key").unwrap().expect_string();
-                    let is_signer = account.get("is_signer").unwrap().expect_bool();
-                    let is_writable = account.get("is_writable").unwrap().expect_bool();
-                    AccountMeta {
-                        pubkey: Pubkey::try_from(pubkey).unwrap(),
-                        is_signer,
-                        is_writable,
-                    }
-                })
-                .collect::<Vec<_>>();
-            let data = instruction_data.get("data").unwrap().expect_buffer_bytes();
-            let program_id = Pubkey::from_str(program_id).unwrap();
-            let instruction = Instruction { program_id, accounts, data };
-            instructions.push(instruction);
-        }
+        let amount = args
+            .get_expected_uint(AMOUNT)
+            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?;
 
-        let mut message = Message::new(&instructions, None);
+        let recipient =
+            Pubkey::from_str(args.get_expected_string(RECIPIENT).map_err(|e| {
+                (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message))
+            })?)
+            .map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    to_diag_with_ctx(format!("invalid recipient: {}", e.to_string())),
+                )
+            })?;
+
+        let rpc_api_url = args
+            .get_expected_string(RPC_API_URL)
+            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?
+            .to_string();
+
+        let signer_pubkey =
+            Pubkey::from_str(signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(
+                |e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.to_string())),
+            )?)
+            .map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    to_diag_with_ctx(format!("invalid signer pubkey: {}", e.to_string())),
+                )
+            })?;
+
+        let instruction =
+            solana_sdk::system_instruction::transfer(&signer_pubkey, &recipient, amount);
+
+        let mut message = Message::new(&vec![instruction], None);
         let client = RpcClient::new(rpc_api_url);
-        message.recent_blockhash = client.get_latest_blockhash().unwrap();
+        message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                to_diag_with_ctx(format!("failed to retrieve latest blockhash: {}", e.to_string())),
+            )
+        })?;
         let transaction = Transaction::new_unsigned(message);
 
-        let transaction_bytes = serde_json::to_vec(&transaction).unwrap();
+        let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                to_diag_with_ctx(format!("failed to serialize transaction: {}", e)),
+            )
+        })?;
 
         let mut args = args.clone();
         args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
@@ -238,7 +229,7 @@ impl CommandImplementation for ProcessInstructions {
                 &signers_instances,
                 signers,
             );
-            let (signers, signer_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
@@ -260,7 +251,13 @@ impl CommandImplementation for ProcessInstructions {
                     )
                 })?;
 
-            let _ = transaction.verify_and_hash_message().unwrap();
+            let _ = transaction.verify_and_hash_message().map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to verify transaction message: {}", e),
+                )
+            })?;
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))

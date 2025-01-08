@@ -58,10 +58,11 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: true
                 },
                 commitment_level: {
-                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). Default to 'confirmed'.",
+                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
@@ -156,7 +157,7 @@ impl CommandImplementation for SendTransaction {
             let mut status_updater =
                 StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
-            let mut result = CommandExecutionResult::new();
+            let mut result = CommandExecutionResult::from_value_store(&outputs);
 
             let transaction_bytes = signed_transaction_value
                 .expect_buffer_bytes_result()
@@ -170,12 +171,12 @@ impl CommandImplementation for SendTransaction {
                     ));
                     diag
                 })?;
-            result.outputs.insert(SIGNATURE.into(), Value::string(signature));
+            result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));
 
             status_updater.propagate_status(ProgressBarStatus::new_msg(
                 ProgressBarStatusColor::Green,
                 "Complete",
-                "Transaction broadcasting complete",
+                &format!("Transaction {} broadcasting complete", signature),
             ));
             Ok(result)
         };
@@ -193,6 +194,7 @@ pub fn send_transaction(
     let transaction: Transaction = serde_json::from_slice(&transaction_bytes).map_err(|e| {
         diagnosed_error!("unable to deserialize transaction from bytes ({})", e.to_string())
     })?;
+
     let signature = if do_await_confirmation {
         rpc_client.send_and_confirm_transaction(&transaction).map_err(|e| {
             diagnosed_error!("unable to send and confirm transaction ({})", e.to_string())

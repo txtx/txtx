@@ -21,6 +21,7 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
@@ -56,6 +57,13 @@ lazy_static! {
                 },
                 mnemonic: {
                     documentation: "The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: true,
+                    sensitive: true
+                },
+                keypair_json: {
+                    documentation: "A path to a keypair.json file containing the secret key.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
@@ -121,10 +129,17 @@ impl SignerImplementation for SvmSecretKey {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use crate::{constants::DEFAULT_DERIVATION_PATH, signers::namespaced_err_fn};
+        use crate::{
+            constants::{
+                DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
+                PASSWORD, SECRET_KEY,
+            },
+            signers::namespaced_err_fn,
+        };
         use solana_sdk::{signature::Keypair, signer::Signer};
         use txtx_addon_kit::{
             crypto::secret_key_bytes_from_mnemonic,
@@ -139,19 +154,59 @@ impl SignerImplementation for SvmSecretKey {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let secret_key_bytes = match values.get_value("secret_key") {
-            None => {
-                let mnemonic = values
-                    .get_expected_string("mnemonic")
-                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-                let derivation_path =
-                    values.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
-                let is_encrypted = values.get_bool("is_encrypted").unwrap_or(false);
-                let password = values.get_string("password");
-                secret_key_bytes_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
+        let secret_key_bytes = match values.get_value(SECRET_KEY) {
+            None => match values.get_string(MNEMONIC) {
+                None => {
+                    let keypair_json_str = values
+                        .get_expected_string(KEYPAIR_JSON)
+                        .map_err(|_| signer_err(&signers, &signer_state, format!("either `secret_key`, `mnemonic`, or `keypair_json` fields are required")))?;
+
+                    let keypair_json =
+                        auth_ctx.get_path_from_str(keypair_json_str).map_err(|e| {
+                            signer_err(
+                                &signers,
+                                &signer_state,
+                                format!(
+                                    "invalid keypair file location ({}): {}",
+                                    keypair_json_str, e
+                                ),
+                            )
+                        })?;
+
+                    let keypair_bytes = keypair_json.read_content().map_err(|e| {
+                        signer_err(
+                            &signers,
+                            &signer_state,
+                            format!("failed to read keypair file ({}): {}", keypair_json_str, e),
+                        )
+                    })?;
+                    let keypair: Vec<u8> = serde_json::from_slice(&keypair_bytes).map_err(|e| {
+                        signer_err(
+                            &signers,
+                            &signer_state,
+                            format!(
+                                "failed to deserialize keypair file ({}): {}",
+                                keypair_json_str, e
+                            ),
+                        )
+                    })?;
+                    keypair
+                }
+                Some(mnemonic) => {
+                    let derivation_path =
+                        values.get_string(DERIVATION_PATH).unwrap_or(DEFAULT_DERIVATION_PATH);
+                    let is_encrypted = values.get_bool(IS_ENCRYPTED).unwrap_or(false);
+                    let password = values.get_string(PASSWORD);
+                    secret_key_bytes_from_mnemonic(
+                        mnemonic,
+                        derivation_path,
+                        is_encrypted,
+                        password,
+                    )
                     .map_err(|e| signer_err(&signers, &signer_state, e))?
                     .to_vec()
-            }
+                }
+            },
             Some(value) => match value
                 .try_get_buffer_bytes_result()
                 .map_err(|e| signer_err(&signers, &signer_state, e))?
