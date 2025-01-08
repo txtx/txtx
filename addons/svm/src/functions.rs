@@ -420,8 +420,24 @@ impl FunctionImplementation for SolToLamports {
         arg_checker(fn_spec, args)?;
         let sol = args.get(0).unwrap();
         let sol = match sol {
-            Value::Integer(i) => *i as f64,
-            Value::Float(f) => *f,
+            Value::Integer(i) => {
+                if *i < 0 {
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                }
+                if *i > (1u64 << 53) as i128 {
+                    return Err(to_diag(
+                        fn_spec,
+                        "SOL amount too large for precise conversion".into(),
+                    ));
+                }
+                *i as f64
+            }
+            Value::Float(f) => {
+                if *f < 0.0 {
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                }
+                *f
+            }
             _ => unreachable!(),
         };
         let lamports = solana_sdk::native_token::sol_to_lamports(sol);
