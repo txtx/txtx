@@ -227,10 +227,17 @@ lazy_static! {
                 name: "find_pda",
                 documentation: "`svm::find_pda` finds a valid pda using the provided program id and seed.",
                 example: indoc! {r#"
-                    output "pda" {
-                        value = svm::find_pda("", "my seed")
+                    variable "pda" {
+                        value = svm::find_pda("3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6", "data")
                     }
-                    // sol: 1.1
+                    output "pda" {
+                        value = std::encode_base58(variable.pda.pda)
+                    }
+                    output "bump" {
+                        value = variable.pda.bump_seed
+                    }
+                    // > pda: 4amHoWMBgLkPfM8Nq9ZP33Liq9FCuqrLoU1feejkdsUJ
+                    // > bump: 252
                 "#},
                 inputs: [
                     program_id: {
