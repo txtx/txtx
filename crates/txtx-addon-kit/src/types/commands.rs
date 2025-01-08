@@ -1211,3 +1211,29 @@ pub trait CommandImplementation {
         unimplemented!()
     }
 }
+
+pub fn err_to_command_ctx_diag(
+    namespace: String,
+) -> impl Fn(&CommandSpecification, &str, String) -> Diagnostic {
+    let command_diag_with_ctx = move |command_spec: &CommandSpecification,
+                                      command_instance_name: &str,
+                                      e: String|
+          -> Diagnostic {
+        Diagnostic::error_from_string(format!(
+            "'{}:{}' command '{}': {}",
+            namespace, command_spec.matcher, command_instance_name, e
+        ))
+    };
+    return command_diag_with_ctx;
+}
+
+pub fn add_ctx_to_command_result_diag<'a>(
+    signer_spec: &'a CommandSpecification,
+    signer_instance_name: &'a str,
+    err_to_command_ctx_diag: impl Fn(&CommandSpecification, &str, String) -> Diagnostic + 'a,
+) -> impl Fn(String) -> Diagnostic + 'a {
+    let diag_with_command_ctx = move |e: String| -> Diagnostic {
+        err_to_command_ctx_diag(signer_spec, signer_instance_name, e)
+    };
+    return diag_with_command_ctx;
+}
