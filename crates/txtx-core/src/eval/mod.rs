@@ -12,7 +12,8 @@ use kit::hcl::structure::Block as HclBlock;
 use kit::helpers::hcl::visit_optional_untyped_attribute;
 use kit::indexmap::IndexMap;
 use kit::types::commands::{
-    CommandExecutionFuture, DependencyExecutionResultCache, UnevaluatedInputsMap,
+    add_ctx_to_diag, add_ctx_to_embedded_runbook_diag, CommandExecutionFuture,
+    DependencyExecutionResultCache, UnevaluatedInputsMap,
 };
 use kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
 use kit::types::frontend::{
@@ -72,60 +73,61 @@ pub async fn run_signers_evaluation(
 
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
-        let (evaluated_inputs_res, _group) = match runbook_execution_context
-            .signers_instances
-            .get(&construct_did)
-        {
-            None => continue,
-            Some(signer_instance) => {
-                let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
+        let Some(signer_instance) = runbook_execution_context.signers_instances.get(&construct_did)
+        else {
+            continue;
+        };
 
-                let references_expressions =
-                    signer_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+        let add_ctx_to_diag = add_ctx_to_diag(
+            "signer".to_string(),
+            signer_instance.specification.matcher.clone(),
+            signer_instance.name.clone(),
+            signer_instance.namespace.clone(),
+        );
 
-                for (_input, expr) in references_expressions.into_iter() {
-                    if let Some((dependency, _, _)) = runbook_workspace_context
-                        .try_resolve_construct_reference_in_expression(&package_id, &expr)
-                        .unwrap()
+        let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
+
+        let references_expressions =
+            signer_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+
+        for (_input, expr) in references_expressions.into_iter() {
+            if let Some((dependency, _, _)) = runbook_workspace_context
+                .try_resolve_construct_reference_in_expression(&package_id, &expr)
+                .unwrap()
+            {
+                if let Some(evaluation_result) =
+                    runbook_execution_context.commands_execution_results.get(&dependency)
+                {
+                    match cached_dependency_execution_results.merge(&dependency, &evaluation_result)
                     {
-                        if let Some(evaluation_result) =
-                            runbook_execution_context.commands_execution_results.get(&dependency)
-                        {
-                            match cached_dependency_execution_results
-                                .merge(&dependency, &evaluation_result)
-                            {
-                                Ok(_) => {}
-                                Err(diag) => {
-                                    pass_result.push_diagnostic(&diag, construct_id);
-                                    continue;
-                                }
-                            }
+                        Ok(_) => {}
+                        Err(diag) => {
+                            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                            continue;
                         }
                     }
                 }
-
-                let input_evaluation_results = runbook_execution_context
-                    .commands_inputs_evaluation_results
-                    .get(&construct_did.clone());
-
-                let addon_context_key = (package_id.did(), signer_instance.namespace.clone());
-                let addon_defaults =
-                    runbook_workspace_context.get_addon_defaults(&addon_context_key);
-
-                let res = perform_signer_inputs_evaluation(
-                    &signer_instance,
-                    &cached_dependency_execution_results,
-                    &input_evaluation_results,
-                    addon_defaults,
-                    &package_id,
-                    &runbook_workspace_context,
-                    &runbook_execution_context,
-                    runtime_context,
-                );
-                let group = signer_instance.get_group();
-                (res, group)
             }
-        };
+        }
+
+        let input_evaluation_results = runbook_execution_context
+            .commands_inputs_evaluation_results
+            .get(&construct_did.clone());
+
+        let addon_context_key = (package_id.did(), signer_instance.namespace.clone());
+        let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
+
+        let evaluated_inputs_res = perform_signer_inputs_evaluation(
+            &signer_instance,
+            &cached_dependency_execution_results,
+            &input_evaluation_results,
+            addon_defaults,
+            &package_id,
+            &runbook_workspace_context,
+            &runbook_execution_context,
+            runtime_context,
+        );
+
         let evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
@@ -133,12 +135,12 @@ pub async fn run_signers_evaluation(
                     continue;
                 }
                 CommandInputEvaluationStatus::Aborted(_, diags) => {
-                    pass_result.append_diagnostics(diags, construct_id);
+                    pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
                     continue;
                 }
             },
             Err(diags) => {
-                pass_result.append_diagnostics(diags, construct_id);
+                pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
                 return pass_result;
             }
         };
@@ -183,7 +185,9 @@ pub async fn run_signers_evaluation(
                         pass_result.actions.push_action_item_update(update);
                     }
                 }
-                pass_result.push_diagnostic(&diag, construct_id);
+                println!("check activability diag: {:?}", diag);
+                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                println!("pass results diags: {:?}", pass_result.diagnostics);
                 return pass_result;
             }
         };
@@ -206,7 +210,7 @@ pub async fn run_signers_evaluation(
             Ok((signers_state, result)) => (Some(result), Some(signers_state)),
             Err((signers_state, diag)) => {
                 runbook_execution_context.signers_state = Some(signers_state);
-                pass_result.push_diagnostic(&diag, construct_id);
+                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return pass_result;
             }
         };
@@ -266,12 +270,22 @@ impl EvaluationPassResult {
         !self.diagnostics.is_empty()
     }
 
-    pub fn push_diagnostic(&mut self, diag: &Diagnostic, construct_id: &ConstructId) {
-        self.diagnostics.push(diag.clone().location(&construct_id.construct_location))
+    pub fn push_diagnostic(
+        &mut self,
+        diag: &Diagnostic,
+        construct_id: &ConstructId,
+        ctx_adder: &impl Fn(&Diagnostic) -> Diagnostic,
+    ) {
+        self.diagnostics.push(ctx_adder(diag).location(&construct_id.construct_location))
     }
 
-    pub fn append_diagnostics(&mut self, diags: Vec<Diagnostic>, construct_id: &ConstructId) {
-        diags.iter().for_each(|diag| self.push_diagnostic(diag, construct_id))
+    pub fn append_diagnostics(
+        &mut self,
+        diags: Vec<Diagnostic>,
+        construct_id: &ConstructId,
+        ctx_adder: &impl Fn(&Diagnostic) -> Diagnostic,
+    ) {
+        diags.iter().for_each(|diag| self.push_diagnostic(diag, construct_id, &ctx_adder))
     }
 
     pub fn fill_diagnostic_span(&mut self, runbook_sources: &RunbookSources) {
@@ -439,6 +453,13 @@ pub async fn evaluate_command_instance(
         return LoopEvaluationResult::Continue;
     };
 
+    let add_ctx_to_diag = add_ctx_to_diag(
+        "command".to_string(),
+        command_instance.specification.matcher.clone(),
+        command_instance.name.clone(),
+        command_instance.namespace.clone(),
+    );
+
     let package_id = command_instance.package_id.clone();
     let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
 
@@ -497,12 +518,12 @@ pub async fn evaluate_command_instance(
                 return LoopEvaluationResult::Continue;
             }
             CommandInputEvaluationStatus::Aborted(_, diags) => {
-                pass_result.append_diagnostics(diags, construct_id);
+                pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
             }
         },
         Err(diags) => {
-            pass_result.append_diagnostics(diags, construct_id);
+            pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
             return LoopEvaluationResult::Bail;
         }
     };
@@ -544,7 +565,7 @@ pub async fn evaluate_command_instance(
                 updated_signers
             }
             Err((updated_signers, diag)) => {
-                pass_result.push_diagnostic(&diag, construct_id);
+                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 runbook_execution_context.signers_state = Some(updated_signers);
                 return LoopEvaluationResult::Bail;
             }
@@ -613,7 +634,7 @@ pub async fn evaluate_command_instance(
                 pass_result.actions.append(&mut new_actions);
             }
             Err(diag) => {
-                pass_result.push_diagnostic(&diag, construct_id);
+                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
             }
         }
@@ -659,7 +680,7 @@ pub async fn evaluate_command_instance(
     let mut execution_result = match execution_result {
         Ok(res) => res,
         Err(diag) => {
-            pass_result.push_diagnostic(&diag, construct_id);
+            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
             return LoopEvaluationResult::Continue;
         }
     };
@@ -682,7 +703,7 @@ pub async fn evaluate_command_instance(
         let future = match future_res {
             Ok(future) => future,
             Err(diag) => {
-                pass_result.push_diagnostic(&diag, construct_id);
+                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
             }
         };
@@ -722,6 +743,8 @@ pub async fn evaluate_embedded_runbook_instance(
     else {
         return LoopEvaluationResult::Continue;
     };
+
+    let add_ctx_to_diag = add_ctx_to_embedded_runbook_diag(embedded_runbook.name.clone());
 
     let package_id = embedded_runbook.package_id.clone();
     let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
@@ -771,12 +794,12 @@ pub async fn evaluate_embedded_runbook_instance(
                 return LoopEvaluationResult::Continue
             }
             CommandInputEvaluationStatus::Aborted(_, diags) => {
-                pass_result.append_diagnostics(diags, construct_id);
+                pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
             }
         },
         Err(diags) => {
-            pass_result.append_diagnostics(diags, construct_id);
+            pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
             return LoopEvaluationResult::Bail;
         }
     };
@@ -805,7 +828,7 @@ pub async fn evaluate_embedded_runbook_instance(
     ) {
         Ok(res) => res,
         Err(diag) => {
-            pass_result.push_diagnostic(&diag, construct_id);
+            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
             return LoopEvaluationResult::Bail;
         }
     };

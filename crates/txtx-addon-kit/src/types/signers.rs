@@ -78,6 +78,7 @@ pub type SignerActivateFutureResult = Result<
 
 pub fn consolidate_signer_activate_result(
     res: Result<SignerActionOk, SignerActionErr>,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
     match res {
         Ok((mut signers, signer_state, result)) => {
@@ -86,21 +87,22 @@ pub fn consolidate_signer_activate_result(
         }
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
 pub async fn consolidate_signer_activate_future_result(
     future: SignerActivateFutureResult,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<
     Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)>,
     (SignersState, Diagnostic),
 > {
     match future {
-        Ok(res) => Ok(consolidate_signer_activate_result(res.await)),
+        Ok(res) => Ok(consolidate_signer_activate_result(res.await, block_span)),
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
@@ -207,6 +209,7 @@ pub fn return_synchronous_err(
 
 pub fn consolidate_signer_result(
     res: Result<CheckSignabilityOk, SignerActionErr>,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
     match res {
         Ok((mut signers, signer_state, actions)) => {
@@ -215,19 +218,20 @@ pub fn consolidate_signer_result(
         }
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
 pub async fn consolidate_signer_future_result(
     future: SignerActionsFutureResult,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<Result<(SignersState, Actions), (SignersState, Diagnostic)>, (SignersState, Diagnostic)>
 {
     match future {
-        Ok(res) => Ok(consolidate_signer_result(res.await)),
+        Ok(res) => Ok(consolidate_signer_result(res.await, block_span)),
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
@@ -383,9 +387,8 @@ impl SignerInstance {
                                 is_balance_check_required,
                                 is_public_key_required,
                             );
-                            return consolidate_signer_future_result(res).await?.map_err(
-                                |(state, diag)| (state, diag.set_span_range(self.block.span())),
-                            );
+                            return consolidate_signer_future_result(res, self.block.span())
+                                .await?;
                             // WIP
                             // let (status, success) = match &res {
                             //     Ok((_, actions)) => {
@@ -432,9 +435,7 @@ impl SignerInstance {
             is_public_key_required,
         );
 
-        consolidate_signer_future_result(res)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))
+        consolidate_signer_future_result(res, self.block.span()).await?
     }
 
     pub async fn perform_activation(
@@ -459,11 +460,7 @@ impl SignerInstance {
             signers_instances,
             progress_tx,
         );
-        let res = consolidate_signer_activate_future_result(future)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
-
-        res
+        consolidate_signer_activate_future_result(future, self.block.span()).await?
     }
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
@@ -562,46 +559,4 @@ pub trait SignerImplementation {
     ) -> SignerSignFutureResult {
         unimplemented!()
     }
-}
-
-pub fn err_to_signer_ctx_diag(
-    namespace: String,
-) -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let signer_diag_with_ctx = move |signer_spec: &SignerSpecification,
-                                     signer_instance_name: &str,
-                                     e: String|
-          -> Diagnostic {
-        Diagnostic::error_from_string(format!(
-            "'{}:{}' signer '{}': {}",
-            namespace, signer_spec.matcher, signer_instance_name, e
-        ))
-    };
-    return signer_diag_with_ctx;
-}
-
-pub fn add_ctx_to_signer_result_diag<'a>(
-    signer_spec: &'a SignerSpecification,
-    signer_instance_name: &'a str,
-    err_to_signer_ctx_diag: impl Fn(&SignerSpecification, &str, String) -> Diagnostic + 'a,
-) -> impl Fn(String) -> Diagnostic + 'a {
-    let diag_with_signer_ctx = move |e: String| -> Diagnostic {
-        err_to_signer_ctx_diag(signer_spec, signer_instance_name, e)
-    };
-    return diag_with_signer_ctx;
-}
-
-pub fn signer_actions_future_result_fn(
-    signer_diag_with_ctx: impl Fn(String) -> Diagnostic,
-) -> impl for<'a, 'b> Fn(
-    &'a SignersState,
-    &'b ValueStore,
-    String,
-) -> (SignersState, ValueStore, Diagnostic) {
-    let error_fn = move |signers: &SignersState,
-                         signer_state: &ValueStore,
-                         e: String|
-          -> (SignersState, ValueStore, Diagnostic) {
-        return (signers.clone(), signer_state.clone(), signer_diag_with_ctx(e));
-    };
-    error_fn
 }

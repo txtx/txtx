@@ -12,7 +12,6 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
     SignerSignFutureResult, SignerSpecification, SignersState,
 };
-use txtx_addon_kit::types::signers::{add_ctx_to_signer_result_diag, signer_actions_future_result_fn};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -29,8 +28,6 @@ use crate::constants::{
     NAMESPACE, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
     WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
 };
-
-use super::namespaced_err_fn;
 
 lazy_static! {
     pub static ref EVM_WEB_WALLET: SignerSpecification = {
@@ -87,7 +84,7 @@ impl SignerImplementation for EvmWebWallet {
     fn check_activability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
@@ -108,9 +105,6 @@ impl SignerImplementation for EvmWebWallet {
             signers::common::get_additional_actions_for_address,
         };
 
-        let signer_err =
-            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &instance_name, namespaced_err_fn()));
-
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data =
             signer_state.get_expected_bool(REQUESTED_STARTUP_DATA).ok().unwrap_or(false);
@@ -122,13 +116,13 @@ impl SignerImplementation for EvmWebWallet {
         let values = values.clone();
         let chain_id = values
             .get_expected_uint(CHAIN_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         let expected_address = values
             .get_string(EXPECTED_ADDRESS)
             .map(|e| e.to_string())
             .and_then(|a| Some(string_to_address(a)))
             .transpose()
-            .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
         let do_request_address_check = expected_address.is_some();
         let do_request_public_key = is_public_key_required;
         // only request public key if we haven't already created that action
@@ -140,17 +134,18 @@ impl SignerImplementation for EvmWebWallet {
         let signer_did = construct_did.clone();
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
 
         if let Ok(ref signed_message_hex) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
             let public_key_bytes =
-                public_key_from_signed_message(&DEFAULT_MESSAGE, signed_message_hex)
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?;
+                public_key_from_signed_message(&DEFAULT_MESSAGE, signed_message_hex).map_err(
+                    |e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")),
+                )?;
             let evm_address = public_key_to_address(&public_key_bytes)
-                .map_err(|e| signer_err(&signers, &signer_state, e))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
 
             let mut actions: Actions = Actions::none();
             let mut success = true;
@@ -191,10 +186,7 @@ impl SignerImplementation for EvmWebWallet {
             return return_synchronous_actions(Ok((signers, signer_state, Actions::none())));
         }
 
-        let spec = spec.clone();
         let future = async move {
-            let signer_err =
-                signer_actions_future_result_fn(add_ctx_to_signer_result_diag(&spec, &instance_name, namespaced_err_fn()));
             let mut actions = Actions::none();
             let res = get_additional_actions_for_address(
                 &expected_address,
@@ -211,7 +203,9 @@ impl SignerImplementation for EvmWebWallet {
 
             let action_items = match res {
                 Ok(action_items) => action_items,
-                Err(e) => return Err(signer_err(&signers, &signer_state, e)),
+                Err(e) => {
+                    return Err((signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))
+                }
             };
             if !action_items.is_empty() {
                 actions.push_group(
@@ -226,25 +220,20 @@ impl SignerImplementation for EvmWebWallet {
 
     fn activate(
         _construct_id: &ConstructDid,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
-
         let mut result = CommandExecutionResult::new();
         let public_key = signer_state
             .get_expected_value(CHECKED_PUBLIC_KEY)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         let chain_id = values
             .get_expected_value(CHAIN_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
         signer_state.insert("multi_sig", Value::bool(false));
@@ -260,18 +249,13 @@ impl SignerImplementation for EvmWebWallet {
         title: &str,
         description: &Option<String>,
         _payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_actions_future_result_fn(add_ctx_to_signer_result_diag(spec, &signer_instance.name, namespaced_err_fn()));
-
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, TX_HASH) {
             return Ok((signers, signer_state, Actions::none()));
@@ -304,7 +288,7 @@ impl SignerImplementation for EvmWebWallet {
         } else {
             let chain_id = values
                 .get_expected_uint(CHAIN_ID)
-                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             // let signable = signer_state
             //     .get_scoped_value(&construct_did_str, IS_SIGNABLE)
             //     .and_then(|v| v.as_bool())
@@ -322,7 +306,7 @@ impl SignerImplementation for EvmWebWallet {
                     &construct_did_str,
                     WEB_WALLET_UNSIGNED_TRANSACTION_BYTES,
                 )
-                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let formatted_payload = signer_state
                 .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)

@@ -6,14 +6,13 @@ use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
-    add_ctx_to_command_result_diag, CommandExecutionFutureResult, CommandImplementation,
-    CommandSpecification, PreCommandSpecification,
+    CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
+    PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::signers::{
-    signer_actions_future_result_fn, SignerActionsFutureResult, SignerInstance,
-    SignerSignFutureResult, SignersState,
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
@@ -25,8 +24,8 @@ use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::{SvmValue, ACCOUNT_META_TYPE};
 
+use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
-use super::{get_signers_did, namespaced_command_err_fn};
 
 lazy_static! {
     pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
@@ -154,32 +153,36 @@ impl CommandImplementation for ProcessInstructions {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let err = signer_actions_future_result_fn(add_ctx_to_command_result_diag(
-            spec,
-            instance_name,
-            namespaced_command_err_fn(),
-        ));
         let signers_did = get_signers_did(args).unwrap();
         let signer_state = signers.get_signer_state(&signers_did.first().unwrap()).unwrap();
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|diag| err(&signers, &signer_state, diag.message))?
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
             .to_string();
 
         // TODO: revisit pattern and leverage `check_instantiability` instead`.
-        let instructions = parse_instructions_map(args)
-            .map_err(|e| err(&signers, &signer_state, format!("invalid instructions: {e}")))?;
+        let instructions = parse_instructions_map(args).map_err(|e| {
+            (signers.clone(), signer_state.clone(), diagnosed_error!("invalid instructions: {e}"))
+        })?;
 
         let mut message = Message::new(&instructions, None);
         let client = RpcClient::new(rpc_api_url);
         message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
-            err(&signers, &signer_state, format!("failed to get latest blockhash: {e}"))
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("failed to get latest blockhash: {e}"),
+            )
         })?;
         let transaction = Transaction::new_unsigned(message);
 
         let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
-            err(&signers, &signer_state, format!("failed to serialize transaction: {e}"))
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("failed to serialize transaction: {e}"),
+            )
         })?;
 
         let mut args = args.clone();
