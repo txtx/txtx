@@ -999,11 +999,8 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        let res = consolidate_signer_future_result(future)
-            .await
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
-        let (signer_state, mut actions) = res?;
+        let (signer_state, mut actions) =
+            consolidate_signer_future_result(future, self.block.span()).await??;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((signer_state, consolidated_actions))
@@ -1032,9 +1029,7 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        let res = consolidate_signer_activate_future_result(future)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
+        let res = consolidate_signer_activate_future_result(future, self.block.span()).await?;
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -1212,28 +1207,30 @@ pub trait CommandImplementation {
     }
 }
 
-pub fn err_to_command_ctx_diag(
+pub fn add_ctx_to_diag(
+    command_type: String,
+    matcher: String,
+    command_instance_name: String,
     namespace: String,
-) -> impl Fn(&CommandSpecification, &str, String) -> Diagnostic {
-    let command_diag_with_ctx = move |command_spec: &CommandSpecification,
-                                      command_instance_name: &str,
-                                      e: String|
-          -> Diagnostic {
-        Diagnostic::error_from_string(format!(
-            "'{}:{}' command '{}': {}",
-            namespace, command_spec.matcher, command_instance_name, e
-        ))
+) -> impl Fn(&Diagnostic) -> Diagnostic {
+    let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
+        let mut diag = diag.clone();
+        diag.message = format!(
+            "'{}:{}' {} '{}': {}",
+            namespace, matcher, command_type, command_instance_name, diag.message
+        );
+        diag
     };
-    return command_diag_with_ctx;
+    return diag_with_command_ctx;
 }
-
-pub fn add_ctx_to_command_result_diag<'a>(
-    signer_spec: &'a CommandSpecification,
-    signer_instance_name: &'a str,
-    err_to_command_ctx_diag: impl Fn(&CommandSpecification, &str, String) -> Diagnostic + 'a,
-) -> impl Fn(String) -> Diagnostic + 'a {
-    let diag_with_command_ctx = move |e: String| -> Diagnostic {
-        err_to_command_ctx_diag(signer_spec, signer_instance_name, e)
+pub fn add_ctx_to_embedded_runbook_diag(
+    embedded_runbook_instance_name: String,
+) -> impl Fn(&Diagnostic) -> Diagnostic {
+    let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
+        let mut diag = diag.clone();
+        diag.message =
+            format!("embedded runbook '{}': {}", embedded_runbook_instance_name, diag.message);
+        diag
     };
     return diag_with_command_ctx;
 }

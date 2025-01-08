@@ -26,6 +26,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use std::str::FromStr;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::types::Value;
 
 use crate::typing::SvmValue;
@@ -42,8 +43,8 @@ pub fn public_key_from_bytes(bytes: &Vec<u8>) -> Result<Pubkey, String> {
     Ok(Pubkey::new_from_array(bytes))
 }
 
-pub fn public_key_from_str(str: &str) -> Result<Pubkey, String> {
-    Pubkey::from_str(str).map_err(|e| format!("invalid public key: {e}"))
+pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
+    Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
 }
 
 pub struct UpgradeableProgramDeployer {

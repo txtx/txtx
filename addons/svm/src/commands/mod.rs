@@ -1,4 +1,4 @@
-use crate::constants::{NAMESPACE, SIGNER, SIGNERS};
+use crate::constants::{SIGNER, SIGNERS};
 // use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
 use process_instructions::PROCESS_INSTRUCTIONS;
@@ -6,8 +6,7 @@ use send_sol::SEND_SOL;
 use send_token::SEND_TOKEN;
 use send_transaction::SEND_TRANSACTION;
 use sign_transaction::SIGN_TRANSACTION;
-use txtx_addon_kit::types::commands::err_to_command_ctx_diag;
-use txtx_addon_kit::types::commands::{CommandSpecification, PreCommandSpecification};
+use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
 
@@ -17,12 +16,6 @@ pub mod send_sol;
 pub mod send_token;
 pub mod send_transaction;
 pub mod sign_transaction;
-
-pub fn namespaced_command_err_fn() -> impl Fn(&CommandSpecification, &str, String) -> Diagnostic {
-    let add_namespace_ctx_to_signer_result_diag = err_to_command_ctx_diag(NAMESPACE.to_string());
-    let error_fn = add_namespace_ctx_to_signer_result_diag;
-    error_fn
-}
 
 fn get_signers_did(args: &ValueStore) -> Result<Vec<ConstructDid>, Diagnostic> {
     let signers = args.get_expected_array(SIGNERS)?;

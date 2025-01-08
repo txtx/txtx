@@ -15,9 +15,8 @@ use txtx_addon_kit::types::frontend::{
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
-    add_ctx_to_signer_result_diag, return_synchronous_result, signer_actions_future_result_fn,
-    CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult,
-    SignerInstance, SignerSignFutureResult, SignersState,
+    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
@@ -38,8 +37,6 @@ use crate::constants::{
 use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-
-use super::namespaced_signer_err_fn;
 
 lazy_static! {
     pub static ref SVM_SECRET_KEY: SignerSpecification = define_signer! {
@@ -123,7 +120,7 @@ impl SignerImplementation for SvmSecretKey {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
@@ -133,24 +130,12 @@ impl SignerImplementation for SvmSecretKey {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use crate::{
-            constants::{
-                DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
-                PASSWORD, SECRET_KEY,
-            },
-            signers::namespaced_signer_err_fn,
+        use crate::constants::{
+            DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
+            PASSWORD, SECRET_KEY,
         };
         use solana_sdk::{signature::Keypair, signer::Signer};
-        use txtx_addon_kit::{
-            crypto::secret_key_bytes_from_mnemonic,
-            types::signers::{add_ctx_to_signer_result_diag, signer_actions_future_result_fn},
-        };
-
-        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
-            spec,
-            instance_name,
-            namespaced_signer_err_fn(),
-        ));
+        use txtx_addon_kit::crypto::secret_key_bytes_from_mnemonic;
         let mut actions = Actions::none();
 
         if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
@@ -162,34 +147,40 @@ impl SignerImplementation for SvmSecretKey {
                 None => {
                     let keypair_json_str = values
                         .get_expected_string(KEYPAIR_JSON)
-                        .map_err(|_| signer_err(&signers, &signer_state, format!("either `secret_key`, `mnemonic`, or `keypair_json` fields are required")))?;
+                        .map_err(|_| (signers.clone(), signer_state.clone(), diagnosed_error!("either `secret_key`, `mnemonic`, or `keypair_json` fields are required")))?;
 
                     let keypair_json =
                         auth_ctx.get_path_from_str(keypair_json_str).map_err(|e| {
-                            signer_err(
-                                &signers,
-                                &signer_state,
-                                format!(
+                            (
+                                signers.clone(),
+                                signer_state.clone(),
+                                diagnosed_error!(
                                     "invalid keypair file location ({}): {}",
-                                    keypair_json_str, e
+                                    keypair_json_str,
+                                    e
                                 ),
                             )
                         })?;
 
                     let keypair_bytes = keypair_json.read_content().map_err(|e| {
-                        signer_err(
-                            &signers,
-                            &signer_state,
-                            format!("failed to read keypair file ({}): {}", keypair_json_str, e),
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!(
+                                "failed to read keypair file ({}): {}",
+                                keypair_json_str,
+                                e
+                            ),
                         )
                     })?;
                     let keypair: Vec<u8> = serde_json::from_slice(&keypair_bytes).map_err(|e| {
-                        signer_err(
-                            &signers,
-                            &signer_state,
-                            format!(
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!(
                                 "failed to deserialize keypair file ({}): {}",
-                                keypair_json_str, e
+                                keypair_json_str,
+                                e
                             ),
                         )
                     })?;
@@ -206,13 +197,19 @@ impl SignerImplementation for SvmSecretKey {
                         is_encrypted,
                         password,
                     )
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?
+                    .map_err(|e| {
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("invalid mnemonic: {e}"),
+                        )
+                    })?
                     .to_vec()
                 }
             },
             Some(value) => match value
                 .try_get_buffer_bytes_result()
-                .map_err(|e| signer_err(&signers, &signer_state, e))?
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?
             {
                 Some(bytes) => bytes.clone(),
                 None => unreachable!(),
@@ -270,21 +267,13 @@ impl SignerImplementation for SvmSecretKey {
         title: &str,
         description: &Option<String>,
         payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let _signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
-            spec,
-            &signer_instance.name,
-            namespaced_signer_err_fn(),
-        ));
-
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
             TRANSACTION_BYTES,
@@ -372,24 +361,17 @@ impl SignerImplementation for SvmSecretKey {
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
-        let signer_did: ConstructDid = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err = signer_actions_future_result_fn(add_ctx_to_signer_result_diag(
-            spec,
-            &signer_instance.name,
-            namespaced_signer_err_fn(),
-        ));
         let mut result = CommandExecutionResult::new();
 
         let secret_key_bytes = signer_state
             .get_expected_buffer_bytes("secret_key")
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
         // let deploy_keypair = if let Ok(deploy_keypair) = signer_state
@@ -423,23 +405,29 @@ impl SignerImplementation for SvmSecretKey {
 
             let (transaction_bytes, available_keypair_bytes): (Vec<u8>, Vec<Vec<u8>>) =
                 serde_json::from_slice(&transaction_with_keypairs_bytes).map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to deserialize transaction with keypairs for signing: {e}"),
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!(
+                            "failed to deserialize transaction with keypairs for signing: {e}"
+                        ),
                     )
                 })?;
             let mut transaction: Transaction =
                 serde_json::from_slice(&transaction_bytes).map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to deserialize transaction for signing: {e}"),
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to deserialize transaction for signing: {e}"),
                     )
                 })?;
 
             let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
-                signer_err(&signers, &signer_state, format!("failed to get latest blockhash: {e}"))
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to get latest blockhash: {e}"),
+                )
             })?;
 
             transaction.message.recent_blockhash = blockhash;
@@ -457,39 +445,43 @@ impl SignerImplementation for SvmSecretKey {
 
             keypairs.push(&keypair);
             transaction.try_sign(&keypairs, transaction.message.recent_blockhash).map_err(|e| {
-                signer_err(&signers, &signer_state, format!("failed to sign transaction: {e}"))
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to sign transaction: {e}"),
+                )
             })?;
             let _ = transaction.verify_and_hash_message().map_err(|e| {
-                signer_err(
-                    &signers,
-                    &signer_state,
-                    format!("failed to verify signed transaction: {}", e),
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to verify signed transaction: {}", e),
                 )
             })?;
             let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
-                signer_err(
-                    &signers,
-                    &signer_state,
-                    format!("failed to serialize signed transaction: {e}"),
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to serialize signed transaction: {e}"),
                 )
             })?;
 
             let signature =
                 send_transaction(rpc_client.clone(), do_await_confirmation, &transaction_bytes)
                     .map_err(|e| {
-                        signer_err(
-                            &signers,
-                            &signer_state,
-                            format!("failed to send transaction: {e}"),
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("failed to send transaction: {e}"),
                         )
                     })?;
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 SvmValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to serialize signed transaction: {e}"),
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to serialize signed transaction: {e}"),
                     )
                 })?),
             );
@@ -498,23 +490,29 @@ impl SignerImplementation for SvmSecretKey {
             let transaction_bytes = &payload.expect_addon_data().bytes;
             let mut transaction: Transaction =
                 serde_json::from_slice(transaction_bytes).map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to deserialize transaction for signing: {e}"),
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to deserialize transaction for signing: {e}"),
                     )
                 })?;
 
             transaction.try_sign(&[keypair], transaction.message.recent_blockhash).map_err(
-                |e| signer_err(&signers, &signer_state, format!("failed to sign transaction: {e}")),
+                |e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to sign transaction: {e}"),
+                    )
+                },
             )?;
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
                 SvmValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
-                    signer_err(
-                        &signers,
-                        &signer_state,
-                        format!("failed to serialize signed transaction: {e}"),
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to serialize signed transaction: {e}"),
                     )
                 })?),
             );

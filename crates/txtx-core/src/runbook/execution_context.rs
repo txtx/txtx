@@ -2,6 +2,8 @@ use kit::channel::unbounded;
 use kit::channel::Sender;
 use kit::hcl::Span;
 use kit::indexmap::IndexMap;
+use kit::types::commands::add_ctx_to_diag;
+use kit::types::commands::add_ctx_to_embedded_runbook_diag;
 use kit::types::commands::DependencyExecutionResultCache;
 use kit::types::diagnostics::Diagnostic;
 use kit::types::embedded_runbooks::EmbeddedRunbookInstance;
@@ -262,6 +264,13 @@ impl RunbookExecutionContext {
             return LoopEvaluationResult::Continue;
         };
 
+        let add_ctx_to_diag = add_ctx_to_diag(
+            "command".to_string(),
+            command_instance.specification.matcher.clone(),
+            command_instance.name.clone(),
+            command_instance.namespace.clone(),
+        );
+
         let construct_id = workspace_context.expect_construct_id(&construct_did);
 
         let addon_context_key =
@@ -321,7 +330,7 @@ impl RunbookExecutionContext {
                 CommandInputEvaluationStatus::Aborted(results, _) => results,
             },
             Err(diags) => {
-                pass_result.append_diagnostics(diags, &construct_id);
+                pass_result.append_diagnostics(diags, &construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
         };
@@ -367,7 +376,7 @@ impl RunbookExecutionContext {
                 }
             }
             Err(diag) => {
-                pass_result.push_diagnostic(&diag, &construct_id);
+                pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
         }
@@ -395,7 +404,7 @@ impl RunbookExecutionContext {
         let mut execution_result = match execution_result {
             Ok(res) => res,
             Err(diag) => {
-                pass_result.push_diagnostic(&diag, &construct_id);
+                pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
         };
@@ -425,6 +434,8 @@ impl RunbookExecutionContext {
         if let Some(_) = self.commands_execution_results.get(&construct_did) {
             return LoopEvaluationResult::Continue;
         };
+
+        let add_ctx_to_diag = add_ctx_to_embedded_runbook_diag(embedded_runbook.name.clone());
 
         let construct_id = workspace_context.expect_construct_id(&construct_did);
 
@@ -479,7 +490,7 @@ impl RunbookExecutionContext {
                 CommandInputEvaluationStatus::Aborted(results, _) => results,
             },
             Err(diags) => {
-                pass_result.append_diagnostics(diags, &construct_id);
+                pass_result.append_diagnostics(diags, &construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
         };

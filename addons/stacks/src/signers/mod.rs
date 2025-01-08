@@ -4,7 +4,7 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
-    signers::{err_to_signer_ctx_diag, SignerSpecification},
+    signers::SignerSpecification,
     types::Value,
     ConstructDid,
 };
@@ -20,7 +20,7 @@ use web_wallet::STACKS_WEB_WALLET;
 use crate::{
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        DEFAULT_MESSAGE, NAMESPACE,
+        DEFAULT_MESSAGE,
     },
     rpc::StacksRpc,
 };
@@ -30,11 +30,6 @@ pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
 lazy_static! {
     pub static ref WALLETS: Vec<SignerSpecification> =
         vec![STACKS_SECRET_KEY.clone(), STACKS_WEB_WALLET.clone(), STACKS_MULTISIG.clone()];
-}
-
-pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = err_to_signer_ctx_diag(NAMESPACE.to_string());
-    error_fn
 }
 
 pub async fn get_addition_actions_for_address(
