@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use txtx_addon_kit::types::types::{Type, Value};
 
@@ -72,6 +74,13 @@ impl SvmValue {
     }
 
     pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
+        match value.as_string() {
+            Some(s) => {
+                return Pubkey::from_str(s)
+                    .map_err(|e| format!("could not convert value to pubkey: {e}"))
+            }
+            None => {}
+        };
         let bytes = value.to_bytes();
         let bytes: [u8; 32] = bytes[0..32]
             .try_into()
