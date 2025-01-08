@@ -40,7 +40,7 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
     Ok(())
 }
 
-pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) {
+pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push("doc");
     path.push("addons");
