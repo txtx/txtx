@@ -51,7 +51,12 @@ pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
     for addon in addons.into_iter() {
         let mut actions = vec![];
         for action in addon.get_actions().iter() {
-            let command = json!(action.expect_atomic_specification());
+            let command = match action {
+                PreCommandSpecification::Atomic(spec) => json!(spec),
+                PreCommandSpecification::Composite(spec) => {
+                    return Err(format!("Composite action '{}' is not supported in JSON output", spec.name))
+                }
+            };
             actions.push(command);
         }
         let addon_ns = addon.get_namespace();
