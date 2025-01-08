@@ -1,5 +1,6 @@
 pub mod anchor;
 pub mod idl;
+pub mod instruction;
 
 use bip39::Language;
 use bip39::Mnemonic;

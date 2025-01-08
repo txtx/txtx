@@ -25,6 +25,11 @@ pub const KEYPAIR_JSON: &str = "keypair_json";
 // Defaults keys
 pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
+pub const ACCOUNT: &str = "account";
+pub const INSTRUCTION: &str = "instruction";
+pub const PUBLIC_KEY: &str = "public_key";
+pub const IS_SIGNER: &str = "is_signer";
+pub const IS_WRITABLE: &str = "is_writable";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const NETWORK_ID: &str = "network_id";
 pub const AUTO_EXTEND: &str = "auto_extend";
