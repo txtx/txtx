@@ -44,6 +44,7 @@ pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
     let mut path = PathBuf::new();
     path.push("doc");
     path.push("addons");
+    std::fs::create_dir_all(&path).map_err(|e| format!("Failed to create directories: {}", e))?;
     path.push("actions.json");
 
     let mut docs = IndexMap::new();
