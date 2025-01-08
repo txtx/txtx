@@ -1,33 +1,32 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
-    PreCommandSpecification,
+    add_ctx_to_command_result_diag, CommandExecutionFutureResult, CommandImplementation,
+    CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::signers::{
-    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
+    signer_actions_future_result_fn, SignerActionsFutureResult, SignerInstance,
+    SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::instruction::parse_instructions_map;
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{PROGRAM_ID, RPC_API_URL, TRANSACTION_BYTES};
-use crate::typing::{SvmValue, SVM_ACCOUNT};
+use crate::constants::{RPC_API_URL, TRANSACTION_BYTES};
+use crate::typing::{SvmValue, ACCOUNT_META_TYPE};
 
-use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
+use super::{get_signers_did, namespaced_command_err_fn};
 
 lazy_static! {
     pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
@@ -65,9 +64,9 @@ lazy_static! {
                             internal: false
                         },
                         ObjectProperty {
-                            name: "accounts".into(),
+                            name: "account".into(),
                             documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
-                            typing: Type::array(Type::Addon(SVM_ACCOUNT.into())), // TODO - should be an object
+                            typing: ACCOUNT_META_TYPE.clone(),
                             optional: false,
                             tainting: true,
                             internal: false
@@ -155,49 +154,33 @@ impl CommandImplementation for ProcessInstructions {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerActionsFutureResult {
+        let err = signer_actions_future_result_fn(add_ctx_to_command_result_diag(
+            spec,
+            instance_name,
+            namespaced_command_err_fn(),
+        ));
         let signers_did = get_signers_did(args).unwrap();
+        let signer_state = signers.get_signer_state(&signers_did.first().unwrap()).unwrap();
+
+        let rpc_api_url = args
+            .get_expected_string(RPC_API_URL)
+            .map_err(|diag| err(&signers, &signer_state, diag.message))?
+            .to_string();
 
         // TODO: revisit pattern and leverage `check_instantiability` instead`.
-        let mut instructions = vec![];
-        let instructions_data = args
-            .get_expected_array("instruction")
-            .unwrap()
-            .iter()
-            .map(|i| i.expect_object())
-            .collect::<Vec<_>>();
-        let rpc_api_url = args.get_expected_string(RPC_API_URL).unwrap().to_string();
-
-        for instruction_data in instructions_data.iter() {
-            let program_id = instruction_data.get(PROGRAM_ID).unwrap().expect_string();
-            let accounts = instruction_data
-                .get("accounts")
-                .unwrap()
-                .expect_array()
-                .iter()
-                .map(|a| {
-                    let account = a.expect_object();
-                    let pubkey = account.get("public_key").unwrap().expect_string();
-                    let is_signer = account.get("is_signer").unwrap().expect_bool();
-                    let is_writable = account.get("is_writable").unwrap().expect_bool();
-                    AccountMeta {
-                        pubkey: Pubkey::try_from(pubkey).unwrap(),
-                        is_signer,
-                        is_writable,
-                    }
-                })
-                .collect::<Vec<_>>();
-            let data = instruction_data.get("data").unwrap().expect_buffer_bytes();
-            let program_id = Pubkey::from_str(program_id).unwrap();
-            let instruction = Instruction { program_id, accounts, data };
-            instructions.push(instruction);
-        }
+        let instructions = parse_instructions_map(args)
+            .map_err(|e| err(&signers, &signer_state, format!("invalid instructions: {e}")))?;
 
         let mut message = Message::new(&instructions, None);
         let client = RpcClient::new(rpc_api_url);
-        message.recent_blockhash = client.get_latest_blockhash().unwrap();
+        message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
+            err(&signers, &signer_state, format!("failed to get latest blockhash: {e}"))
+        })?;
         let transaction = Transaction::new_unsigned(message);
 
-        let transaction_bytes = serde_json::to_vec(&transaction).unwrap();
+        let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
+            err(&signers, &signer_state, format!("failed to serialize transaction: {e}"))
+        })?;
 
         let mut args = args.clone();
         args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
