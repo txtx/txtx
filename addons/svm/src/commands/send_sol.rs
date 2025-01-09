@@ -7,7 +7,6 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::helpers::build_diag_context_fn;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -23,9 +22,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{
-    AMOUNT, CHECKED_PUBLIC_KEY, NAMESPACE, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES,
-};
+use crate::constants::{AMOUNT, CHECKED_PUBLIC_KEY, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
 
 use super::get_signer_did;
@@ -127,46 +124,42 @@ impl CommandImplementation for SendSol {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let to_diag_with_ctx = build_diag_context_fn(
-            instance_name.to_string(),
-            format!("{}::{}", NAMESPACE, spec.matcher),
-        );
-
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.get_signer_state(&signer_did).unwrap();
 
         let amount = args
             .get_expected_uint(AMOUNT)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-        let recipient =
-            Pubkey::from_str(args.get_expected_string(RECIPIENT).map_err(|e| {
-                (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message))
-            })?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid recipient: {}", e.to_string())),
-                )
-            })?;
+        let recipient = Pubkey::from_str(
+            args.get_expected_string(RECIPIENT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid recipient: {}", e.to_string()),
+            )
+        })?;
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_string();
 
-        let signer_pubkey =
-            Pubkey::from_str(signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(
-                |e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.to_string())),
-            )?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid signer pubkey: {}", e.to_string())),
-                )
-            })?;
+        let signer_pubkey = Pubkey::from_str(
+            signer_state
+                .get_expected_string(CHECKED_PUBLIC_KEY)
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid signer pubkey: {}", e.to_string()),
+            )
+        })?;
 
         let instruction =
             solana_sdk::system_instruction::transfer(&signer_pubkey, &recipient, amount);

@@ -30,9 +30,9 @@ use txtx_addon_kit::types::{
 
 use crate::commands::send_transaction::send_transaction;
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_ARRAY, IS_SIGNABLE, NAMESPACE,
-    NETWORK_ID, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, IS_SIGNABLE,
+    NAMESPACE, NETWORK_ID, PUBLIC_KEY, RPC_API_URL, SECRET_KEY, SIGNATURE, TRANSACTION_BYTES,
 };
 use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -216,7 +216,9 @@ impl SignerImplementation for SvmSecretKey {
             },
         };
 
-        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
+        let keypair = Keypair::from_bytes(&secret_key_bytes).map_err(|e| {
+            (signers.clone(), signer_state.clone(), diagnosed_error!("invalid secret key: {e}"))
+        })?;
 
         let expected_address = keypair.pubkey().to_string();
         let public_key = Value::string(keypair.pubkey().to_string());
@@ -224,7 +226,7 @@ impl SignerImplementation for SvmSecretKey {
 
         signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
         signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-        signer_state.insert("secret_key", secret_key);
+        signer_state.insert(SECRET_KEY, secret_key);
 
         if supervision_context.review_input_values {
             actions.push_sub_group(
@@ -245,7 +247,7 @@ impl SignerImplementation for SvmSecretKey {
     }
 
     fn activate(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &SignerSpecification,
         _values: &ValueStore,
         signer_state: ValueStore,
@@ -256,9 +258,8 @@ impl SignerImplementation for SvmSecretKey {
         let mut result = CommandExecutionResult::new();
         let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
         let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
-        result.outputs.insert("address".into(), address.clone());
-        result.outputs.insert("public_key".into(), public_key.clone());
-        result.outputs.insert("value".into(), Value::string(construct_did.to_string()));
+        result.outputs.insert(ADDRESS.into(), address.clone());
+        result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -370,7 +371,7 @@ impl SignerImplementation for SvmSecretKey {
         let mut result = CommandExecutionResult::new();
 
         let secret_key_bytes = signer_state
-            .get_expected_buffer_bytes("secret_key")
+            .get_expected_buffer_bytes(SECRET_KEY)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
@@ -385,7 +386,10 @@ impl SignerImplementation for SvmSecretKey {
         //     None
         // };
 
-        let rpc_api_url = values.get_expected_string(RPC_API_URL).unwrap().to_string();
+        let rpc_api_url = values
+            .get_expected_string(RPC_API_URL)
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+            .to_string();
 
         if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
             let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap() {
@@ -477,13 +481,13 @@ impl SignerImplementation for SvmSecretKey {
                     })?;
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
-                SvmValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
+                SvmValue::transaction(&transaction).map_err(|e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
-                        diagnosed_error!("failed to serialize signed transaction: {e}"),
+                        diagnosed_error!("invalid signed transaction: {e}"),
                     )
-                })?),
+                })?,
             );
             result.outputs.insert(SIGNATURE.into(), Value::string(signature));
         } else {
