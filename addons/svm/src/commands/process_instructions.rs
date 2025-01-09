@@ -154,16 +154,21 @@ impl CommandImplementation for ProcessInstructions {
         signers: SignersState,
     ) -> SignerActionsFutureResult {
         let signers_did = get_signers_did(args).unwrap();
-        let signer_state = signers.get_signer_state(&signers_did.first().unwrap()).unwrap();
+        let first_signer_did = signers_did.first().unwrap();
+        let first_signer_state = signers.get_signer_state(&first_signer_did).unwrap();
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+            .map_err(|diag| (signers.clone(), first_signer_state.clone(), diag))?
             .to_string();
 
         // TODO: revisit pattern and leverage `check_instantiability` instead`.
         let instructions = parse_instructions_map(args).map_err(|e| {
-            (signers.clone(), signer_state.clone(), diagnosed_error!("invalid instructions: {e}"))
+            (
+                signers.clone(),
+                first_signer_state.clone(),
+                diagnosed_error!("invalid instructions: {e}"),
+            )
         })?;
 
         let mut message = Message::new(&instructions, None);
@@ -171,7 +176,7 @@ impl CommandImplementation for ProcessInstructions {
         message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
             (
                 signers.clone(),
-                signer_state.clone(),
+                first_signer_state.clone(),
                 diagnosed_error!("failed to get latest blockhash: {e}"),
             )
         })?;
@@ -217,7 +222,7 @@ impl CommandImplementation for ProcessInstructions {
                 &signers_instances,
                 signers,
             );
-            let (signers, signer_state, mut res_signing) = match run_signing_future {
+            let (signers, signer_state, res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
                     Err(err) => return Err(err),
