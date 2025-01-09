@@ -187,7 +187,7 @@ pub async fn run_signers_evaluation(
                 }
 
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-                println!("pass results diags: {:?}", pass_result.diagnostics);
+
                 return pass_result;
             }
         };
@@ -2003,8 +2003,8 @@ fn evaluate_map_object_prop(
                     )]);
                 };
                 match evaluate_map_object_prop(
-                    spec_input_name,
-                    parent_result.clone(),
+                    &spec_input_name,
+                    EvaluateMapObjectPropResult::new(),
                     child_map_blocks,
                     child_map_spec_object_props,
                     dependencies_execution_results,
