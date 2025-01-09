@@ -66,6 +66,7 @@ pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
     let content = json!(docs);
     let formatted_content = serde_json::to_string_pretty(&content).expect("unable to pretty print docs");
     let _ = file.write_content(formatted_content.as_bytes());
+    return Ok(())
 }
 
 pub fn generate_mdx(addons: &Vec<&Box<dyn Addon>>) {

@@ -434,10 +434,12 @@ impl Serialize for CommandSpecification {
         S: Serializer,
     {
         let mut ser = serializer.serialize_struct("CommandSpecification", 4)?;
+        ser.serialize_field("id", &self.matcher)?;
         ser.serialize_field("name", &self.name)?;
         ser.serialize_field("documentation", &self.documentation)?;
         ser.serialize_field("inputs", &self.inputs)?;
         ser.serialize_field("outputs", &self.outputs)?;
+        ser.serialize_field("example", &self.example)?;
         ser.end()
     }
 }
