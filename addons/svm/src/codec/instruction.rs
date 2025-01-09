@@ -51,9 +51,12 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, S
 
         let data = instruction_data
             .get(DATA)
-            .ok_or("'data' is required for each instruction".to_string())?
-            .expect_buffer_bytes_result()
-            .map_err(|e| format!("invalid 'data' for instruction: {e}"))?;
+            .map(|d| {
+                d.expect_buffer_bytes_result()
+                    .map_err(|e| format!("invalid 'data' for instruction: {e}"))
+            })
+            .transpose()?
+            .unwrap_or_default();
 
         let instruction = Instruction { program_id, accounts, data };
         instructions.push(instruction);
