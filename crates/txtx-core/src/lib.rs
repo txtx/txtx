@@ -106,7 +106,6 @@ pub async fn start_unsupervised_runbook_runloop(
         }
 
         if pass_results.has_diagnostics() {
-            println!("diagnostics : {:?}", pass_results.diagnostics());
             return Err(pass_results.with_spans_filled(&runbook.sources));
         }
 
@@ -129,7 +128,6 @@ pub async fn start_unsupervised_runbook_runloop(
             .await;
 
             if pass_results.has_diagnostics() {
-                println!("diagnostics : {:?}", pass_results.diagnostics());
                 return Err(pass_results.with_spans_filled(&runbook.sources));
             }
 
