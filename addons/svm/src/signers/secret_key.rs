@@ -32,7 +32,8 @@ use crate::commands::send_transaction::send_transaction;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, IS_SIGNABLE,
-    NAMESPACE, NETWORK_ID, PUBLIC_KEY, RPC_API_URL, SECRET_KEY, SIGNATURE, TRANSACTION_BYTES,
+    NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, RPC_API_URL, SECRET_KEY,
+    SIGNATURE, TRANSACTION_BYTES,
 };
 use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -505,7 +506,7 @@ impl SignerImplementation for SvmSecretKey {
                 })?;
 
             result.outputs.insert(
-                "partially_signed_transaction_bytes".into(),
+                PARTIALLY_SIGNED_TRANSACTION_BYTES.into(),
                 SvmValue::transaction(&transaction)
                     .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
             );

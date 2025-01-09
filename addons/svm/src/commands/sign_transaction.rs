@@ -15,7 +15,7 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
-use crate::constants::{IS_DEPLOYMENT, TRANSACTION_BYTES};
+use crate::constants::{IS_DEPLOYMENT, PARTIALLY_SIGNED_TRANSACTION_BYTES, TRANSACTION_BYTES};
 
 use super::get_signer_did;
 
@@ -239,7 +239,7 @@ impl CommandImplementation for SignTransaction {
                             Ok((new_signers, new_signer_state, results)) => {
                                 let partial_signed_tx_value = results
                                     .outputs
-                                    .get("partially_signed_transaction_bytes")
+                                    .get(PARTIALLY_SIGNED_TRANSACTION_BYTES)
                                     .expect("Signed transaction bytes not found");
                                 let partial_signed_tx = SvmValue::to_transaction(
                                     partial_signed_tx_value,

@@ -2,14 +2,14 @@ use solana_sdk::instruction::{AccountMeta, Instruction};
 use txtx_addon_kit::types::stores::ValueStore;
 
 use crate::{
-    constants::{ACCOUNT, INSTRUCTION, IS_SIGNER, IS_WRITABLE, PROGRAM_ID, PUBLIC_KEY},
+    constants::{ACCOUNT, DATA, INSTRUCTION, IS_SIGNER, IS_WRITABLE, PROGRAM_ID, PUBLIC_KEY},
     typing::SvmValue,
 };
 
-pub fn parse_instructions_map(args: &ValueStore) -> Result<Vec<Instruction>, String> {
+pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, String> {
     let mut instructions = vec![];
-    let instructions_data = args
-        .get_expected_array(INSTRUCTION)
+    let instructions_data = values
+        .get_expected_map(INSTRUCTION)
         .map_err(|diag| diag.message)?
         .iter()
         .map(|i| i.as_object().ok_or("'instruction' must be a map type".to_string()))
@@ -50,7 +50,7 @@ pub fn parse_instructions_map(args: &ValueStore) -> Result<Vec<Instruction>, Str
             .collect::<Result<Vec<_>, _>>()?;
 
         let data = instruction_data
-            .get("data")
+            .get(DATA)
             .ok_or("'data' is required for each instruction".to_string())?
             .expect_buffer_bytes_result()
             .map_err(|e| format!("invalid 'data' for instruction: {e}"))?;

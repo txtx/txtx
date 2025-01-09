@@ -5,7 +5,6 @@ use std::vec;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
@@ -28,8 +27,8 @@ use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
 use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{
-    AUTO_EXTEND, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
-    PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
+    KEYPAIR, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
 
@@ -120,7 +119,7 @@ impl CommandImplementation for DeployProgram {
         let signer_did = signers_did.first().unwrap();
         let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        let program_artifacts_map = match args.get_expected_object("program") {
+        let program_artifacts_map = match args.get_expected_object(PROGRAM) {
             Ok(a) => a,
             Err(e) => return Err((signers, signer_state, e)),
         };
@@ -139,7 +138,7 @@ impl CommandImplementation for DeployProgram {
         let auto_extend = args.get_bool(AUTO_EXTEND);
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
-        let keypair = program_artifacts_map.get("keypair").unwrap();
+        let keypair = program_artifacts_map.get(KEYPAIR).unwrap();
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
             PROGRAM_DEPLOYMENT_KEYPAIR,
@@ -147,7 +146,7 @@ impl CommandImplementation for DeployProgram {
         );
 
         let payer_pubkey_str =
-            signer_state.get_expected_string("checked_public_key").map_err(|e| {
+            signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
                 (
                     signers.clone(),
                     signer_state.clone(),
