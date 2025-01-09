@@ -28,10 +28,10 @@ use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
 use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{
-    AUTO_EXTEND, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_ARRAY, PROGRAM_DEPLOYMENT_KEYPAIR,
-    RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    AUTO_EXTEND, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
+    PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
 };
-use crate::typing::ANCHOR_PROGRAM_ARTIFACTS;
+use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -230,7 +230,7 @@ impl CommandImplementation for DeployProgram {
                 let mut signatures = vec![];
                 let mut signed_transactions_bytes = vec![];
 
-                args.insert(IS_ARRAY, Value::bool(true));
+                args.insert(IS_DEPLOYMENT, Value::bool(true));
                 let mut status_updater =
                     StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
                 for (i, transaction) in payloads.iter().enumerate() {
@@ -307,7 +307,7 @@ impl CommandImplementation for DeployProgram {
                 let mut result = CommandExecutionResult::new();
                 result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transactions_bytes);
                 result.outputs.insert(SIGNATURE.into(), signatures);
-                result.outputs.insert(IS_ARRAY.into(), Value::bool(true));
+                result.outputs.insert(IS_DEPLOYMENT.into(), Value::bool(true));
                 (signers_ref, last_signer_state_ref.unwrap(), result)
             } else {
                 let run_signing_future = SignTransaction::run_signed_execution(
@@ -347,7 +347,7 @@ impl CommandImplementation for DeployProgram {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        if values.get_bool(IS_ARRAY).unwrap_or(false) {
+        if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
             return return_synchronous_result(Ok(CommandExecutionResult::new()));
         } else {
             SendTransaction::build_background_task(

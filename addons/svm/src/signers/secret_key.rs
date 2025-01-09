@@ -387,7 +387,7 @@ impl SignerImplementation for SvmSecretKey {
 
         let rpc_api_url = values.get_expected_string(RPC_API_URL).unwrap().to_string();
 
-        if values.get_bool(IS_ARRAY).unwrap_or(false) {
+        if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
             let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap() {
                 "finalized" => CommitmentLevel::Finalized,
                 "processed" => CommitmentLevel::Processed,
@@ -491,24 +491,19 @@ impl SignerImplementation for SvmSecretKey {
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             transaction
-                .try_partial_sign(&[keypair], transaction.message.recent_blockhash).map_err(
-                |e| {
+                .try_partial_sign(&[keypair], transaction.message.recent_blockhash)
+                .map_err(|e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!("failed to sign transaction: {e}"),
                     )
-                },
-            )?;
+                })?;
+
             result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                SvmValue::transaction(serde_json::to_vec(&transaction).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to serialize signed transaction: {e}"),
-                    )
-                })?),
+                "partially_signed_transaction_bytes".into(),
+                SvmValue::transaction(&transaction)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
             );
         };
 
