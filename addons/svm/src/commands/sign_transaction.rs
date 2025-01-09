@@ -1,5 +1,5 @@
 use crate::commands::get_signers_did;
-use crate::typing::SvmValue;
+use crate::typing::{SvmValue, SVM_TRANSACTION};
 use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -29,49 +29,41 @@ lazy_static! {
           implements_background_task_capability: false,
           inputs: [
             description: {
-                documentation: "Description of the transaction",
+                documentation: "A description of the transaction.",
                 typing: Type::string(),
                 optional: true,
                 tainting: false,
-                internal: false
+                internal: false,
+                sensitive: false
             },
-            transaction_payload_bytes: {
-                documentation: "The transaction payload bytes, encoded as a clarity buffer.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            chain_id: {
-                documentation: indoc!{r#"Coming soon"#},
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            signer: {
-                documentation: "A reference to a signer construct, which will be used to sign the transaction payload.",
-                typing: Type::string(),
+            transaction_bytes: {
+                documentation: "The transaction bytes to sign.",
+                typing: Type::addon(SVM_TRANSACTION),
                 optional: false,
                 tainting: true,
-                internal: false
+                internal: false,
+                sensitive: false
             },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
+            signers: {
+                documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                typing: Type::array(Type::string()),
                 optional: true,
-                tainting: false,
+                tainting: true,
+                internal: false,
+                sensitive: false
+            },
+            signer: {
+                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
+                typing: Type::array(Type::string()),
+                optional: true,
+                tainting: true,
                 internal: false
             }
           ],
           outputs: [
               signed_transaction_bytes: {
                   documentation: "The signed transaction bytes.",
-                  typing: Type::string()
-              },
-              chain_id: {
-                  documentation: "Coming soon.",
-                  typing: Type::string()
+                  typing: Type::addon(SVM_TRANSACTION)
               }
           ],
           example: txtx_addon_kit::indoc! {r#"

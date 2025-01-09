@@ -42,42 +42,48 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 amount: {
                     documentation: "The amount to send, in lamports (1 SOL = 10^9 lamports).",
                     typing: Type::integer(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 recipient: {
                     documentation: "The SVM address of the recipient.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signer: {
                     documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
@@ -98,7 +104,7 @@ lazy_static! {
                 r#"action "send_sol" "svm::send_sol" {
                     description = "Send some SOL"
                     amount = evm::sol_to_lamports(1)
-                    signers = [signer.caller]
+                    signer = signer.caller
                     recipient = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
                 }"#
             },

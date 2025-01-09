@@ -169,10 +169,45 @@ lazy_static! {
         }
     };
 
+    pub static ref INSTRUCTION_TYPE: Type = Type::map(vec![
+        ObjectProperty {
+            name: "description".into(),
+            documentation: "A description of the instruction.".into(),
+            typing: Type::string(),
+            optional: true,
+            tainting: false,
+            internal: false,
+        },
+        ObjectProperty {
+            name: "program_id".into(),
+            documentation: "The SVM address of the program being invoked.".into(),
+            typing: Type::string(),
+            optional: false,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "account".into(),
+            documentation: "A map of accounts (including other programs) that are read from or written to by the instruction.".into(),
+            typing: ACCOUNT_META_TYPE.clone(),
+            optional: false,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "data".into(),
+            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler, such as function arguments.".into(),
+            typing: Type::buffer(),
+            optional: true,
+            tainting: true,
+            internal: false
+        }
+    ]);
+
     pub static ref ACCOUNT_META_TYPE: Type = Type::map(vec![
         ObjectProperty {
             name: "public_key".into(),
-            documentation: "The public key of the account.".into(),
+            documentation: "The public key (SVM address) of the account.".into(),
             typing: Type::string(),
             optional: false,
             tainting: true,
@@ -181,7 +216,7 @@ lazy_static! {
         ObjectProperty {
             name: "is_signer".into(),
             documentation: "Specifies if the account is a signer on the instruction. The default is 'false'.".into(),
-            typing: Type::string(),
+            typing: Type::bool(),
             optional: true,
             tainting: true,
             internal: false
@@ -189,7 +224,7 @@ lazy_static! {
         ObjectProperty {
             name: "is_writable".into(),
             documentation: "Specifies if the account is written to by the instruction. The default is 'false'.".into(),
-            typing: Type::string(),
+            typing: Type::bool(),
             optional: true,
             tainting: true,
             internal: false

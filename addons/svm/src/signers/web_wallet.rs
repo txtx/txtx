@@ -33,14 +33,14 @@ lazy_static! {
     pub static ref SVM_WEB_WALLET: SignerSpecification = {
         let mut signer = define_signer! {
             SvmWebWallet => {
-                name: "Stacks Web Wallet",
+                name: "SVM Web Wallet Signer",
                 matcher: "web_wallet",
                 documentation:txtx_addon_kit::indoc! {r#"The `svm::web_wallet` signer will allow a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
                         documentation: "The SVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
-                        optional: false,
+                        optional: true,
                         tainting: true,
                         sensitive: true
                     }
@@ -72,13 +72,6 @@ impl SignerImplementation for SvmWebWallet {
         unimplemented!()
     }
 
-    // check_activability analyses the signer constructs.
-    // it will returns all the ActionItemRequests required for a given signer, which includes:
-    // - ProvidePublicKey:
-    // - ReviewInput (StacksAddress): Most of the case, unknown the first time it's being executed unless expected_address is provided in the construct
-    // - ReviewInput (StacksBalance):
-    // - ReviewInput (Assosiated Costs):
-    // If the all of the informations above are present in the signer state, nothing is returned.
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
         construct_did: &ConstructDid,
