@@ -185,7 +185,7 @@ pub async fn run_signers_evaluation(
                         pass_result.actions.push_action_item_update(update);
                     }
                 }
-                println!("check activability diag: {:?}", diag);
+
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 println!("pass results diags: {:?}", pass_result.diagnostics);
                 return pass_result;
