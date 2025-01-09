@@ -20,7 +20,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::instruction::parse_instructions_map;
-use crate::commands::send_transaction::SendTransaction;
+use crate::codec::send_transaction::send_transaction_background_task;
 use crate::constants::{RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::{SvmValue, ACCOUNT_META_TYPE};
 
@@ -256,7 +256,7 @@ impl CommandImplementation for ProcessInstructions {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        SendTransaction::build_background_task(
+        send_transaction_background_task(
             &construct_did,
             &spec,
             &values,

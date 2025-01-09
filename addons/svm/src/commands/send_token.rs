@@ -21,7 +21,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::commands::send_transaction::SendTransaction;
+use crate::codec::send_transaction::send_transaction_background_task;
 use crate::constants::{
     AMOUNT, AUTHORITY, AUTHORITY_ADDRESS, CHECKED_PUBLIC_KEY, FUND_RECIPIENT, IS_FUNDING_RECIPIENT,
     RECIPIENT, RECIPIENT_ADDRESS, RECIPIENT_TOKEN_ADDRESS, RPC_API_URL, SOURCE_TOKEN_ADDRESS,
@@ -477,7 +477,7 @@ impl CommandImplementation for SendToken {
             ));
         }
 
-        SendTransaction::build_background_task(
+        send_transaction_background_task(
             &construct_did,
             &spec,
             &values,

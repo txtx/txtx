@@ -24,8 +24,8 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::anchor::AnchorProgramArtifacts;
+use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
-use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{
     AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
     KEYPAIR, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
@@ -349,7 +349,7 @@ impl CommandImplementation for DeployProgram {
         if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
             return return_synchronous_result(Ok(CommandExecutionResult::new()));
         } else {
-            SendTransaction::build_background_task(
+            send_transaction_background_task(
                 &construct_did,
                 &spec,
                 &values,
