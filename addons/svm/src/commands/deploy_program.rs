@@ -45,39 +45,44 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the program",
+                    documentation: "A description of the deployment action.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 program: {
                     documentation: "The Solana program artifacts to deploy.",
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signers: {
-                    documentation: "A reference to a signer construct, which will be used to pay for the deployment.",
+                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 auto_extend: {
                     documentation: "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
                     typing: Type::bool(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 }
             ],
             outputs: [
@@ -88,7 +93,7 @@ lazy_static! {
             ],
             example: txtx_addon_kit::indoc! {r#"
                 action "deploy" "svm::deploy_program" {
-                    description = "Deploy program"
+                    description = "Deploy hello world program"
                     program = svm::get_program_from_anchor_project("hello_world") 
                     signers = [signer.deployer]
                 }

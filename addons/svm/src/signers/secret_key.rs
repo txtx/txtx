@@ -60,15 +60,15 @@ lazy_static! {
                     tainting: true,
                     sensitive: true
                 },
-                keypair_json: {
-                    documentation: "A path to a keypair.json file containing the secret key.",
+                derivation_path: {
+                    documentation: "The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
                     sensitive: true
                 },
-                derivation_path: {
-                    documentation: "The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.",
+                keypair_json: {
+                    documentation: "A path to a keypair.json file containing the secret key. This input will not be used if the `secret_key` or `mnemonic` inputs are provided.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
@@ -91,12 +91,12 @@ lazy_static! {
             ],
             outputs: [
                 public_key: {
-                    documentation: "The public key of the account generated from the secret key.",
-                    typing: Type::array(Type::buffer())
+                    documentation: "The public key of the account generated from the secret key, mnemonic, or keypair file.",
+                    typing: Type::string()
                 },
                 address: {
-                    documentation: "The address generated from the secret key.",
-                    typing: Type::array(Type::buffer())
+                    documentation: "The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.",
+                    typing: Type::string()
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"

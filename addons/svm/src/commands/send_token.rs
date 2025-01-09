@@ -46,63 +46,72 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 amount: {
                     documentation: "The amount, in lamports, of the token to send.",
                     typing: Type::integer(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 token: {
                     documentation: "The program address for the token being sent. This is also known as the 'token mint account'.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 recipient: {
                     documentation: "The address of the recipient. The associated token account will be computed from this address and the token address.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 authority: {
                     documentation: "The pubkey of the authority account for the token source. If omitted, the first signer will be used.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 fund_recipient: {
                     documentation: "If set to `true` and the recipient token account does not exist, the action will create the account and fund it, using the signer to fund the account. The default is `false`.",
                     typing: Type::bool(),
                     optional: true,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signers: {
                     documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",

@@ -15,14 +15,14 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::instruction::parse_instructions_map;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::constants::{RPC_API_URL, TRANSACTION_BYTES};
-use crate::typing::{SvmValue, ACCOUNT_META_TYPE};
+use crate::typing::{SvmValue, INSTRUCTION_TYPE};
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -37,72 +37,44 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the transaction",
+                    documentation: "A description of the transaction.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 instruction: {
-                    documentation: "Instructions to process",
-                    typing: Type::map(vec![
-                        ObjectProperty {
-                            name: "description".into(),
-                            documentation: "Description of the instruction".into(),
-                            typing: Type::string(),
-                            optional: true,
-                            tainting: false,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "program_id".into(),
-                            documentation: "Specifies the program being invoked".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "account".into(),
-                            documentation: "Lists every account the instruction reads from or writes to, including other programs".into(),
-                            typing: ACCOUNT_META_TYPE.clone(),
-                            optional: false,
-                            tainting: true,
-                            internal: false
-                        },
-                        ObjectProperty {
-                            name: "data".into(),
-                            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler (function arguments)".into(),
-                            typing: Type::buffer(),
-                            optional: true,
-                            tainting: true,
-                            internal: false
-                        }
-                    ]),
+                    documentation: "The instructions to add to the transaction.",
+                    typing: INSTRUCTION_TYPE.clone(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signers: {
                     documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
@@ -125,7 +97,11 @@ lazy_static! {
                 description = "Invoke instructions"
                 instruction {
                     program_id = variable.program
-                    accounts = [svm::account(signer.caller.address, true, true)]
+                    account {
+                        public_key = signer.caller.address
+                        is_signer = true
+                        is_writable = true
+                }
                     data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
                 }
                 signers = [signer.caller]
@@ -212,7 +188,7 @@ impl CommandImplementation for ProcessInstructions {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
-        let mut args = args.clone();
+        let args = args.clone();
         let future = async move {
             let run_signing_future = SignTransaction::run_signed_execution(
                 &construct_did,
