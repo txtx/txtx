@@ -1,7 +1,10 @@
 use std::str::FromStr;
 
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use txtx_addon_kit::types::types::{ObjectProperty, Type, Value};
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, transaction::Transaction};
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    types::{ObjectProperty, Type, Value},
+};
 
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
@@ -33,8 +36,33 @@ impl SvmValue {
         Value::addon(bytes, SVM_BYTES32)
     }
 
-    pub fn transaction(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_TRANSACTION)
+    pub fn transaction(transaction: &Transaction) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| diagnosed_error!("failed to deserialize transaction: {e}"))?;
+        Ok(Value::addon(bytes, SVM_TRANSACTION))
+    }
+
+    pub fn to_transaction(value: &Value) -> Result<Transaction, Diagnostic> {
+        match value {
+            Value::String(s) => {
+                return serde_json::from_str(s)
+                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))
+            }
+            Value::Addon(addon_data) => {
+                if addon_data.id != SVM_TRANSACTION {
+                    return Err(diagnosed_error!(
+                        "could not deserialize transaction: expected addon id '{SVM_TRANSACTION}' but got '{}'",addon_data.id
+                    ));
+                }
+                return serde_json::from_slice(&addon_data.bytes)
+                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
+            }
+            _ => {
+                return Err(diagnosed_error!(
+                    "could not deserialize transaction: expected string or addon"
+                ))
+            }
+        };
     }
 
     pub fn instruction(bytes: Vec<u8>) -> Value {

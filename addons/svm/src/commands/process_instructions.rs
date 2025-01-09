@@ -175,18 +175,11 @@ impl CommandImplementation for ProcessInstructions {
                 diagnosed_error!("failed to get latest blockhash: {e}"),
             )
         })?;
-        let transaction = Transaction::new_unsigned(message);
-
-        let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                diagnosed_error!("failed to serialize transaction: {e}"),
-            )
-        })?;
+        let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
+            .map_err(|e| (signers.clone(), first_signer_state.clone(), e))?;
 
         let mut args = args.clone();
-        args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
+        args.insert(TRANSACTION_BYTES, transaction);
 
         SignTransaction::check_signed_executability(
             construct_did,
@@ -232,19 +225,10 @@ impl CommandImplementation for ProcessInstructions {
                 Err(err) => return Err(err),
             };
 
-            let transaction_bytes = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes.clone());
-            let transaction_bytes = transaction_bytes
-                .expect_buffer_bytes_result()
-                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
-            let transaction: Transaction =
-                serde_json::from_slice(&transaction_bytes).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to serialize transaction bytes: {}", e),
-                    )
-                })?;
+            let transaction_value = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+
+            let transaction = SvmValue::to_transaction(&transaction_value)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let _ = transaction.verify_and_hash_message().map_err(|e| {
                 (
