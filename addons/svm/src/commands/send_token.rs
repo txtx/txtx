@@ -50,7 +50,7 @@ lazy_static! {
                     internal: false
                 },
                 amount: {
-                    documentation: "The amount, in lamports, of the token to send.",
+                    documentation: "The amount of tokens to send, in base unit.",
                     typing: Type::integer(),
                     optional: false,
                     tainting: false,
@@ -64,7 +64,7 @@ lazy_static! {
                     internal: false
                 },
                 recipient: {
-                    documentation: "The address of the recipient. The associated token account will be computed from this address and the token address.",
+                    documentation: "The SVM address of the recipient. The associated token account will be computed from this address and the token address.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
