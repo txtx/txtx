@@ -487,17 +487,11 @@ impl SignerImplementation for SvmSecretKey {
             );
             result.outputs.insert(SIGNATURE.into(), Value::string(signature));
         } else {
-            let transaction_bytes = &payload.expect_addon_data().bytes;
-            let mut transaction: Transaction =
-                serde_json::from_slice(transaction_bytes).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to deserialize transaction for signing: {e}"),
-                    )
-                })?;
+            let mut transaction: Transaction = SvmValue::to_transaction(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-            transaction.try_sign(&[keypair], transaction.message.recent_blockhash).map_err(
+            transaction
+                .try_partial_sign(&[keypair], transaction.message.recent_blockhash).map_err(
                 |e| {
                     (
                         signers.clone(),

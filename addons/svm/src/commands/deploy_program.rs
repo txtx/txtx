@@ -364,10 +364,7 @@ impl CommandImplementation for DeployProgram {
 }
 
 fn verify_signature(signed_transaction_value: Value) -> Result<(), Diagnostic> {
-    let transaction_bytes = signed_transaction_value
-        .expect_buffer_bytes_result()
-        .map_err(|e| diagnosed_error!("failed to get signed transaction bytes: {}", e))?;
-    let transaction: Transaction = serde_json::from_slice(&transaction_bytes)
+    let transaction = SvmValue::to_transaction(&signed_transaction_value)
         .map_err(|e| diagnosed_error!("invalid signed transaction: {}", e))?;
     let _ = transaction
         .verify_and_hash_message()
