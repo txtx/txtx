@@ -7,7 +7,6 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::helpers::build_diag_context_fn;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -25,8 +24,8 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{
     AMOUNT, AUTHORITY, AUTHORITY_ADDRESS, CHECKED_PUBLIC_KEY, FUND_RECIPIENT, IS_FUNDING_RECIPIENT,
-    NAMESPACE, RECIPIENT, RECIPIENT_ADDRESS, RECIPIENT_TOKEN_ADDRESS, RPC_API_URL,
-    SOURCE_TOKEN_ADDRESS, TOKEN, TOKEN_MINT_ADDRESS, TRANSACTION_BYTES,
+    RECIPIENT, RECIPIENT_ADDRESS, RECIPIENT_TOKEN_ADDRESS, RPC_API_URL, SOURCE_TOKEN_ADDRESS,
+    TOKEN, TOKEN_MINT_ADDRESS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, SVM_PUBKEY};
 
@@ -164,11 +163,6 @@ impl CommandImplementation for SendToken {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let to_diag_with_ctx = build_diag_context_fn(
-            instance_name.to_string(),
-            format!("{}::{}", NAMESPACE, spec.matcher),
-        );
-
         let signers_did = get_signers_did(args).unwrap();
         let signers_states = signers_did
             .iter()
@@ -178,48 +172,47 @@ impl CommandImplementation for SendToken {
 
         let amount = args
             .get_expected_uint(AMOUNT)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-        let token_mint_address =
-            Pubkey::from_str(args.get_expected_string(TOKEN).map_err(|e| {
-                (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message))
-            })?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid token pubkey: {}", e.to_string())),
-                )
-            })?;
+        let token_mint_address = Pubkey::from_str(
+            args.get_expected_string(TOKEN)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid token pubkey: {}", e.to_string()),
+            )
+        })?;
 
-        let recipient =
-            Pubkey::from_str(args.get_expected_string(RECIPIENT).map_err(|e| {
-                (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message))
-            })?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid recipient: {}", e.to_string())),
-                )
-            })?;
+        let recipient = Pubkey::from_str(
+            args.get_expected_string(RECIPIENT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid recipient: {}", e.to_string()),
+            )
+        })?;
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_string();
 
         let mut signer_pubkeys = vec![];
         for signer_state in signers_states.iter() {
-            let signer_pubkey =
-                signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
-                    (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.to_string()))
-                })?;
+            let signer_pubkey = signer_state
+                .get_expected_string(CHECKED_PUBLIC_KEY)
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
             let signer_pubkey = Pubkey::from_str(signer_pubkey).map_err(|e| {
                 (
                     signers.clone(),
                     signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid signer pubkey: {}", e.to_string())),
+                    diagnosed_error!("invalid signer pubkey: {}", e.to_string()),
                 )
             })?;
             signer_pubkeys.push(signer_pubkey);
@@ -231,7 +224,7 @@ impl CommandImplementation for SendToken {
                 (
                     signers.clone(),
                     signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid authority pubkey: {}", e.to_string())),
+                    diagnosed_error!("invalid authority pubkey: {}", e.to_string()),
                 )
             })?
         } else {
@@ -259,10 +252,7 @@ impl CommandImplementation for SendToken {
             (
                 signers.clone(),
                 signer_state.clone(),
-                to_diag_with_ctx(format!(
-                    "failed to create token transfer instruction: {}",
-                    e.to_string()
-                )),
+                diagnosed_error!("failed to create token transfer instruction: {}", e.to_string()),
             )
         })?]);
 
@@ -277,10 +267,10 @@ impl CommandImplementation for SendToken {
                     return Err((
                         signers.clone(),
                         signer_state.clone(),
-                        to_diag_with_ctx(format!(
+                        diagnosed_error!(
                             "failed to get token recipient account: {}",
                             e.to_string()
-                        )),
+                        ),
                     ));
                 }
             }
@@ -303,9 +293,7 @@ impl CommandImplementation for SendToken {
                     (
                         signers.clone(),
                         signer_state.clone(),
-                        to_diag_with_ctx(
-                            format!("cannot transfer token because recipient is unfunded; fund the recipient account or use the `fund_recipient = true` option")
-                        )
+                        diagnosed_error!("cannot transfer token because recipient is unfunded; fund the recipient account or use the `fund_recipient = true` option")
                     )
                 );
             }
@@ -318,7 +306,7 @@ impl CommandImplementation for SendToken {
             (
                 signers.clone(),
                 signer_state.clone(),
-                to_diag_with_ctx(format!("failed to retrieve latest blockhash: {}", e.to_string())),
+                diagnosed_error!("failed to retrieve latest blockhash: {}", e.to_string()),
             )
         })?;
         let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
