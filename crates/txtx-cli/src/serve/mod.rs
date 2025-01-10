@@ -127,7 +127,7 @@ pub struct ConstructRequest {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunbookExecutionStepState {
-    Suceeded,
+    Succeeded,
     Failed,
     Current,
     Next,
