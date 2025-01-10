@@ -256,7 +256,8 @@ pub async fn execute_runbook(
     let runbook_name = payload.name.clone();
     let runbook_description = Some(payload.description.clone());
     let runbook_source = reconstructed_source;
-    let dummy_location = FileLocation::from_path_string("/tmp/file.tx").unwrap();
+    let dummy_location = FileLocation::from_path_string("/tmp/file.tx")
+        .map_err(|e| Box::<dyn StdError>::from(e))?;
 
     let mut runbook_sources = RunbookSources::new();
     runbook_sources.add_source(runbook_name.clone(), dummy_location, runbook_source);
