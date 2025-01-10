@@ -1,5 +1,10 @@
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
-use txtx_addon_kit::types::types::{Type, Value};
+use std::str::FromStr;
+
+use solana_sdk::{pubkey::Pubkey, signature::Keypair, transaction::Transaction};
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    types::{ObjectProperty, Type, Value},
+};
 
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
@@ -31,8 +36,33 @@ impl SvmValue {
         Value::addon(bytes, SVM_BYTES32)
     }
 
-    pub fn transaction(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_TRANSACTION)
+    pub fn transaction(transaction: &Transaction) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(&transaction)
+            .map_err(|e| diagnosed_error!("failed to deserialize transaction: {e}"))?;
+        Ok(Value::addon(bytes, SVM_TRANSACTION))
+    }
+
+    pub fn to_transaction(value: &Value) -> Result<Transaction, Diagnostic> {
+        match value {
+            Value::String(s) => {
+                return serde_json::from_str(s)
+                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))
+            }
+            Value::Addon(addon_data) => {
+                if addon_data.id != SVM_TRANSACTION {
+                    return Err(diagnosed_error!(
+                        "could not deserialize transaction: expected addon id '{SVM_TRANSACTION}' but got '{}'",addon_data.id
+                    ));
+                }
+                return serde_json::from_slice(&addon_data.bytes)
+                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
+            }
+            _ => {
+                return Err(diagnosed_error!(
+                    "could not deserialize transaction: expected string or addon"
+                ))
+            }
+        };
     }
 
     pub fn instruction(bytes: Vec<u8>) -> Value {
@@ -72,6 +102,13 @@ impl SvmValue {
     }
 
     pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
+        match value.as_string() {
+            Some(s) => {
+                return Pubkey::from_str(s)
+                    .map_err(|e| format!("could not convert value to pubkey: {e}"))
+            }
+            None => {}
+        };
         let bytes = value.to_bytes();
         let bytes: [u8; 32] = bytes[0..32]
             .try_into()
@@ -116,6 +153,7 @@ lazy_static! {
             tainting: true
         }
     };
+
     pub static ref PDA_RESULT: Type = define_object_type! {
         pda: {
             documentation: "The program derived address.",
@@ -130,4 +168,66 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref INSTRUCTION_TYPE: Type = Type::map(vec![
+        ObjectProperty {
+            name: "description".into(),
+            documentation: "A description of the instruction.".into(),
+            typing: Type::string(),
+            optional: true,
+            tainting: false,
+            internal: false,
+        },
+        ObjectProperty {
+            name: "program_id".into(),
+            documentation: "The SVM address of the program being invoked.".into(),
+            typing: Type::string(),
+            optional: false,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "account".into(),
+            documentation: "A map of accounts (including other programs) that are read from or written to by the instruction.".into(),
+            typing: ACCOUNT_META_TYPE.clone(),
+            optional: false,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "data".into(),
+            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler, such as function arguments.".into(),
+            typing: Type::buffer(),
+            optional: true,
+            tainting: true,
+            internal: false
+        }
+    ]);
+
+    pub static ref ACCOUNT_META_TYPE: Type = Type::map(vec![
+        ObjectProperty {
+            name: "public_key".into(),
+            documentation: "The public key (SVM address) of the account.".into(),
+            typing: Type::string(),
+            optional: false,
+            tainting: true,
+            internal: false,
+        },
+        ObjectProperty {
+            name: "is_signer".into(),
+            documentation: "Specifies if the account is a signer on the instruction. The default is 'false'.".into(),
+            typing: Type::bool(),
+            optional: true,
+            tainting: true,
+            internal: false
+        },
+        ObjectProperty {
+            name: "is_writable".into(),
+            documentation: "Specifies if the account is written to by the instruction. The default is 'false'.".into(),
+            typing: Type::bool(),
+            optional: true,
+            tainting: true,
+            internal: false
+        }
+    ]);
 }

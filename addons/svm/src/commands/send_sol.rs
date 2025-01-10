@@ -7,7 +7,6 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::helpers::build_diag_context_fn;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -22,10 +21,8 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::commands::send_transaction::SendTransaction;
-use crate::constants::{
-    AMOUNT, CHECKED_PUBLIC_KEY, NAMESPACE, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES,
-};
+use crate::codec::send_transaction::send_transaction_background_task;
+use crate::constants::{AMOUNT, CHECKED_PUBLIC_KEY, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
 
 use super::get_signer_did;
@@ -45,42 +42,48 @@ lazy_static! {
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 amount: {
                     documentation: "The amount to send, in lamports (1 SOL = 10^9 lamports).",
                     typing: Type::integer(),
                     optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 recipient: {
                     documentation: "The SVM address of the recipient.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signer: {
                     documentation: "A reference to a signer construct, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 rpc_api_auth_token: {
                     documentation: "The HTTP authentication token to include in the headers when making API requests.",
@@ -101,7 +104,7 @@ lazy_static! {
                 r#"action "send_sol" "svm::send_sol" {
                     description = "Send some SOL"
                     amount = evm::sol_to_lamports(1)
-                    signers = [signer.caller]
+                    signer = signer.caller
                     recipient = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
                 }"#
             },
@@ -127,46 +130,42 @@ impl CommandImplementation for SendSol {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let to_diag_with_ctx = build_diag_context_fn(
-            instance_name.to_string(),
-            format!("{}::{}", NAMESPACE, spec.matcher),
-        );
-
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.get_signer_state(&signer_did).unwrap();
 
         let amount = args
             .get_expected_uint(AMOUNT)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-        let recipient =
-            Pubkey::from_str(args.get_expected_string(RECIPIENT).map_err(|e| {
-                (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message))
-            })?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid recipient: {}", e.to_string())),
-                )
-            })?;
+        let recipient = Pubkey::from_str(
+            args.get_expected_string(RECIPIENT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid recipient: {}", e.to_string()),
+            )
+        })?;
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.message)))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_string();
 
-        let signer_pubkey =
-            Pubkey::from_str(signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(
-                |e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e.to_string())),
-            )?)
-            .map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    to_diag_with_ctx(format!("invalid signer pubkey: {}", e.to_string())),
-                )
-            })?;
+        let signer_pubkey = Pubkey::from_str(
+            signer_state
+                .get_expected_string(CHECKED_PUBLIC_KEY)
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?,
+        )
+        .map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("invalid signer pubkey: {}", e.to_string()),
+            )
+        })?;
 
         let instruction =
             solana_sdk::system_instruction::transfer(&signer_pubkey, &recipient, amount);
@@ -177,21 +176,15 @@ impl CommandImplementation for SendSol {
             (
                 signers.clone(),
                 signer_state.clone(),
-                to_diag_with_ctx(format!("failed to retrieve latest blockhash: {}", e.to_string())),
+                diagnosed_error!("failed to retrieve latest blockhash: {}", e.to_string()),
             )
         })?;
-        let transaction = Transaction::new_unsigned(message);
 
-        let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                to_diag_with_ctx(format!("failed to serialize transaction: {}", e)),
-            )
-        })?;
+        let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
         let mut args = args.clone();
-        args.insert(TRANSACTION_BYTES, SvmValue::message(transaction_bytes));
+        args.insert(TRANSACTION_BYTES, transaction);
 
         SignTransaction::check_signed_executability(
             construct_did,
@@ -237,19 +230,11 @@ impl CommandImplementation for SendSol {
                 Err(err) => return Err(err),
             };
 
-            let transaction_bytes = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes.clone());
-            let transaction_bytes = transaction_bytes
-                .expect_buffer_bytes_result()
-                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
-            let transaction: Transaction =
-                serde_json::from_slice(&transaction_bytes).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to serialize transaction bytes: {}", e),
-                    )
-                })?;
+            let transaction_bytes_value =
+                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes_value.clone());
+            let transaction = SvmValue::to_transaction(transaction_bytes_value)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let _ = transaction.verify_and_hash_message().map_err(|e| {
                 (
@@ -272,7 +257,7 @@ impl CommandImplementation for SendSol {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        SendTransaction::build_background_task(
+        send_transaction_background_task(
             &construct_did,
             &spec,
             &values,

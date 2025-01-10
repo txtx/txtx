@@ -7,7 +7,7 @@ use txtx_addon_kit::{
         functions::{
             arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
         },
-        types::{ObjectType, Type, Value},
+        types::{ObjectProperty, ObjectType, Type, Value},
         AuthorizationContext,
     },
 };
@@ -15,10 +15,7 @@ use txtx_addon_kit::{
 use crate::{
     codec::{anchor::AnchorProgramArtifacts, idl::IdlRef},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
-    typing::{
-        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, PDA_RESULT, SVM_ACCOUNT, SVM_ADDRESS, SVM_IDL,
-        SVM_PUBKEY,
-    },
+    typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, PDA_RESULT, SVM_ADDRESS, SVM_IDL, SVM_PUBKEY},
 };
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
@@ -76,7 +73,30 @@ lazy_static! {
                 ],
                 output: {
                     documentation: "The account meta object.",
-                    typing: Type::addon(SVM_ACCOUNT.into())
+                    typing: Type::object(vec![ObjectProperty {
+                        name: "public_key".into(),
+                        documentation: "The public key of the account.".into(),
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: false,
+                        internal: false
+                    },
+                    ObjectProperty {
+                        name: "is_signer".into(),
+                        documentation: "Specifies if the account is a signer on the instruction.".into(),
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: false,
+                        internal: false
+                    },
+                    ObjectProperty {
+                        name: "is_writable".into(),
+                        documentation: "Specifies if the account is written to by the instruction.".into(),
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: false,
+                        internal: false
+                    }])
                 },
             }
         },

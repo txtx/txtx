@@ -5,7 +5,6 @@ use std::vec;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::{
@@ -25,13 +24,13 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::anchor::AnchorProgramArtifacts;
+use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
-use crate::commands::send_transaction::SendTransaction;
 use crate::constants::{
-    AUTO_EXTEND, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_ARRAY, PROGRAM_DEPLOYMENT_KEYPAIR,
-    RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
+    KEYPAIR, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
 };
-use crate::typing::ANCHOR_PROGRAM_ARTIFACTS;
+use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -46,39 +45,44 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the program",
+                    documentation: "A description of the deployment action.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 program: {
                     documentation: "The Solana program artifacts to deploy.",
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 signers: {
-                    documentation: "A reference to a signer construct, which will be used to pay for the deployment.",
+                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 commitment_level: {
                     documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 },
                 auto_extend: {
                     documentation: "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
                     typing: Type::bool(),
                     optional: true,
                     tainting: false,
-                    internal: false
+                    internal: false,
+                    sensitive: false
                 }
             ],
             outputs: [
@@ -89,7 +93,7 @@ lazy_static! {
             ],
             example: txtx_addon_kit::indoc! {r#"
                 action "deploy" "svm::deploy_program" {
-                    description = "Deploy program"
+                    description = "Deploy hello world program"
                     program = svm::get_program_from_anchor_project("hello_world") 
                     signers = [signer.deployer]
                 }
@@ -120,7 +124,7 @@ impl CommandImplementation for DeployProgram {
         let signer_did = signers_did.first().unwrap();
         let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        let program_artifacts_map = match args.get_expected_object("program") {
+        let program_artifacts_map = match args.get_expected_object(PROGRAM) {
             Ok(a) => a,
             Err(e) => return Err((signers, signer_state, e)),
         };
@@ -139,7 +143,7 @@ impl CommandImplementation for DeployProgram {
         let auto_extend = args.get_bool(AUTO_EXTEND);
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
-        let keypair = program_artifacts_map.get("keypair").unwrap();
+        let keypair = program_artifacts_map.get(KEYPAIR).unwrap();
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
             PROGRAM_DEPLOYMENT_KEYPAIR,
@@ -147,7 +151,7 @@ impl CommandImplementation for DeployProgram {
         );
 
         let payer_pubkey_str =
-            signer_state.get_expected_string("checked_public_key").map_err(|e| {
+            signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
                 (
                     signers.clone(),
                     signer_state.clone(),
@@ -230,7 +234,7 @@ impl CommandImplementation for DeployProgram {
                 let mut signatures = vec![];
                 let mut signed_transactions_bytes = vec![];
 
-                args.insert(IS_ARRAY, Value::bool(true));
+                args.insert(IS_DEPLOYMENT, Value::bool(true));
                 let mut status_updater =
                     StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
                 for (i, transaction) in payloads.iter().enumerate() {
@@ -307,7 +311,7 @@ impl CommandImplementation for DeployProgram {
                 let mut result = CommandExecutionResult::new();
                 result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transactions_bytes);
                 result.outputs.insert(SIGNATURE.into(), signatures);
-                result.outputs.insert(IS_ARRAY.into(), Value::bool(true));
+                result.outputs.insert(IS_DEPLOYMENT.into(), Value::bool(true));
                 (signers_ref, last_signer_state_ref.unwrap(), result)
             } else {
                 let run_signing_future = SignTransaction::run_signed_execution(
@@ -347,10 +351,10 @@ impl CommandImplementation for DeployProgram {
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        if values.get_bool(IS_ARRAY).unwrap_or(false) {
+        if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
             return return_synchronous_result(Ok(CommandExecutionResult::new()));
         } else {
-            SendTransaction::build_background_task(
+            send_transaction_background_task(
                 &construct_did,
                 &spec,
                 &values,
@@ -364,10 +368,7 @@ impl CommandImplementation for DeployProgram {
 }
 
 fn verify_signature(signed_transaction_value: Value) -> Result<(), Diagnostic> {
-    let transaction_bytes = signed_transaction_value
-        .expect_buffer_bytes_result()
-        .map_err(|e| diagnosed_error!("failed to get signed transaction bytes: {}", e))?;
-    let transaction: Transaction = serde_json::from_slice(&transaction_bytes)
+    let transaction = SvmValue::to_transaction(&signed_transaction_value)
         .map_err(|e| diagnosed_error!("invalid signed transaction: {}", e))?;
     let _ = transaction
         .verify_and_hash_message()

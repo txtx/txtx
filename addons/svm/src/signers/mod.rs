@@ -10,7 +10,7 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
-    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
+    signers::SignerSpecification,
     types::Value,
     ConstructDid,
 };
@@ -23,11 +23,6 @@ use crate::constants::{
 lazy_static! {
     pub static ref SIGNERS: Vec<SignerSpecification> =
         vec![SVM_SECRET_KEY.clone(), SVM_WEB_WALLET.clone()];
-}
-
-pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
-    error_fn
 }
 
 pub async fn get_additional_actions_for_address(
