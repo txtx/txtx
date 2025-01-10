@@ -329,13 +329,15 @@ async fn handle_command(
             lsp::run_lsp().await?;
         }
         Command::Cloud(cmd) => cloud::handle_auth_command(&cmd, ctx).await?,
-        Command::Serve(_cmd) => {
+        Command::Serve(cmd) => {
             warn!(ctx.expect_logger(), "The command `txtx serve` is experimental and will run for 30 minutes.");
-            let _ = crate::serve::start_server("0.0.0.0:18488", ctx).await.unwrap();
+            let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
+            let _ = crate::serve::start_server(&addr, ctx).await.unwrap();
             ctrlc::set_handler(move || {
                 std::process::exit(1);
             })
             .expect("Error setting Ctrl-C handler");
+            // Consider making the duration configurable or running indefinitely
             thread::sleep(std::time::Duration::new(1800, 0));
         }
     }
