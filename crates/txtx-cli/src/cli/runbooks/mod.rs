@@ -61,6 +61,7 @@ use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
+pub const SERVE_BINDING_PORT: &str = "18488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {

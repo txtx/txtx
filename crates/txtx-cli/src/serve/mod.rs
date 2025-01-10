@@ -87,11 +87,6 @@ pub async fn start_server(
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct SimpleResponse {
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct RunbookRegistrationRequest {
     hcl_source: String
 }
@@ -153,9 +148,7 @@ pub async fn check_service_health(
 ) -> actix_web::Result<HttpResponse> {
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
 
-    let response = SimpleResponse {
-    };
-    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
 pub async fn register_runbook(
@@ -167,9 +160,7 @@ pub async fn register_runbook(
 ) -> actix_web::Result<HttpResponse> {
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
 
-    let response = SimpleResponse {
-    };
-    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
 pub async fn execute_runbook(
@@ -443,70 +434,7 @@ pub async fn execute_runbook(
         .unwrap();
 
     info!(ctx.expect_logger(), "Attempt to initialize execution channel");
-    // let token = "000000";
-    // let client = reqwest::Client::new();
-    // let path = format!("{}/api/v1/channels", "http://127.0.0.1:8489");
-
-    // let totp = auth_token_to_totp(token).get_secret_base32();
-    // let uuid = Uuid::new_v4();
-
-    // use base58::ToBase58;
-    // let slug = uuid.as_bytes().to_base58()[0..8].to_string();
-
-    // let block_store = gql_context.block_store.read().await.clone();
-    // let payload = OpenChannelRequest {
-    //     runbook_name: gql_context.runbook_name.clone(),
-    //     runbook_description: gql_context.runbook_description.clone(),
-    //     registered_addons: gql_context.registered_addons.clone(),
-    //     block_store: block_store.clone(),
-    //     uuid: uuid.clone(),
-    //     slug: slug.clone(),
-    //     operating_token: token.to_string(),
-    //     totp: totp.clone(),
-    // };
-
-    // let res = client
-    //     .post(path)
-    //     .bearer_auth(token)
-    //     .json(&payload)
-    //     .send()
-    //     .await
-    //     .map_err(ErrorInternalServerError)?;
-
-    // if let Err(e) = res.error_for_status_ref() {
-    //     let msg = res.text().await.unwrap_or_default();
-    //     error!(ctx.expect_logger(), "Channel creation failed: {}", msg);
-    //     return Ok(HttpResponseBuilder::new(
-    //         StatusCode::from_u16(e.status().map(|s| s.as_u16()).unwrap_or(500))
-    //             .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-    //     )
-    //     .json(json!({
-    //         "error": msg
-    //     })));
-    // }
-
-    // let body = match res.status() {
-    //     ReqwestStatusCode::OK => {
-    //         res.json::<OpenChannelResponse>().await.map_err(ErrorInternalServerError)?
-    //     }
-    //     _ => return Ok(HttpResponse::InternalServerError().body("Internal Server Error")),
-    // };
-
-    // let _ = relayer_context.relayer_channel_tx.send(RelayerChannelEvent::OpenChannel(
-    //     ChannelData::new(
-    //         token.to_string(),
-    //         totp.clone(),
-    //         slug.clone(),
-    //         body.clone(),
-    //         // &graph_context.action_item_events_tx,
-    //     ),
-    // ));
-
-    // info!(ctx.expect_logger(), "{:?}", body);
-
-    let response = SimpleResponse {
-    };
-    Ok(HttpResponseBuilder::new(StatusCode::OK).json(response))
+    Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
 async fn discovery() -> impl Responder {
@@ -524,7 +452,7 @@ async fn post_graphql(
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.write().await;
     let Some(context) = context.as_ref() else {
-        return Err(ErrorRequestTimeout("Not ready"));
+        return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));
     };
     graphql_handler(&schema, &context, req, payload).await
 }
@@ -539,7 +467,7 @@ async fn get_graphql(
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.read().await;
     let Some(context) = context.as_ref() else {
-        return Err(ErrorRequestTimeout("Not ready"));
+        return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));
     };
     graphql_handler(&schema, &context, req, payload).await
 }
@@ -554,7 +482,7 @@ async fn subscriptions(
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.read().await;
     let Some(context) = context.as_ref() else {
-        return Err(ErrorRequestTimeout("Not ready"));
+        return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));
     };
     let ctx = GraphContext {
         protocol_name: context.protocol_name.clone(),
@@ -569,38 +497,3 @@ async fn subscriptions(
     let config = config.with_keep_alive_interval(Duration::from_secs(15));
     subscriptions::ws_handler(req, stream, schema.into_inner(), config).await
 }
-
-// async fn ws_handler(
-//     connection_params: HashMap<String, InputValue<DefaultScalarValue>>,
-//     store: Data<ExecutionStore>,
-// ) -> Result<ConnectionConfig<GraphContext>, Error> {
-//     let Some(InputValue::Object(headers)) = connection_params.get("headers") else {
-//         return Err(ErrorBadRequest("invalid auth"));
-//     };
-
-//     let Some((_, auth_header_value)) = headers
-//         .iter()
-//         .find(|(header_key, _)| header_key.item.eq("authorization"))
-//     else {
-//         return Err(ErrorBadRequest("invalid auth"));
-//     };
-
-//     let InputValue::Scalar(DefaultScalarValue::String(bearer_token_str)) =
-//         auth_header_value.item.clone()
-//     else {
-//         return Err(ErrorBadRequest("invalid auth"));
-//     };
-
-//     let bearer_token_header =
-//         HeaderValue::from_str(&bearer_token_str).map_err(|_| ErrorBadRequest("invalid auth"))?;
-
-//     let bearer_token = authorization::Bearer::parse(&bearer_token_header)
-//         .map_err(|_| ErrorBadRequest("invalid auth"))?;
-
-//     if let Some(execution) = store.find_by_auth_token(bearer_token.token()) {
-//         return Ok(ConnectionConfig::new(execution.graph_context)
-//             .with_keep_alive_interval(Duration::from_secs(15)));
-//     } else {
-//         return Err(ErrorBadRequest("invalid auth"));
-//     }
-// }

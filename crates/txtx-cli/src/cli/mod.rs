@@ -254,7 +254,7 @@ pub struct StartServer {
     #[arg(long = "output", conflicts_with = "output_json")]
     pub output: Option<String>,
     /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
+    #[arg(long = "port", short = 'p', default_value = SERVE_BINDING_PORT )]
     pub network_binding_port: u16,
     /// Set the port for hosting the web UI
     #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
