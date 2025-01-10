@@ -60,14 +60,14 @@ lazy_static! {
                     internal: false
                 },
                 recipient_address: {
-                    documentation: "The address of the recipient.",
+                    documentation: "The EVM address of the recipient.",
                     typing: Type::addon(EVM_ADDRESS),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 amount: {
-                    documentation: "The amount, in WEI, to transfer.",
+                    documentation: "The amount to send, in WEI (1 ETH = 10^18 WEI).",
                     typing: Type::integer(),
                     optional: true,
                     tainting: true,

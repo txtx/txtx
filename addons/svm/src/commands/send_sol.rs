@@ -48,14 +48,14 @@ lazy_static! {
                     internal: false
                 },
                 amount: {
-                    documentation: "The amount, in lamports, to send.",
+                    documentation: "The amount to send, in lamports (1 SOL = 10^9 lamports).",
                     typing: Type::integer(),
                     optional: false,
                     tainting: false,
                     internal: false
                 },
                 recipient: {
-                    documentation: "The address of the recipient.",
+                    documentation: "The SVM address of the recipient.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,

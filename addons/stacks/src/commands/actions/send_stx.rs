@@ -35,14 +35,14 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 amount: {
-                    documentation: "The amount of STX to send.",
+                    documentation: "The amount to send, in microSTX (1 STX = 10^6 µSTX).",
                     typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 recipient: {
-                    documentation: "The recipient of the transfer.",
+                    documentation: "The Stacks address of the recipient.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,

@@ -42,14 +42,14 @@ lazy_static! {
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the transaction",
+                    documentation: "The description of the transaction.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
                     internal: false
                 },
                 contract_id: {
-                    documentation: "The address and identifier of the contract to invoke.",
+                    documentation: "The Stacks address and contract name of the contract to invoke.",
                     typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     tainting: true,
