@@ -2,7 +2,7 @@ use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
-use std::process;
+use std::{process, thread};
 
 mod cloud;
 mod docs;
@@ -69,6 +69,9 @@ enum Command {
     /// Start Txtx Language Server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
+    /// Start Txtx Server
+    #[clap(name = "serve", bin_name = "serve")]
+    Serve(StartServer),
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
@@ -239,6 +242,25 @@ pub struct ListRunbooks {
     pub manifest_path: String,
 }
 
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct StartServer {
+    /// Serve runbooks from a specific project
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: Option<String>,
+    /// When running in unsupervised mode, print outputs in JSON format
+    #[arg(long = "output-json", action=ArgAction::SetTrue)]
+    pub output_json: bool,
+    /// Pick a specific output to stdout at the end of the execution
+    #[arg(long = "output", conflicts_with = "output_json")]
+    pub output: Option<String>,
+    /// Set the port for hosting the web UI
+    #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
+    pub network_binding_port: u16,
+    /// Set the port for hosting the web UI
+    #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
+    pub network_binding_ip_address: String,
+}
+
 fn load_stdin() -> Option<String> {
     if atty::is(Stream::Stdin) {
         return None;
@@ -307,6 +329,15 @@ async fn handle_command(
             lsp::run_lsp().await?;
         }
         Command::Cloud(cmd) => cloud::handle_auth_command(&cmd, ctx).await?,
+        Command::Serve(_cmd) => {
+            warn!(ctx.expect_logger(), "The command `txtx serve` is experimental and will run for 30 minutes.");
+            let _ = crate::serve::start_server("0.0.0.0:18488", ctx).await.unwrap();
+            ctrlc::set_handler(move || {
+                std::process::exit(1);
+            })
+            .expect("Error setting Ctrl-C handler");
+            thread::sleep(std::time::Duration::new(1800, 0));
+        }
     }
     Ok(())
 }
