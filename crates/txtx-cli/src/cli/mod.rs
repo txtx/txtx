@@ -1,7 +1,7 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
-use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
+use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT, SERVE_BINDING_PORT};
 use std::{process, thread};
 
 mod cloud;
