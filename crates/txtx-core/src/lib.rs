@@ -614,8 +614,13 @@ pub async fn build_genesis_panel(
         );
         actions.push_sub_group(None, vec![action_request]);
     }
-    let running_context = runbook.flow_contexts.first_mut().unwrap();
-    let mut pass_result = run_signers_evaluation(
+
+    let Some(running_context) = runbook.flow_contexts.first_mut() else {
+        return Err(vec![diagnosed_error!(
+            "runbook empty"
+        )])
+    };
+    let mut pass_result: eval::EvaluationPassResult = run_signers_evaluation(
         &running_context.workspace_context,
         &mut running_context.execution_context,
         &runbook.runtime_context,

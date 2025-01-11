@@ -11,15 +11,10 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
-use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
-use txtx_addon_network_stacks::StacksNetworkAddon;
-use txtx_addon_network_svm::SvmNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
-use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     runbook::embedded_runbook::publishable::PublishableEmbeddedRunbookSpecification,
@@ -52,47 +47,22 @@ use txtx_core::{
         RunbookTopLevelInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
-    std::StdAddon,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks, PublishRunbook};
 use crate::{
-    cli::templates::{build_manifest_data, build_runbook_data},
-    web_ui::{
+    cli::templates::{build_manifest_data, build_runbook_data}, get_addon_by_namespace, get_available_addons, web_ui::{
         self,
         cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
-    },
+    }
 };
 use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
+pub const SERVE_BINDING_PORT: &str = "18488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
-
-pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
-    vec![
-        Box::new(StdAddon::new()),
-        Box::new(SvmNetworkAddon::new()),
-        Box::new(StacksNetworkAddon::new()),
-        Box::new(EvmNetworkAddon::new()),
-        Box::new(BitcoinNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
-        #[cfg(feature = "sp1")]
-        Box::new(Sp1Addon::new()),
-        #[cfg(feature = "ovm")]
-        Box::new(OvmNetworkAddon::new()),
-    ]
-}
-pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
-    let available_addons = get_available_addons();
-    for addon in available_addons.into_iter() {
-        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
-            return Some(addon);
-        }
-    }
-    None
-}
 
 pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
     let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
