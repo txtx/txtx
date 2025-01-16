@@ -91,7 +91,7 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
     let redirect_url = format!("127.0.0.1:{AUTH_CALLBACK_PORT}");
 
     let auth_service_url = reqwest::Url::parse(&format!(
-        "{}/login?callbackUrl=http://{}/api/v1/auth",
+        "{}?callbackUrl=http://{}/api/v1/auth",
         AUTH_SERVICE_URL, redirect_url
     ))
     .map_err(|e| format!("Invalid auth service URL: {e}"))?;
