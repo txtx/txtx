@@ -41,7 +41,7 @@ lazy_static! {
                     expected_address: {
                         documentation: "The EVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.",
                         typing: Type::string(),
-                        optional: false,
+                        optional: true,
                         tainting: true,
                         sensitive: true
                     }

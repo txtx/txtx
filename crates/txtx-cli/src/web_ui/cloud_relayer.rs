@@ -197,7 +197,7 @@ async fn send_delete_channel(
     Ok(())
 }
 
-fn auth_token_to_totp(token: &str) -> TOTP {
+pub fn auth_token_to_totp(token: &str) -> TOTP {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     let hashed_auth_token = hasher.finalize();
