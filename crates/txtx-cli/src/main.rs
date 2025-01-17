@@ -1,7 +1,11 @@
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
+#[cfg(feature = "ovm")]
+use txtx_addon_network_ovm::OvmNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::{kit::Addon, std::StdAddon};
 
@@ -12,10 +16,10 @@ extern crate hiro_system_kit;
 
 pub mod cli;
 pub mod manifest;
+pub mod serve;
 pub mod snapshots;
 pub mod term_ui;
 pub mod web_ui;
-pub mod serve;
 
 pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
