@@ -44,6 +44,20 @@ lazy_static! {
                         optional: true,
                         tainting: true,
                         sensitive: true
+                    },
+                    chain_id: {
+                        documentation: "The chain id.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: true,
+                        sensitive: false
+                    },
+                    rpc_api_url: {
+                        documentation: "The URL of the EVM API used to broadcast the transaction.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [
