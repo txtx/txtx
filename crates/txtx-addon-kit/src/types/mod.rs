@@ -124,6 +124,9 @@ pub struct RunbookId {
 }
 
 impl RunbookId {
+    pub fn new(org: Option<String>, workspace: Option<String>, name: &str) -> RunbookId {
+        RunbookId { org, workspace, name: name.into() }
+    }
     pub fn did(&self) -> RunbookDid {
         let mut comps = vec![];
         if let Some(ref org) = self.org {

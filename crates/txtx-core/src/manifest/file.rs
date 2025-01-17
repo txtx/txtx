@@ -36,7 +36,6 @@ pub struct RunbookMetadataFile {
     pub location: String,
     pub name: String,
     pub description: Option<String>,
-    pub id: String,
     pub state: Option<RunbookStateFile>,
 }
 
@@ -57,7 +56,7 @@ pub fn read_runbooks_from_manifest(
 
     for runbook_metadata in manifest.runbooks.iter() {
         if let Some(runbooks_filter_in) = runbooks_filter_in {
-            if !runbooks_filter_in.contains(&runbook_metadata.id) {
+            if !runbooks_filter_in.contains(&runbook_metadata.name) {
                 continue;
             }
         }
@@ -67,11 +66,11 @@ pub fn read_runbooks_from_manifest(
             &package_location,
             &runbook_metadata.description,
             environment_selector,
-            Some(&runbook_metadata.id),
+            Some(&runbook_metadata.name),
         )?;
 
         runbooks.insert(
-            runbook_metadata.id.to_string(),
+            runbook_metadata.name.to_string(),
             (runbook, sources, runbook_metadata.name.to_string(), runbook_metadata.state.clone()),
         );
     }
@@ -105,6 +104,6 @@ pub fn read_runbook_from_location(
         }
     }
 
-    let runbook_id = RunbookId { org: None, workspace: None, name: runbook_name.clone() };
+    let runbook_id = RunbookId::new(None, None, &runbook_name);
     Ok((runbook_name, Runbook::new(runbook_id, description.clone()), runbook_sources))
 }
