@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anchor_lang_idl::types::Idl;
 use solana_sdk::{pubkey::Pubkey, system_program};
 use txtx_addon_kit::{
@@ -42,7 +44,25 @@ lazy_static! {
                 inputs: [
                 ],
                 output: {
-                    documentation: "The system program id",
+                    documentation: "The system program id.",
+                    typing: Type::addon(SVM_PUBKEY.into())
+                },
+            }
+        },
+        define_function! {
+            DefaultPubkey => {
+                name: "default_pubkey",
+                documentation: "`svm::default_pubkey` returns a default public key, `11111111111111111111111111111111`.",
+                example: indoc! {r#"
+                    output "default_pubkey" { 
+                        value = svm::default_pubkey()
+                    }
+                    // > 11111111111111111111111111111111
+                "#},
+                inputs: [
+                ],
+                output: {
+                    documentation: "The default public key, `11111111111111111111111111111111`",
                     typing: Type::addon(SVM_PUBKEY.into())
                 },
             }
@@ -296,7 +316,26 @@ impl FunctionImplementation for SystemProgramId {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        Ok(Value::string(system_program::id().to_string()))
+        Ok(SvmValue::pubkey(system_program::id().to_bytes().to_vec()))
+    }
+}
+pub struct DefaultPubkey;
+impl FunctionImplementation for DefaultPubkey {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        Ok(SvmValue::pubkey(Pubkey::default().to_bytes().to_vec()))
     }
 }
 
