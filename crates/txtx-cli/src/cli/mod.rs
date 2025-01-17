@@ -1,5 +1,5 @@
 use atty::Stream;
-use clap::{ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use hiro_system_kit::{self, Logger};
 use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT, SERVE_BINDING_PORT};
 use std::{process, thread};
@@ -55,11 +55,6 @@ enum Command {
     /// Check the executability of a runbook
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbook),
-    /// Publish a runbook, allowing it to be called by other runbooks.
-    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
-    /// However, the published runbook will have the inputs removed.
-    #[clap(name = "publish", bin_name = "publish")]
-    Publish(PublishRunbook),
     /// Run, runbook, run!
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
@@ -84,6 +79,11 @@ enum Command {
 pub enum CloudCommand {
     #[clap(name = "login", bin_name = "login")]
     Login(LoginCommand),
+    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
+    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
+    /// However, the published runbook will have the inputs removed.
+    #[clap(name = "publish", bin_name = "publish")]
+    Publish(PublishRunbook),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -99,6 +99,55 @@ pub struct LoginCommand {
     /// Automatically log in using a Personal Access Token
     #[arg(long = "pat", conflicts_with_all = &["email", "password"])]
     pub pat: Option<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct PublishRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
+    pub runbook: String,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
+    pub inputs: Vec<String>,
+    /// The destination to publish the runbook to. By default, the published runbook will be at /manifest/path/<runbook-id>.output.json
+    #[arg(long = "destination", short = 'd')]
+    pub destination: Option<String>,
+    /// The permissions to set for what users can read the runbook.
+    ///  - `public`: Anyone can read the runbook
+    ///  - `private`: Only the owner can read the runbook
+    ///  - `org`: Only members of the organization can read the runbook
+    #[arg(long = "read-permissions", default_value = "private")]
+    pub read_permissions: Option<PublishRunbookReadPermissions>,
+    /// The permissions to set for what users can update the runbook.
+    ///  - `private`: Only the owner can update the runbook
+    ///  - `org`: Only members of the organization can update the runbook
+    #[arg(long = "update-permissions", default_value = "private")]
+    pub update_permissions: Option<PublishRunbookWritePermissions>,
+    /// The permissions to set for what users can delete the runbook.
+    ///  - `private`: Only the owner can delete the runbook
+    ///  - `org`: Only members of the organization can delete the runbook
+    #[arg(long = "delete-permissions", default_value = "private")]
+    pub delete_permissions: Option<PublishRunbookWritePermissions>,
+}
+
+#[derive(ValueEnum, PartialEq, Clone, Debug)]
+#[clap(rename_all = "snake-case")]
+pub enum PublishRunbookReadPermissions {
+    Public,
+    Private,
+    Org,
+}
+
+#[derive(ValueEnum, PartialEq, Clone, Debug)]
+#[clap(rename_all = "snake-case")]
+pub enum PublishRunbookWritePermissions {
+    Private,
+    Org,
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -144,24 +193,6 @@ pub struct CheckRunbook {
     /// A set of inputs to use for batch processing
     #[arg(long = "input")]
     pub inputs: Vec<String>,
-}
-
-#[derive(Parser, PartialEq, Clone, Debug)]
-pub struct PublishRunbook {
-    /// Path to the manifest
-    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
-    pub manifest_path: String,
-    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
-    pub runbook: String,
-    /// Choose the environment variable to set from those configured in the txtx.yml
-    #[arg(long = "env")]
-    pub environment: Option<String>,
-    /// A set of inputs to use for batch processing
-    #[arg(long = "input")]
-    pub inputs: Vec<String>,
-    /// The destination to publish the runbook to. By default, the published runbook will be at /manifest/path/<runbook-id>.output.json
-    #[arg(long = "destination", short = 'd')]
-    pub destination: Option<String>,
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -304,9 +335,6 @@ async fn handle_command(
         Command::Check(cmd) => {
             runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
         }
-        Command::Publish(cmd) => {
-            runbooks::handle_publish_command(&cmd, buffer_stdin, ctx).await?;
-        }
         Command::Run(cmd) => {
             runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
         }
@@ -328,9 +356,11 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
-        Command::Cloud(cmd) => cloud::handle_auth_command(&cmd, ctx).await?,
         Command::Serve(cmd) => {
-            warn!(ctx.expect_logger(), "The command `txtx serve` is experimental and will run for 30 minutes.");
+            warn!(
+                ctx.expect_logger(),
+                "The command `txtx serve` is experimental and will run for 30 minutes."
+            );
             let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
             let _ = crate::serve::start_server(&addr, ctx).await.unwrap();
             ctrlc::set_handler(move || {
@@ -340,6 +370,7 @@ async fn handle_command(
             // Consider making the duration configurable or running indefinitely
             thread::sleep(std::time::Duration::new(1800, 0));
         }
+        Command::Cloud(cmd) => cloud::handle_cloud_commands(&cmd, buffer_stdin, ctx).await?,
     }
     Ok(())
 }
