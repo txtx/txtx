@@ -286,7 +286,7 @@ lazy_static! {
                         optional: false
                     },
                     seeds: {
-                        documentation: "An optional array of seeds that will be used to derive the PDA.",
+                        documentation: "An optional array of seeds that will be used to derive the PDA. A maximum of 16 seeds can be used, and each seed can have a maximum length of 32 bytes.",
                         typing: vec![Type::array(Type::string())],
                         optional: true
                     }
@@ -573,12 +573,26 @@ impl FunctionImplementation for FindPda {
                         if bytes.is_empty() {
                             return Err(to_diag(fn_spec, "seed cannot be empty".to_string()));
                         }
+                        if bytes.len() > 32 {
+                            if let Ok(pubkey) = Pubkey::from_str(&s.to_string()) {
+                                return Ok(pubkey.to_bytes().to_vec());
+                            } else {
+                                return Err(to_diag(
+                                    fn_spec,
+                                    "seed cannot be longer than 32 bytes".to_string(),
+                                ));
+                            }
+                        }
                         Ok(bytes)
                     })
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?
             .unwrap_or_default();
+
+        if seeds.len() > 16 {
+            return Err(to_diag(fn_spec, "seeds a maximum of 16 seeds can be used".to_string()));
+        }
 
         let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
