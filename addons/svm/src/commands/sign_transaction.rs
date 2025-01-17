@@ -243,7 +243,10 @@ impl CommandImplementation for SignTransaction {
                                         combined_transaction.signatures[i] = sig.clone();
                                     }
                                 }
-                                if combined_transaction.is_signed() {
+                                let all_txtx_signers_signed = cursor == signers_count - 1;
+                                let is_fully_signed = combined_transaction.is_signed();
+
+                                if is_fully_signed {
                                     let mut result = CommandExecutionResult::new();
                                     result.outputs.insert(
                                         SIGNED_TRANSACTION_BYTES.into(),
@@ -253,7 +256,7 @@ impl CommandImplementation for SignTransaction {
                                     );
                                     return Ok((new_signers, new_signer_state, result));
                                 }
-                                if cursor == signers_count - 1 {
+                                if all_txtx_signers_signed {
                                     return Err((
                                         new_signers,
                                         new_signer_state,
