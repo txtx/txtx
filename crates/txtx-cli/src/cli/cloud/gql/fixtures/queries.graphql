@@ -1,0 +1,28 @@
+mutation InsertRunbooksOne(
+  $name:String!,
+	$description: String
+  $documentation: jsonb!,
+  $raw_runbook: jsonb!,
+  $read_permissions: permissions_obj_rel_insert_input!,
+  $update_permissions: permissions_obj_rel_insert_input!,
+  $delete_permissions: permissions_obj_rel_insert_input!  
+) {
+  insert_runbooks_one(object: {
+    name: $name, 
+    description: $description, 
+    documentation: $documentation, 
+    raw_runbook: $raw_runbook,
+    permissionByReadPermissionsId: $read_permissions,
+    permissionByUpdatePermissionsId: $update_permissions,
+    permissionByDeletePermissionsId: $delete_permissions
+  }) {
+    id
+  }
+}
+
+query OrgsForUser($user_id: uuid) {
+  organizations(where: {organization_users: { user_id: {_eq: $user_id}}}) {
+    id,
+    name
+  }
+}
