@@ -91,6 +91,9 @@ jobs:
           echo RELAYER_BASE_URL="https://txtx.link" >> .env
           echo RELAYER_HOST="txtx.link" >> .env
           echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
+          echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
+          echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
+          echo TXTX_CONSOLE_URL="https://txtx.run" >> .env
           cat .env
 
       - name: Checkout Supervisor UI
