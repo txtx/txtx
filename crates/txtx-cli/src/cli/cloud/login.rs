@@ -1,19 +1,27 @@
+use std::collections::HashMap;
+
 use actix_cors::Cors;
+use actix_web::error::QueryPayloadError;
 use actix_web::http::header;
-use actix_web::web::{self, Data, Json};
-use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::web::{self, Data};
+use actix_web::{middleware, App, FromRequest, HttpRequest, HttpResponse, HttpServer, Responder};
+use base64::Engine;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 
+use serde::de::Error;
 use txtx_core::kit::channel::{Receiver, Sender};
 
 use serde::{Deserialize, Serialize};
+use txtx_core::kit::futures::future::{ready, Ready};
 use txtx_core::kit::{channel, reqwest};
 
+use crate::cli::cloud::auth::AuthUser;
 use crate::cli::{Context, LoginCommand};
 
-use super::{AuthConfig, AuthUser};
-use crate::cli::cloud::{AUTH_CALLBACK_PORT, AUTH_SERVICE_URL};
+use super::auth::AuthConfig;
+use super::auth::AUTH_CALLBACK_PORT;
+use super::auth::AUTH_SERVICE_URL;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +43,79 @@ struct LoginCallbackError {
 enum LoginCallbackServerEvent {
     AuthCallback(LoginCallbackResult),
     AuthError(LoginCallbackError),
+}
+// The actix_web `Query<>` extractor was having a hard time with the enums and nested objects here,
+// and we wanted to base64 encode the data, so we implemented our own `FromRequest` extractor.
+impl FromRequest for LoginCallbackServerEvent {
+    type Error = QueryPayloadError;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+        // Extract the query string from the request
+        let query_string = req.query_string();
+
+        let decoded = match base64::engine::general_purpose::URL_SAFE.decode(query_string) {
+            Ok(decoded) => decoded,
+            Err(err) => {
+                let error = QueryPayloadError::Deserialize(serde_urlencoded::de::Error::custom(
+                    format!("Base64 decode error: {}", err),
+                ));
+                return ready(Err(error));
+            }
+        };
+
+        // Convert decoded bytes to a string
+        let decoded_str = match String::from_utf8(decoded) {
+            Ok(s) => s,
+            Err(err) => {
+                let error = QueryPayloadError::Deserialize(serde_urlencoded::de::Error::custom(
+                    format!("UTF-8 conversion error: {}", err),
+                ));
+                return ready(Err(error));
+            }
+        };
+
+        let mut params: HashMap<String, String> = match serde_urlencoded::from_str(&decoded_str) {
+            Ok(params) => params,
+            Err(err) => {
+                let error = QueryPayloadError::Deserialize(err);
+                return ready(Err(error));
+            }
+        };
+        // Handle the `user` field separately if it exists
+        if let Some(user_json) = params.remove("user") {
+            let user: AuthUser = match serde_json::from_str(&user_json) {
+                Ok(user) => user,
+                Err(err) => {
+                    let error =
+                        QueryPayloadError::Deserialize(serde_urlencoded::de::Error::custom(
+                            format!("Failed to parse 'user' field: {}", err),
+                        ));
+                    return ready(Err(error));
+                }
+            };
+
+            // Reconstruct `LoginCallbackServerEvent` with the parsed `user`
+            if params.contains_key("accessToken")
+                && params.contains_key("refreshToken")
+                && params.contains_key("exp")
+            {
+                let result = LoginCallbackResult {
+                    access_token: params.remove("accessToken").unwrap(),
+                    refresh_token: params.remove("refreshToken").unwrap(),
+                    exp: params.remove("exp").unwrap().parse().unwrap_or_default(),
+                    user,
+                };
+
+                return ready(Ok(LoginCallbackServerEvent::AuthCallback(result)));
+            }
+        }
+
+        // If no matching variant is found, return an error
+        ready(Err(QueryPayloadError::Deserialize(serde_urlencoded::de::Error::custom(
+            "Data did not match any variant",
+        ))))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -88,10 +169,10 @@ pub async fn handle_login_command(cmd: &LoginCommand, _ctx: &Context) -> Result<
 /// Directs the user to the ID service login page.
 /// Upon login, the ID service will send a POST request to the server with the user's auth data.
 async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
-    let redirect_url = format!("127.0.0.1:{AUTH_CALLBACK_PORT}");
+    let redirect_url = format!("localhost:{AUTH_CALLBACK_PORT}");
 
     let auth_service_url = reqwest::Url::parse(&format!(
-        "{}?callbackUrl=http://{}/api/v1/auth",
+        "{}?redirectUrl=http://{}/api/v1/auth",
         AUTH_SERVICE_URL, redirect_url
     ))
     .map_err(|e| format!("Invalid auth service URL: {e}"))?;
@@ -105,14 +186,14 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
             .wrap(
                 Cors::default()
                     .allowed_origin(&allowed_origin)
-                    .allowed_methods(vec!["POST", "OPTIONS"])
+                    .allowed_methods(vec!["GET", "OPTIONS"])
                     .allowed_headers(vec![header::CONTENT_TYPE, header::ACCEPT])
             )
             .wrap(middleware::Compress::default())
             .wrap(middleware::Logger::default())
             .service(
                 web::scope("/api/v1")
-                .route("/auth", web::post().to(auth_callback))
+                .route("/auth", web::get().to(auth_callback))
             )
     })
     .workers(1)
@@ -134,7 +215,7 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
     };
 
     if let Err(_) = open::that(auth_service_url.as_str()) {
-        println!("Please open the following URL in your browser: {}", auth_service_url);
+        println!("Failed to automatically open your browser. Please open the following URL in your browser: {}", auth_service_url);
     };
 
     let res = rx.recv();
@@ -155,9 +236,8 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
 async fn auth_callback(
     _req: HttpRequest,
     ctx: Data<LoginCallbackServerContext>,
-    payload: Json<LoginCallbackServerEvent>,
+    payload: LoginCallbackServerEvent,
 ) -> actix_web::Result<impl Responder> {
-    let payload = payload.into_inner();
     let msg = match &payload {
         LoginCallbackServerEvent::AuthCallback(_) => {
             "Authentication successful. You can close this tab.".into()
@@ -167,7 +247,23 @@ async fn auth_callback(
     ctx.tx.send(payload).map_err(|_| {
         actix_web::error::ErrorInternalServerError("Failed to send auth callback event")
     })?;
-    Ok(HttpResponse::Ok().body(msg))
+    let body = format!(
+        r#"
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Txtx</title>
+                <script defer>
+                    window.location.replace("{AUTH_SERVICE_URL}");
+                </script>
+            </head>
+            <body style="background-color: rgba(6, 15, 17, 1)" >
+                <h1 style="color: rgba(255, 255, 255, 1)">{msg}</h1>
+            </body>
+        </html>
+    "#
+    );
+    Ok(HttpResponse::Ok().body(body))
 }
 
 /// Sends a POST request to the auth service to log in with an email and password.
