@@ -190,16 +190,56 @@ pub fn encode_value_to_idl_type(
                 borsh::to_vec(&Some(encoded_arg)).map_err(|e| encode_err("Optional", e))
             }
         }
-        IdlType::Vec(idl_type) => value
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .map(|v| encode_value_to_idl_type(v, idl_type, idl_types, None))
+        IdlType::Vec(idl_type) => match value {
+            Value::String(_) => {
+                let bytes = value.expect_buffer_bytes_result().map_err(|_| mismatch_err("vec"))?;
+                match idl_type.as_ref() {
+                    IdlType::U8 => bytes
+                        .iter()
+                        .map(|b| {
+                            encode_value_to_idl_type(
+                                &Value::integer(*b as i128),
+                                idl_type,
+                                idl_types,
+                                None,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
+                    _ => Err(mismatch_err("vec")),
+                }
+            }
+            Value::Array(vec) => vec
+                .iter()
+                .map(|v| encode_value_to_idl_type(v, idl_type, idl_types, None))
+                .collect::<Result<Vec<_>, _>>()
+                .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
+            Value::Buffer(bytes) => match idl_type.as_ref() {
+                IdlType::U8 => bytes
+                    .iter()
+                    .map(|b| {
+                        encode_value_to_idl_type(
+                            &Value::integer(*b as i128),
+                            idl_type,
+                            idl_types,
+                            None,
+                        )
+                    })
                     .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?
-            .map(|v| v.into_iter().flatten().collect::<Vec<_>>())
-            .ok_or(mismatch_err("vec")),
+                    .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
+                _ => Err(mismatch_err("vec")),
+            },
+            Value::Addon(addon_data) => match idl_type.as_ref() {
+                IdlType::U8 => addon_data
+                    .bytes
+                    .iter()
+                    .map(|b| borsh::to_vec(&b).map_err(|e| encode_err("u8", e)))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
+                _ => Err(mismatch_err("vec")),
+            },
+            _ => Err(mismatch_err("vec")),
+        },
         IdlType::Array(idl_type, idl_array_len) => {
             let expected_length = match idl_array_len {
                 IdlArrayLen::Generic(generic_len) => {
