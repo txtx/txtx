@@ -164,24 +164,10 @@ pub fn encode_value_to_idl_type(
             .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", e))))
             .transpose()?
             .ok_or(mismatch_err("string")),
-        IdlType::Pubkey => {
-            let thing = value.try_get_buffer_bytes_result().map(|b| {
-                b.map(|b| {
-                    if let Ok(pubkey_array) =
-                        b.as_slice().try_into().map_err(|_| mismatch_err("pubkey"))
-                    {
-                        let pubkey = Pubkey::new_from_array(pubkey_array);
-                        borsh::to_vec(&pubkey).map_err(|e| encode_err("pubkey", e))
-                    } else {
-                        Err(mismatch_err("pubkey"))
-                    }
-                })
-                .transpose()?
-                .ok_or(mismatch_err("pubkey"))
-            })?;
-
-            thing
-        }
+        IdlType::Pubkey => SvmValue::to_pubkey(value)
+            .map_err(|_| mismatch_err("pubkey"))
+            .map(|p| borsh::to_vec(&p))?
+            .map_err(|e| encode_err("pubkey", e)),
         IdlType::Option(idl_type) => {
             if let Some(_) = value.as_null() {
                 borsh::to_vec(&None::<u8>).map_err(|e| encode_err("Optional", e))
