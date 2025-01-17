@@ -361,8 +361,9 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     }
 
     // Provide a name for the runbook
+    // todo: validate runbook name
     let runbook_name: String = Input::with_theme(&theme)
-        .with_prompt("Enter a name for the runbook (e.g., 'BNS Multisig')")
+        .with_prompt("Enter a name for the runbook (e.g., 'deploy-contract')")
         .interact_text()
         .unwrap();
 
@@ -378,7 +379,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         &runbook_name,
         if runbook_description.eq("") { None } else { Some(runbook_description) },
     );
-    let runbook_id = &runbook.id.clone();
+    let runbook_id = &runbook.name.clone();
     manifest.runbooks.push(runbook);
 
     // Initialize root location
@@ -488,11 +489,10 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
     }
-    println!("{:<35}\t{:<35}\t{}", "ID", "Name", yellow!("Description"));
+    println!("{:<35}\t{}", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
         println!(
-            "{:<35}\t{:<35}\t{}",
-            runbook.id,
+            "{:<35}\t{}",
             runbook.name,
             yellow!(format!("{}", runbook.description.unwrap_or("".into())))
         );

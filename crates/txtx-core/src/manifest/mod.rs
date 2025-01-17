@@ -84,7 +84,6 @@ impl WorkspaceManifest {
                     location: e.location.clone(),
                     name: e.name.clone(),
                     description: e.description.clone(),
-                    id: e.id.clone(),
                     state: e
                         .state
                         .as_ref()
@@ -175,16 +174,14 @@ impl RunbookState {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunbookMetadata {
     pub location: String,
-    pub name: String,
     pub description: Option<String>,
-    pub id: String,
+    pub name: String,
     pub state: Option<RunbookState>,
 }
 
 impl RunbookMetadata {
     pub fn new(action: &str, name: &str, description: Option<String>) -> Self {
-        let id = normalize_user_input(name);
-        let location = format!("runbooks/{}/{}.tx", action, id);
-        RunbookMetadata { location, name: name.to_string(), description, id, state: None }
+        let location = format!("runbooks/{}/{}.tx", action, name);
+        RunbookMetadata { location, description, name: name.to_string(), state: None }
     }
 }
