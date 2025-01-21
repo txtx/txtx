@@ -5,6 +5,12 @@ inputs:
   infura_api_key:
     description: 'The Infura API key'
     required: true
+  nhost_region:
+    description: 'The nhost region'
+    required: true
+  nhost_subdomain:
+    description: 'The nhost subdomain'
+    required: true
     
 runs:
   using: 'composite'
@@ -15,8 +21,8 @@ runs:
         echo RELAYER_HOST="txtx.link" >> .env
         echo INFURA_API_KEY="${{ inputs.INFURA_API_KEY }}" >> .env
         echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
-        echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
-        echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
+        echo NHOST_REGION="${{ inputs.NHOST_REGION }}" >> .env
+        echo NHOST_SUBDOMAIN="${{ inputs.NHOST_SUBDOMAIN }}" >> .env
         echo TXTX_CONSOLE_URL="https://txtx.run" >> .env
         cat .env
       shell: bash

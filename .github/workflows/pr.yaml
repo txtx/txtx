@@ -22,6 +22,8 @@ jobs:
         uses: ./.github/actions/setup_env
         with:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
 
       - name: Install Rust toolchain
         run: |
@@ -61,6 +63,8 @@ jobs:
         uses: ./.github/actions/setup_env
         with:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
 
       - name: Install Rust toolchain
         run: |
