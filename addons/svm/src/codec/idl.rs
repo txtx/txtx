@@ -218,8 +218,8 @@ pub fn encode_value_to_idl_type(
             .and_then(|i| Some(borsh::to_vec(&i).map_err(|e| encode_err("i128", e))))
             .transpose()?
             .ok_or(mismatch_err("i128")),
-        IdlType::U256 => todo!(),
-        IdlType::I256 => todo!(),
+        IdlType::U256 => return Err("IDL type U256 is not yet supported".to_string()),
+        IdlType::I256 => return Err("IDL type I256 is not yet supported".to_string()),
         IdlType::Bytes => value.as_buffer_data().cloned().ok_or(mismatch_err("bytes")),
         IdlType::String => value
             .as_string()
@@ -318,7 +318,7 @@ pub fn encode_value_to_idl_type(
                         &defined_parent_generics,
                     )?
                     else {
-                        todo!()
+                        return Err(format!("unable to parse generic array length"));
                     };
                     &name
                         .parse::<usize>()
@@ -454,7 +454,7 @@ pub fn encode_value_to_idl_type(
                 }
             }
         }
-        _ => todo!(),
+        t => return Err(format!("IDL type {:?} is not yet supported", t)),
     }
 }
 
@@ -578,49 +578,70 @@ pub fn classic_type_to_anchor_type(
     classic_type: &solana_idl::IdlType,
     classic_types: &Vec<solana_idl::IdlTypeDefinition>,
 ) -> Result<anchor_lang_idl::types::IdlType, String> {
-    let ty = match classic_type {
-        solana_idl::IdlType::Bool => anchor_lang_idl::types::IdlType::Bool,
-        solana_idl::IdlType::U8 => anchor_lang_idl::types::IdlType::U8,
-        solana_idl::IdlType::I8 => anchor_lang_idl::types::IdlType::I8,
-        solana_idl::IdlType::U16 => anchor_lang_idl::types::IdlType::U16,
-        solana_idl::IdlType::I16 => anchor_lang_idl::types::IdlType::I16,
-        solana_idl::IdlType::U32 => anchor_lang_idl::types::IdlType::U32,
-        solana_idl::IdlType::I32 => anchor_lang_idl::types::IdlType::I32,
-        solana_idl::IdlType::F32 => anchor_lang_idl::types::IdlType::F32,
-        solana_idl::IdlType::U64 => anchor_lang_idl::types::IdlType::U64,
-        solana_idl::IdlType::I64 => anchor_lang_idl::types::IdlType::I64,
-        solana_idl::IdlType::F64 => anchor_lang_idl::types::IdlType::F64,
-        solana_idl::IdlType::U128 => anchor_lang_idl::types::IdlType::U128,
-        solana_idl::IdlType::I128 => anchor_lang_idl::types::IdlType::I128,
-        solana_idl::IdlType::Bytes => anchor_lang_idl::types::IdlType::Bytes,
-        solana_idl::IdlType::String => anchor_lang_idl::types::IdlType::String,
-        solana_idl::IdlType::PublicKey => anchor_lang_idl::types::IdlType::Pubkey,
-        solana_idl::IdlType::Option(ty) => anchor_lang_idl::types::IdlType::Option(Box::new(
-            classic_type_to_anchor_type(ty, classic_types)?,
-        )),
-        solana_idl::IdlType::Vec(ty) => anchor_lang_idl::types::IdlType::Vec(Box::new(
-            classic_type_to_anchor_type(ty, classic_types)?,
-        )),
-        solana_idl::IdlType::Array(ty, len) => anchor_lang_idl::types::IdlType::Array(
-            Box::new(classic_type_to_anchor_type(ty, classic_types)?),
-            IdlArrayLen::Value(*len),
-        ),
-        solana_idl::IdlType::COption(idl_type) => anchor_lang_idl::types::IdlType::Option(
-            Box::new(classic_type_to_anchor_type(idl_type, classic_types)?),
-        ),
-        solana_idl::IdlType::Defined(type_name) => {
-            let type_def = classic_types
-                .iter()
-                .find(|t| t.name.eq(type_name))
-                .ok_or(format!("unable to find type definition for {} in idl", type_name))?;
-            todo!()
-        }
-        solana_idl::IdlType::Tuple(vec) => todo!(),
-        solana_idl::IdlType::HashMap(idl_type, idl_type1) => todo!(),
-        solana_idl::IdlType::BTreeMap(idl_type, idl_type1) => todo!(),
-        solana_idl::IdlType::HashSet(idl_type) => todo!(),
-        solana_idl::IdlType::BTreeSet(idl_type) => todo!(),
-    };
+    let ty =
+        match classic_type {
+            solana_idl::IdlType::Bool => anchor_lang_idl::types::IdlType::Bool,
+            solana_idl::IdlType::U8 => anchor_lang_idl::types::IdlType::U8,
+            solana_idl::IdlType::I8 => anchor_lang_idl::types::IdlType::I8,
+            solana_idl::IdlType::U16 => anchor_lang_idl::types::IdlType::U16,
+            solana_idl::IdlType::I16 => anchor_lang_idl::types::IdlType::I16,
+            solana_idl::IdlType::U32 => anchor_lang_idl::types::IdlType::U32,
+            solana_idl::IdlType::I32 => anchor_lang_idl::types::IdlType::I32,
+            solana_idl::IdlType::F32 => anchor_lang_idl::types::IdlType::F32,
+            solana_idl::IdlType::U64 => anchor_lang_idl::types::IdlType::U64,
+            solana_idl::IdlType::I64 => anchor_lang_idl::types::IdlType::I64,
+            solana_idl::IdlType::F64 => anchor_lang_idl::types::IdlType::F64,
+            solana_idl::IdlType::U128 => anchor_lang_idl::types::IdlType::U128,
+            solana_idl::IdlType::I128 => anchor_lang_idl::types::IdlType::I128,
+            solana_idl::IdlType::Bytes => anchor_lang_idl::types::IdlType::Bytes,
+            solana_idl::IdlType::String => anchor_lang_idl::types::IdlType::String,
+            solana_idl::IdlType::PublicKey => anchor_lang_idl::types::IdlType::Pubkey,
+            solana_idl::IdlType::Option(ty) => anchor_lang_idl::types::IdlType::Option(Box::new(
+                classic_type_to_anchor_type(ty, classic_types)?,
+            )),
+            solana_idl::IdlType::Vec(ty) => anchor_lang_idl::types::IdlType::Vec(Box::new(
+                classic_type_to_anchor_type(ty, classic_types)?,
+            )),
+            solana_idl::IdlType::Array(ty, len) => anchor_lang_idl::types::IdlType::Array(
+                Box::new(classic_type_to_anchor_type(ty, classic_types)?),
+                IdlArrayLen::Value(*len),
+            ),
+            solana_idl::IdlType::COption(idl_type) => anchor_lang_idl::types::IdlType::Option(
+                Box::new(classic_type_to_anchor_type(idl_type, classic_types)?),
+            ),
+            solana_idl::IdlType::Defined(type_name) => {
+                let type_def = classic_types
+                    .iter()
+                    .find(|t| t.name.eq(type_name))
+                    .ok_or(format!("unable to find type definition for {} in idl", type_name))?;
+                return Err(
+                "Defined types are not yet supported when converting from classic to anchor IDL"
+                    .to_string(),
+            );
+            }
+            solana_idl::IdlType::Tuple(vec) => {
+                return Err(
+                    "Tuple types are not yet supported when converting from classic to anchor IDL"
+                        .to_string(),
+                )
+            }
+            solana_idl::IdlType::HashMap(idl_type, idl_type1) => return Err(
+                "HashMap types are not yet supported when converting from classic to anchor IDL"
+                    .to_string(),
+            ),
+            solana_idl::IdlType::BTreeMap(idl_type, idl_type1) => return Err(
+                "BTreeMap types are not yet supported when converting from classic to anchor IDL"
+                    .to_string(),
+            ),
+            solana_idl::IdlType::HashSet(idl_type) => return Err(
+                "HashSet types are not yet supported when converting from classic to anchor IDL"
+                    .to_string(),
+            ),
+            solana_idl::IdlType::BTreeSet(idl_type) => return Err(
+                "BTreeSet types are not yet supported when converting from classic to anchor IDL"
+                    .to_string(),
+            ),
+        };
     Ok(ty)
 }
 
