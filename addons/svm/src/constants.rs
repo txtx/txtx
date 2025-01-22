@@ -1,6 +1,8 @@
 pub const NAMESPACE: &str = "svm";
 pub const SIGNERS: &str = "signers";
 pub const SIGNER: &str = "signer";
+pub const PAYER: &str = "payer";
+pub const AUTHORITY: &str = "authority";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
@@ -44,7 +46,6 @@ pub const SIGNATURE: &str = "signature";
 pub const IS_DEPLOYMENT: &str = "is_deployment";
 pub const AMOUNT: &str = "amount";
 pub const RECIPIENT: &str = "recipient";
-pub const AUTHORITY: &str = "authority";
 pub const TOKEN: &str = "token";
 pub const FUND_RECIPIENT: &str = "fund_recipient";
 pub const AUTHORITY_ADDRESS: &str = "authority_address";

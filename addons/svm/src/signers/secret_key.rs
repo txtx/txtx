@@ -31,11 +31,11 @@ use txtx_addon_kit::types::{
 use crate::codec::send_transaction::send_transaction;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, IS_SIGNABLE,
-    NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, RPC_API_URL, SECRET_KEY,
-    SIGNATURE, TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION,
+    IS_DEPLOYMENT, IS_SIGNABLE, NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES,
+    PUBLIC_KEY, RPC_API_URL, SECRET_KEY, SIGNATURE, TRANSACTION_BYTES,
 };
-use crate::typing::SvmValue;
+use crate::typing::{SvmValue, SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION};
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
@@ -305,9 +305,9 @@ impl SignerImplementation for SvmSecretKey {
                 .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let formatted_payload = payload
-                .as_array()
-                .and_then(|a| Some(format!("{} Deployment Transactions", a.len())));
+            let formatted_payload = signer_state
+                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
+                .and_then(|v| v.as_string().map(|s| s.to_string()));
 
             let request = ActionItemRequest::new(
                 &Some(construct_did.clone()),
@@ -406,10 +406,8 @@ impl SignerImplementation for SvmSecretKey {
                 CommitmentConfig { commitment },
             ));
 
-            let transaction_with_keypairs_bytes = payload.expect_addon_data().bytes.clone();
-
-            let (transaction_bytes, available_keypair_bytes): (Vec<u8>, Vec<Vec<u8>>) =
-                serde_json::from_slice(&transaction_with_keypairs_bytes).map_err(|e| {
+            let (transaction_bytes, available_keypair_bytes) =
+                SvmValue::parse_transaction_with_keypairs(payload).map_err(|e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
@@ -418,6 +416,7 @@ impl SignerImplementation for SvmSecretKey {
                         ),
                     )
                 })?;
+
             let mut transaction: Transaction =
                 serde_json::from_slice(&transaction_bytes).map_err(|e| {
                     (
@@ -448,7 +447,10 @@ impl SignerImplementation for SvmSecretKey {
                 keypairs.push(kp);
             }
 
-            keypairs.push(&keypair);
+            if payload.expect_addon_data().id.ne(SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION) {
+                keypairs.push(&keypair);
+            }
+
             transaction.try_sign(&keypairs, transaction.message.recent_blockhash).map_err(|e| {
                 (
                     signers.clone(),

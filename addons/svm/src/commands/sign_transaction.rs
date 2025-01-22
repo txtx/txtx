@@ -12,11 +12,14 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
+use txtx_addon_kit::types::{ConstructDid, Did};
 
-use crate::constants::{IS_DEPLOYMENT, PARTIALLY_SIGNED_TRANSACTION_BYTES, TRANSACTION_BYTES};
+use crate::constants::{
+    AUTHORITY, IS_DEPLOYMENT, PARTIALLY_SIGNED_TRANSACTION_BYTES, TRANSACTION_BYTES,
+};
 
+use super::deploy_program::get_deployment_signers;
 use super::get_signer_did;
 
 lazy_static! {
@@ -92,38 +95,64 @@ impl CommandImplementation for SignTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+        use txtx_addon_kit::{constants::SIGNATURE_APPROVED, types::types::Value};
 
-        let signers_dids_with_instances =
-            get_signers_and_instance(values, signers_instances).unwrap();
+        use crate::{
+            codec::UpgradeableProgramDeployer, commands::get_custom_signer_did,
+            constants::FORMATTED_TRANSACTION,
+        };
+
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
-        let args = values.clone();
+        let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
-            let signers_count = signers_dids_with_instances.len();
-            let mut cursor = 0;
+            let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
 
-            for (signer_did, signer_instance) in signers_dids_with_instances {
-                let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
+            let description =
+                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
-                let signer_already_signed = signer_state
-                    .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
-                    .is_some();
-                let signer_already_approved = signer_state
-                    .get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED)
-                    .is_some();
+            if is_deployment {
+                let payload =
+                    values.get_value(TRANSACTION_BYTES).unwrap().as_array().unwrap().clone();
+                let tx_count = payload.len();
+                let mut cursor = 0;
 
-                if !signer_already_signed && !signer_already_approved {
-                    let payload = args.get_value(TRANSACTION_BYTES).unwrap().clone();
+                let authority_signer_did = get_custom_signer_did(&values, AUTHORITY).unwrap();
+                let authority_signer_state =
+                    signers.get_signer_state(&authority_signer_did).unwrap().clone();
 
-                    let description = args
-                        .get_expected_string("description")
-                        .ok()
-                        .and_then(|d| Some(d.to_string()));
+                for tx_value in payload.iter() {
+                    cursor += 1;
+                    let (transaction_bytes, signer_did) =
+                        UpgradeableProgramDeployer::get_signer_did_from_transaction_value(
+                            &tx_value, &values,
+                        )
+                        .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
+
+                    let Some(signer_did) = signer_did else {
+                        if cursor == tx_count - 1 {
+                            let authority_signer_state =
+                                signers.get_signer_state(&authority_signer_did).unwrap().clone();
+                            return Ok((signers, authority_signer_state.clone(), actions));
+                        } else {
+                            continue;
+                        }
+                    };
+
+                    let signer_instance = signers_instances.get(&signer_did).unwrap();
+                    let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
+
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        FORMATTED_TRANSACTION,
+                        Value::string(format!("Transaction signed by '{}'", signer_instance.name)),
+                    );
+
+                    let payload = SvmValue::transaction_from_bytes(transaction_bytes);
 
                     let (new_signers, new_signer_state, mut signer_actions) =
                         (signer_instance.specification.check_signability)(
@@ -132,7 +161,7 @@ impl CommandImplementation for SignTransaction {
                             &description,
                             &payload,
                             &signer_instance.specification,
-                            &args,
+                            &values,
                             signer_state.clone(),
                             signers,
                             &signers_instances,
@@ -142,14 +171,57 @@ impl CommandImplementation for SignTransaction {
                     signers.push_signer_state(new_signer_state.clone());
                     signer_state = new_signer_state.clone();
                     actions.append(&mut signer_actions);
-                }
 
-                if cursor == signers_count - 1 {
-                    return Ok((signers, signer_state.clone(), actions));
+                    if cursor == tx_count - 1 {
+                        return Ok((signers, signer_state.clone(), actions));
+                    }
                 }
-                cursor += 1;
-            }
-            panic!("No signers found");
+                unreachable!()
+            } else {
+                let signers_dids_with_instances =
+                    get_signers_and_instance(&values, &signers_instances).unwrap();
+                let signers_count = signers_dids_with_instances.len();
+                let mut cursor = 0;
+
+                for (signer_did, signer_instance) in signers_dids_with_instances {
+                    let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
+
+                    let signer_already_signed = signer_state
+                        .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+                        .is_some();
+                    let signer_already_approved = signer_state
+                        .get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED)
+                        .is_some();
+
+                    if !signer_already_signed && !signer_already_approved {
+                        let payload = values.get_value(TRANSACTION_BYTES).unwrap().clone();
+
+                        let (new_signers, new_signer_state, mut signer_actions) =
+                            (signer_instance.specification.check_signability)(
+                                &construct_did,
+                                &instance_name,
+                                &description,
+                                &payload,
+                                &signer_instance.specification,
+                                &values,
+                                signer_state.clone(),
+                                signers,
+                                &signers_instances,
+                                &supervision_context,
+                            )?;
+                        signers = new_signers;
+                        signers.push_signer_state(new_signer_state.clone());
+                        signer_state = new_signer_state.clone();
+                        actions.append(&mut signer_actions);
+                    }
+
+                    if cursor == signers_count - 1 {
+                        return Ok((signers, signer_state.clone(), actions));
+                    }
+                    cursor += 1;
+                }
+                panic!("No signers found");
+            };
         };
         Ok(Box::pin(future))
     }
@@ -167,35 +239,65 @@ impl CommandImplementation for SignTransaction {
         let signers_instances = signers_instances.clone();
 
         let future = async move {
-            let signers_dids_with_instances =
-                get_signers_and_instance(&values, &signers_instances).unwrap();
-
-            let signers_count = signers_dids_with_instances.len();
-
-            let (first_signer_did, first_signer_instance) =
-                signers_dids_with_instances.first().unwrap();
-            let first_signer_state = signers.get_signer_state(first_signer_did).unwrap().clone();
-
             let title =
                 values.get_expected_string("description").unwrap_or("New Transaction".into());
 
-            // we'll assume just one signer for deployments
             let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
             if is_deployment {
+                let (
+                    (authority_signer_did, authority_signer_state),
+                    (payer_signer_did, payer_signer_state),
+                ) = get_deployment_signers(&values, &mut signers);
+
+                let authority_signer_instance =
+                    signers_instances.get(&authority_signer_did).unwrap();
+
+                let expected_signer_did = values
+                    .get_string("expected_signer")
+                    .and_then(|did| Some(ConstructDid(Did::from_hex_string(did))));
+
+                let (signer_state, signer_instance) =
+                    if let Some(expected_signer) = expected_signer_did {
+                        if expected_signer.eq(&authority_signer_did) {
+                            (authority_signer_state, authority_signer_instance)
+                        } else if expected_signer.eq(&payer_signer_did) {
+                            let payer_signer_instance =
+                                signers_instances.get(&payer_signer_did).unwrap();
+                            (
+                                payer_signer_state.expect("Payer signer state not found"),
+                                payer_signer_instance,
+                            )
+                        } else {
+                            unreachable!("No expected signer found");
+                        }
+                    } else {
+                        (authority_signer_state, authority_signer_instance)
+                    };
+
                 let payload = values.get_value(TRANSACTION_BYTES).unwrap();
 
-                let res = (first_signer_instance.specification.sign)(
+                let res = (signer_instance.specification.sign)(
                     &construct_did,
                     title,
                     &payload,
-                    &first_signer_instance.specification,
+                    &signer_instance.specification,
                     &values,
-                    first_signer_state,
+                    signer_state,
                     signers,
                     &signers_instances,
                 )?;
                 return res.await;
             } else {
+                let signers_dids_with_instances =
+                    get_signers_and_instance(&values, &signers_instances).unwrap();
+
+                let signers_count = signers_dids_with_instances.len();
+
+                let (first_signer_did, first_signer_instance) =
+                    signers_dids_with_instances.first().unwrap();
+                let first_signer_state =
+                    signers.get_signer_state(first_signer_did).unwrap().clone();
+
                 let payload = first_signer_state
                     .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
                     .unwrap();

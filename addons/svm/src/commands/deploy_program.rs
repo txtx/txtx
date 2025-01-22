@@ -25,14 +25,15 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::codec::{KeypairOrTxSigner, UpgradeableProgramDeployer};
+use crate::codec::UpgradeableProgramDeployer;
 use crate::constants::{
-    AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT,
-    KEYPAIR, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, RPC_API_URL, SIGNATURE, TRANSACTION_BYTES,
+    AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
+    IS_DEPLOYMENT, KEYPAIR, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, RPC_API_URL,
+    SIGNATURE, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
 
-use super::get_signers_did;
+use super::get_custom_signer_did;
 use super::sign_transaction::SignTransaction;
 
 lazy_static! {
@@ -60,8 +61,16 @@ lazy_static! {
                     internal: false,
                     sensitive: false
                 },
-                signers: {
-                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                payer: {
+                    documentation: "A reference to a signer construct, which will be used to sign transactions that pay for the program deployment. If omitted, the `authority` will be used.",
+                    typing: Type::string(),
+                    optional: true,
+                    tainting: false,
+                    internal: false,
+                    sensitive: false
+                },
+                authority: {
+                    documentation: "A reference to a signer construct, which will be the final authority for the deployed program.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
@@ -120,22 +129,23 @@ impl CommandImplementation for DeployProgram {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signers_did = get_signers_did(args).unwrap();
-        let signer_did = signers_did.first().unwrap();
-        let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+        let (
+            (_authority_signer_did, mut authority_signer_state),
+            (_payer_signer_did, mut payer_signer_state),
+        ) = pop_deployment_signers(args, &mut signers);
 
         let program_artifacts_map = match args.get_expected_object(PROGRAM) {
             Ok(a) => a,
-            Err(e) => return Err((signers, signer_state, e)),
+            Err(e) => return Err((signers, authority_signer_state, e)),
         };
         let program_artifacts = match AnchorProgramArtifacts::from_map(&program_artifacts_map) {
             Ok(a) => a,
-            Err(e) => return Err((signers, signer_state, diagnosed_error!("{}", e))),
+            Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
         };
 
         let rpc_api_url = args
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+            .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?
             .to_string();
 
         let rpc_client = RpcClient::new(rpc_api_url.clone());
@@ -144,50 +154,143 @@ impl CommandImplementation for DeployProgram {
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
         let keypair = program_artifacts_map.get(KEYPAIR).unwrap();
-        signer_state.insert_scoped_value(
-            &construct_did.to_string(),
-            PROGRAM_DEPLOYMENT_KEYPAIR,
-            keypair.clone(),
+
+        insert_to_payer_or_authority(
+            &mut payer_signer_state,
+            &mut authority_signer_state,
+            |signer_state| {
+                signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    PROGRAM_DEPLOYMENT_KEYPAIR,
+                    keypair.clone(),
+                );
+            },
         );
 
-        let payer_pubkey_str =
-            signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
+        let authority_pubkey = {
+            let authority_pubkey_str =
+                authority_signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to get authority pubkey: {}", e),
+                    )
+                })?;
+
+            Pubkey::from_str(authority_pubkey_str).map_err(|e| {
                 (
                     signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to get signer pubkey: {}", e),
+                    authority_signer_state.clone(),
+                    diagnosed_error!("invalid authority pubkey: {}", e),
+                )
+            })?
+        };
+
+        let payer_pubkey = {
+            let payer_pubkey_str = get_from_payer_or_authority(
+                &payer_signer_state,
+                &authority_signer_state,
+                |signer_state| signer_state.get_expected_string(CHECKED_PUBLIC_KEY),
+            )
+            .map_err(|e| {
+                (
+                    signers.clone(),
+                    authority_signer_state.clone(),
+                    diagnosed_error!("failed to get payer pubkey: {}", e),
                 )
             })?;
-        let payer_pubkey = Pubkey::from_str(payer_pubkey_str).map_err(|e| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                diagnosed_error!("failed to get payer pubkey: {}", e),
-            )
-        })?;
 
-        let deployer = UpgradeableProgramDeployer::new(
-            program_artifacts.keypair,
-            KeypairOrTxSigner::TxSigner(payer_pubkey.clone()),
-            &program_artifacts.bin,
-            &payer_pubkey,
-            rpc_client,
-            None,
-            None,
-            auto_extend,
-        );
-        let transactions = deployer.get_transactions().map_err(|e| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                diagnosed_error!("failed to get deploy transactions: {}", e),
-            )
-        })?;
+            Pubkey::from_str(payer_pubkey_str).map_err(|e| {
+                (
+                    signers.clone(),
+                    authority_signer_state.clone(),
+                    diagnosed_error!("invalid payer pubkey: {}", e),
+                )
+            })?
+        };
+
+        let transactions = match authority_signer_state
+            .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
+        {
+            Some(transactions) => transactions.clone(),
+            None => {
+                let temp_authority_keypair = match authority_signer_state
+                    .get_scoped_value(&construct_did.to_string(), "temp_authority_keypair")
+                {
+                    Some(kp) => SvmValue::to_keypair(kp).map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to create temp authority keypair: {}", e),
+                        )
+                    })?,
+                    None => {
+                        let temp_authority_keypair =
+                            UpgradeableProgramDeployer::create_temp_authority();
+                        authority_signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            "temp_authority_keypair",
+                            SvmValue::keypair(temp_authority_keypair.to_bytes().to_vec()),
+                        );
+                        temp_authority_keypair
+                    }
+                };
+
+                let mut deployer = UpgradeableProgramDeployer::new(
+                    program_artifacts.keypair,
+                    &authority_pubkey,
+                    temp_authority_keypair,
+                    &program_artifacts.bin,
+                    &payer_pubkey,
+                    rpc_client,
+                    None,
+                    None,
+                    auto_extend,
+                )
+                .map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to initialize deployment: {}", e),
+                    )
+                })?;
+
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    PROGRAM_ID,
+                    SvmValue::pubkey(deployer.program_pubkey.to_bytes().to_vec()),
+                );
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    "is_program_upgrade",
+                    Value::bool(deployer.is_program_upgrade),
+                );
+
+                let transactions = deployer.get_transactions().map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to get deploy transactions: {}", e),
+                    )
+                })?;
+
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    "deployment_transactions",
+                    Value::array(transactions.clone()),
+                );
+                Value::array(transactions)
+            }
+        };
 
         let mut args = args.clone();
-        args.insert(TRANSACTION_BYTES, Value::array(transactions));
-        // args.insert(SIGNERS, Value::array(vec![Value::string(signer_did.to_string())]));
-        signers.push_signer_state(signer_state);
+        args.insert(IS_DEPLOYMENT, Value::bool(true));
+        args.insert(TRANSACTION_BYTES, transactions);
+
+        signers.push_signer_state(authority_signer_state);
+        if let Some(payer_signer_state) = payer_signer_state {
+            signers.push_signer_state(payer_signer_state);
+        }
 
         SignTransaction::check_signed_executability(
             construct_did,
@@ -206,17 +309,24 @@ impl CommandImplementation for DeployProgram {
         args: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        mut signers: SignersState,
+        signers: SignersState,
     ) -> SignerSignFutureResult {
-        let signers_did = get_signers_did(args).unwrap();
-        let first_signer_did = signers_did.first().unwrap();
-
-        let first_signer_state = signers.pop_signer_state(&first_signer_did).unwrap();
-        let payload = first_signer_state
-            .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
+        let authority_signer_did = get_custom_signer_did(args, AUTHORITY).unwrap();
+        let authority_signer_state =
+            signers.get_signer_state(&authority_signer_did).unwrap().clone();
+        let payload = authority_signer_state
+            .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
             .unwrap()
             .clone();
-        signers.push_signer_state(first_signer_state);
+        let program_id = SvmValue::to_pubkey(
+            authority_signer_state
+                .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
+                .unwrap(),
+        )
+        .unwrap();
+        let is_program_upgrade = authority_signer_state
+            .get_scoped_bool(&construct_did.to_string(), "is_program_upgrade")
+            .unwrap();
 
         let progress_tx = progress_tx.clone();
         // let signer_did = get_payer_did(args).unwrap();
@@ -237,26 +347,67 @@ impl CommandImplementation for DeployProgram {
                 args.insert(IS_DEPLOYMENT, Value::bool(true));
                 let mut status_updater =
                     StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
-                for (i, transaction) in payloads.iter().enumerate() {
+
+                for (i, mut transaction) in payloads.clone().into_iter().enumerate() {
                     status_updater.propagate_pending_status(&format!(
                         "Sending transaction {}/{}",
                         i + 1,
                         payloads.len()
                     ));
-                    let (do_await_confirmation, commitment) = if i == 0 {
+
+                    let (do_await_confirmation, commitment) =
+                    // the first transaction is the temp authority creation
+                    if i == 0 {
                         (true, CommitmentLevel::Processed)
-                    } else if i == payloads.len() - 2 {
+                    }
+                    // the second transaction creates the buffer
+                    else if i == 1 {
                         (true, CommitmentLevel::Processed)
-                    } else if i == payloads.len() - 1 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Complete",
-                            "All program data written to buffer",
-                        ));
+                    }
+                    else if i == payloads.len() - 4 {
                         (true, CommitmentLevel::Processed)
-                    } else {
+                    }
+                    // the third-to-last transaction transfers authority of the buffer to the final authority
+                    else if i == payloads.len() - 3 {
+                        (true, CommitmentLevel::Processed)
+                    }
+                    // the second-to-last transaction deploys/upgrades the program
+                     else if i == payloads.len() - 2 {
+                        (true, CommitmentLevel::Processed)
+                    }
+                    // the last transaction closes the temp authority
+                    else if i == payloads.len() - 1 {
+                        transaction =
+                            UpgradeableProgramDeployer::get_close_temp_authority_transaction(
+                                &transaction,
+                            )
+                            .map_err(|e| {
+                                (
+                                    signers_ref.clone(),
+                                    authority_signer_state.clone(),
+                                    diagnosed_error!("failed to close temp authority: {}", e),
+                                )
+                            })?;
+                        (true, CommitmentLevel::Processed)
+                    }
+                    // all other transactions are for writing to the buffer
+                    else {
                         (false, CommitmentLevel::Processed)
                     };
+
+                    let (_, expected_signer_did) =
+                        UpgradeableProgramDeployer::get_signer_did_from_transaction_value(
+                            &transaction,
+                            &args,
+                        )
+                        .unwrap();
+
+                    if let Some(expected_signer_did) = expected_signer_did {
+                        args.insert(
+                            "expected_signer",
+                            Value::string(expected_signer_did.to_string()),
+                        );
+                    }
                     args.insert(COMMITMENT_LEVEL, Value::string(commitment.to_string()));
                     args.insert(DO_AWAIT_CONFIRMATION, Value::bool(do_await_confirmation));
 
@@ -283,14 +434,30 @@ impl CommandImplementation for DeployProgram {
                     if i == 0 {
                         status_updater.propagate_status(ProgressBarStatus::new_msg(
                             ProgressBarStatusColor::Green,
-                            "Complete",
+                            "Account Created",
+                            "Temp account created to write to buffer",
+                        ));
+                    } else if i == 1 {
+                        status_updater.propagate_status(ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Account Created",
                             "Program buffer creation complete",
+                        ));
+                    } else if i == payloads.len() - 2 {
+                        status_updater.propagate_status(ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Program Created",
+                            &format!(
+                                "Program {} has been {}",
+                                program_id,
+                                if is_program_upgrade { "upgraded" } else { "deployed" }
+                            ),
                         ));
                     } else if i == payloads.len() - 1 {
                         status_updater.propagate_status(ProgressBarStatus::new_msg(
                             ProgressBarStatusColor::Green,
                             "Complete",
-                            "Program created",
+                            "Temp account closed and leftover funds returned to payer",
                         ));
                     }
 
@@ -374,4 +541,65 @@ fn verify_signature(signed_transaction_value: Value) -> Result<(), Diagnostic> {
         .verify_and_hash_message()
         .map_err(|e| diagnosed_error!("failed to verify signed transaction: {}", e))?;
     Ok(())
+}
+
+fn insert_to_payer_or_authority<'a>(
+    payer_signer_state: &'a mut Option<ValueStore>,
+    authority_signer_state: &'a mut ValueStore,
+    setter: impl Fn(&'a mut ValueStore),
+) {
+    if let Some(payer_signer_state) = payer_signer_state {
+        setter(payer_signer_state)
+    } else {
+        setter(authority_signer_state)
+    }
+}
+
+fn get_from_payer_or_authority<'a, ReturnType>(
+    payer_signer_state: &'a Option<ValueStore>,
+    authority_signer_state: &'a ValueStore,
+    getter: impl Fn(&'a ValueStore) -> ReturnType,
+) -> ReturnType {
+    if let Some(payer_signer_state) = payer_signer_state {
+        getter(payer_signer_state)
+    } else {
+        getter(authority_signer_state)
+    }
+}
+
+pub fn pop_deployment_signers<'a>(
+    values: &ValueStore,
+    signers: &mut SignersState,
+) -> ((ConstructDid, ValueStore), (ConstructDid, Option<ValueStore>)) {
+    let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
+    let payer_signer_did =
+        get_custom_signer_did(values, PAYER).unwrap_or(authority_signer_did.clone());
+    let authority_signer_state = signers.pop_signer_state(&authority_signer_did).unwrap();
+    let payer_signer_state = if payer_signer_did.eq(&authority_signer_did) {
+        None
+    } else {
+        Some(signers.pop_signer_state(&payer_signer_did).unwrap())
+    };
+
+    ((authority_signer_did, authority_signer_state), (payer_signer_did, payer_signer_state))
+}
+
+pub fn get_deployment_signers<'a>(
+    values: &ValueStore,
+    signers: &SignersState,
+) -> ((ConstructDid, ValueStore), (ConstructDid, Option<ValueStore>)) {
+    let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
+    let payer_signer_did =
+        get_custom_signer_did(values, PAYER).unwrap_or(authority_signer_did.clone());
+    let authority_signer_state = signers.get_signer_state(&authority_signer_did).unwrap();
+    let payer_signer_state = if payer_signer_did.eq(&authority_signer_did) {
+        None
+    } else {
+        Some(signers.get_signer_state(&payer_signer_did).unwrap())
+    };
+
+    (
+        (authority_signer_did, authority_signer_state.clone()),
+        (payer_signer_did, payer_signer_state.cloned()),
+    )
 }
