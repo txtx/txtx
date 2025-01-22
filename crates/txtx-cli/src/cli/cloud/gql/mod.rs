@@ -10,7 +10,6 @@ use super::auth::AuthConfig;
 
 pub const NHOST_REGION: &str = dotenv!("NHOST_REGION");
 pub const NHOST_SUBDOMAIN: &str = dotenv!("NHOST_SUBDOMAIN");
-pub const USER_ID_HEADER: &str = "x-hasura-user-id";
 
 pub struct GqlClient {
     client: reqwest::Client,
@@ -44,7 +43,6 @@ impl GqlClient {
         let response = self
             .client
             .post(&self.endpoint)
-            .header(USER_ID_HEADER, "") //&self.auth_config.user.id)
             .bearer_auth(&self.auth_config.access_token)
             .json(&request_body)
             .send()
