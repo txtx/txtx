@@ -5641,9 +5641,9 @@ checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
 
 [[package]]
 name = "libc"
-version = "0.2.158"
+version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8adc4bb1803a324070e64a98ae98f38934d91957a99cfb3a43dcbc01bc56439"
+checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "libgit2-sys"
@@ -9049,7 +9049,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
@@ -9073,7 +9073,7 @@ dependencies = [
 [[package]]
 name = "solana-atomic-u64"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "parking_lot",
 ]
@@ -9081,7 +9081,7 @@ dependencies = [
 [[package]]
 name = "solana-bn254"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -9095,7 +9095,7 @@ dependencies = [
 [[package]]
 name = "solana-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-trait",
  "bincode",
@@ -9125,7 +9125,7 @@ dependencies = [
 [[package]]
 name = "solana-clock"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "serde",
  "serde_derive",
@@ -9135,7 +9135,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "solana-sdk",
 ]
@@ -9143,7 +9143,7 @@ dependencies = [
 [[package]]
 name = "solana-config-program"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "chrono",
@@ -9158,7 +9158,7 @@ dependencies = [
 [[package]]
 name = "solana-connection-cache"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-trait",
  "bincode",
@@ -9178,7 +9178,7 @@ dependencies = [
 [[package]]
 name = "solana-curve25519"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bytemuck",
  "bytemuck_derive",
@@ -9190,7 +9190,7 @@ dependencies = [
 [[package]]
 name = "solana-decode-error"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "num-traits",
 ]
@@ -9198,12 +9198,12 @@ dependencies = [
 [[package]]
 name = "solana-define-syscall"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 
 [[package]]
 name = "solana-derivation-path"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "derivation-path",
  "qstring",
@@ -9214,7 +9214,7 @@ dependencies = [
 [[package]]
 name = "solana-feature-set"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "lazy_static",
  "solana-program",
@@ -9223,7 +9223,7 @@ dependencies = [
 [[package]]
 name = "solana-hash"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "borsh 1.5.1",
  "bs58 0.5.1",
@@ -9261,7 +9261,7 @@ dependencies = [
 [[package]]
 name = "solana-inline-spl"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -9270,7 +9270,7 @@ dependencies = [
 [[package]]
 name = "solana-instruction"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "borsh 1.5.1",
@@ -9287,7 +9287,7 @@ dependencies = [
 [[package]]
 name = "solana-log-collector"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "log 0.4.22",
 ]
@@ -9295,7 +9295,7 @@ dependencies = [
 [[package]]
 name = "solana-measure"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "log 0.4.22",
  "solana-sdk",
@@ -9304,7 +9304,7 @@ dependencies = [
 [[package]]
 name = "solana-metrics"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "crossbeam-channel",
  "gethostname",
@@ -9318,7 +9318,7 @@ dependencies = [
 [[package]]
 name = "solana-msg"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "solana-define-syscall",
 ]
@@ -9326,7 +9326,7 @@ dependencies = [
 [[package]]
 name = "solana-net-utils"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -9344,7 +9344,7 @@ dependencies = [
 [[package]]
 name = "solana-perf"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "ahash",
  "bincode",
@@ -9370,7 +9370,7 @@ dependencies = [
 [[package]]
 name = "solana-program"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -9424,7 +9424,7 @@ dependencies = [
 [[package]]
 name = "solana-program-error"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "borsh 1.5.1",
  "num-traits",
@@ -9439,7 +9439,7 @@ dependencies = [
 [[package]]
 name = "solana-program-memory"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "num-traits",
  "solana-define-syscall",
@@ -9448,12 +9448,12 @@ dependencies = [
 [[package]]
 name = "solana-program-option"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 
 [[package]]
 name = "solana-program-runtime"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -9482,7 +9482,7 @@ dependencies = [
 [[package]]
 name = "solana-pubkey"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "borsh 0.10.4",
  "borsh 1.5.1",
@@ -9506,7 +9506,7 @@ dependencies = [
 [[package]]
 name = "solana-pubsub-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "crossbeam-channel",
  "futures-util",
@@ -9530,7 +9530,7 @@ dependencies = [
 [[package]]
 name = "solana-quic-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -9555,7 +9555,7 @@ dependencies = [
 [[package]]
 name = "solana-rayon-threadlimit"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -9564,7 +9564,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9590,7 +9590,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-api"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -9613,7 +9613,7 @@ dependencies = [
 [[package]]
 name = "solana-rpc-client-nonce-utils"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "solana-rpc-client",
  "solana-sdk",
@@ -9623,12 +9623,12 @@ dependencies = [
 [[package]]
 name = "solana-sanitize"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 
 [[package]]
 name = "solana-sdk"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "bitflags 2.6.0",
@@ -9682,7 +9682,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk-macro"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bs58 0.5.1",
  "proc-macro2",
@@ -9693,7 +9693,7 @@ dependencies = [
 [[package]]
 name = "solana-secp256k1-recover"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "borsh 1.5.1",
  "libsecp256k1 0.6.0",
@@ -9710,7 +9710,7 @@ checksum = "468aa43b7edb1f9b7b7b686d5c3aeb6630dc1708e86e31343499dd5c4d775183"
 [[package]]
 name = "solana-serde-varint"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "serde",
 ]
@@ -9718,7 +9718,7 @@ dependencies = [
 [[package]]
 name = "solana-sha256-hasher"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "sha2 0.10.8",
  "solana-define-syscall",
@@ -9728,7 +9728,7 @@ dependencies = [
 [[package]]
 name = "solana-short-vec"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "serde",
 ]
@@ -9736,7 +9736,7 @@ dependencies = [
 [[package]]
 name = "solana-signature"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bs58 0.5.1",
  "ed25519-dalek 1.0.1",
@@ -9750,7 +9750,7 @@ dependencies = [
 [[package]]
 name = "solana-streamer"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-channel",
  "bytes",
@@ -9786,7 +9786,7 @@ dependencies = [
 [[package]]
 name = "solana-thin-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "log 0.4.22",
@@ -9800,7 +9800,7 @@ dependencies = [
 [[package]]
 name = "solana-timings"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "eager",
  "enum-iterator",
@@ -9810,7 +9810,7 @@ dependencies = [
 [[package]]
 name = "solana-tpu-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-trait",
  "bincode",
@@ -9832,7 +9832,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-metrics-tracker"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -9847,7 +9847,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status-client-types"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -9864,7 +9864,7 @@ dependencies = [
 [[package]]
 name = "solana-type-overrides"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "lazy_static",
  "rand 0.8.5",
@@ -9873,7 +9873,7 @@ dependencies = [
 [[package]]
 name = "solana-udp-client"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "async-trait",
  "solana-connection-cache",
@@ -9887,7 +9887,7 @@ dependencies = [
 [[package]]
 name = "solana-version"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "log 0.4.22",
  "semver 1.0.23",
@@ -9902,7 +9902,7 @@ dependencies = [
 [[package]]
 name = "solana-vote"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "itertools 0.12.1",
  "log 0.4.22",
@@ -9915,7 +9915,7 @@ dependencies = [
 [[package]]
 name = "solana-vote-program"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "bincode",
  "log 0.4.22",
@@ -9934,7 +9934,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-sdk"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
@@ -11145,9 +11145,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.3"
+version = "1.43.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9babc99b9923bfa4804bd74722ff02c0381021eafa4db9949217e3be8e84fff5"
+checksum = "3d61fa4ffa3de412bfea335c6ecff681de2b609ba3c77ef3e00e521813a9ed9e"
 dependencies = [
  "backtrace",
  "bytes",
@@ -11163,9 +11163,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "693d596312e88961bc67d7f1f97af8a70227d9f90c31bba5806eec004978d752"
+checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11563,7 +11563,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.1.16"
+version = "0.1.28"
 dependencies = [
  "crossbeam-channel",
  "dirs",
@@ -11708,7 +11708,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.1.16"
+version = "0.1.28"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -11767,7 +11767,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.1.16"
+version = "0.1.28"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -11795,7 +11795,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.1.16"
+version = "0.1.28"
 dependencies = [
  "async-stream",
  "futures",
@@ -11809,7 +11809,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.1.16"
+version = "0.1.28"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -11834,6 +11834,7 @@ version = "0.1.0"
 dependencies = [
  "hiro-system-kit 0.3.4",
  "test-case",
+ "tokio",
  "txtx-addon-kit",
  "txtx-core",
 ]
@@ -13111,4 +13112,4 @@ dependencies = [
 [[patch.unused]]
 name = "solana-zk-sdk"
 version = "2.1.0"
-source = "git+https://github.com/txtx/solana#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
+source = "git+https://github.com/txtx/solana?branch=2.1.0#4d7f0d15e91e3214d90ef95d4b312cbfb8d28e9a"
