@@ -49,7 +49,8 @@ use kit::types::types::RunbookSupervisionContext;
 use kit::types::ConstructDid;
 use kit::uuid::Uuid;
 use runbook::get_source_context_for_diagnostic;
-use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
+use tokio::sync::broadcast::error::TryRecvError;
+use txtx_addon_kit::channel::{Receiver, Sender};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
@@ -174,8 +175,7 @@ pub async fn start_unsupervised_runbook_runloop(
 pub async fn start_supervised_runbook_runloop(
     runbook: &mut Runbook,
     block_tx: Sender<BlockEvent>,
-    _action_item_request_tx: Sender<ActionItemRequest>,
-    action_item_responses_rx: Receiver<ActionItemResponse>,
+    mut action_item_responses_rx: tokio::sync::broadcast::Receiver<ActionItemResponse>,
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
@@ -201,8 +201,8 @@ pub async fn start_supervised_runbook_runloop(
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => return Ok(()),
+            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_))=> None,
+            Err(TryRecvError::Closed) => return Ok(()),
         };
 
         if !runbook_initialized {
