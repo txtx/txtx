@@ -345,6 +345,7 @@ pub struct CommandSpecification {
     pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
+    pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -492,6 +493,12 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
         &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult,
 >;
+
+pub type CommandAggregateNestedExecutionResults = fn(
+    &ConstructDid,
+    &Vec<(ConstructDid, ValueStore)>,
+    &Vec<CommandExecutionResult>,
+) -> Result<CommandExecutionResult, Diagnostic>;
 
 pub type CommandSignedExecutionClosure = Box<
     fn(
@@ -1153,6 +1160,30 @@ impl CommandInstance {
         res
     }
 
+    pub fn aggregate_nested_execution_results(
+        &self,
+        construct_did: &ConstructDid,
+        nested_values: &Vec<(ConstructDid, ValueStore)>,
+        commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut nested_results = vec![];
+        for (nested_construct_did, _) in nested_values {
+            let nested_result = commands_execution_results
+                .get(nested_construct_did)
+                .cloned()
+                .unwrap_or_else(|| {
+                    return CommandExecutionResult::new();
+                });
+            nested_results.push(nested_result);
+        }
+
+        (self.specification.aggregate_nested_execution_results)(
+            &construct_did,
+            &nested_values,
+            &nested_results,
+        )
+    }
+
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
         let mut dependencies = vec![];
 
@@ -1220,6 +1251,7 @@ pub trait CommandImplementation {
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
+
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
@@ -1270,6 +1302,18 @@ pub trait CommandImplementation {
             construct_did.clone(),
             ValueStore::new(&construct_did.to_string(), &construct_did.0),
         )])
+    }
+
+    fn aggregate_nested_execution_results(
+        _construct_did: &ConstructDid,
+        _values: &Vec<(ConstructDid, ValueStore)>,
+        nested_results: &Vec<CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut result = CommandExecutionResult::new();
+        for nested_result in nested_results {
+            result.outputs.extend(nested_result.outputs.clone());
+        }
+        Ok(result)
     }
 
     fn run_signed_execution(

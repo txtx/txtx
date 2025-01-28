@@ -281,4 +281,49 @@ lazy_static! {
             internal: false
         }
     ]);
+
+    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_object_type! {
+        create_temp_authority: {
+            documentation: "The signature of the create temp authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        create_buffer: {
+            documentation: "The signature of the create buffer transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        write_to_buffer: {
+            documentation: "The signature of the write to buffer transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        transfer_buffer_authority: {
+            documentation: "The signature of the transfer buffer authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        deploy_program: {
+            documentation: "The signature of the deploy program transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        upgrade_program: {
+            documentation: "The signature of the upgrade program transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        close_temp_authority: {
+            documentation: "The signature of the close temp authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        }
+    };
 }

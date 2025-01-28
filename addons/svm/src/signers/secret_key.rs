@@ -450,7 +450,6 @@ impl SignerImplementation for SvmSecretKey {
             };
 
         if do_sign_with_txtx_signer {
-            println!("transaction: {:?}", transaction);
             transaction
                 .try_partial_sign(&[keypair], transaction.message.recent_blockhash)
                 .map_err(|e| {

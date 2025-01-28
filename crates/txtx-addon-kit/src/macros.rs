@@ -104,6 +104,7 @@ macro_rules! define_command {
             prepare_signed_nested_execution: $func_key::prepare_signed_nested_execution,
             run_signed_execution: Box::new($func_key::run_signed_execution),
             build_background_task: Box::new($func_key::build_background_task),
+            aggregate_nested_execution_results: $func_key::aggregate_nested_execution_results,
             example: String::from($example),
         }
       )

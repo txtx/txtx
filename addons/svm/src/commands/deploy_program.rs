@@ -10,6 +10,7 @@ use txtx_addon_kit::constants::{
     DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
     SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
@@ -21,7 +22,7 @@ use txtx_addon_kit::types::signers::{
     SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
+use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -31,9 +32,9 @@ use crate::codec::{DeploymentTransaction, DeploymentTransactionType, Upgradeable
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
     FORMATTED_TRANSACTION, IS_DEPLOYMENT, KEYPAIR, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
-    PROGRAM_ID, RPC_API_URL, SIGNATURE, SIGNERS, TRANSACTION_BYTES,
+    PROGRAM_ID, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
 };
-use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
+use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, DEPLOYMENT_TRANSACTION_SIGNATURES};
 
 use super::get_custom_signer_did;
 use super::sign_transaction::SignTransaction;
@@ -97,8 +98,12 @@ lazy_static! {
                 }
             ],
             outputs: [
-                signature: {
-                    documentation: "The transaction computed signature.",
+                signatures: {
+                    documentation: "The computed transaction signatures, grouped by transaction type.",
+                    typing: DEPLOYMENT_TRANSACTION_SIGNATURES.clone()
+                },
+                program_id: {
+                    documentation: "The program ID of the deployed program.",
                     typing: Type::string()
                 }
             ],
@@ -210,10 +215,15 @@ impl CommandImplementation for DeployProgram {
             })?
         };
 
-        let transactions = match authority_signer_state
+        let (program_id, transactions) = match authority_signer_state
             .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
         {
-            Some(transactions) => transactions.clone(),
+            Some(transactions) => {
+                let program_id = authority_signer_state
+                    .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
+                    .unwrap();
+                (program_id.clone(), transactions.clone())
+            }
             None => {
                 let temp_authority_keypair = match authority_signer_state
                     .get_scoped_value(&construct_did.to_string(), "temp_authority_keypair")
@@ -255,10 +265,11 @@ impl CommandImplementation for DeployProgram {
                     )
                 })?;
 
+                let program_id = SvmValue::pubkey(deployer.program_pubkey.to_bytes().to_vec());
                 authority_signer_state.insert_scoped_value(
                     &construct_did.to_string(),
                     PROGRAM_ID,
-                    SvmValue::pubkey(deployer.program_pubkey.to_bytes().to_vec()),
+                    program_id.clone(),
                 );
 
                 let transactions = deployer.get_transactions().map_err(|e| {
@@ -274,7 +285,7 @@ impl CommandImplementation for DeployProgram {
                     "deployment_transactions",
                     Value::array(transactions.clone()),
                 );
-                Value::array(transactions)
+                (program_id, Value::array(transactions))
             }
         };
 
@@ -288,18 +299,30 @@ impl CommandImplementation for DeployProgram {
         let mut cursor = 0;
         let mut res = vec![];
         let transaction_array = transactions.as_array().unwrap();
-        for transaction in transaction_array.iter() {
+        for transaction_value in transaction_array.iter() {
             let new_did = ConstructDid(Did::from_components(vec![
                 construct_did.as_bytes(),
                 cursor.to_string().as_bytes(),
             ]));
             let mut value_store =
                 ValueStore::new(&format!("{}:{}", instance_name, cursor), &new_did.value());
+            let deployment_transaction = DeploymentTransaction::from_value(transaction_value)
+                .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
+
             value_store.insert(NESTED_CONSTRUCT_DID, Value::string(new_did.to_string()));
+
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                "deployment_transaction_type",
+                Value::string(deployment_transaction.transaction_type.to_string()),
+            );
+
+            value_store.insert_scoped_value(&new_did.to_string(), PROGRAM_ID, program_id.clone());
+
             value_store.insert_scoped_value(
                 &new_did.to_string(),
                 TRANSACTION_BYTES,
-                transaction.clone(),
+                transaction_value.clone(),
             );
             value_store.insert_scoped_value(
                 &new_did.to_string(),
@@ -615,6 +638,44 @@ impl CommandImplementation for DeployProgram {
             Ok(result)
         };
         Ok(Box::pin(future))
+    }
+
+    fn aggregate_nested_execution_results(
+        _construct_did: &ConstructDid,
+        nested_values: &Vec<(ConstructDid, ValueStore)>,
+        nested_results: &Vec<CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut result = CommandExecutionResult::new();
+
+        let mut signatures = IndexMap::new();
+        let program_id = nested_values
+            .first()
+            .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_ID))
+            .unwrap();
+        for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
+            let tx_type = values
+                .get_scoped_value(&nested_construct_did.to_string(), "deployment_transaction_type")
+                .unwrap()
+                .as_string()
+                .unwrap();
+            let tx_type = DeploymentTransactionType::from_string(&tx_type);
+
+            if let Some(signature) =
+                res.outputs.get(&format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE))
+            {
+                signatures
+                    .entry(tx_type.to_string())
+                    .or_insert_with(|| Vec::new())
+                    .push(signature.clone());
+            };
+        }
+        let object_type = ObjectType::from_map(
+            signatures.into_iter().map(|(k, v)| (k, Value::array(v))).collect(),
+        );
+
+        result.outputs.insert(SIGNATURES.into(), object_type.to_value());
+        result.outputs.insert(PROGRAM_ID.into(), program_id.clone());
+        Ok(result)
     }
 }
 

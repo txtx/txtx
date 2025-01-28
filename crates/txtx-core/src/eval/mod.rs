@@ -777,6 +777,24 @@ pub async fn evaluate_command_instance(
         }
     }
 
+    let res = command_instance.aggregate_nested_execution_results(
+        &construct_did,
+        &executions_for_action,
+        &runbook_execution_context.commands_execution_results,
+    );
+
+    match res {
+        Ok(result) => {
+            runbook_execution_context
+                .commands_execution_results
+                .insert(construct_did.clone(), result);
+        }
+        Err(diag) => {
+            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+            return LoopEvaluationResult::Continue;
+        }
+    }
+
     if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
         runbook_execution_context.execution_mode
     {

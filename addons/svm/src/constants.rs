@@ -44,6 +44,7 @@ pub const AUTO_EXTEND: &str = "auto_extend";
 pub const COMMITMENT_LEVEL: &str = "commitment_level";
 pub const DO_AWAIT_CONFIRMATION: &str = "do_await_confirmation";
 pub const SIGNATURE: &str = "signature";
+pub const SIGNATURES: &str = "signatures";
 pub const IS_DEPLOYMENT: &str = "is_deployment";
 pub const AMOUNT: &str = "amount";
 pub const RECIPIENT: &str = "recipient";
