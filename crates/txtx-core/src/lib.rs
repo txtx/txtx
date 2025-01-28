@@ -28,6 +28,7 @@ use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
+use kit::constants::ACTION_ITEM_CHECK_ADDRESS;
 use kit::hcl::Span;
 use kit::types::block_id::BlockId;
 use kit::types::commands::CommandExecutionResult;
@@ -422,6 +423,22 @@ pub async fn start_supervised_runbook_runloop(
                         .normalize(&action_item_requests)
                         .unwrap(),
                 ]));
+                // Some signers do not actually need the user to provide the address/pubkey,
+                // but they need to confirm it in the supervisor. when it is confirmed, we need to
+                // reprocess the signers
+                if let Some(request) = action_item_requests.get(&action_item_id) {
+                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                        process_signers_action_item_response(
+                            runbook,
+                            &block_tx,
+                            &action_item_id,
+                            &mut action_item_requests,
+                            &action_item_responses,
+                        )
+                        .await;
+                    }
+                }
+
                 if *force_execution {
                     let running_context = runbook.flow_contexts.first_mut().unwrap();
                     let mut pass_results = run_constructs_evaluation(
@@ -461,46 +478,14 @@ pub async fn start_supervised_runbook_runloop(
                 }
             }
             ActionItemResponseType::ProvidePublicKey(_response) => {
-                // Retrieve the previous requests sent and update their statuses.
-                let Some((signer_construct_did, scoped_requests)) =
-                    retrieve_related_action_items_requests(
-                        &action_item_id,
-                        &mut action_item_requests,
-                    )
-                else {
-                    continue;
-                };
-
-                let mut map = BTreeMap::new();
-                map.insert(signer_construct_did, scoped_requests);
-
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                let mut pass_result = run_signers_evaluation(
-                    &running_context.workspace_context,
-                    &mut running_context.execution_context,
-                    &mut runbook.runtime_context,
-                    &runbook.supervision_context,
-                    &mut map,
+                process_signers_action_item_response(
+                    runbook,
+                    &block_tx,
+                    &action_item_id,
+                    &mut action_item_requests,
                     &action_item_responses,
-                    &block_tx.clone(),
                 )
                 .await;
-
-                if pass_result.has_diagnostics() {
-                    pass_result.fill_diagnostic_span(&runbook.sources);
-                }
-
-                if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
-                    let _ = block_tx.send(BlockEvent::Error(error_event));
-                } else {
-                    let updated_actions = pass_result
-                        .actions
-                        .compile_actions_to_item_updates(&action_item_requests)
-                        .into_iter()
-                        .map(|u| u.normalize(&action_item_requests).unwrap())
-                        .collect();
-                    let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
-                }
             }
             ActionItemResponseType::ProvideSignedTransaction(_)
             | ActionItemResponseType::SendTransaction(_)
@@ -807,4 +792,50 @@ pub fn set_progress_bar_visibility(
     let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
         ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, visibility),
     ));
+}
+
+pub async fn process_signers_action_item_response(
+    runbook: &mut Runbook,
+    block_tx: &Sender<BlockEvent>,
+    action_item_id: &BlockId,
+    action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
+    action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
+) {
+    // Retrieve the previous requests sent and update their statuses.
+    let Some((signer_construct_did, scoped_requests)) =
+        retrieve_related_action_items_requests(&action_item_id, action_item_requests)
+    else {
+        return;
+    };
+
+    let mut map = BTreeMap::new();
+    map.insert(signer_construct_did, scoped_requests);
+
+    let flow_context = runbook.flow_contexts.first_mut().unwrap();
+    let mut pass_result = run_signers_evaluation(
+        &flow_context.workspace_context,
+        &mut flow_context.execution_context,
+        &mut runbook.runtime_context,
+        &runbook.supervision_context,
+        &mut map,
+        &action_item_responses,
+        &block_tx.clone(),
+    )
+    .await;
+
+    if pass_result.has_diagnostics() {
+        pass_result.fill_diagnostic_span(&runbook.sources);
+    }
+
+    if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
+        let _ = block_tx.send(BlockEvent::Error(error_event));
+    } else {
+        let updated_actions = pass_result
+            .actions
+            .compile_actions_to_item_updates(&action_item_requests)
+            .into_iter()
+            .map(|u| u.normalize(&action_item_requests).unwrap())
+            .collect();
+        let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+    }
 }

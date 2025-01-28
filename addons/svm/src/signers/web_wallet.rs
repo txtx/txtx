@@ -30,8 +30,8 @@ use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY,
     EXPECTED_ADDRESS, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE, NAMESPACE, NETWORK_ID,
-    PARTIALLY_SIGNED_TRANSACTION_BYTES, REQUESTED_STARTUP_DATA, RPC_API_URL,
-    UPDATED_PARTIALLY_SIGNED_TRANSACTION,
+    PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    TRANSACTION_BYTES, UPDATED_PARTIALLY_SIGNED_TRANSACTION,
 };
 use crate::typing::SvmValue;
 
@@ -197,18 +197,17 @@ impl SignerImplementation for SvmWebWallet {
     fn activate(
         _construct_id: &ConstructDid,
         _spec: &SignerSpecification,
-        values: &ValueStore,
+        _values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
-
-        let address = values
-            .get_value(EXPECTED_ADDRESS)
-            .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
+        let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
+        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
         result.outputs.insert(ADDRESS.into(), address.clone());
+        result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -219,12 +218,13 @@ impl SignerImplementation for SvmWebWallet {
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
-        signer_state: ValueStore,
+        mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
+        signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
             return Ok((signers, signer_state, Actions::none()));

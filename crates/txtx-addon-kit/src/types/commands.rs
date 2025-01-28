@@ -1054,7 +1054,7 @@ impl CommandInstance {
             signers,
         );
         let (signer_state, mut actions) =
-            consolidate_signer_future_result(future, self.block.span()).await??;
+            consolidate_signer_future_result(future, self.block.span()).await?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((signer_state, consolidated_actions))

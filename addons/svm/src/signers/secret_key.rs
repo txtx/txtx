@@ -117,7 +117,7 @@ impl SignerImplementation for SvmSecretKey {
 
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
-        _construct_id: &ConstructDid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -223,23 +223,29 @@ impl SignerImplementation for SvmSecretKey {
         let public_key = Value::string(keypair.pubkey().to_string());
         let secret_key = Value::buffer(secret_key_bytes);
 
-        signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
-        signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-        signer_state.insert(SECRET_KEY, secret_key);
-
         if supervision_context.review_input_values {
-            actions.push_sub_group(
-                None,
-                vec![ActionItemRequest::new(
-                    &None,
-                    &format!("Check {} expected address", instance_name),
+            if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
+                signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
+                signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+                signer_state.insert(SECRET_KEY, secret_key);
+            } else {
+                actions.push_sub_group(
                     None,
-                    ActionItemStatus::Todo,
-                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                        .to_action_type(),
-                    ACTION_ITEM_CHECK_ADDRESS,
-                )],
-            );
+                    vec![ActionItemRequest::new(
+                        &Some(construct_did.clone()),
+                        &format!("Check {} expected address", instance_name),
+                        None,
+                        ActionItemStatus::Todo,
+                        ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                            .to_action_type(),
+                        ACTION_ITEM_CHECK_ADDRESS,
+                    )],
+                );
+            }
+        } else {
+            signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
+            signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+            signer_state.insert(SECRET_KEY, secret_key);
         }
         let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))
@@ -374,16 +380,6 @@ impl SignerImplementation for SvmSecretKey {
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
-        // let deploy_keypair = if let Ok(deploy_keypair) = signer_state
-        //     .get_expected_scoped_buffer_bytes(&_caller_uuid.to_string(), PROGRAM_DEPLOYMENT_KEYPAIR)
-        // {
-        //     let deploy_keypair = Keypair::from_bytes(&deploy_keypair).unwrap();
-
-        //     println!("deploy keypair: {:?}", deploy_keypair.pubkey());
-        //     Some(deploy_keypair)
-        // } else {
-        //     None
-        // };
 
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
@@ -454,6 +450,7 @@ impl SignerImplementation for SvmSecretKey {
             };
 
         if do_sign_with_txtx_signer {
+            println!("transaction: {:?}", transaction);
             transaction
                 .try_partial_sign(&[keypair], transaction.message.recent_blockhash)
                 .map_err(|e| {

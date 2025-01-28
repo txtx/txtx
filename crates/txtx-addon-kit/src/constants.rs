@@ -9,3 +9,6 @@ pub const NESTED_CONSTRUCT_DID: &str = "nested_construct_did";
 pub const NESTED_CONSTRUCT_INDEX: &str = "nested_construct_index";
 pub const NESTED_CONSTRUCT_COUNT: &str = "nested_construct_count";
 pub const DESCRIPTION: &str = "description";
+
+pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
+pub const CHECKED_ADDRESS: &str = "checked_address";
