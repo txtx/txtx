@@ -61,6 +61,7 @@ pub enum DeploymentTransactionType {
     CreateBuffer,
     WriteToBuffer,
     TransferBufferAuthority,
+    TransferProgramAuthority,
     DeployProgram,
     UpgradeProgram,
     CloseTempAuthority,
@@ -74,6 +75,7 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::CreateBuffer => "create_buffer",
             DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
             DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
+            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
             DeploymentTransactionType::DeployProgram => "deploy_program",
             DeploymentTransactionType::UpgradeProgram => "upgrade_program",
             DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
@@ -91,6 +93,7 @@ impl DeploymentTransactionType {
             "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
             "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
             "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
+            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
             _ => unreachable!(),
         }
     }
@@ -197,11 +200,22 @@ impl DeploymentTransaction {
         )
     }
 
+    pub fn transfer_program_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::TransferProgramAuthority,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
     pub fn deploy_program(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
         Self::new(
             transaction,
             keypairs,
-            Some(vec![TxtxDeploymentSigner::FinalAuthority]),
+            None,
             DeploymentTransactionType::DeployProgram,
             CommitmentLevel::Confirmed,
             true,
@@ -319,6 +333,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::CreateBuffer => return Ok(None),
             DeploymentTransactionType::WriteToBuffer => return Ok(None),
             DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
+            DeploymentTransactionType::TransferProgramAuthority => return Ok(None),
             DeploymentTransactionType::DeployProgram => "This transaction will deploy the program.",
             DeploymentTransactionType::UpgradeProgram => {
                 "This transaction will upgrade the program."
@@ -566,15 +581,15 @@ impl CloseTempAuthorityTransactionParts {
 /// ### Transaction 3 - X: Write to Buffer
 ///  1. Temp Authority writes to Buffer
 ///
-/// ### Transaction X + 1: Transfer Buffer authority from Temp Authority to Final Authority
-///  1. Temp Authority signs
-///
-/// ### Transaction X + 2: Deploy Program              
+/// ### Transaction X + 1: Deploy Program              
 ///  1. Create final program account
-///     1. Final Authority signs
+///     1. Temp Authority signs
 ///  2. Transfer buffer to final program
-///     1. Final Authority signs (Buffer authority **must match** program authority)
-///     2. After this, the Final Authority owns the final program
+///     1. Temp Authority signs (Buffer authority **must match** program authority)
+///     2. After this, the Temp Authority owns the final program
+///
+/// ### Transaction X + 2: Transfer Program authority from Temp Authority to Final Authority
+///  1. Temp Authority signs
 ///
 /// ### Transaction X + 3: Transfer leftover Temp Authority funds to the Payer
 ///  1. Temp Authority signs
@@ -715,17 +730,17 @@ impl UpgradeableProgramDeployer {
                 let mut write_transactions =
                     self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
-                // transfer the buffer authority from the temp authority to the final authority
-                let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
-
                 // deploy the program, with the final authority as program authority
                 let finalize_transaction =
                     self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
 
+                // transfer the program authority from the temp authority to the final authority
+                let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
+
                 let mut transactions = vec![create_account_transaction];
                 transactions.append(&mut write_transactions);
-                transactions.push(transfer_authority);
                 transactions.push(finalize_transaction);
+                transactions.push(transfer_authority);
                 transactions
             }
             // transactions for upgrading an existing program
@@ -1034,6 +1049,31 @@ impl UpgradeableProgramDeployer {
         .to_value()
     }
 
+    fn get_set_program_authority_to_final_authority_transaction(
+        &self,
+        blockhash: &Hash,
+    ) -> Result<Value, Diagnostic> {
+        let instruction = bpf_loader_upgradeable::set_upgrade_authority(
+            &self.program_pubkey,
+            &self.temp_upgrade_authority_pubkey,
+            Some(&self.final_upgrade_authority_pubkey),
+        );
+
+        let message = Message::new_with_blockhash(
+            &[instruction],
+            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
+            &blockhash,
+        );
+
+        let transaction = Transaction::new_unsigned(message);
+
+        DeploymentTransaction::transfer_program_authority(
+            &transaction,
+            vec![&self.temp_upgrade_authority],
+        )
+        .to_value()
+    }
+
     fn get_close_temp_authority_transaction_parts(&self) -> Result<Value, Diagnostic> {
         CloseTempAuthorityTransactionParts {
             temp_authority_keypair_bytes: self.temp_upgrade_authority.to_bytes().to_vec(),
@@ -1115,7 +1155,7 @@ impl UpgradeableProgramDeployer {
             &self.temp_upgrade_authority_pubkey,
             &self.program_pubkey,
             &self.buffer_pubkey,
-            &self.final_upgrade_authority_pubkey,
+            &self.temp_upgrade_authority_pubkey,
             self.rpc_client
                 .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_program())
                 .map_err(|e| {
