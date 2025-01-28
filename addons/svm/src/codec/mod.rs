@@ -514,7 +514,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::UpgradeProgram => {
                 status_updater.propagate_status(ProgressBarStatus::new_msg(
                     ProgressBarStatusColor::Green,
-                    "Program Created",
+                    "Program Upgraded",
                     &format!("Program {} has been upgraded", program_id,),
                 ));
             }

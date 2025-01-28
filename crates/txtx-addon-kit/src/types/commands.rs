@@ -1282,7 +1282,7 @@ pub trait CommandImplementation {
     ) -> PrepareSignedNestedExecutionResult {
         let signer_state = signers_state
             .get_first_signer()
-            .expect(&format!("no signers provided for acition '{}'", instance_name));
+            .expect(&format!("no signers provided for action '{}'", instance_name));
         return_synchronous((
             signers_state,
             signer_state,
