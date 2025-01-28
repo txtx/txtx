@@ -6,9 +6,7 @@ use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::signature::Keypair;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{
-    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES,
-};
+use txtx_addon_kit::constants::{SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
@@ -28,14 +26,14 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 
-use crate::codec::send_transaction::send_transaction;
+use crate::codec::DeploymentTransaction;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
-    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION,
-    IS_DEPLOYMENT, IS_SIGNABLE, NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES,
-    PUBLIC_KEY, RPC_API_URL, SECRET_KEY, SIGNATURE, TRANSACTION_BYTES,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE,
+    NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, RPC_API_URL, SECRET_KEY,
+    TRANSACTION_BYTES,
 };
-use crate::typing::{SvmValue, SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION};
+use crate::typing::SvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
@@ -392,111 +390,70 @@ impl SignerImplementation for SvmSecretKey {
             .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
             .to_string();
 
-        if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
-            let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap() {
-                "finalized" => CommitmentLevel::Finalized,
-                "processed" => CommitmentLevel::Processed,
-                "confirmed" => CommitmentLevel::Confirmed,
-                _ => CommitmentLevel::Processed,
-            };
-            let do_await_confirmation = values.get_bool(DO_AWAIT_CONFIRMATION).unwrap_or(false);
+        let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap_or("processed") {
+            "finalized" => CommitmentLevel::Finalized,
+            "processed" => CommitmentLevel::Processed,
+            "confirmed" => CommitmentLevel::Confirmed,
+            _ => CommitmentLevel::Processed,
+        };
 
-            let rpc_client = Arc::new(RpcClient::new_with_commitment(
-                rpc_api_url.clone(),
-                CommitmentConfig { commitment },
-            ));
+        let rpc_client = Arc::new(RpcClient::new_with_commitment(
+            rpc_api_url.clone(),
+            CommitmentConfig { commitment },
+        ));
 
-            let (transaction_bytes, available_keypair_bytes) =
-                SvmValue::parse_transaction_with_keypairs(payload).map_err(|e| {
+        let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!("failed to get latest blockhash: {e}"),
+            )
+        })?;
+
+        let (mut transaction, do_sign_with_txtx_signer) =
+            if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
+                let deployment_transaction =
+                    DeploymentTransaction::from_value(&payload).map_err(|e| {
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("failed to sign transaction: {e}"),
+                        )
+                    })?;
+
+                let mut transaction: Transaction = deployment_transaction.transaction.clone();
+
+                transaction.message.recent_blockhash = blockhash;
+
+                let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
-                        diagnosed_error!(
-                            "failed to deserialize transaction with keypairs for signing: {e}"
-                        ),
+                        diagnosed_error!("failed to sign transaction: {e}"),
                     )
                 })?;
 
-            let mut transaction: Transaction =
-                serde_json::from_slice(&transaction_bytes).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to deserialize transaction for signing: {e}"),
-                    )
-                })?;
-
-            let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to get latest blockhash: {e}"),
-                )
-            })?;
-
-            transaction.message.recent_blockhash = blockhash;
-            let mut keypairs: Vec<&Keypair> = vec![];
-            let mut owned_keypairs: Vec<Keypair> = vec![];
-
-            for keypair_bytes in available_keypair_bytes.iter() {
-                let kp = Keypair::from_bytes(keypair_bytes).unwrap();
-                owned_keypairs.push(kp);
-            }
-
-            for kp in owned_keypairs.iter() {
-                keypairs.push(kp);
-            }
-
-            if payload.expect_addon_data().id.ne(SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION) {
-                keypairs.push(&keypair);
-            }
-
-            transaction.try_sign(&keypairs, transaction.message.recent_blockhash).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to sign transaction: {e}"),
-                )
-            })?;
-            let _ = transaction.verify_and_hash_message().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to verify signed transaction: {}", e),
-                )
-            })?;
-            let transaction_bytes = serde_json::to_vec(&transaction).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to serialize signed transaction: {e}"),
-                )
-            })?;
-
-            let signature =
-                send_transaction(rpc_client.clone(), do_await_confirmation, &transaction_bytes)
+                transaction
+                    .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
                     .map_err(|e| {
                         (
                             signers.clone(),
                             signer_state.clone(),
-                            diagnosed_error!("failed to send transaction: {e}"),
+                            diagnosed_error!("failed to sign transaction: {e}"),
                         )
                     })?;
-            result.outputs.insert(
-                SIGNED_TRANSACTION_BYTES.into(),
-                SvmValue::transaction(&transaction).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("invalid signed transaction: {e}"),
-                    )
-                })?,
-            );
-            result.outputs.insert(SIGNATURE.into(), Value::string(signature));
-        } else {
-            let mut transaction: Transaction = SvmValue::to_transaction(&payload)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
+                (transaction, deployment_transaction.signers.is_some())
+            } else {
+                let mut transaction: Transaction = SvmValue::to_transaction(&payload)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+                transaction.message.recent_blockhash = blockhash;
+
+                (transaction, true)
+            };
+
+        if do_sign_with_txtx_signer {
             transaction
                 .try_partial_sign(&[keypair], transaction.message.recent_blockhash)
                 .map_err(|e| {
@@ -506,13 +463,13 @@ impl SignerImplementation for SvmSecretKey {
                         diagnosed_error!("failed to sign transaction: {e}"),
                     )
                 })?;
+        }
 
-            result.outputs.insert(
-                PARTIALLY_SIGNED_TRANSACTION_BYTES.into(),
-                SvmValue::transaction(&transaction)
-                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
-            );
-        };
+        result.outputs.insert(
+            PARTIALLY_SIGNED_TRANSACTION_BYTES.into(),
+            SvmValue::transaction(&transaction)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+        );
 
         return_synchronous_result(Ok((signers, signer_state, result)))
     }

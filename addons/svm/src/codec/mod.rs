@@ -9,8 +9,8 @@ use bip39::MnemonicType;
 use bip39::Seed;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::json;
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::account::AccountSharedData;
 use solana_sdk::account_utils::StateMut;
 use solana_sdk::bpf_loader_upgradeable::create_buffer;
 use solana_sdk::bpf_loader_upgradeable::get_program_data_address;
@@ -18,7 +18,6 @@ use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::hash::Hash;
-use solana_sdk::nonce_account::lamports_per_signature_of;
 use solana_sdk::packet::PACKET_DATA_SIZE;
 use solana_sdk::signature::keypair_from_seed;
 use solana_sdk::signature::Keypair;
@@ -31,36 +30,488 @@ use solana_sdk::{
     bpf_loader_upgradeable, instruction::Instruction, message::Message, pubkey::Pubkey,
     transaction::Transaction,
 };
+use std::collections::HashMap;
 use std::str::FromStr;
+use txtx_addon_kit::hex;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::frontend::ProgressBarStatus;
+use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
+use txtx_addon_kit::types::frontend::StatusUpdater;
+use txtx_addon_kit::types::signers::SignerInstance;
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::ObjectType;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 
 use crate::commands::get_custom_signer_did;
 use crate::constants::AUTHORITY;
 use crate::constants::PAYER;
-use crate::constants::RPC_API_URL;
 use crate::typing::SvmValue;
-use crate::typing::SVM_AUTHORITY_SIGNED_TRANSACTION;
-use crate::typing::SVM_PAYER_SIGNED_TRANSACTION;
-use crate::typing::SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION;
+use crate::typing::SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS;
+use crate::typing::SVM_DEPLOYMENT_TRANSACTION;
 
-pub fn encode_contract_call(instructions: &Vec<Instruction>) -> Result<Value, String> {
-    let message = Message::new(instructions, None);
-    let message_bytes = message.serialize();
-    Ok(Value::buffer(message_bytes))
-}
-
-pub fn public_key_from_bytes(bytes: &Vec<u8>) -> Result<Pubkey, String> {
-    let bytes: [u8; 32] =
-        bytes.as_slice().try_into().map_err(|e| format!("invalid public key: {e}"))?;
-    Ok(Pubkey::new_from_array(bytes))
-}
+const LAMPORTS_PER_SIGNATURE: u64 = 5000;
 
 pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
     Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum DeploymentTransactionType {
+    CreateTempAuthority(Vec<u8>),
+    CreateBuffer,
+    WriteToBuffer,
+    TransferBufferAuthority,
+    DeployProgram,
+    UpgradeProgram,
+    CloseTempAuthority,
+    SkipCloseTempAuthority,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TxtxDeploymentSigner {
+    Payer,
+    FinalAuthority,
+}
+impl TxtxDeploymentSigner {
+    pub fn to_signer_key(&self) -> String {
+        match self {
+            Self::Payer => PAYER.to_string(),
+            Self::FinalAuthority => AUTHORITY.to_string(),
+        }
+    }
+}
+
+/// `transaction_with_keypairs` - The transaction to sign, with the keypairs we have on hand to sign them
+/// `signers` - The txtx signers (if any) that need to sign the transaction
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DeploymentTransaction {
+    pub signers: Option<Vec<TxtxDeploymentSigner>>,
+    pub transaction: Transaction,
+    pub keypairs_bytes: Vec<Vec<u8>>,
+    pub transaction_type: DeploymentTransactionType,
+    pub commitment_level: CommitmentLevel,
+    pub do_await_confirmation: bool,
+}
+
+impl DeploymentTransaction {
+    pub fn new(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+        signers: Option<Vec<TxtxDeploymentSigner>>,
+        transaction_type: DeploymentTransactionType,
+        commitment_level: CommitmentLevel,
+        do_await_confirmation: bool,
+    ) -> Self {
+        let keypairs_bytes = keypairs.iter().map(|k| k.to_bytes().to_vec()).collect();
+        Self {
+            signers,
+            transaction: transaction.clone(),
+            keypairs_bytes,
+            transaction_type,
+            commitment_level,
+            do_await_confirmation,
+        }
+    }
+
+    pub fn create_temp_account(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+        temp_authority_keypair: &Keypair,
+    ) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            Some(vec![TxtxDeploymentSigner::Payer]),
+            DeploymentTransactionType::CreateTempAuthority(
+                temp_authority_keypair.to_bytes().to_vec(),
+            ),
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn create_buffer(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::CreateBuffer,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn write_to_buffer(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+        commitment_level: CommitmentLevel,
+        do_await_confirmation: bool,
+    ) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::WriteToBuffer,
+            commitment_level,
+            do_await_confirmation,
+        )
+    }
+
+    pub fn transfer_buffer_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::TransferBufferAuthority,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn deploy_program(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            Some(vec![TxtxDeploymentSigner::FinalAuthority]),
+            DeploymentTransactionType::DeployProgram,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn upgrade_program(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            Some(vec![TxtxDeploymentSigner::FinalAuthority]),
+            DeploymentTransactionType::UpgradeProgram,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn payer_close_temp_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            Some(vec![TxtxDeploymentSigner::Payer]),
+            DeploymentTransactionType::CloseTempAuthority,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn temp_authority_close_temp_authority(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+    ) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::CloseTempAuthority,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn skip_temp_authority_close() -> Self {
+        Self {
+            signers: None,
+            transaction: Transaction::new_unsigned(Message::new(&[], None)),
+            keypairs_bytes: vec![],
+            transaction_type: DeploymentTransactionType::SkipCloseTempAuthority,
+            commitment_level: CommitmentLevel::Confirmed,
+            do_await_confirmation: false,
+        }
+    }
+
+    pub fn to_value(&self) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(self)
+            .map_err(|e| diagnosed_error!("failed to serialize transaction with keypairs: {e}"))?;
+        Ok(SvmValue::deployment_transaction(bytes))
+    }
+
+    pub fn from_value(value: &Value) -> Result<Self, Diagnostic> {
+        let addon_data = value.as_addon_data().ok_or(diagnosed_error!(
+            "expected addon data for deployment transaction, found: {}",
+            value.get_type().to_string()
+        ))?;
+        if addon_data.id == SVM_DEPLOYMENT_TRANSACTION {
+            return serde_json::from_slice(&addon_data.bytes).map_err(|e| {
+                diagnosed_error!("failed to deserialize deployment transaction: {e}")
+            });
+        } else if addon_data.id == SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS {
+            let parts = CloseTempAuthorityTransactionParts::from_value(value)?;
+            return match UpgradeableProgramDeployer::get_close_temp_authority_transaction(&parts)? {
+                Some(transaction_value) => Self::from_value(&transaction_value),
+                None => Ok(Self::skip_temp_authority_close()),
+            };
+        } else {
+            return Err(diagnosed_error!(
+                "failed to decode deployment transaction: invalid addon data type: {}",
+                addon_data.id
+            ));
+        }
+    }
+
+    pub fn get_signers_dids(
+        &self,
+        values: &ValueStore,
+    ) -> Result<Option<Vec<ConstructDid>>, Diagnostic> {
+        let signer_key = match &self.signers {
+            Some(signers) => {
+                Some(signers.iter().map(|s| s.to_signer_key()).collect::<Vec<String>>())
+            }
+            None => None,
+        };
+
+        let Some(signer_key) = signer_key else {
+            return Ok(None);
+        };
+
+        let signer_dids = signer_key
+            .iter()
+            .map(|key| get_custom_signer_did(values, key))
+            .collect::<Result<Vec<ConstructDid>, Diagnostic>>()?;
+
+        Ok(Some(signer_dids))
+    }
+
+    pub fn get_formatted_transaction(
+        &self,
+        signer_dids: Vec<ConstructDid>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+    ) -> Result<Option<(String, String)>, Diagnostic> {
+        let description = match &self.transaction_type {
+            DeploymentTransactionType::CreateTempAuthority(_) => {
+                "This transaction creates a temporary account that will execute the deployment."
+            }
+            DeploymentTransactionType::CreateBuffer => return Ok(None),
+            DeploymentTransactionType::WriteToBuffer => return Ok(None),
+            DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
+            DeploymentTransactionType::DeployProgram => "This transaction will deploy the program.",
+            DeploymentTransactionType::UpgradeProgram => {
+                "This transaction will upgrade the program."
+            }
+            DeploymentTransactionType::CloseTempAuthority => return Ok(None),
+            DeploymentTransactionType::SkipCloseTempAuthority => return Ok(None),
+        };
+
+        let mut signer_names = String::new();
+        let signer_count = signer_dids.len();
+        for (i, did) in signer_dids.iter().enumerate() {
+            let signer_instance = signers_instances.get(did).unwrap();
+            let name = format!("'{}'", signer_instance.name);
+            if i == 0 {
+                signer_names = name;
+            } else {
+                if signer_count > 2 {
+                    if i == signer_count - 1 {
+                        signer_names = format!("{} & {}", signer_names, name);
+                    } else {
+                        signer_names = format!("{}, {}", signer_names, name);
+                    }
+                } else {
+                    signer_names = format!("{} & {}", signer_names, name);
+                }
+            }
+        }
+
+        let description = format!(
+            "{} Signed by the {} signer{}.",
+            description,
+            signer_names,
+            if signer_count > 1 { "s" } else { "" }
+        );
+
+        let mut instructions = vec![];
+        let message_account_keys = self.transaction.message.account_keys.clone();
+        for instruction in self.transaction.message.instructions.iter() {
+            let Some(account) = message_account_keys.get(instruction.program_id_index as usize)
+            else {
+                continue;
+            };
+            let accounts = instruction
+                .accounts
+                .iter()
+                .filter_map(|a| {
+                    let Some(account) = message_account_keys.get(*a as usize) else {
+                        return None;
+                    };
+                    Some(account.to_string())
+                })
+                .collect::<Vec<String>>();
+            let account_name = account.to_string();
+
+            instructions.push(json!({
+                "program_id": account_name,
+                "instruction_data": format!("0x{}", hex::encode(&instruction.data)),
+                "accounts": accounts
+            }));
+        }
+        let formatted_transaction = json!({
+            "instructions": instructions,
+            "num_required_signatures": self.transaction.message.header.num_required_signatures,
+            "num_readonly_signed_accounts": self.transaction.message.header.num_readonly_signed_accounts,
+            "num_readonly_unsigned_accounts": self.transaction.message.header.num_readonly_unsigned_accounts,
+        });
+
+        Ok(Some((serde_json::to_string_pretty(&formatted_transaction).unwrap(), description)))
+    }
+
+    pub fn get_keypairs(&self) -> Result<Vec<Keypair>, Diagnostic> {
+        self.keypairs_bytes
+            .iter()
+            .map(|b| Keypair::from_bytes(&b))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| diagnosed_error!("failed to decode keypair: {e}"))
+    }
+
+    pub fn sign_transaction_with_keypairs(
+        &self,
+        rpc_api_url: &str,
+    ) -> Result<Transaction, Diagnostic> {
+        let rpc_client = RpcClient::new_with_commitment(
+            rpc_api_url,
+            CommitmentConfig { commitment: self.commitment_level },
+        );
+
+        let blockhash = rpc_client
+            .get_latest_blockhash()
+            .map_err(|e| diagnosed_error!("failed to get latest blockhash: {e}"))?;
+
+        let mut transaction: Transaction = self.transaction.clone();
+
+        transaction.message.recent_blockhash = blockhash;
+        let keypairs =
+            self.get_keypairs().map_err(|e| diagnosed_error!("failed to sign transaction: {e}"))?;
+
+        transaction
+            .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
+            .map_err(|e| diagnosed_error!("failed to sign transaction: {e}"))?;
+
+        Ok(transaction)
+    }
+
+    pub fn pre_send_status_updates(
+        &self,
+        status_updater: &mut StatusUpdater,
+        transaction_index: usize,
+        transaction_count: usize,
+    ) -> Result<(), Diagnostic> {
+        match &self.transaction_type {
+            DeploymentTransactionType::SkipCloseTempAuthority => {
+                status_updater.propagate_info(&format!(
+                    "Temp account has no leftover funds; skipping transaction to close the account",
+                ));
+                return Ok(());
+            }
+            DeploymentTransactionType::CreateTempAuthority(temp_authority_keypair_bytes) => {
+                let temp_authority_keypair = Keypair::from_bytes(&temp_authority_keypair_bytes)
+                    .map_err(|e| {
+                        diagnosed_error!("failed to deserialize temp authority keypair: {}", e)
+                    })?;
+                status_updater
+                    .propagate_info("A temporary account will be created and funded to write to the buffer account.");
+                status_updater
+                    .propagate_info("Please save the following information in case the deployment fails and the account needs to be recovered:");
+                status_updater.propagate_info(&format!(
+                    "Temporary Authority Public Key: {}",
+                    temp_authority_keypair.pubkey()
+                ));
+                status_updater.propagate_info(&format!(
+                    "Temporary Authority Keypair: {}",
+                    temp_authority_keypair.to_base58_string()
+                ));
+            }
+            _ => {}
+        };
+
+        // to prevent overloading the supervisor with a ton of status updates,
+        // only send for every 10 of the buffer writes
+        if match &self.transaction_type {
+            DeploymentTransactionType::WriteToBuffer => (transaction_index + 1) % 10 == 0,
+            _ => true,
+        } {
+            status_updater.propagate_pending_status(&format!(
+                "Sending transaction {}/{}",
+                transaction_index + 1,
+                transaction_count
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn post_send_status_updates(&self, status_updater: &mut StatusUpdater, program_id: Pubkey) {
+        match self.transaction_type {
+            DeploymentTransactionType::CreateTempAuthority(_) => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Account Created",
+                    "Temp account created to write to buffer",
+                ));
+            }
+            DeploymentTransactionType::CreateBuffer => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Account Created",
+                    "Program buffer creation complete",
+                ));
+            }
+            DeploymentTransactionType::DeployProgram => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Program Created",
+                    &format!("Program {} has been deployed", program_id,),
+                ));
+            }
+            DeploymentTransactionType::UpgradeProgram => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Program Created",
+                    &format!("Program {} has been upgraded", program_id,),
+                ));
+            }
+            DeploymentTransactionType::CloseTempAuthority => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Complete",
+                    "Temp account closed and leftover funds returned to payer",
+                ));
+            }
+            _ => {}
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CloseTempAuthorityTransactionParts {
+    pub temp_authority_keypair_bytes: Vec<u8>,
+    pub rpc_api_url: String,
+    pub payer_pubkey: Pubkey,
+}
+
+impl CloseTempAuthorityTransactionParts {
+    pub fn to_value(&self) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(self)
+            .map_err(|e| diagnosed_error!("failed to serialize close temp authority parts: {e}"))?;
+        Ok(SvmValue::close_temp_authority_transaction_parts(bytes))
+    }
+    pub fn from_value(value: &Value) -> Result<Self, Diagnostic> {
+        let addon_data = value
+            .as_addon_data()
+            .ok_or(diagnosed_error!("expected addon data for close temp authority parts"))?;
+
+        if addon_data.id == SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS {
+            return serde_json::from_slice(&addon_data.bytes).map_err(|e| {
+                diagnosed_error!("failed to deserialize close temp authority parts: {e}")
+            });
+        } else {
+            return Err(diagnosed_error!("expected close temp authority parts"));
+        }
+    }
 }
 
 /// A struct to help deploy and upgrade an upgradeable program.
@@ -148,8 +599,6 @@ pub struct UpgradeableProgramDeployer {
     pub binary: Vec<u8>,
     /// The RPC client to use for fetching the latest blockhash and minimum balance for rent exemption.
     pub rpc_client: RpcClient,
-    /// The commitment level to use for the deployment.
-    pub commitment: CommitmentConfig,
     /// Whether to auto extend the program data account if it is too small to accommodate the new program.
     pub auto_extend: bool,
     /// Whether the program is being upgraded (true), or deployed for the first time (false).
@@ -183,7 +632,6 @@ impl UpgradeableProgramDeployer {
         binary: &Vec<u8>,
         payer_pubkey: &Pubkey,
         rpc_client: RpcClient,
-        commitment: Option<CommitmentConfig>,
         existing_program_buffer_opts: Option<(Pubkey, Keypair, Vec<u8>)>,
         auto_extend: Option<bool>,
     ) -> Result<Self, Diagnostic> {
@@ -196,14 +644,11 @@ impl UpgradeableProgramDeployer {
                 (buffer_keypair.pubkey(), buffer_keypair, vec![0; binary.len()])
             }
         };
-        let commitment =
-            commitment.unwrap_or(CommitmentConfig { commitment: CommitmentLevel::Confirmed });
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
             &program_keypair.pubkey(),
             &final_upgrade_authority_pubkey,
-            &commitment,
         )?;
 
         Ok(Self {
@@ -215,7 +660,6 @@ impl UpgradeableProgramDeployer {
             binary: binary.clone(),
             payer_pubkey: *payer_pubkey,
             rpc_client,
-            commitment,
             buffer_keypair,
             buffer_pubkey,
             buffer_data,
@@ -233,7 +677,7 @@ impl UpgradeableProgramDeployer {
         let mut core_transactions =
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
-                println!("not program upgrade");
+
                 // create the buffer account
                 let create_account_transaction =
                     self.get_create_buffer_transaction(&recent_blockhash)?;
@@ -257,7 +701,7 @@ impl UpgradeableProgramDeployer {
             }
             // transactions for upgrading an existing program
             else {
-                println!("program upgrade");
+
                 // extend the program length and create the buffer account
                 let prepare_program_upgrade_transaction =
                     self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
@@ -299,7 +743,6 @@ impl UpgradeableProgramDeployer {
         blockhash: &Hash,
         transaction_count: usize,
     ) -> Result<Value, Diagnostic> {
-        const LAMPORTS_PER_SIGNATURE: u64 = 5000;
         let mut lamports = 0;
 
         // calculate transaction fees for all deployment transactions
@@ -354,7 +797,7 @@ impl UpgradeableProgramDeployer {
 
         // add 20% buffer
         let lamports = ((lamports as f64) * 1.2).round() as u64;
-        println!("funding temp account with {} lamports", lamports);
+
         let instruction = system_instruction::create_account(
             &self.payer_pubkey,
             &self.temp_upgrade_authority_pubkey,
@@ -367,7 +810,12 @@ impl UpgradeableProgramDeployer {
 
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::payer_signed_transaction(&transaction, vec![&self.temp_upgrade_authority])?)
+        DeploymentTransaction::create_temp_account(
+            &transaction,
+            vec![&self.temp_upgrade_authority],
+            &self.temp_upgrade_authority,
+        )
+        .to_value()
     }
 
     fn get_create_buffer_instruction(&self) -> Result<Vec<Instruction>, Diagnostic> {
@@ -401,10 +849,11 @@ impl UpgradeableProgramDeployer {
 
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::temp_authority_signed_transaction(
+        DeploymentTransaction::create_buffer(
             &transaction,
             vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )?)
+        )
+        .to_value()
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
@@ -413,7 +862,7 @@ impl UpgradeableProgramDeployer {
 
         let Some(program_data_account) = self
             .rpc_client
-            .get_account_with_commitment(&program_data_address, self.commitment)
+            .get_account_with_commitment(&program_data_address, CommitmentConfig::processed())
             .map_err(|e| diagnosed_error!("failed to get program data account: {e}",))?
             .value
         else {
@@ -474,10 +923,11 @@ impl UpgradeableProgramDeployer {
 
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::temp_authority_signed_transaction(
+        DeploymentTransaction::create_buffer(
             &transaction,
             vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )?)
+        )
+        .to_value()
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
@@ -500,17 +950,31 @@ impl UpgradeableProgramDeployer {
 
         let mut write_transactions = vec![];
         let chunk_size = calculate_max_chunk_size(&create_msg);
-        for (chunk, i) in self.binary.chunks(chunk_size).zip(0usize..) {
+
+        let chunks = self.binary.chunks(chunk_size).collect::<Vec<_>>();
+
+        for (chunk, i) in chunks.iter().zip(0usize..) {
             let offset = i.saturating_mul(chunk_size);
             // Only write the chunk if it differs from our initial buffer data
-            if chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
+            if *chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
                 let transaction =
                     Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
 
-                write_transactions.push(SvmValue::temp_authority_signed_transaction(
-                    &transaction,
-                    vec![&self.temp_upgrade_authority],
-                )?);
+                let (do_await_confirmation, commitment_level) = if i == chunks.len() - 1 {
+                    (true, CommitmentLevel::Confirmed)
+                } else {
+                    (false, CommitmentLevel::Processed)
+                };
+
+                write_transactions.push(
+                    DeploymentTransaction::write_to_buffer(
+                        &transaction,
+                        vec![&self.temp_upgrade_authority],
+                        commitment_level,
+                        do_await_confirmation,
+                    )
+                    .to_value()?,
+                );
             }
         }
         Ok(write_transactions)
@@ -534,149 +998,84 @@ impl UpgradeableProgramDeployer {
 
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::temp_authority_signed_transaction(
+        DeploymentTransaction::transfer_buffer_authority(
             &transaction,
             vec![&self.temp_upgrade_authority],
-        )?)
+        )
+        .to_value()
     }
 
     fn get_close_temp_authority_transaction_parts(&self) -> Result<Value, Diagnostic> {
-        let temp_authority_keypair_bytes =
-            SvmValue::keypair(self.temp_upgrade_authority.to_bytes().to_vec());
-
-        let rpc_api_url = Value::string(self.rpc_client.url());
-
-        let payer_pubkey = SvmValue::pubkey(self.payer_pubkey.to_bytes().to_vec());
-
-        Ok(ObjectType::from(vec![
-            ("temp_authority_keypair", temp_authority_keypair_bytes),
-            (RPC_API_URL, rpc_api_url),
-            (PAYER, payer_pubkey),
-        ])
-        .to_value())
+        CloseTempAuthorityTransactionParts {
+            temp_authority_keypair_bytes: self.temp_upgrade_authority.to_bytes().to_vec(),
+            rpc_api_url: self.rpc_client.url(),
+            payer_pubkey: self.payer_pubkey,
+        }
+        .to_value()
     }
 
-    pub fn get_close_temp_authority_transaction(value: &Value) -> Result<Value, Diagnostic> {
-        let object_map = value.expect_object();
-        let temp_upgrade_authority_keypair_bytes = object_map
-            .get("temp_authority_keypair")
-            .expect("temp_authority_keypair")
-            .expect_buffer_bytes_result()
-            .unwrap();
+    /// Closing an account requires clearing out the data and removing all lamports to not cover rent.
+    /// The temp account we're opening does not have any data, so we don't need to clear it.
+    /// So this function is only used to send any leftover lamports back to the payer.
+    pub fn get_close_temp_authority_transaction(
+        CloseTempAuthorityTransactionParts {
+            temp_authority_keypair_bytes,
+            rpc_api_url,
+            payer_pubkey,
+        }: &CloseTempAuthorityTransactionParts,
+    ) -> Result<Option<Value>, Diagnostic> {
         let temp_upgrade_authority_keypair =
-            Keypair::from_bytes(&temp_upgrade_authority_keypair_bytes).unwrap();
+            Keypair::from_bytes(&temp_authority_keypair_bytes).unwrap();
         let temp_upgrade_authority_pubkey = temp_upgrade_authority_keypair.pubkey();
 
-        let rpc_api_url = object_map.get(RPC_API_URL).expect(RPC_API_URL).expect_string();
-        let rpc_client = RpcClient::new(rpc_api_url);
-        let blockhash = rpc_client
-            .get_latest_blockhash()
-            .map_err(|e| diagnosed_error!("failed to fetch latest blockhash: rpc error: {e}"))?;
+        // use processed commitment so we're sure to get the most recent balance
+        let rpc_client = RpcClient::new_with_commitment(rpc_api_url, CommitmentConfig::confirmed());
 
-        let payer_pubkey = SvmValue::to_pubkey(object_map.get(PAYER).expect(PAYER)).unwrap();
-
-        let mut instructions = vec![];
         let err_prefix = format!(
             "failed to close temp upgrade authority account ({}) and send funds back to the payer",
             temp_upgrade_authority_pubkey
         );
-        // fetch data length to know how much memory to clear
-        let account_info = rpc_client
-            .get_account_with_commitment(
-                &temp_upgrade_authority_pubkey,
-                CommitmentConfig::processed(),
-            )
-            .map_err(|e| {
-                diagnosed_error!(
-                    "{err_prefix}: failed to get temp upgrade authority account data: {e}"
-                )
-            })?
-            .value
-            .ok_or(diagnosed_error!(
-                "{err_prefix}: temp upgrade authority account does not exist"
-            ))?;
-        let data_length = account_info.data.len();
-        println!("temp authority account has data length of {}", data_length);
 
-        if data_length > 0 {
-            // Instruction to zero out the data (write zeros)
-            let zero_data = vec![0u8; data_length];
-            let clear_data_instruction = Instruction {
-                program_id: solana_sdk::system_program::ID, // Or the relevant program
-                accounts: vec![solana_sdk::instruction::AccountMeta::new(
-                    temp_upgrade_authority_pubkey.clone(),
-                    true,
-                )],
-                data: zero_data,
-            };
-            instructions.push(clear_data_instruction);
-        }
+        let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
+            diagnosed_error!("{err_prefix}: failed to fetch latest blockhash: rpc error: {e}")
+        })?;
 
-        // Instruction to assign the account to the system program (deallocate it)
-        println!("temp authority account has owner of {}", account_info.owner);
-        if account_info.owner != solana_sdk::system_program::ID {
-            let assign_instruction = system_instruction::assign(
-                &temp_upgrade_authority_pubkey,
-                &solana_sdk::system_program::ID,
-            );
-            instructions.push(assign_instruction);
-        }
+        let err_prefix = format!(
+            "failed to close temp upgrade authority account ({}) and send funds back to the payer",
+            temp_upgrade_authority_pubkey
+        );
 
         // fetch balance to know how much to transfer back
         let temp_authority_balance = rpc_client
             .get_balance(&temp_upgrade_authority_pubkey)
             .map_err(|e| diagnosed_error!("{err_prefix}: failed to get leftover balance: {e}"))?;
 
-        println!("temp authority has nonzero balance of {} lamports", temp_authority_balance);
-        if temp_authority_balance > 0 {
-            let transfer_instruction = system_instruction::transfer(
+        if temp_authority_balance > (LAMPORTS_PER_SIGNATURE) {
+            let instructions = vec![system_instruction::transfer(
                 &temp_upgrade_authority_pubkey,
                 &payer_pubkey,
-                temp_authority_balance,
+                temp_authority_balance - (5000),
+            )];
+
+            let message = Message::new_with_blockhash(
+                &instructions,
+                Some(&temp_upgrade_authority_pubkey),
+                &blockhash,
             );
-            let mut fee_instructions = instructions.clone();
-            fee_instructions.push(transfer_instruction);
 
-            let fee_message =
-                Message::new_with_blockhash(&fee_instructions, Some(&payer_pubkey), &blockhash);
-            let fee = rpc_client.get_fee_for_message(&fee_message).map_err(|e| {
-                diagnosed_error!("{err_prefix}: failed to get fee for transfer: {e}")
-            })?;
-            // the temp authority has enough to pay the fee
-            if temp_authority_balance >= fee {
-                // the temp authority has leftovers after the fee, so transfer that back to the payer
-                if temp_authority_balance > fee {
-                    let transfer_instruction = system_instruction::transfer(
-                        &temp_upgrade_authority_pubkey,
-                        &payer_pubkey,
-                        temp_authority_balance - fee,
-                    );
-                    instructions.push(transfer_instruction);
-                }
-                println!("temp authority has balance of {} lamports, which will be returned to the payer", temp_authority_balance);
-                let message = Message::new_with_blockhash(
-                    &instructions,
-                    Some(&temp_upgrade_authority_pubkey),
-                    &blockhash,
-                );
+            let transaction = Transaction::new_unsigned(message);
 
-                let transaction = Transaction::new_unsigned(message);
-
-                return Ok(SvmValue::temp_authority_signed_transaction(
+            return Some(
+                DeploymentTransaction::temp_authority_close_temp_authority(
                     &transaction,
                     vec![&temp_upgrade_authority_keypair],
-                )?);
-            }
+                )
+                .to_value(),
+            )
+            .transpose();
         }
 
-        println!("Temp authority account has no funds to transfer back to the payer.");
-        println!("The payer will have to sign a transaction to close the account.");
-
-        let message = Message::new_with_blockhash(&instructions, Some(&payer_pubkey), &blockhash);
-
-        let transaction = Transaction::new_unsigned(message);
-
-        Ok(SvmValue::payer_signed_transaction(&transaction, vec![])?)
+        return Ok(None);
     }
 
     fn get_deploy_with_max_program_len_transaction(
@@ -706,10 +1105,11 @@ impl UpgradeableProgramDeployer {
         );
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::authority_signed_transaction(
+        DeploymentTransaction::deploy_program(
             &transaction,
             vec![&self.temp_upgrade_authority, &self.program_keypair],
-        )?)
+        )
+        .to_value()
     }
 
     fn get_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, Diagnostic> {
@@ -727,7 +1127,7 @@ impl UpgradeableProgramDeployer {
         );
         let transaction = Transaction::new_unsigned(message);
 
-        Ok(SvmValue::authority_signed_transaction(&transaction, vec![])?)
+        DeploymentTransaction::upgrade_program(&transaction, vec![]).to_value()
     }
 
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
@@ -735,10 +1135,9 @@ impl UpgradeableProgramDeployer {
         rpc_client: &RpcClient,
         program_pubkey: &Pubkey,
         final_upgrade_authority_pubkey: &Pubkey,
-        commitment: &CommitmentConfig,
     ) -> Result<bool, Diagnostic> {
         if let Some(account) = rpc_client
-            .get_account_with_commitment(&program_pubkey, commitment.clone())
+            .get_account_with_commitment(&program_pubkey, CommitmentConfig::processed())
             .map_err(|e| diagnosed_error!("failed to get program account: {e}"))?
             .value
         {
@@ -755,7 +1154,10 @@ impl UpgradeableProgramDeployer {
                 account.state()
             {
                 if let Some(account) = rpc_client
-                    .get_account_with_commitment(&programdata_address, commitment.clone())
+                    .get_account_with_commitment(
+                        &programdata_address,
+                        CommitmentConfig::processed(),
+                    )
                     .map_err(|e| diagnosed_error!("failed to get program data account: {e}"))?
                     .value
                 {
@@ -799,35 +1201,10 @@ impl UpgradeableProgramDeployer {
         };
     }
 
-    pub fn get_signer_did_from_transaction_value(
-        value: &Value,
-        values: &ValueStore,
-    ) -> Result<(Vec<u8>, Option<ConstructDid>), Diagnostic> {
-        let addon_data = value.as_addon_data().expect("expected addon data");
-        let (transaction_bytes, _) = SvmValue::parse_transaction_with_keypairs(&value).unwrap();
-        let signer_key = match addon_data.id.as_str() {
-            SVM_PAYER_SIGNED_TRANSACTION => Some(PAYER),
-            SVM_AUTHORITY_SIGNED_TRANSACTION => Some(AUTHORITY),
-            SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION => None,
-            _ => unreachable!("invalid transaction type"),
-        };
-        let Some(signer_key) = signer_key else {
-            return Ok((transaction_bytes, None));
-        };
-
-        let signer_did = get_custom_signer_did(values, signer_key)
-            .map_err(|e| diagnosed_error!("failed to get signer DID: {e}"))?;
-        Ok((transaction_bytes, Some(signer_did)))
-    }
-
+    // todo: need to make this function secure, and to verify the account doesn't already exist
     pub fn create_temp_authority() -> Keypair {
         let (_buffer_words, _buffer_mnemonic, temp_authority_keypair) = create_ephemeral_keypair();
-        let temp_authority_pubkey = temp_authority_keypair.pubkey();
 
-        println!("A temporary account will be created and funded to write to the buffer account.");
-        println!("Please save the following information in case the deployment fails and the account needs to be recovered:");
-        println!("Temporary Authority Public Key: {:?}", temp_authority_pubkey);
-        println!("Temporary Authority Keypair: {:?}", temp_authority_keypair);
         temp_authority_keypair
     }
 }
@@ -857,4 +1234,10 @@ where
     .unwrap() as usize;
     // add 1 byte buffer to account for shortvec encoding
     PACKET_DATA_SIZE.saturating_sub(tx_size).saturating_sub(1)
+}
+
+pub fn transaction_is_fully_signed(transaction: &Transaction) -> bool {
+    let expected_signature_count = transaction.message.header.num_required_signatures as usize;
+    let actual_signature_count = transaction.signatures.len();
+    expected_signature_count == actual_signature_count && transaction.is_signed()
 }

@@ -3,33 +3,35 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentLevel;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::{
+    DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
+    SIGNED_TRANSACTION_BYTES,
+};
 use txtx_addon_kit::types::commands::{
-    return_synchronous_result, CommandExecutionFutureResult, CommandExecutionResult,
-    CommandImplementation, CommandSpecification, PreCommandSpecification,
+    CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+    CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{
-    BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
 use txtx_addon_kit::types::signers::{
-    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
+    return_synchronous, PrepareSignedNestedExecutionResult, SignerActionsFutureResult,
+    SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
-use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::anchor::AnchorProgramArtifacts;
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::codec::UpgradeableProgramDeployer;
+use crate::codec::{DeploymentTransaction, DeploymentTransactionType, UpgradeableProgramDeployer};
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
-    IS_DEPLOYMENT, KEYPAIR, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, RPC_API_URL,
-    SIGNATURE, TRANSACTION_BYTES,
+    FORMATTED_TRANSACTION, IS_DEPLOYMENT, KEYPAIR, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
+    PROGRAM_ID, RPC_API_URL, SIGNATURE, SIGNERS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS};
 
@@ -120,21 +122,19 @@ impl CommandImplementation for DeployProgram {
         unimplemented!()
     }
 
-    fn check_signed_executability(
+    fn prepare_signed_nested_execution(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
-        args: &ValueStore,
-        supervision_context: &RunbookSupervisionContext,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        values: &ValueStore,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
-    ) -> SignerActionsFutureResult {
+    ) -> PrepareSignedNestedExecutionResult {
         let (
-            (_authority_signer_did, mut authority_signer_state),
+            (authority_signer_did, mut authority_signer_state),
             (_payer_signer_did, mut payer_signer_state),
-        ) = pop_deployment_signers(args, &mut signers);
+        ) = pop_deployment_signers(values, &mut signers);
 
-        let program_artifacts_map = match args.get_expected_object(PROGRAM) {
+        let program_artifacts_map = match values.get_expected_object(PROGRAM) {
             Ok(a) => a,
             Err(e) => return Err((signers, authority_signer_state, e)),
         };
@@ -143,14 +143,15 @@ impl CommandImplementation for DeployProgram {
             Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
         };
 
-        let rpc_api_url = args
+        let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?
             .to_string();
 
-        let rpc_client = RpcClient::new(rpc_api_url.clone());
+        let rpc_client =
+            RpcClient::new_with_commitment(rpc_api_url.clone(), CommitmentConfig::finalized());
 
-        let auto_extend = args.get_bool(AUTO_EXTEND);
+        let auto_extend = values.get_bool(AUTO_EXTEND);
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
         let keypair = program_artifacts_map.get(KEYPAIR).unwrap();
@@ -244,7 +245,6 @@ impl CommandImplementation for DeployProgram {
                     &payer_pubkey,
                     rpc_client,
                     None,
-                    None,
                     auto_extend,
                 )
                 .map_err(|e| {
@@ -259,11 +259,6 @@ impl CommandImplementation for DeployProgram {
                     &construct_did.to_string(),
                     PROGRAM_ID,
                     SvmValue::pubkey(deployer.program_pubkey.to_bytes().to_vec()),
-                );
-                authority_signer_state.insert_scoped_value(
-                    &construct_did.to_string(),
-                    "is_program_upgrade",
-                    Value::bool(deployer.is_program_upgrade),
                 );
 
                 let transactions = deployer.get_transactions().map_err(|e| {
@@ -283,228 +278,240 @@ impl CommandImplementation for DeployProgram {
             }
         };
 
-        let mut args = args.clone();
-        args.insert(IS_DEPLOYMENT, Value::bool(true));
-        args.insert(TRANSACTION_BYTES, transactions);
-
         signers.push_signer_state(authority_signer_state);
         if let Some(payer_signer_state) = payer_signer_state {
             signers.push_signer_state(payer_signer_state);
         }
+        let authority_signer_state =
+            signers.get_signer_state(&authority_signer_did).unwrap().clone();
 
-        SignTransaction::check_signed_executability(
-            construct_did,
-            instance_name,
-            spec,
-            &args,
-            supervision_context,
-            signers_instances,
-            signers,
-        )
+        let mut cursor = 0;
+        let mut res = vec![];
+        let transaction_array = transactions.as_array().unwrap();
+        for transaction in transaction_array.iter() {
+            let new_did = ConstructDid(Did::from_components(vec![
+                construct_did.as_bytes(),
+                cursor.to_string().as_bytes(),
+            ]));
+            let mut value_store =
+                ValueStore::new(&format!("{}:{}", instance_name, cursor), &new_did.value());
+            value_store.insert(NESTED_CONSTRUCT_DID, Value::string(new_did.to_string()));
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                TRANSACTION_BYTES,
+                transaction.clone(),
+            );
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                NESTED_CONSTRUCT_INDEX,
+                Value::integer(cursor as i128),
+            );
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                NESTED_CONSTRUCT_COUNT,
+                Value::integer(transaction_array.len() as i128),
+            );
+            res.push((new_did, value_store));
+            cursor += 1;
+        }
+        return_synchronous((signers, authority_signer_state.clone(), res))
+    }
+
+    fn check_signed_executability(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        values: &ValueStore,
+        supervision_context: &RunbookSupervisionContext,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers: SignersState,
+    ) -> SignerActionsFutureResult {
+        let nested_construct_did = values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
+
+        let transaction =
+            values.get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES).unwrap();
+
+        let authority_signer_did = get_custom_signer_did(&values, AUTHORITY).unwrap();
+        let authority_signer_state =
+            signers.get_signer_state(&authority_signer_did).unwrap().clone();
+
+        let deployment_transaction =
+            DeploymentTransaction::from_value(transaction).map_err(|e| {
+                (
+                    signers.clone(),
+                    authority_signer_state.clone(),
+                    diagnosed_error!("failed to get deployment transaction: {}", e),
+                )
+            })?;
+
+        if let DeploymentTransactionType::SkipCloseTempAuthority =
+            deployment_transaction.transaction_type
+        {
+            return return_synchronous((signers, authority_signer_state, Actions::none()));
+        }
+
+        let signers_dids = deployment_transaction.get_signers_dids(&values).map_err(|e| {
+            (
+                signers.clone(),
+                authority_signer_state.clone(),
+                diagnosed_error!("failed to get signers for deployment transaction: {}", e),
+            )
+        })?;
+
+        // we only need to check signability if there are signers for this transaction
+        if let Some(signers_dids) = signers_dids {
+            let mut values = values.clone();
+            let transaction_value = SvmValue::transaction(&deployment_transaction.transaction)
+                .map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to serialize deployment transaction: {}", e),
+                    )
+                })?;
+            values.insert(TRANSACTION_BYTES, transaction_value);
+            values.insert(IS_DEPLOYMENT, Value::bool(true));
+            values.insert(
+                SIGNERS,
+                Value::array(signers_dids.iter().map(|d| Value::string(d.to_string())).collect()),
+            );
+
+            let formatted_transaction = deployment_transaction
+                .get_formatted_transaction(signers_dids, &signers_instances)
+                .map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to get formatted transaction: {}", e),
+                    )
+                })?;
+            if let Some((formatted_transaction, description)) = formatted_transaction {
+                values.insert(FORMATTED_TRANSACTION, Value::string(formatted_transaction));
+                values.insert(DESCRIPTION, Value::string(description));
+            }
+            return SignTransaction::check_signed_executability(
+                construct_did,
+                instance_name,
+                spec,
+                &values,
+                supervision_context,
+                signers_instances,
+                signers,
+            );
+        } else {
+            return return_synchronous((signers, authority_signer_state, Actions::none()));
+        }
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        args: &ValueStore,
+        values: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let authority_signer_did = get_custom_signer_did(args, AUTHORITY).unwrap();
+        let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
-        let payload = authority_signer_state
-            .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
+        let program_id_value = authority_signer_state
+            .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
             .clone();
-        let program_id = SvmValue::to_pubkey(
-            authority_signer_state
-                .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
-                .unwrap(),
-        )
-        .unwrap();
-        let is_program_upgrade = authority_signer_state
-            .get_scoped_bool(&construct_did.to_string(), "is_program_upgrade")
-            .unwrap();
 
         let progress_tx = progress_tx.clone();
-        // let signer_did = get_payer_did(args).unwrap();
-        let args = args.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
+        let mut values = values.clone();
 
-        let mut args = args.clone();
         let future = async move {
-            let (signers, signer_state, res) = if let Some(payloads) = payload.as_array() {
-                let mut signers_ref = signers;
-                let mut last_signer_state_ref = None;
-                let mut signatures = vec![];
-                let mut signed_transactions_bytes = vec![];
+            let mut result = CommandExecutionResult::new();
 
-                args.insert(IS_DEPLOYMENT, Value::bool(true));
-                let mut status_updater =
-                    StatusUpdater::new(&Uuid::new_v4(), &construct_did, &progress_tx);
+            result.outputs.insert(PROGRAM_ID.to_string(), program_id_value.clone());
 
-                for (i, mut transaction) in payloads.clone().into_iter().enumerate() {
-                    status_updater.propagate_pending_status(&format!(
-                        "Sending transaction {}/{}",
-                        i + 1,
-                        payloads.len()
-                    ));
+            let nested_construct_did =
+                values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
 
-                    let (do_await_confirmation, commitment) =
-                    // the first transaction is the temp authority creation
-                    if i == 0 {
-                        (true, CommitmentLevel::Processed)
-                    }
-                    // the second transaction creates the buffer
-                    else if i == 1 {
-                        (true, CommitmentLevel::Processed)
-                    }
-                    else if i == payloads.len() - 4 {
-                        (true, CommitmentLevel::Processed)
-                    }
-                    // the third-to-last transaction transfers authority of the buffer to the final authority
-                    else if i == payloads.len() - 3 {
-                        (true, CommitmentLevel::Processed)
-                    }
-                    // the second-to-last transaction deploys/upgrades the program
-                     else if i == payloads.len() - 2 {
-                        (true, CommitmentLevel::Processed)
-                    }
-                    // the last transaction closes the temp authority
-                    else if i == payloads.len() - 1 {
-                        transaction =
-                            UpgradeableProgramDeployer::get_close_temp_authority_transaction(
-                                &transaction,
-                            )
-                            .map_err(|e| {
-                                (
-                                    signers_ref.clone(),
-                                    authority_signer_state.clone(),
-                                    diagnosed_error!("failed to close temp authority: {}", e),
-                                )
-                            })?;
-                        (true, CommitmentLevel::Processed)
-                    }
-                    // all other transactions are for writing to the buffer
-                    else {
-                        (false, CommitmentLevel::Processed)
-                    };
+            let transaction_value = values
+                .get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES)
+                .unwrap()
+                .clone();
 
-                    let (_, expected_signer_did) =
-                        UpgradeableProgramDeployer::get_signer_did_from_transaction_value(
-                            &transaction,
-                            &args,
-                        )
-                        .unwrap();
+            let deployment_transaction =
+                DeploymentTransaction::from_value(&transaction_value).unwrap();
 
-                    if let Some(expected_signer_did) = expected_signer_did {
-                        args.insert(
-                            "expected_signer",
-                            Value::string(expected_signer_did.to_string()),
-                        );
-                    }
-                    args.insert(COMMITMENT_LEVEL, Value::string(commitment.to_string()));
-                    args.insert(DO_AWAIT_CONFIRMATION, Value::bool(do_await_confirmation));
+            if let DeploymentTransactionType::SkipCloseTempAuthority =
+                deployment_transaction.transaction_type
+            {
+                return Ok((signers, authority_signer_state, result));
+            }
 
-                    if let Some(last_signer_state) = last_signer_state_ref {
-                        signers_ref.push_signer_state(last_signer_state);
-                    }
-                    args.insert(TRANSACTION_BYTES, transaction.clone());
-                    let run_signing_future = SignTransaction::run_signed_execution(
-                        &construct_did,
-                        &spec,
-                        &args,
-                        &progress_tx,
-                        &signers_instances,
-                        signers_ref,
-                    );
-                    let (signers, signer_state, res_signing) = match run_signing_future {
-                        Ok(future) => match future.await {
-                            Ok(res) => res,
-                            Err(err) => return Err(err),
-                        },
-                        Err(err) => return Err(err),
-                    };
+            let signers_dids = deployment_transaction.get_signers_dids(&values).unwrap();
 
-                    if i == 0 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Account Created",
-                            "Temp account created to write to buffer",
-                        ));
-                    } else if i == 1 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Account Created",
-                            "Program buffer creation complete",
-                        ));
-                    } else if i == payloads.len() - 2 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Program Created",
-                            &format!(
-                                "Program {} has been {}",
-                                program_id,
-                                if is_program_upgrade { "upgraded" } else { "deployed" }
-                            ),
-                        ));
-                    } else if i == payloads.len() - 1 {
-                        status_updater.propagate_status(ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Green,
-                            "Complete",
-                            "Temp account closed and leftover funds returned to payer",
-                        ));
-                    }
-
-                    signers_ref = signers;
-
-                    let signed_transaction_value =
-                        res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-                    let signature = res_signing.outputs.get(SIGNATURE).unwrap();
-                    signed_transactions_bytes.push(signed_transaction_value.clone());
-                    signatures.push(signature.clone());
-
-                    last_signer_state_ref = Some(signer_state);
-                }
-
-                let signed_transactions_bytes = Value::array(signed_transactions_bytes);
-                let signatures = Value::array(signatures);
-                args.insert(SIGNED_TRANSACTION_BYTES, signed_transactions_bytes.clone());
-                let mut result = CommandExecutionResult::new();
-                result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transactions_bytes);
-                result.outputs.insert(SIGNATURE.into(), signatures);
-                result.outputs.insert(IS_DEPLOYMENT.into(), Value::bool(true));
-                (signers_ref, last_signer_state_ref.unwrap(), result)
-            } else {
-                let run_signing_future = SignTransaction::run_signed_execution(
-                    &construct_did,
-                    &spec,
-                    &args,
-                    &progress_tx,
-                    &signers_instances,
-                    signers,
+            if let Some(signers_dids) = signers_dids {
+                values.insert(
+                    SIGNERS,
+                    Value::array(
+                        signers_dids.iter().map(|d| Value::string(d.to_string())).collect(),
+                    ),
                 );
-                let (signers, signer_state, res_signing) = match run_signing_future {
-                    Ok(future) => match future.await {
-                        Ok(res) => res,
-                        Err(err) => return Err(err),
-                    },
+            } else {
+                let rpc_api_url = values.get_expected_string(RPC_API_URL).unwrap();
+                let transaction = deployment_transaction
+                    .sign_transaction_with_keypairs(rpc_api_url)
+                    .map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to sign transaction: {}", e),
+                        )
+                    })?;
+                let transaction_value = SvmValue::transaction(&transaction).map_err(|e| {
+                    (
+                        signers.clone(),
+                        authority_signer_state.clone(),
+                        diagnosed_error!("failed to serialize signed transaction: {}", e),
+                    )
+                })?;
+
+                result.outputs.insert(
+                    format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
+                    transaction_value.clone(),
+                );
+
+                return Ok((signers, authority_signer_state, result));
+            }
+            values.insert(IS_DEPLOYMENT, Value::bool(true));
+            values.insert(TRANSACTION_BYTES, transaction_value.clone());
+
+            let run_signing_future = SignTransaction::run_signed_execution(
+                &construct_did,
+                &spec,
+                &values,
+                &progress_tx,
+                &signers_instances,
+                signers,
+            );
+            let (signers, signer_state, mut signin_res) = match run_signing_future {
+                Ok(future) => match future.await {
+                    Ok(res) => res,
                     Err(err) => return Err(err),
-                };
-                let signed_transaction_value =
-                    res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-                args.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
-                verify_signature(signed_transaction_value.clone())
-                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-                (signers, signer_state, res_signing)
+                },
+                Err(err) => return Err(err),
             };
 
-            Ok((signers, signer_state, res))
+            let signed_transaction_value =
+                signin_res.outputs.remove(SIGNED_TRANSACTION_BYTES).unwrap();
+            result.append(&mut signin_res);
+
+            result.outputs.insert(
+                format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
+                signed_transaction_value,
+            );
+
+            return Ok((signers, signer_state, result));
         };
         Ok(Box::pin(future))
     }
@@ -512,35 +519,103 @@ impl CommandImplementation for DeployProgram {
     fn build_background_task(
         construct_did: &ConstructDid,
         spec: &CommandSpecification,
-        values: &ValueStore,
+        inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
     ) -> CommandExecutionFutureResult {
-        if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
-            return return_synchronous_result(Ok(CommandExecutionResult::new()));
-        } else {
-            send_transaction_background_task(
+        let construct_did = construct_did.clone();
+        let spec = spec.clone();
+        let mut inputs = inputs.clone();
+        let outputs = outputs.clone();
+        let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+        let supervision_context = supervision_context.clone();
+
+        let future = async move {
+            let nested_construct_did =
+                inputs.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
+
+            let transaction_value = inputs
+                .get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES)
+                .unwrap()
+                .clone();
+            let transaction_index = inputs
+                .get_scoped_integer(&nested_construct_did.to_string(), NESTED_CONSTRUCT_INDEX)
+                .unwrap();
+            let transaction_count = inputs
+                .get_scoped_integer(&nested_construct_did.to_string(), NESTED_CONSTRUCT_COUNT)
+                .unwrap();
+
+            let program_id = SvmValue::to_pubkey(&outputs.get_value(PROGRAM_ID).unwrap()).unwrap();
+            let deployment_transaction =
+                DeploymentTransaction::from_value(&transaction_value).unwrap();
+
+            let mut status_updater = StatusUpdater::new_with_default_progress_index(
+                &background_tasks_uuid,
+                &construct_did,
+                &progress_tx,
+                transaction_index as usize,
+            );
+
+            deployment_transaction
+                .pre_send_status_updates(
+                    &mut status_updater,
+                    transaction_index as usize,
+                    transaction_count as usize,
+                )
+                .map_err(|e| e)?;
+            match &deployment_transaction.transaction_type {
+                DeploymentTransactionType::SkipCloseTempAuthority => {
+                    return Ok(CommandExecutionResult::new());
+                }
+                _ => {}
+            }
+
+            let signed_transaction_value = inputs
+                .get_scoped_value(&nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+                .unwrap()
+                .clone();
+
+            inputs.insert(IS_DEPLOYMENT, Value::bool(true));
+            inputs.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
+            inputs.insert(
+                COMMITMENT_LEVEL,
+                Value::string(deployment_transaction.commitment_level.to_string()),
+            );
+            inputs.insert(
+                DO_AWAIT_CONFIRMATION,
+                Value::bool(deployment_transaction.do_await_confirmation),
+            );
+
+            let mut result = match send_transaction_background_task(
                 &construct_did,
                 &spec,
-                &values,
+                &inputs,
                 &outputs,
                 &progress_tx,
                 &background_tasks_uuid,
                 &supervision_context,
-            )
-        }
-    }
-}
+            ) {
+                Ok(res) => match res.await {
+                    Ok(res) => res,
+                    Err(e) => return Err(e),
+                },
+                Err(e) => return Err(e),
+            };
 
-fn verify_signature(signed_transaction_value: Value) -> Result<(), Diagnostic> {
-    let transaction = SvmValue::to_transaction(&signed_transaction_value)
-        .map_err(|e| diagnosed_error!("invalid signed transaction: {}", e))?;
-    let _ = transaction
-        .verify_and_hash_message()
-        .map_err(|e| diagnosed_error!("failed to verify signed transaction: {}", e))?;
-    Ok(())
+            let signature = result.outputs.remove(SIGNATURE).unwrap();
+            result
+                .outputs
+                .insert(format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE), signature);
+
+            deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+
+            Ok(result)
+        };
+        Ok(Box::pin(future))
+    }
 }
 
 fn insert_to_payer_or_authority<'a>(
@@ -582,24 +657,4 @@ pub fn pop_deployment_signers<'a>(
     };
 
     ((authority_signer_did, authority_signer_state), (payer_signer_did, payer_signer_state))
-}
-
-pub fn get_deployment_signers<'a>(
-    values: &ValueStore,
-    signers: &SignersState,
-) -> ((ConstructDid, ValueStore), (ConstructDid, Option<ValueStore>)) {
-    let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
-    let payer_signer_did =
-        get_custom_signer_did(values, PAYER).unwrap_or(authority_signer_did.clone());
-    let authority_signer_state = signers.get_signer_state(&authority_signer_did).unwrap();
-    let payer_signer_state = if payer_signer_did.eq(&authority_signer_did) {
-        None
-    } else {
-        Some(signers.get_signer_state(&payer_signer_did).unwrap())
-    };
-
-    (
-        (authority_signer_did, authority_signer_state.clone()),
-        (payer_signer_did, payer_signer_state.cloned()),
-    )
 }

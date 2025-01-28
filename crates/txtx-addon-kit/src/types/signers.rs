@@ -30,6 +30,11 @@ impl SignersState {
         SignersState { store: HashMap::new() }
     }
 
+    pub fn get_first_signer(&self) -> Option<ValueStore> {
+        let signers = self.store.values().cloned().collect::<Vec<_>>();
+        signers.get(0).cloned()
+    }
+
     pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
         self.store.get_mut(signer_did)
     }
@@ -156,6 +161,12 @@ pub type SignerActionsFutureResult = Result<
     SignerActionErr,
 >;
 
+pub type PrepareSignedNestedExecutionResult = Result<
+    Pin<Box<dyn Future<Output = Result<PrepareNestedExecutionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
+>;
+pub type PrepareNestedExecutionOk = (SignersState, ValueStore, Vec<(ConstructDid, ValueStore)>);
+
 pub type SignerCheckInstantiabilityClosure =
     fn(&SignerSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 
@@ -178,6 +189,15 @@ pub type SignerOperationFutureResult = Result<
     Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
     SignerActionErr,
 >;
+
+pub fn return_synchronous<T>(
+    res: T,
+) -> Result<Pin<Box<dyn Future<Output = Result<T, SignerActionErr>> + Send>>, SignerActionErr>
+where
+    T: std::marker::Send + 'static,
+{
+    Ok(Box::pin(future::ready(Ok(res))))
+}
 
 pub fn return_synchronous_actions(
     res: Result<CheckSignabilityOk, SignerActionErr>,
@@ -229,6 +249,28 @@ pub async fn consolidate_signer_future_result(
 {
     match future {
         Ok(res) => Ok(consolidate_signer_result(res.await, block_span)),
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag.set_span_range(block_span)))
+        }
+    }
+}
+
+pub async fn consolidate_nested_execution_result(
+    future: PrepareSignedNestedExecutionResult,
+    block_span: Option<std::ops::Range<usize>>,
+) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+    match future {
+        Ok(res) => match res.await {
+            Ok((mut signers, signer_state, res)) => {
+                signers.push_signer_state(signer_state);
+                Ok((signers, res))
+            }
+            Err((mut signers, signer_state, diag)) => {
+                signers.push_signer_state(signer_state);
+                Err((signers, diag.set_span_range(block_span)))
+            }
+        },
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
             Err((signers, diag.set_span_range(block_span)))

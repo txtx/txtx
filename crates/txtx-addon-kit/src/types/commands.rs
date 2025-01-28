@@ -29,7 +29,8 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     signers::{
-        consolidate_signer_activate_future_result, consolidate_signer_future_result,
+        consolidate_nested_execution_result, consolidate_signer_activate_future_result,
+        consolidate_signer_future_result, return_synchronous, PrepareSignedNestedExecutionResult,
         SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
     stores::ValueMap,
@@ -338,8 +339,10 @@ pub struct CommandSpecification {
     pub inputs_post_processing_closure: InputsPostProcessingClosure,
     pub check_instantiability: InstantiabilityChecker,
     pub check_executability: CommandCheckExecutabilityClosure,
+    pub prepare_nested_execution: CommandPrepareNestedExecution,
     pub run_execution: CommandExecutionClosure,
     pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
 }
@@ -521,6 +524,17 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &HashMap<ConstructDid, SignerInstance>,
     SignersState,
 ) -> SignerActionsFutureResult;
+
+pub type CommandSignedPrepareNestedExecution = fn(
+    &ConstructDid,
+    &str,
+    &ValueStore,
+    &HashMap<ConstructDid, SignerInstance>,
+    SignersState,
+) -> PrepareSignedNestedExecutionResult;
+
+pub type CommandPrepareNestedExecution =
+    fn(&ConstructDid, &str, &ValueStore) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -924,9 +938,46 @@ impl CommandInstance {
         res
     }
 
+    pub async fn prepare_signed_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        signers: SignersState,
+        signer_instances: &HashMap<ConstructDid, SignerInstance>,
+    ) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+        let future = (spec.prepare_signed_nested_execution)(
+            &construct_did,
+            &self.name,
+            &values,
+            signer_instances,
+            signers,
+        );
+        return consolidate_nested_execution_result(future, self.block.span()).await;
+    }
+
+    pub fn prepare_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+
+        (spec.prepare_nested_execution)(&construct_did, &self.name, &values)
+    }
+
     pub async fn check_signed_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
@@ -936,7 +987,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         // TODO
         let mut consolidated_actions = Actions::none();
@@ -1011,6 +1063,7 @@ impl CommandInstance {
     pub async fn perform_signed_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -1020,7 +1073,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let future = (spec.run_signed_execution)(
@@ -1071,6 +1125,7 @@ impl CommandInstance {
     pub fn build_background_task(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         execution_result: &CommandExecutionResult,
         progress_tx: &channel::Sender<BlockEvent>,
@@ -1080,7 +1135,8 @@ impl CommandInstance {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
             .with_inputs(&evaluated_inputs.inputs.inputs)
-            .with_inputs_from_map(&execution_result.outputs);
+            .with_inputs_from_map(&execution_result.outputs)
+            .append_inputs(&nested_evaluation_values.inputs);
         let outputs = ValueStore::new(&self.name, &construct_did.value())
             .with_inputs_from_map(&execution_result.outputs);
 
@@ -1183,6 +1239,37 @@ pub trait CommandImplementation {
         _signers_state: SignersState,
     ) -> SignerActionsFutureResult {
         unimplemented!()
+    }
+
+    fn prepare_signed_nested_execution(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        _values: &ValueStore,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_state: SignersState,
+    ) -> PrepareSignedNestedExecutionResult {
+        let signer_state = signers_state
+            .get_first_signer()
+            .expect(&format!("no signers provided for acition '{}'", instance_name));
+        return_synchronous((
+            signers_state,
+            signer_state,
+            vec![(
+                construct_did.clone(),
+                ValueStore::new(&construct_did.to_string(), &construct_did.0),
+            )],
+        ))
+    }
+
+    fn prepare_nested_execution(
+        construct_did: &ConstructDid,
+        _instance_name: &str,
+        _values: &ValueStore,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        Ok(vec![(
+            construct_did.clone(),
+            ValueStore::new(&construct_did.to_string(), &construct_did.0),
+        )])
     }
 
     fn run_signed_execution(

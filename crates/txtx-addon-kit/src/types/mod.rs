@@ -218,6 +218,10 @@ impl ConstructDid {
     pub fn to_string(&self) -> String {
         self.0.to_string()
     }
+
+    pub fn from_hex_string(did_str: &str) -> Self {
+        ConstructDid(Did::from_hex_string(did_str))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

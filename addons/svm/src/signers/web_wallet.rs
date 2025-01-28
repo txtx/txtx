@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::commitment_config::CommitmentConfig;
+use solana_sdk::signature::Signature;
+use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -21,11 +25,15 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 
+use crate::codec::{transaction_is_fully_signed, DeploymentTransaction};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS,
-    FORMATTED_TRANSACTION, IS_SIGNABLE, NAMESPACE, NETWORK_ID, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS, CHECKED_PUBLIC_KEY,
+    EXPECTED_ADDRESS, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE, NAMESPACE, NETWORK_ID,
+    PARTIALLY_SIGNED_TRANSACTION_BYTES, REQUESTED_STARTUP_DATA, RPC_API_URL,
+    UPDATED_PARTIALLY_SIGNED_TRANSACTION,
 };
+use crate::typing::SvmValue;
 
 use super::get_additional_actions_for_address;
 
@@ -190,19 +198,17 @@ impl SignerImplementation for SvmWebWallet {
         _construct_id: &ConstructDid,
         _spec: &SignerSpecification,
         values: &ValueStore,
-        mut signer_state: ValueStore,
+        signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
 
-        signer_state.insert("multi_sig", Value::bool(false));
-
         let address = values
             .get_value(EXPECTED_ADDRESS)
             .unwrap_or_else(|| signer_state.get_value(CHECKED_ADDRESS).unwrap());
-        result.outputs.insert("address".into(), address.clone());
+        result.outputs.insert(ADDRESS.into(), address.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
     }
 
@@ -281,19 +287,146 @@ impl SignerImplementation for SvmWebWallet {
     fn sign(
         construct_did: &ConstructDid,
         _title: &str,
-        _payload: &Value,
+        payload: &Value,
         _spec: &SignerSpecification,
-        _values: &ValueStore,
-        signer_state: ValueStore,
+        values: &ValueStore,
+        mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
-        let key = construct_did.to_string();
-        if let Some(signed_transaction) =
-            signer_state.get_scoped_value(&key, SIGNED_TRANSACTION_BYTES)
+
+        // value signed (partially, maybe) by the supervisor
+        let signed_transaction_value =
+            signer_state.remove_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES);
+
+        let supervisor_signed_tx = if let Some(signed_transaction_value) = signed_transaction_value
         {
-            result.outputs.insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction.clone());
+            let transaction = SvmValue::to_transaction(&signed_transaction_value).map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to deserialize signed transaction: {e}"),
+                )
+            })?;
+
+            let is_fully_signed = transaction_is_fully_signed(&transaction);
+
+            if is_fully_signed {
+                // the supervisor has fully signed the transaction, and there's a chance the web wallet has
+                // added some instructions to the transaction, so we'll call this one "updated" so that the
+                // upstream commands can handle accordingly
+                result.outputs.insert(
+                    UPDATED_PARTIALLY_SIGNED_TRANSACTION.into(),
+                    signed_transaction_value.clone(),
+                );
+                return return_synchronous_result(Ok((signers, signer_state, result)));
+            }
+            Some(transaction)
+        } else {
+            None
+        };
+
+        // there's a chance the user sat for a while with the transaction unsigned in the supervisor,
+        // so the supervisor updates the blockhash before signing. we'll use this blockhash for the transaction
+        // if it's available
+        let blockhash = if let Some(transaction) = &supervisor_signed_tx {
+            transaction.message.recent_blockhash.clone()
+        } else {
+            let rpc_api_url = values
+                .get_expected_string(RPC_API_URL)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+                .to_string();
+
+            let rpc_client =
+                RpcClient::new_with_commitment(rpc_api_url.clone(), CommitmentConfig::processed());
+
+            let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to get latest blockhash: {e}"),
+                )
+            })?;
+            blockhash
+        };
+
+        let mut did_update_transaction = false;
+        let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
+        let (mut transaction, do_sign_with_txtx_signer) = if is_deployment {
+            let deployment_transaction =
+                DeploymentTransaction::from_value(&payload).map_err(|e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to sign transaction: {e}"),
+                    )
+                })?;
+            // the supervisor may have changed the transaction some (specifically by adding compute budget instructions),
+            // so we want to sign that new transaction
+            let mut transaction = if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
+                did_update_transaction = true;
+                supervisor_signed_tx.clone()
+            } else {
+                deployment_transaction.transaction.clone()
+            };
+            transaction.message.recent_blockhash = blockhash;
+
+            let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to sign transaction: {e}"),
+                )
+            })?;
+
+            transaction.try_partial_sign(&keypairs, transaction.message.recent_blockhash).map_err(
+                |e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to sign transaction: {e}"),
+                    )
+                },
+            )?;
+            (transaction, deployment_transaction.signers.is_some())
+        } else {
+            let mut transaction: Transaction = SvmValue::to_transaction(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+            transaction.message.recent_blockhash = blockhash;
+
+            (transaction, true)
+        };
+
+        if do_sign_with_txtx_signer {
+            if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
+                for (i, sig) in supervisor_signed_tx.signatures.iter().enumerate() {
+                    if sig != &Signature::default() {
+                        transaction.signatures[i] = sig.clone();
+                    }
+                }
+            } else {
+                return Err((
+                    signers,
+                    signer_state,
+                    diagnosed_error!("internal error: web wallet has not signed the transaction"),
+                ));
+            }
+        }
+
+        if did_update_transaction {
+            result.outputs.insert(
+                UPDATED_PARTIALLY_SIGNED_TRANSACTION.into(),
+                SvmValue::transaction(&transaction)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+            );
+        } else {
+            result.outputs.insert(
+                PARTIALLY_SIGNED_TRANSACTION_BYTES.into(),
+                SvmValue::transaction(&transaction)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?,
+            );
         }
 
         return_synchronous_result(Ok((signers, signer_state, result)))
