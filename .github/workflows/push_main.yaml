@@ -111,6 +111,7 @@ jobs:
           echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
           echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
           echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
+          echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
           cat .env
           cd ..
 
