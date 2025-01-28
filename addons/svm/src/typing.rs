@@ -148,6 +148,13 @@ impl SvmValue {
     pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
         match value.as_string() {
             Some(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e.message)?;
+                    let bytes: [u8; 32] = hex[0..32]
+                        .try_into()
+                        .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+                    return Ok(Pubkey::new_from_array(bytes));
+                }
                 return Pubkey::from_str(s)
                     .map_err(|e| format!("could not convert value to pubkey: {e}"));
             }
