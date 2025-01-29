@@ -40,81 +40,88 @@ use super::get_custom_signer_did;
 use super::sign_transaction::SignTransaction;
 
 lazy_static! {
-    pub static ref DEPLOY_PROGRAM: PreCommandSpecification = define_command! {
-        DeployProgram => {
-            name: "Deploy SVM Program",
-            matcher: "deploy_program",
-            documentation: "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
-            implements_signing_capability: true,
-            implements_background_task_capability: true,
-            inputs: [
-                description: {
-                    documentation: "A description of the deployment action.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                program: {
-                    documentation: "The Solana program artifacts to deploy.",
-                    typing: ANCHOR_PROGRAM_ARTIFACTS.clone(),
-                    optional: false,
-                    tainting: true,
-                    internal: false,
-                    sensitive: false
-                },
-                payer: {
-                    documentation: "A reference to a signer construct, which will be used to sign transactions that pay for the program deployment. If omitted, the `authority` will be used.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                authority: {
-                    documentation: "A reference to a signer construct, which will be the final authority for the deployed program.",
-                    typing: Type::string(),
-                    optional: false,
-                    tainting: true,
-                    internal: false,
-                    sensitive: false
-                },
-                commitment_level: {
-                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                auto_extend: {
-                    documentation: "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
-                    typing: Type::bool(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                }
-            ],
-            outputs: [
-                signatures: {
-                    documentation: "The computed transaction signatures, grouped by transaction type.",
-                    typing: DEPLOYMENT_TRANSACTION_SIGNATURES.clone()
-                },
-                program_id: {
-                    documentation: "The program ID of the deployed program.",
-                    typing: Type::string()
-                }
-            ],
-            example: txtx_addon_kit::indoc! {r#"
-                action "deploy" "svm::deploy_program" {
-                    description = "Deploy hello world program"
-                    program = svm::get_program_from_anchor_project("hello_world") 
-                    signers = [signer.deployer]
-                }
-            "#},
-      }
+    pub static ref DEPLOY_PROGRAM: PreCommandSpecification = {
+        let mut command = define_command! {
+            DeployProgram => {
+                name: "Deploy SVM Program",
+                matcher: "deploy_program",
+                documentation: "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
+                implements_signing_capability: true,
+                implements_background_task_capability: true,
+                inputs: [
+                    description: {
+                        documentation: "A description of the deployment action.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    program: {
+                        documentation: "The Solana program artifacts to deploy.",
+                        typing: ANCHOR_PROGRAM_ARTIFACTS.clone(),
+                        optional: false,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    payer: {
+                        documentation: "A reference to a signer construct, which will be used to sign transactions that pay for the program deployment. If omitted, the `authority` will be used.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    authority: {
+                        documentation: "A reference to a signer construct, which will be the final authority for the deployed program.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    commitment_level: {
+                        documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    auto_extend: {
+                        documentation: "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
+                        typing: Type::bool(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    }
+                ],
+                outputs: [
+                    signatures: {
+                        documentation: "The computed transaction signatures, grouped by transaction type.",
+                        typing: DEPLOYMENT_TRANSACTION_SIGNATURES.clone()
+                    },
+                    program_id: {
+                        documentation: "The program ID of the deployed program.",
+                        typing: Type::string()
+                    }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                    action "deploy" "svm::deploy_program" {
+                        description = "Deploy hello world program"
+                        program = svm::get_program_from_anchor_project("hello_world") 
+                        signers = [signer.deployer]
+                    }
+                "#},
+            }
+        };
+
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("program_id".to_string());
+        }
+        command
     };
 }
 
