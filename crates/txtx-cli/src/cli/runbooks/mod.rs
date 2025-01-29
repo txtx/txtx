@@ -938,9 +938,7 @@ pub async fn handle_run_command(
         .collect::<Vec<_>>();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_updates_tx, _action_item_updates_rx) =
-        channel::unbounded::<ActionItemRequest>();
-    let (action_item_events_tx, action_item_events_rx) = channel::unbounded::<ActionItemResponse>();
+    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
     let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
@@ -952,7 +950,6 @@ pub async fn handle_run_command(
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
             moved_block_tx,
-            action_item_updates_tx,
             action_item_events_rx,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {

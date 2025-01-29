@@ -25,8 +25,8 @@ pub struct TestHarness {
     block_tx: Sender<BlockEvent>,
     block_rx: Receiver<BlockEvent>,
     action_item_updates_tx: Sender<ActionItemRequest>,
-    action_item_events_tx: Sender<ActionItemResponse>,
-    action_item_events_rx: Receiver<ActionItemResponse>,
+    action_item_events_tx: tokio::sync::broadcast::Sender<ActionItemResponse>,
+    action_item_events_rx: tokio::sync::broadcast::Receiver<ActionItemResponse>,
 }
 
 #[allow(unused)]
@@ -274,20 +274,19 @@ pub fn setup_test(
     let (action_item_updates_tx, _action_item_updates_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) =
-        txtx_addon_kit::channel::unbounded::<ActionItemResponse>();
+        tokio::sync::broadcast::channel(32);
 
     let harness = TestHarness {
         block_tx: block_tx.clone(),
         block_rx,
         action_item_updates_tx: action_item_updates_tx.clone(),
         action_item_events_tx: action_item_events_tx.clone(),
-        action_item_events_rx: action_item_events_rx.clone(),
+        action_item_events_rx: action_item_events_rx.resubscribe(),
     };
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future = start_supervised_runbook_runloop(
             &mut runbook,
             block_tx,
-            action_item_updates_tx,
             action_item_events_rx,
         );
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {

@@ -255,7 +255,7 @@ pub async fn start_relayer_event_runloop(
     channel_data: Arc<RwLock<Option<ChannelData>>>,
     relayer_channel_rx: Receiver<RelayerChannelEvent>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
-    action_item_events_tx: Sender<ActionItemResponse>,
+    action_item_events_tx: tokio::sync::broadcast::Sender<ActionItemResponse>,
     kill_loops_tx: Sender<bool>,
 ) -> Result<(), String> {
     // cache the tx that is used to send websocket messages. this will allow us to send a close signal
@@ -337,13 +337,13 @@ pub async fn start_relayer_event_runloop(
 pub struct RelayerWebSocketChannel {
     ws_endpoint_url: String,
     operator_token: String,
-    action_item_events_tx: Sender<ActionItemResponse>,
+    action_item_events_tx: tokio::sync::broadcast::Sender<ActionItemResponse>,
 }
 impl RelayerWebSocketChannel {
     pub fn new(
         ws_endpoint_url: &String,
         operator_token: &String,
-        action_item_events_tx: &Sender<ActionItemResponse>,
+        action_item_events_tx: &tokio::sync::broadcast::Sender<ActionItemResponse>,
     ) -> Self {
         RelayerWebSocketChannel {
             ws_endpoint_url: ws_endpoint_url.clone(),
@@ -418,7 +418,7 @@ impl RelayerWebSocketChannel {
                                     continue;
                                 }
                             };
-                            let _ = action_item_events_tx.try_send(response);
+                            let _ = action_item_events_tx.send(response);
                         }
                         Message::Binary(_) => todo!(),
                         Message::Ping(ping) => {
