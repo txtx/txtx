@@ -800,6 +800,7 @@ impl CommandInstance {
     pub fn check_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
@@ -809,7 +810,8 @@ impl CommandInstance {
             &format!("{}_inputs", self.specification.matcher),
             &construct_did.value(),
         )
-        .with_defaults(&evaluated_inputs.inputs.defaults);
+        .with_defaults(&evaluated_inputs.inputs.defaults)
+        .append_inputs(&nested_evaluation_values.inputs);
 
         let mut consolidated_actions = Actions::none();
         match action_item_response {
@@ -893,6 +895,7 @@ impl CommandInstance {
     pub async fn perform_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
@@ -900,7 +903,8 @@ impl CommandInstance {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?

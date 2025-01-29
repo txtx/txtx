@@ -659,6 +659,7 @@ pub async fn evaluate_command_instance(
         } else {
             match command_instance.check_executability(
                 &construct_did,
+                nested_evaluation_values,
                 &mut evaluated_inputs,
                 &mut runbook_execution_context.signers_instances,
                 &action_item_responses.get(&construct_did),
@@ -697,6 +698,7 @@ pub async fn evaluate_command_instance(
                 command_instance
                     .perform_execution(
                         &construct_did,
+                        nested_evaluation_values,
                         &evaluated_inputs,
                         action_items_requests,
                         &action_items_response,
