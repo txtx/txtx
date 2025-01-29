@@ -112,7 +112,8 @@ lazy_static! {
                     action "deploy" "svm::deploy_program" {
                         description = "Deploy hello world program"
                         program = svm::get_program_from_anchor_project("hello_world") 
-                        signers = [signer.deployer]
+                        authority = signer.authority
+                        payer = signer.payer  # Optional, defaults to authority
                     }
                 "#},
             }
