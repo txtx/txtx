@@ -97,7 +97,7 @@ fn test_signer_runbook_no_env() {
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     // sign tx
     {
-        let _ = harness.send_and_expect_action_item_update(
+        let _ = harness.send_and_expect_progress_bar_visibility_update(
             ActionItemResponse {
                 action_item_id: provide_signature_action.id.clone(),
                 payload: ActionItemResponseType::ProvideSignedTransaction(
@@ -113,6 +113,10 @@ fn test_signer_runbook_no_env() {
                     },
                 ),
             },
+            false,
+        );
+        let _ = harness.expect_action_item_update(
+            None,
             vec![(&provide_signature_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
@@ -167,6 +171,7 @@ fn test_signer_runbook_no_env() {
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
 
+    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }
 
@@ -313,7 +318,8 @@ fn test_multisig_runbook_no_env() {
 
     // alice signature
     let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000001020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc0002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
-    harness.send_and_expect_action_item_update(
+
+    harness.send_and_expect_progress_bar_visibility_update(
         ActionItemResponse {
             action_item_id: sign_tx_alice.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
@@ -329,12 +335,15 @@ fn test_multisig_runbook_no_env() {
                 },
             ),
         },
+        false,
+    );
+    harness.expect_action_item_update(
+        None,
         vec![
             (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
             (&sign_tx_bob.id, Some(ActionItemStatus::Todo)),
         ],
     );
-
     // bob signature
     let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000002020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc02003b4784204e1a01ea1e359862bd42d3654f3b4d72a938a1fe511f7acc91fb1e89740c469a7e39d344c5ffe7f52099517d6dedd701b152c7d804cffe49eafe10390002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     harness.send_and_expect_action_item_update(
@@ -399,7 +408,6 @@ fn test_multisig_runbook_no_env() {
         },
         vec![(&validate_signature.id, Some(ActionItemStatus::Success(None)))],
     );
-
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
 
     assert_eq!(
@@ -409,7 +417,7 @@ fn test_multisig_runbook_no_env() {
             .map(|v| &v.value),
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
-
+    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }
 

@@ -28,6 +28,14 @@ fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
     Ok(ConstructDid(Did::from_hex_string(signer)))
 }
 
+pub fn get_custom_signer_did(
+    args: &ValueStore,
+    signer_key: &str,
+) -> Result<ConstructDid, Diagnostic> {
+    let signer = args.get_expected_string(signer_key)?;
+    Ok(ConstructDid(Did::from_hex_string(signer)))
+}
+
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_TRANSACTION.clone(),

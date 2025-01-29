@@ -59,6 +59,13 @@ impl BlockEvent {
         }
     }
 
+    pub fn expect_progress_bar_visibility_update(&self) -> &ProgressBarVisibilityUpdate {
+        match &self {
+            BlockEvent::UpdateProgressBarVisibility(ref update) => update,
+            _ => unreachable!("block expected"),
+        }
+    }
+
     pub fn expect_runbook_completed(&self) {
         match &self {
             BlockEvent::RunbookCompleted => {}
@@ -481,6 +488,9 @@ impl ProgressSymbol {
     pub fn new() -> Self {
         ProgressSymbol { current: 0 }
     }
+    pub fn new_with_default_index(default_index: usize) -> Self {
+        ProgressSymbol { current: default_index }
+    }
     pub fn next(&mut self) -> &str {
         self.current = (self.current + 1) % PROGRESS_SYMBOLS.len();
         PROGRESS_SYMBOLS[self.current]
@@ -497,18 +507,39 @@ pub struct StatusUpdater {
     progress: ProgressSymbol,
 }
 impl StatusUpdater {
-    pub fn new(
+    fn _new(
         background_tasks_uuid: &Uuid,
         construct_did: &ConstructDid,
         tx: &channel::Sender<BlockEvent>,
+        mut progress: ProgressSymbol,
     ) -> Self {
-        let mut progress = ProgressSymbol::new();
         let initial_status = ProgressBarStatusUpdate::new(
             &background_tasks_uuid,
             &construct_did,
             &&ProgressBarStatus::new_msg(ProgressBarStatusColor::Yellow, &progress.pending(), ""),
         );
         StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
+    }
+    pub fn new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+    ) -> Self {
+        let progress = ProgressSymbol::new();
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
+    }
+
+    /// Creates a new StatusUpdater with a default progress index.
+    /// This is useful for creating a StatusUpdater for a transaction that is part of a larger set of transactions,
+    /// since each transaction's execution is independent, but we want to show progress for the entire set of transactions.
+    pub fn new_with_default_progress_index(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+        default_progress_index: usize,
+    ) -> Self {
+        let progress = ProgressSymbol::new_with_default_index(default_progress_index);
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
     }
 
     pub fn propagate_info(&mut self, info: &str) {

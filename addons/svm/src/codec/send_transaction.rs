@@ -9,15 +9,15 @@ use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandSpecification};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{
-    BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
-};
+use txtx_addon_kit::types::frontend::{BlockEvent, ProgressBarStatus, StatusUpdater};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::constants::{COMMITMENT_LEVEL, RPC_API_URL, SIGNATURE};
+use crate::constants::{
+    COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, RPC_API_URL, SIGNATURE,
+};
 
 pub fn send_transaction_background_task(
     construct_did: &ConstructDid,
@@ -28,35 +28,36 @@ pub fn send_transaction_background_task(
     background_tasks_uuid: &Uuid,
     _supervision_context: &RunbookSupervisionContext,
 ) -> CommandExecutionFutureResult {
-    let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
-    let commitment_level =
-        inputs.get_expected_string(COMMITMENT_LEVEL).unwrap_or("confirmed").to_string();
-
     let construct_did = construct_did.clone();
     let outputs = outputs.clone();
+    let inputs = inputs.clone();
     let progress_tx = progress_tx.clone();
     let background_tasks_uuid = background_tasks_uuid.clone();
 
     let future = async move {
-        let signed_transaction_value = outputs.get_value(SIGNED_TRANSACTION_BYTES).unwrap();
+        let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
+        let commitment_level = inputs.get_expected_string(COMMITMENT_LEVEL).unwrap_or("confirmed");
+        let do_await_confirmation = inputs.get_bool(DO_AWAIT_CONFIRMATION).unwrap_or(true);
+        let is_deployment = inputs.get_bool(IS_DEPLOYMENT).unwrap_or(false);
+
+        let signed_transaction_value = if is_deployment {
+            inputs.get_value(SIGNED_TRANSACTION_BYTES).unwrap()
+        } else {
+            outputs.get_value(SIGNED_TRANSACTION_BYTES).unwrap()
+        };
+
         let commitment_config = CommitmentConfig {
-            commitment: match commitment_level.as_str() {
+            commitment: match commitment_level {
                 "processed" => CommitmentLevel::Processed,
                 "confirmed" => CommitmentLevel::Confirmed,
                 "finalized" => CommitmentLevel::Finalized,
                 _ => CommitmentLevel::Processed,
             },
         };
+
         let client =
             Arc::new(RpcClient::new_with_commitment(rpc_api_url.clone(), commitment_config));
 
-        // let mut config = RpcSendTransactionConfig::default();
-        // config.preflight_commitment = match commitment_level.as_str() {
-        //     "processed" => Some(CommitmentLevel::Processed),
-        //     "confirmed" => Some(CommitmentLevel::Confirmed),
-        //     "finalized" => Some(CommitmentLevel::Finalized),
-        //     _ => Some(CommitmentLevel::Confirmed),
-        // };
         let mut status_updater =
             StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
@@ -65,8 +66,8 @@ pub fn send_transaction_background_task(
         let transaction_bytes = signed_transaction_value
             .expect_buffer_bytes_result()
             .map_err(|e| diagnosed_error!("{}", e))?;
-        let signature =
-            send_transaction(client.clone(), true, &transaction_bytes).map_err(|diag| {
+        let signature = send_transaction(client.clone(), do_await_confirmation, &transaction_bytes)
+            .map_err(|diag| {
                 status_updater.propagate_status(ProgressBarStatus::new_err(
                     "Failed",
                     "Failed to broadcast transaction",
@@ -76,11 +77,6 @@ pub fn send_transaction_background_task(
             })?;
         result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));
 
-        status_updater.propagate_status(ProgressBarStatus::new_msg(
-            ProgressBarStatusColor::Green,
-            "Complete",
-            &format!("Transaction {} broadcasting complete", signature),
-        ));
         Ok(result)
     };
 

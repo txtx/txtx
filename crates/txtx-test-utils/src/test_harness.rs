@@ -9,7 +9,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
-            ModalPanelData, NormalizedActionItemRequestUpdate,
+            ModalPanelData, NormalizedActionItemRequestUpdate, ProgressBarVisibilityUpdate,
         },
         AuthorizationContext, RunbookId,
     },
@@ -40,6 +40,15 @@ impl TestHarness {
             panic!("unable to receive input block");
         };
         event
+    }
+
+    pub fn send_and_expect_progress_bar_visibility_update(
+        &self,
+        response: ActionItemResponse,
+        expected_visibility: bool,
+    ) -> ProgressBarVisibilityUpdate {
+        self.send(&response);
+        self.expect_progress_bar_visibility_update(Some(response), expected_visibility)
     }
 
     pub fn send_and_expect_action_item_update(
@@ -74,6 +83,26 @@ impl TestHarness {
             assert_eq!(expected_updates[i].1.clone(), u.action_status, "{}", ctx);
         });
         updates.clone()
+    }
+
+    pub fn expect_progress_bar_visibility_update(
+        &self,
+        response: Option<ActionItemResponse>,
+        expected_visibility: bool,
+    ) -> ProgressBarVisibilityUpdate {
+        let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
+            panic!(
+                "unable to receive input block after sending action item response: {:?}",
+                response
+            );
+        };
+        let update = event.expect_progress_bar_visibility_update();
+        let ctx = format!(
+            "\n=> progress bar visibility update: {:?}\n=> expected visibility: {:?}\n=> actual update: {:?}",
+            response, expected_visibility, update
+        );
+        assert_eq!(update.visible, expected_visibility, "{}", ctx);
+        update.clone()
     }
 
     pub fn send_and_expect_action_panel(

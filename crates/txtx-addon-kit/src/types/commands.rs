@@ -29,7 +29,8 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     signers::{
-        consolidate_signer_activate_future_result, consolidate_signer_future_result,
+        consolidate_nested_execution_result, consolidate_signer_activate_future_result,
+        consolidate_signer_future_result, return_synchronous, PrepareSignedNestedExecutionResult,
         SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
     stores::ValueMap,
@@ -338,10 +339,13 @@ pub struct CommandSpecification {
     pub inputs_post_processing_closure: InputsPostProcessingClosure,
     pub check_instantiability: InstantiabilityChecker,
     pub check_executability: CommandCheckExecutabilityClosure,
+    pub prepare_nested_execution: CommandPrepareNestedExecution,
     pub run_execution: CommandExecutionClosure,
     pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
+    pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -490,6 +494,12 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
     ) -> CommandExecutionFutureResult,
 >;
 
+pub type CommandAggregateNestedExecutionResults = fn(
+    &ConstructDid,
+    &Vec<(ConstructDid, ValueStore)>,
+    &Vec<CommandExecutionResult>,
+) -> Result<CommandExecutionResult, Diagnostic>;
+
 pub type CommandSignedExecutionClosure = Box<
     fn(
         &ConstructDid,
@@ -521,6 +531,17 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &HashMap<ConstructDid, SignerInstance>,
     SignersState,
 ) -> SignerActionsFutureResult;
+
+pub type CommandSignedPrepareNestedExecution = fn(
+    &ConstructDid,
+    &str,
+    &ValueStore,
+    &HashMap<ConstructDid, SignerInstance>,
+    SignersState,
+) -> PrepareSignedNestedExecutionResult;
+
+pub type CommandPrepareNestedExecution =
+    fn(&ConstructDid, &str, &ValueStore) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic>;
 
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
@@ -779,6 +800,7 @@ impl CommandInstance {
     pub fn check_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
@@ -788,7 +810,8 @@ impl CommandInstance {
             &format!("{}_inputs", self.specification.matcher),
             &construct_did.value(),
         )
-        .with_defaults(&evaluated_inputs.inputs.defaults);
+        .with_defaults(&evaluated_inputs.inputs.defaults)
+        .append_inputs(&nested_evaluation_values.inputs);
 
         let mut consolidated_actions = Actions::none();
         match action_item_response {
@@ -872,6 +895,7 @@ impl CommandInstance {
     pub async fn perform_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
@@ -879,7 +903,8 @@ impl CommandInstance {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?
@@ -924,9 +949,46 @@ impl CommandInstance {
         res
     }
 
+    pub async fn prepare_signed_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        signers: SignersState,
+        signer_instances: &HashMap<ConstructDid, SignerInstance>,
+    ) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+        let future = (spec.prepare_signed_nested_execution)(
+            &construct_did,
+            &self.name,
+            &values,
+            signer_instances,
+            signers,
+        );
+        return consolidate_nested_execution_result(future, self.block.span()).await;
+    }
+
+    pub fn prepare_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+
+        (spec.prepare_nested_execution)(&construct_did, &self.name, &values)
+    }
+
     pub async fn check_signed_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
@@ -936,7 +998,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         // TODO
         let mut consolidated_actions = Actions::none();
@@ -1002,7 +1065,7 @@ impl CommandInstance {
             signers,
         );
         let (signer_state, mut actions) =
-            consolidate_signer_future_result(future, self.block.span()).await??;
+            consolidate_signer_future_result(future, self.block.span()).await?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((signer_state, consolidated_actions))
@@ -1011,6 +1074,7 @@ impl CommandInstance {
     pub async fn perform_signed_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -1020,7 +1084,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let future = (spec.run_signed_execution)(
@@ -1071,6 +1136,7 @@ impl CommandInstance {
     pub fn build_background_task(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         execution_result: &CommandExecutionResult,
         progress_tx: &channel::Sender<BlockEvent>,
@@ -1080,7 +1146,8 @@ impl CommandInstance {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
             .with_inputs(&evaluated_inputs.inputs.inputs)
-            .with_inputs_from_map(&execution_result.outputs);
+            .with_inputs_from_map(&execution_result.outputs)
+            .append_inputs(&nested_evaluation_values.inputs);
         let outputs = ValueStore::new(&self.name, &construct_did.value())
             .with_inputs_from_map(&execution_result.outputs);
 
@@ -1095,6 +1162,30 @@ impl CommandInstance {
             supervision_context,
         );
         res
+    }
+
+    pub fn aggregate_nested_execution_results(
+        &self,
+        construct_did: &ConstructDid,
+        nested_values: &Vec<(ConstructDid, ValueStore)>,
+        commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut nested_results = vec![];
+        for (nested_construct_did, _) in nested_values {
+            let nested_result = commands_execution_results
+                .get(nested_construct_did)
+                .cloned()
+                .unwrap_or_else(|| {
+                    return CommandExecutionResult::new();
+                });
+            nested_results.push(nested_result);
+        }
+
+        (self.specification.aggregate_nested_execution_results)(
+            &construct_did,
+            &nested_values,
+            &nested_results,
+        )
     }
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
@@ -1164,6 +1255,7 @@ pub trait CommandImplementation {
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
+
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
@@ -1183,6 +1275,49 @@ pub trait CommandImplementation {
         _signers_state: SignersState,
     ) -> SignerActionsFutureResult {
         unimplemented!()
+    }
+
+    fn prepare_signed_nested_execution(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        _values: &ValueStore,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_state: SignersState,
+    ) -> PrepareSignedNestedExecutionResult {
+        let signer_state = signers_state
+            .get_first_signer()
+            .expect(&format!("no signers provided for action '{}'", instance_name));
+        return_synchronous((
+            signers_state,
+            signer_state,
+            vec![(
+                construct_did.clone(),
+                ValueStore::new(&construct_did.to_string(), &construct_did.0),
+            )],
+        ))
+    }
+
+    fn prepare_nested_execution(
+        construct_did: &ConstructDid,
+        _instance_name: &str,
+        _values: &ValueStore,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        Ok(vec![(
+            construct_did.clone(),
+            ValueStore::new(&construct_did.to_string(), &construct_did.0),
+        )])
+    }
+
+    fn aggregate_nested_execution_results(
+        _construct_did: &ConstructDid,
+        _values: &Vec<(ConstructDid, ValueStore)>,
+        nested_results: &Vec<CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut result = CommandExecutionResult::new();
+        for nested_result in nested_results {
+            result.outputs.extend(nested_result.outputs.clone());
+        }
+        Ok(result)
     }
 
     fn run_signed_execution(

@@ -1,6 +1,8 @@
 pub const NAMESPACE: &str = "svm";
 pub const SIGNERS: &str = "signers";
 pub const SIGNER: &str = "signer";
+pub const PAYER: &str = "payer";
+pub const AUTHORITY: &str = "authority";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
@@ -36,15 +38,16 @@ pub const IS_SIGNER: &str = "is_signer";
 pub const IS_WRITABLE: &str = "is_writable";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const PARTIALLY_SIGNED_TRANSACTION_BYTES: &str = "partially_signed_transaction_bytes";
+pub const UPDATED_PARTIALLY_SIGNED_TRANSACTION: &str = "updated_partially_signed_transaction";
 pub const NETWORK_ID: &str = "network_id";
 pub const AUTO_EXTEND: &str = "auto_extend";
 pub const COMMITMENT_LEVEL: &str = "commitment_level";
 pub const DO_AWAIT_CONFIRMATION: &str = "do_await_confirmation";
 pub const SIGNATURE: &str = "signature";
+pub const SIGNATURES: &str = "signatures";
 pub const IS_DEPLOYMENT: &str = "is_deployment";
 pub const AMOUNT: &str = "amount";
 pub const RECIPIENT: &str = "recipient";
-pub const AUTHORITY: &str = "authority";
 pub const TOKEN: &str = "token";
 pub const FUND_RECIPIENT: &str = "fund_recipient";
 pub const AUTHORITY_ADDRESS: &str = "authority_address";

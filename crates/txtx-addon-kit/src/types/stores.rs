@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
-use super::{commands::CommandInput, diagnostics::Diagnostic, types::Value, Did, CACHED_NONCE};
+use super::{
+    commands::CommandInput, diagnostics::Diagnostic, types::Value, ConstructDid, Did, CACHED_NONCE,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValueStore {
@@ -33,6 +35,12 @@ impl ValueStore {
         self.inputs = inputs.clone();
         self
     }
+
+    pub fn append_inputs(mut self, new_inputs: &ValueMap) -> Self {
+        self.inputs = self.inputs.append_store(&new_inputs.store);
+        self
+    }
+
     pub fn with_defaults(mut self, defaults: &ValueMap) -> Self {
         self.defaults = defaults.clone();
         self
@@ -102,6 +110,14 @@ impl ValueStore {
         match self.inputs.get_expected_value(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_value(key).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
+    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+        match self.inputs.get_expected_construct_did(key) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_construct_did(key).or(Err(e)),
         }
         .map_err(|e| e)
     }
@@ -207,6 +223,10 @@ impl ValueStore {
 
     pub fn clear_scoped_value(&mut self, scope: &str, key: &str) {
         self.inputs.store.swap_remove(&format!("{}:{}", scope, key));
+    }
+
+    pub fn remove_scoped_value(&mut self, scope: &str, key: &str) -> Option<Value> {
+        self.inputs.store.shift_remove(&format!("{}:{}", scope, key))
     }
 
     pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
@@ -316,6 +336,14 @@ impl ValueMap {
         self.store = store.clone();
         self
     }
+    pub fn append_store(mut self, new_store: &IndexMap<String, Value>) -> Self {
+        for (k, v) in new_store.into_iter() {
+            if !self.store.contains_key(k) {
+                self.store.insert(k.to_string(), v.clone());
+            }
+        }
+        self
+    }
 
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.store.get(key) else {
@@ -341,6 +369,12 @@ impl ValueMap {
             )));
         };
         Ok(value)
+    }
+
+    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+        let value = self.get_expected_string(key)?;
+        let construct_did = ConstructDid::from_hex_string(value);
+        Ok(construct_did)
     }
 
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {

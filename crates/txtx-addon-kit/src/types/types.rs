@@ -676,12 +676,17 @@ impl Value {
 //     }
 // }
 
+#[derive(Clone, Debug)]
 pub struct ObjectType {
     map: IndexMap<String, Value>,
 }
 impl ObjectType {
     pub fn new() -> Self {
         ObjectType { map: IndexMap::new() }
+    }
+
+    pub fn from_map(map: IndexMap<String, Value>) -> Self {
+        ObjectType { map }
     }
 
     pub fn from(default: Vec<(&str, Value)>) -> Self {

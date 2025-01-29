@@ -353,65 +353,104 @@ impl RunbookExecutionContext {
             return LoopEvaluationResult::Continue;
         }
 
+        let executions_for_action =
+            match command_instance.prepare_nested_execution(&construct_did, &evaluated_inputs) {
+                Ok(executions) => executions,
+                Err(diag) => {
+                    pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
+                    return LoopEvaluationResult::Bail;
+                }
+            };
+
         // This time, we borrow a mutable reference
         let Some(command_instance) = self.commands_instances.get_mut(&construct_did) else {
             return LoopEvaluationResult::Continue;
         };
 
-        match command_instance.check_executability(
-            &construct_did,
-            &mut evaluated_inputs,
-            &mut self.signers_instances,
-            &None,
-            supervision_context,
-        ) {
-            Ok(new_actions) => {
-                if new_actions.has_pending_actions() {
+        for (nested_construct_did, nested_evaluation_values) in executions_for_action.iter() {
+            if let Some(_) = self.commands_execution_results.get(&nested_construct_did) {
+                continue;
+            }
+
+            match command_instance.check_executability(
+                &construct_did,
+                &nested_evaluation_values,
+                &mut evaluated_inputs,
+                &mut self.signers_instances,
+                &None,
+                supervision_context,
+            ) {
+                Ok(new_actions) => {
+                    if new_actions.has_pending_actions() {
+                        if let Some(deps) = self.commands_dependencies.get(&construct_did) {
+                            for dep in deps.iter() {
+                                unexecutable_nodes.insert(dep.clone());
+                            }
+                        }
+                        return LoopEvaluationResult::Continue;
+                    }
+                }
+                Err(diag) => {
+                    pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
+                    return LoopEvaluationResult::Continue;
+                }
+            }
+            self.commands_inputs_evaluation_results
+                .insert(construct_did.clone(), evaluated_inputs.clone());
+
+            let execution_result = {
+                command_instance
+                    .perform_execution(
+                        &construct_did,
+                        &nested_evaluation_values,
+                        &evaluated_inputs,
+                        &mut vec![],
+                        &None,
+                        &tx,
+                    )
+                    .await
+            };
+
+            let execution_result = match execution_result {
+                Ok(result) => Ok(result),
+                Err(e) => {
                     if let Some(deps) = self.commands_dependencies.get(&construct_did) {
                         for dep in deps.iter() {
                             unexecutable_nodes.insert(dep.clone());
                         }
                     }
+                    Err(e)
+                }
+            };
+
+            let mut execution_result = match execution_result {
+                Ok(res) => res,
+                Err(diag) => {
+                    pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
                     return LoopEvaluationResult::Continue;
                 }
+            };
+            self.commands_execution_results
+                .entry(construct_did.clone())
+                .or_insert_with(CommandExecutionResult::new)
+                .append(&mut execution_result);
+        }
+
+        let res = command_instance.aggregate_nested_execution_results(
+            &construct_did,
+            &executions_for_action,
+            &self.commands_execution_results,
+        );
+
+        match res {
+            Ok(result) => {
+                self.commands_execution_results.insert(construct_did.clone(), result);
             }
             Err(diag) => {
                 pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
         }
-
-        self.commands_inputs_evaluation_results
-            .insert(construct_did.clone(), evaluated_inputs.clone());
-        let execution_result = {
-            command_instance
-                .perform_execution(&construct_did, &evaluated_inputs, &mut vec![], &None, &tx)
-                .await
-        };
-
-        let execution_result = match execution_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                if let Some(deps) = self.commands_dependencies.get(&construct_did) {
-                    for dep in deps.iter() {
-                        unexecutable_nodes.insert(dep.clone());
-                    }
-                }
-                Err(e)
-            }
-        };
-
-        let mut execution_result = match execution_result {
-            Ok(res) => res,
-            Err(diag) => {
-                pass_result.push_diagnostic(&diag, &construct_id, &add_ctx_to_diag);
-                return LoopEvaluationResult::Continue;
-            }
-        };
-        self.commands_execution_results
-            .entry(construct_did.clone())
-            .or_insert_with(CommandExecutionResult::new)
-            .append(&mut execution_result);
 
         LoopEvaluationResult::Continue
     }

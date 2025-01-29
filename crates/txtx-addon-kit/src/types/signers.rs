@@ -1,4 +1,6 @@
-use crate::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, CHECKED_ADDRESS, PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+};
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
@@ -28,6 +30,10 @@ pub struct SignersState {
 impl SignersState {
     pub fn new() -> SignersState {
         SignersState { store: HashMap::new() }
+    }
+
+    pub fn get_first_signer(&self) -> Option<ValueStore> {
+        self.store.values().next().cloned()
     }
 
     pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
@@ -156,6 +162,12 @@ pub type SignerActionsFutureResult = Result<
     SignerActionErr,
 >;
 
+pub type PrepareSignedNestedExecutionResult = Result<
+    Pin<Box<dyn Future<Output = Result<PrepareNestedExecutionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
+>;
+pub type PrepareNestedExecutionOk = (SignersState, ValueStore, Vec<(ConstructDid, ValueStore)>);
+
 pub type SignerCheckInstantiabilityClosure =
     fn(&SignerSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
 
@@ -178,6 +190,15 @@ pub type SignerOperationFutureResult = Result<
     Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
     SignerActionErr,
 >;
+
+pub fn return_synchronous<T>(
+    res: T,
+) -> Result<Pin<Box<dyn Future<Output = Result<T, SignerActionErr>> + Send>>, SignerActionErr>
+where
+    T: std::marker::Send + 'static,
+{
+    Ok(Box::pin(future::ready(Ok(res))))
+}
 
 pub fn return_synchronous_actions(
     res: Result<CheckSignabilityOk, SignerActionErr>,
@@ -225,10 +246,40 @@ pub fn consolidate_signer_result(
 pub async fn consolidate_signer_future_result(
     future: SignerActionsFutureResult,
     block_span: Option<std::ops::Range<usize>>,
-) -> Result<Result<(SignersState, Actions), (SignersState, Diagnostic)>, (SignersState, Diagnostic)>
-{
+) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
     match future {
-        Ok(res) => Ok(consolidate_signer_result(res.await, block_span)),
+        Ok(res) => match res.await {
+            Ok((mut signers, signer_state, actions)) => {
+                signers.push_signer_state(signer_state);
+                Ok((signers, actions))
+            }
+            Err((mut signers, signer_state, diag)) => {
+                signers.push_signer_state(signer_state);
+                Err((signers, diag.set_span_range(block_span)))
+            }
+        },
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag.set_span_range(block_span)))
+        }
+    }
+}
+
+pub async fn consolidate_nested_execution_result(
+    future: PrepareSignedNestedExecutionResult,
+    block_span: Option<std::ops::Range<usize>>,
+) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+    match future {
+        Ok(res) => match res.await {
+            Ok((mut signers, signer_state, res)) => {
+                signers.push_signer_state(signer_state);
+                Ok((signers, res))
+            }
+            Err((mut signers, signer_state, diag)) => {
+                signers.push_signer_state(signer_state);
+                Err((signers, diag.set_span_range(block_span)))
+            }
+        },
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
             Err((signers, diag.set_span_range(block_span)))
@@ -350,7 +401,7 @@ impl SignerInstance {
         evaluated_inputs: &CommandInputsEvaluationResult,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
+        action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
         authorization_context: &AuthorizationContext,
@@ -365,53 +416,34 @@ impl SignerInstance {
 
         match action_item_responses {
             Some(responses) => {
-                for ActionItemResponse { payload, .. } in responses.iter() {
+                for ActionItemResponse { payload, action_item_id } in responses.iter() {
                     match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
                             values.insert(
                                 PROVIDE_PUBLIC_KEY_ACTION_RESULT,
                                 Value::string(update.public_key.clone()),
                             );
-
-                            let signer_state = signers.pop_signer_state(construct_did).unwrap();
-                            let res = ((&self.specification).check_activability)(
-                                &construct_did,
-                                &self.name,
-                                &self.specification,
-                                &values,
-                                signer_state,
-                                signers,
-                                signers_instances,
-                                &supervision_context,
-                                &authorization_context,
-                                is_balance_check_required,
-                                is_public_key_required,
-                            );
-                            return consolidate_signer_future_result(res, self.block.span())
-                                .await?;
-                            // WIP
-                            // let (status, success) = match &res {
-                            //     Ok((_, actions)) => {
-
-                            //         (ActionItemStatus::Success(message.clone()), true)
-                            //     }
-                            //     Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
-                            // };
-
-                            // match request.action_type {
-                            //     ActionItemRequestType::ReviewInput => {
-                            //         request.action_status = status.clone();
-                            //     }
-                            //     ActionItemRequestType::ProvidePublicKey(_) => {
-                            //         if success {
-                            //             request.action_status = status.clone();
-                            //         }
-                            //     }
-                            //     _ => unreachable!(),
-                            // }
-
-                            // for request in action_item_requests.iter() {}
                         }
+                        ActionItemResponseType::ReviewInput(response) => {
+                            if response.value_checked {
+                                let request = action_item_requests.map(|requests| {
+                                    requests.iter().find(|r| r.id.eq(&action_item_id))
+                                });
+                                if let Some(Some(request)) = request {
+                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                        let data = request
+                                            .action_type
+                                            .as_review_input()
+                                            .expect("review input action item");
+                                        values.insert(
+                                            CHECKED_ADDRESS,
+                                            Value::string(data.value.to_string()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
                         _ => {}
                     }
                 }
@@ -435,7 +467,7 @@ impl SignerInstance {
             is_public_key_required,
         );
 
-        consolidate_signer_future_result(res, self.block.span()).await?
+        consolidate_signer_future_result(res, self.block.span()).await
     }
 
     pub async fn perform_activation(

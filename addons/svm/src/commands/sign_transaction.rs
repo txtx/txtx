@@ -1,3 +1,4 @@
+use crate::codec::transaction_is_fully_signed;
 use crate::commands::get_signers_did;
 use crate::typing::{SvmValue, SVM_TRANSACTION};
 use solana_sdk::signature::Signature;
@@ -15,7 +16,10 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
-use crate::constants::{IS_DEPLOYMENT, PARTIALLY_SIGNED_TRANSACTION_BYTES, TRANSACTION_BYTES};
+use crate::constants::{
+    IS_DEPLOYMENT, PARTIALLY_SIGNED_TRANSACTION_BYTES, TRANSACTION_BYTES,
+    UPDATED_PARTIALLY_SIGNED_TRANSACTION,
+};
 
 use super::get_signer_did;
 
@@ -92,18 +96,24 @@ impl CommandImplementation for SignTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+        use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED};
 
-        let signers_dids_with_instances =
-            get_signers_and_instance(values, signers_instances).unwrap();
+        use crate::constants::FORMATTED_TRANSACTION;
+
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
-        let args = values.clone();
+        let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
 
         let future = async move {
             let mut actions = Actions::none();
+
+            let description =
+                values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+
+            let signers_dids_with_instances =
+                get_signers_and_instance(&values, &signers_instances).unwrap();
             let signers_count = signers_dids_with_instances.len();
             let mut cursor = 0;
 
@@ -118,12 +128,15 @@ impl CommandImplementation for SignTransaction {
                     .is_some();
 
                 if !signer_already_signed && !signer_already_approved {
-                    let payload = args.get_value(TRANSACTION_BYTES).unwrap().clone();
+                    let payload = values.get_value(TRANSACTION_BYTES).unwrap().clone();
 
-                    let description = args
-                        .get_expected_string("description")
-                        .ok()
-                        .and_then(|d| Some(d.to_string()));
+                    if let Some(formatted_transaction) = values.get_value(FORMATTED_TRANSACTION) {
+                        signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            FORMATTED_TRANSACTION,
+                            formatted_transaction.clone(),
+                        );
+                    };
 
                     let (new_signers, new_signer_state, mut signer_actions) =
                         (signer_instance.specification.check_signability)(
@@ -132,7 +145,7 @@ impl CommandImplementation for SignTransaction {
                             &description,
                             &payload,
                             &signer_instance.specification,
-                            &args,
+                            &values,
                             signer_state.clone(),
                             signers,
                             &signers_instances,
@@ -167,118 +180,138 @@ impl CommandImplementation for SignTransaction {
         let signers_instances = signers_instances.clone();
 
         let future = async move {
+            let title =
+                values.get_expected_string("description").unwrap_or("New Transaction".into());
+
+            let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
+
             let signers_dids_with_instances =
                 get_signers_and_instance(&values, &signers_instances).unwrap();
 
             let signers_count = signers_dids_with_instances.len();
 
-            let (first_signer_did, first_signer_instance) =
+            let (first_signer_did, _first_signer_instance) =
                 signers_dids_with_instances.first().unwrap();
             let first_signer_state = signers.get_signer_state(first_signer_did).unwrap().clone();
 
-            let title =
-                values.get_expected_string("description").unwrap_or("New Transaction".into());
+            let payload = if is_deployment {
+                values.get_value(TRANSACTION_BYTES).unwrap()
+            } else {
+                first_signer_state
+                    .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
+                    .unwrap()
+            };
+            let mut combined_transaction = SvmValue::to_transaction(&payload).unwrap();
+            let mut cursor = 0;
 
-            // we'll assume just one signer for deployments
-            let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
-            if is_deployment {
-                let payload = values.get_value(TRANSACTION_BYTES).unwrap();
+            for (signer_did, signer_instance) in signers_dids_with_instances {
+                let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-                let res = (first_signer_instance.specification.sign)(
+                match (signer_instance.specification.sign)(
                     &construct_did,
                     title,
                     &payload,
-                    &first_signer_instance.specification,
+                    &signer_instance.specification,
                     &values,
-                    first_signer_state,
+                    signer_state,
                     signers,
                     &signers_instances,
-                )?;
-                return res.await;
-            } else {
-                let payload = first_signer_state
-                    .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
-                    .unwrap();
-                let mut combined_transaction = SvmValue::to_transaction(&payload).unwrap();
-                let mut cursor = 0;
-
-                for (signer_did, signer_instance) in signers_dids_with_instances {
-                    let signer_state = signers.pop_signer_state(&signer_did).unwrap();
-
-                    if let Some(fully_signed_transaction_bytes) = signer_state.get_scoped_value(
-                        &construct_did.value().to_string(),
-                        SIGNED_TRANSACTION_BYTES,
-                    ) {
-                        let mut result = CommandExecutionResult::new();
-                        result.outputs.insert(
-                            SIGNED_TRANSACTION_BYTES.into(),
-                            fully_signed_transaction_bytes.clone(),
-                        );
-                        return Ok((signers, signer_state, result));
-                    }
-
-                    match (signer_instance.specification.sign)(
-                        &construct_did,
-                        title,
-                        &payload,
-                        &signer_instance.specification,
-                        &values,
-                        signer_state,
-                        signers,
-                        &signers_instances,
-                    ) {
-                        Ok(res) => match res.await {
-                            Ok((new_signers, new_signer_state, results)) => {
-                                let partial_signed_tx_value = results
-                                    .outputs
-                                    .get(PARTIALLY_SIGNED_TRANSACTION_BYTES)
-                                    .expect("Signed transaction bytes not found");
+                ) {
+                    Ok(res) => match res.await {
+                        Ok((new_signers, new_signer_state, results)) => {
+                            let partial_signed_tx = if let Some(partial_signed_tx_value) =
+                                results.outputs.get(PARTIALLY_SIGNED_TRANSACTION_BYTES)
+                            {
                                 let partial_signed_tx = SvmValue::to_transaction(
                                     partial_signed_tx_value,
                                 )
                                 .map_err(|e| (new_signers.clone(), new_signer_state.clone(), e))?;
+                                partial_signed_tx
+                            } else {
+                                // if the transaction was "updated" by the downstream signer,
+                                // update the combined transaction to match the updated transaction
+                                let partial_signed_tx_value = results
+                                    .outputs
+                                    .get(UPDATED_PARTIALLY_SIGNED_TRANSACTION)
+                                    .expect("Signed transaction bytes not found");
 
-                                for (i, sig) in partial_signed_tx.signatures.iter().enumerate() {
-                                    if sig != &Signature::default() {
-                                        combined_transaction.signatures[i] = sig.clone();
-                                    }
-                                }
-                                let all_txtx_signers_signed = cursor == signers_count - 1;
-                                let is_fully_signed = combined_transaction.is_signed();
+                                let partial_signed_tx = SvmValue::to_transaction(
+                                    partial_signed_tx_value,
+                                )
+                                .map_err(|e| (new_signers.clone(), new_signer_state.clone(), e))?;
+                                combined_transaction = partial_signed_tx.clone();
+                                partial_signed_tx
+                            };
 
-                                if is_fully_signed {
-                                    let mut result = CommandExecutionResult::new();
-                                    result.outputs.insert(
-                                        SIGNED_TRANSACTION_BYTES.into(),
-                                        SvmValue::transaction(&combined_transaction).map_err(
-                                            |e| (new_signers.clone(), new_signer_state.clone(), e),
-                                        )?,
-                                    );
-                                    return Ok((new_signers, new_signer_state, result));
+                            let participant_has_signed = combined_transaction
+                                .signatures
+                                .iter()
+                                .any(|sig| sig != &Signature::default());
+
+                            // if we've already added signatures to our combined transaction,
+                            // and the new signatures were signed with a different blockhash,
+                            // we'll return an error
+                            if participant_has_signed
+                                && partial_signed_tx.message.recent_blockhash
+                                    != combined_transaction.message.recent_blockhash
+                            {
+                                return Err((
+                                    new_signers.clone(),
+                                    new_signer_state.clone(),
+                                    diagnosed_error!(
+                                        "Transaction has been signed with a different blockhash;"
+                                    ),
+                                ));
+                            }
+
+                            // if this is the first time we're adding signatures to the combined transaction,
+                            // and the new signatures were signed with a different blockhash,
+                            // we'll update the combined transaction to match the updated blockhash
+                            if partial_signed_tx.message.recent_blockhash
+                                != combined_transaction.message.recent_blockhash
+                            {
+                                combined_transaction.message.recent_blockhash =
+                                    partial_signed_tx.message.recent_blockhash;
+                            }
+
+                            // add the new signatures to the combined transaction
+                            for (i, sig) in partial_signed_tx.signatures.iter().enumerate() {
+                                if sig != &Signature::default() {
+                                    combined_transaction.signatures[i] = sig.clone();
                                 }
-                                if all_txtx_signers_signed {
-                                    return Err((
+                            }
+
+                            if transaction_is_fully_signed(&combined_transaction) {
+                                let mut result = CommandExecutionResult::new();
+
+                                combined_transaction.verify_and_hash_message().map_err(|e| {
+                                    (
+                                        new_signers.clone(),
+                                        new_signer_state.clone(),
+                                        diagnosed_error!(
+                                            "failed to verify signed transaction: {e}"
+                                        ),
+                                    )
+                                })?;
+                                result.outputs.insert(
+                                    SIGNED_TRANSACTION_BYTES.into(),
+                                    SvmValue::transaction(&combined_transaction).map_err(|e| {
+                                        (new_signers.clone(), new_signer_state.clone(), e)
+                                    })?,
+                                );
+                                return Ok((new_signers, new_signer_state, result));
+                            }
+
+                            let all_txtx_signers_signed = cursor == signers_count - 1;
+                            if all_txtx_signers_signed {
+                                return Err((
                                         new_signers,
                                         new_signer_state,
                                         diagnosed_error!("all provided signers have signed the transaction, but the transaction is not fully signed"),
                                     ));
-                                }
-                                signers = new_signers;
                             }
-                            Err((signers, signer_state, diag)) => {
-                                return Err((
-                                    signers,
-                                    signer_state,
-                                    diagnosed_error!(
-                                        "'{}::{}' signer '{}' failed to sign transaction: {}",
-                                        signer_instance.namespace,
-                                        signer_instance.specification.matcher,
-                                        signer_instance.name,
-                                        diag.message
-                                    ),
-                                ));
-                            }
-                        },
+                            signers = new_signers;
+                        }
                         Err((signers, signer_state, diag)) => {
                             return Err((
                                 signers,
@@ -292,12 +325,25 @@ impl CommandImplementation for SignTransaction {
                                 ),
                             ));
                         }
-                    };
+                    },
+                    Err((signers, signer_state, diag)) => {
+                        return Err((
+                            signers,
+                            signer_state,
+                            diagnosed_error!(
+                                "'{}::{}' signer '{}' failed to sign transaction: {}",
+                                signer_instance.namespace,
+                                signer_instance.specification.matcher,
+                                signer_instance.name,
+                                diag.message
+                            ),
+                        ));
+                    }
+                };
 
-                    cursor += 1;
-                }
-                unreachable!("no signers found");
-            };
+                cursor += 1;
+            }
+            unreachable!("no signers found");
         };
         Ok(Box::pin(future))
     }

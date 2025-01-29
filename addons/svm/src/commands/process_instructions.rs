@@ -206,18 +206,6 @@ impl CommandImplementation for ProcessInstructions {
                 Err(err) => return Err(err),
             };
 
-            let transaction_value = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-
-            let transaction = SvmValue::to_transaction(&transaction_value)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
-            let _ = transaction.verify_and_hash_message().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to verify and hash transaction message: {}", e),
-                )
-            })?;
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
