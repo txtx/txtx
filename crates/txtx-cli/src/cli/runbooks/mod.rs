@@ -469,7 +469,14 @@ pub async fn run_action(
     let evaluated_inputs = CommandInputsEvaluationResult { inputs, unevaluated_inputs };
 
     let _res = command
-        .perform_execution(&ConstructDid(construct_did), &evaluated_inputs, &mut vec![], &None, &tx)
+        .perform_execution(
+            &ConstructDid(construct_did.clone()),
+            &ValueStore::new("inputs", &construct_did), // todo: we need to actually pass the nested evaluation values
+            &evaluated_inputs,
+            &mut vec![],
+            &None,
+            &tx,
+        )
         .await?;
     Ok(())
 }

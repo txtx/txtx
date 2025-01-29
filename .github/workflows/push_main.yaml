@@ -117,7 +117,7 @@ jobs:
       - name: Build Supervisor UI
         run: |
           cd txtx-supervisor-ui
-          npm i
+          npm run i
           npm run build
           cd ..
 

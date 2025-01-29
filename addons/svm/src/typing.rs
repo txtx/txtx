@@ -1,10 +1,15 @@
 use std::str::FromStr;
 
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, transaction::Transaction};
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    types::{ObjectProperty, Type, Value},
+use txtx_addon_kit::{
+    hex,
+    types::{
+        diagnostics::Diagnostic,
+        types::{ObjectProperty, Type, Value},
+    },
 };
+
+use crate::codec::DeploymentTransaction;
 
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
@@ -20,8 +25,24 @@ pub const SVM_IDL: &str = "svm::idl";
 pub const SVM_KEYPAIR: &str = "svm::keypair";
 pub const SVM_PUBKEY: &str = "svm::pubkey";
 pub const SVM_TRANSACTION_WITH_KEYPAIRS: &str = "svm::transaction_with_keypairs";
+pub const SVM_DEPLOYMENT_TRANSACTION: &str = "svm::deployment_transaction";
+pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
+    "svm::close_temp_authority_transaction_parts";
+pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
+pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
+pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
 
 pub struct SvmValue {}
+
+fn is_hex(str: &str) -> bool {
+    decode_hex(str).map(|_| true).unwrap_or(false)
+}
+
+fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
+    let stripped = if str.starts_with("0x") { &str[2..] } else { &str[..] };
+    hex::decode(stripped)
+        .map_err(|e| diagnosed_error!("string '{}' could not be decoded to hex bytes: {}", str, e))
+}
 
 impl SvmValue {
     pub fn address(bytes: Vec<u8>) -> Value {
@@ -36,6 +57,10 @@ impl SvmValue {
         Value::addon(bytes, SVM_BYTES32)
     }
 
+    pub fn transaction_from_bytes(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_TRANSACTION)
+    }
+
     pub fn transaction(transaction: &Transaction) -> Result<Value, Diagnostic> {
         let bytes = serde_json::to_vec(&transaction)
             .map_err(|e| diagnosed_error!("failed to deserialize transaction: {e}"))?;
@@ -45,17 +70,30 @@ impl SvmValue {
     pub fn to_transaction(value: &Value) -> Result<Transaction, Diagnostic> {
         match value {
             Value::String(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s)?;
+                    return serde_json::from_slice(&hex)
+                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
+                }
                 return serde_json::from_str(s)
-                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))
+                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
             }
             Value::Addon(addon_data) => {
-                if addon_data.id != SVM_TRANSACTION {
+                if addon_data.id == SVM_TRANSACTION {
+                    return serde_json::from_slice(&addon_data.bytes)
+                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
+                } else if addon_data.id == SVM_DEPLOYMENT_TRANSACTION
+                    || addon_data.id == SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS
+                {
+                    let deployment_transaction = DeploymentTransaction::from_value(value)
+                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))?;
+                    return Ok(deployment_transaction.transaction);
+                } else {
                     return Err(diagnosed_error!(
-                        "could not deserialize transaction: expected addon id '{SVM_TRANSACTION}' but got '{}'",addon_data.id
+                        "could not deserialize addon type '{}' into transaction",
+                        addon_data.id
                     ));
                 }
-                return serde_json::from_slice(&addon_data.bytes)
-                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
             }
             _ => {
                 return Err(diagnosed_error!(
@@ -97,6 +135,12 @@ impl SvmValue {
         Value::addon(bytes, SVM_KEYPAIR)
     }
 
+    pub fn to_keypair(value: &Value) -> Result<Keypair, Diagnostic> {
+        let bytes = value.to_bytes();
+        Keypair::from_bytes(&bytes)
+            .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))
+    }
+
     pub fn pubkey(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_PUBKEY)
     }
@@ -104,8 +148,15 @@ impl SvmValue {
     pub fn to_pubkey(value: &Value) -> Result<Pubkey, String> {
         match value.as_string() {
             Some(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e.message)?;
+                    let bytes: [u8; 32] = hex[0..32]
+                        .try_into()
+                        .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+                    return Ok(Pubkey::new_from_array(bytes));
+                }
                 return Pubkey::from_str(s)
-                    .map_err(|e| format!("could not convert value to pubkey: {e}"))
+                    .map_err(|e| format!("could not convert value to pubkey: {e}"));
             }
             None => {}
         };
@@ -116,12 +167,12 @@ impl SvmValue {
         Ok(Pubkey::new_from_array(bytes))
     }
 
-    pub fn transaction_with_keypairs(transaction_bytes: Vec<u8>, keypairs: Vec<&Keypair>) -> Value {
-        let keypairs_bytes: Vec<Vec<u8>> =
-            keypairs.iter().map(|keypair| keypair.to_bytes().to_vec()).collect();
-        let transaction_with_keypairs = (&transaction_bytes, &keypairs_bytes);
-        let bytes = serde_json::to_vec(&transaction_with_keypairs).unwrap();
-        Value::addon(bytes, SVM_TRANSACTION_WITH_KEYPAIRS)
+    pub fn deployment_transaction(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_DEPLOYMENT_TRANSACTION)
+    }
+
+    pub fn close_temp_authority_transaction_parts(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS)
     }
 }
 
@@ -230,4 +281,49 @@ lazy_static! {
             internal: false
         }
     ]);
+
+    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_object_type! {
+        create_temp_authority: {
+            documentation: "The signature of the create temp authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        create_buffer: {
+            documentation: "The signature of the create buffer transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        write_to_buffer: {
+            documentation: "The signature of the write to buffer transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        transfer_buffer_authority: {
+            documentation: "The signature of the transfer buffer authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        deploy_program: {
+            documentation: "The signature of the deploy program transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        upgrade_program: {
+            documentation: "The signature of the upgrade program transaction.",
+            typing: Type::array(Type::string()),
+            optional: true,
+            tainting: true
+        },
+        close_temp_authority: {
+            documentation: "The signature of the close temp authority transaction.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        }
+    };
 }
