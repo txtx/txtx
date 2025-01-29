@@ -300,25 +300,28 @@ impl DeploymentTransaction {
 
     pub fn get_signers_dids(
         &self,
-        values: &ValueStore,
+        authority_signer_did: ConstructDid,
+        payer_signer_did: ConstructDid,
     ) -> Result<Option<Vec<ConstructDid>>, Diagnostic> {
-        let signer_key = match &self.signers {
-            Some(signers) => {
-                Some(signers.iter().map(|s| s.to_signer_key()).collect::<Vec<String>>())
-            }
+        let signer_dids = match &self.signers {
+            Some(signers) => Some(
+                signers
+                    .iter()
+                    .filter_map(|s| {
+                        if s.to_signer_key() == AUTHORITY {
+                            Some(authority_signer_did.clone())
+                        } else if s.to_signer_key() == PAYER {
+                            Some(payer_signer_did.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<ConstructDid>>(),
+            ),
             None => None,
         };
 
-        let Some(signer_key) = signer_key else {
-            return Ok(None);
-        };
-
-        let signer_dids = signer_key
-            .iter()
-            .map(|key| get_custom_signer_did(values, key))
-            .collect::<Result<Vec<ConstructDid>, Diagnostic>>()?;
-
-        Ok(Some(signer_dids))
+        Ok(signer_dids)
     }
 
     pub fn get_formatted_transaction(

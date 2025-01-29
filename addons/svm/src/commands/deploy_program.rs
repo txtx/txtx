@@ -380,13 +380,16 @@ impl CommandImplementation for DeployProgram {
             return return_synchronous((signers, authority_signer_state, Actions::none()));
         }
 
-        let signers_dids = deployment_transaction.get_signers_dids(&values).map_err(|e| {
-            (
-                signers.clone(),
-                authority_signer_state.clone(),
-                diagnosed_error!("failed to get signers for deployment transaction: {}", e),
-            )
-        })?;
+        let (authority_signer_did, payer_signer_did) = get_deployment_dids(&values);
+        let signers_dids = deployment_transaction
+            .get_signers_dids(authority_signer_did, payer_signer_did)
+            .map_err(|e| {
+                (
+                    signers.clone(),
+                    authority_signer_state.clone(),
+                    diagnosed_error!("failed to get signers for deployment transaction: {}", e),
+                )
+            })?;
 
         // we only need to check signability if there are signers for this transaction
         if let Some(signers_dids) = signers_dids {
@@ -478,7 +481,10 @@ impl CommandImplementation for DeployProgram {
                 return Ok((signers, authority_signer_state, result));
             }
 
-            let signers_dids = deployment_transaction.get_signers_dids(&values).unwrap();
+            let (authority_signer_did, payer_signer_did) = get_deployment_dids(&values);
+            let signers_dids = deployment_transaction
+                .get_signers_dids(authority_signer_did, payer_signer_did)
+                .unwrap();
 
             if let Some(signers_dids) = signers_dids {
                 values.insert(
@@ -725,4 +731,11 @@ pub fn pop_deployment_signers<'a>(
     };
 
     ((authority_signer_did, authority_signer_state), (payer_signer_did, payer_signer_state))
+}
+
+pub fn get_deployment_dids(values: &ValueStore) -> (ConstructDid, ConstructDid) {
+    let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
+    let payer_signer_did =
+        get_custom_signer_did(values, PAYER).unwrap_or(authority_signer_did.clone());
+    (authority_signer_did, payer_signer_did)
 }
