@@ -33,8 +33,7 @@ impl SignersState {
     }
 
     pub fn get_first_signer(&self) -> Option<ValueStore> {
-        let signers = self.store.values().cloned().collect::<Vec<_>>();
-        signers.get(0).cloned()
+        self.store.values().next().cloned()
     }
 
     pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
