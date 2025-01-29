@@ -120,6 +120,9 @@ jobs:
           npm run i
           npm run build
           cd ..
+          
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
       # build for linux-musl
       - name: Build-musl
