@@ -59,6 +59,13 @@ impl BlockEvent {
         }
     }
 
+    pub fn expect_progress_bar_visibility_update(&self) -> &ProgressBarVisibilityUpdate {
+        match &self {
+            BlockEvent::UpdateProgressBarVisibility(ref update) => update,
+            _ => unreachable!("block expected"),
+        }
+    }
+
     pub fn expect_runbook_completed(&self) {
         match &self {
             BlockEvent::RunbookCompleted => {}
