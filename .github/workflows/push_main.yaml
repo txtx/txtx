@@ -94,6 +94,7 @@ jobs:
           echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
           echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
           echo TXTX_CONSOLE_URL="https://txtx.run" >> .env
+          echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
           cat .env
 
       - name: Checkout Supervisor UI
@@ -107,7 +108,7 @@ jobs:
         run: |
           cd txtx-supervisor-ui
           touch .env
-          echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
+          echo ID_SERVICE_URL="https://id.txtx.run" >> .env
           echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
           echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
           echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
@@ -120,7 +121,7 @@ jobs:
           npm run i
           npm run build
           cd ..
-
+          
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
