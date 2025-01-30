@@ -128,7 +128,7 @@ jobs:
       # build for linux-musl
       - name: Build-musl
         if: matrix.os == 'ubuntu-20.04'
-        uses: micaiahreid/rust-musl-action@sha256:2273e9f8b8edaa23a0d6ea916140ae1aeb9eebb27000e8a1179a97522ca9fe22
+        uses: txtx/rust-musl-action@v1.1.3
         with:
           args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release --features web_ui
 
