@@ -128,11 +128,9 @@ jobs:
       # build for linux-musl
       - name: Build-musl
         if: matrix.os == 'ubuntu-20.04'
-        uses: gmiam/rust-musl-action@master
+        uses: micaiahreid/rust-musl-action
         with:
           args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release --features web_ui
-        env:
-          PRE_BUILD: echo "PRE_BUILD is executed!"
 
       # set up rust for non linux-musl
       - name: Install Rust toolchain
