@@ -132,10 +132,7 @@ jobs:
         with:
           args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release --features web_ui
         env:
-          PRE_BUILD: |
-            curl -L https://foundry.paradigm.xyz | bash
-            export PATH="$HOME/.foundry/bin:$PATH"
-            foundryup
+          PRE_BUILD: echo "PRE_BUILD is executed!"
 
       # set up rust for non linux-musl
       - name: Install Rust toolchain
