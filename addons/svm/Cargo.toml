@@ -20,6 +20,12 @@ anchor-lang-idl = "0.1.1"
 solana_idl = "0.2.0"
 borsh = "1.5.1"
 tiny-bip39 = "0.8.2"
+anchor-lang = { version = "=0.30.1" }
+# squads-multisig-program = { version = "2.0.0", features = ["no-entrypoint"] }
+zeroize = "=1.7.0"
+# solana-program = "=1.17.4"  # This version should work with squads-multisig-program
+# anchor-spl = "=0.29.0"      # This version supports solana-program 1.17
+# spl-token-2022 = "=0.9.0"   # Compatible with anchor-spl 0.29
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../crates/txtx-test-utils" }
@@ -35,3 +41,4 @@ wasm = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
+
