@@ -3,6 +3,9 @@ pub mod crypto;
 pub mod foundry;
 pub mod hardhat;
 
+use std::collections::VecDeque;
+use std::num::NonZeroUsize;
+
 use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EvmRpc;
@@ -11,8 +14,10 @@ use crate::typing::{
     EVM_UINT32, EVM_UINT8,
 };
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
+use alloy::dyn_abi::parser::TypeSpecifier;
 use alloy::dyn_abi::{DynSolValue, Word};
 use alloy::hex::{self, FromHex};
+use alloy::json_abi::{Constructor, JsonAbi, Param};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
 use alloy::primitives::{Address, FixedBytes, TxKind, U256};
@@ -220,6 +225,178 @@ pub fn get_typed_transaction_bytes(tx: &TransactionRequest) -> Result<Vec<u8>, S
     serde_json::to_vec(&tx).map_err(|e| format!("failed to serialized transaction: {}", e))
 }
 
+pub fn value_to_abi_function_args(
+    function_name: &str,
+    value: &Value,
+    abi: &JsonAbi,
+) -> Result<Vec<DynSolValue>, Diagnostic> {
+    let function = abi
+        .function(function_name)
+        .and_then(|r| r.first())
+        .ok_or(diagnosed_error!("function {function_name} not found in abi"))?;
+
+    let values =
+        value.as_array().ok_or(diagnosed_error!("expected array for function argument"))?;
+
+    value_to_abi_params(values, &function.inputs)
+}
+
+pub fn value_to_abi_constructor_args(
+    value: &Value,
+    abi_constructor: &Constructor,
+) -> Result<Vec<DynSolValue>, Diagnostic> {
+    let values =
+        value.as_array().ok_or(diagnosed_error!("expected array for constructor argument"))?;
+    value_to_abi_params(values, &abi_constructor.inputs)
+}
+
+pub fn value_to_abi_params(
+    values: &Vec<Value>,
+    params: &Vec<Param>,
+) -> Result<Vec<DynSolValue>, Diagnostic> {
+    let mut sol_values = vec![];
+    for (i, param) in params.iter().enumerate() {
+        let value = values
+            .get(i)
+            .ok_or(diagnosed_error!("expected {} values for constructor argument", params.len()))?;
+        let sol_value = value_to_abi_param(value, param).map_err(|e| {
+            diagnosed_error!(
+                "failed to encode constructor argument: failed to encode param {}: {e}",
+                i + 1,
+            )
+        })?;
+        sol_values.push(sol_value);
+    }
+    Ok(sol_values)
+}
+
+pub fn value_to_abi_param(value: &Value, param: &Param) -> Result<DynSolValue, Diagnostic> {
+    if param.ty.contains("tuple") {
+        value_to_tuple_abi_type(value, param)
+    } else if param.ty.contains("struct") {
+        value_to_struct_abi_type(value, param)
+    } else {
+        value_to_primitive_abi_type(value, &param.ty)
+    }
+}
+
+pub fn value_to_primitive_abi_type(value: &Value, ty: &str) -> Result<DynSolValue, Diagnostic> {
+    let msg = format!("failed to convert value {} to {}", value.get_type().to_string(), ty);
+    let type_specifier = TypeSpecifier::try_from(ty)
+        .map_err(|e| diagnosed_error!("{msg}:failed to parse type specifier: {e}"))?;
+    let is_array = type_specifier.sizes.len() > 0;
+    if is_array {
+        let values = value.as_array().ok_or(diagnosed_error!("{msg}: expected array"))?;
+        value_to_array_abi_type(
+            values,
+            &mut VecDeque::from(type_specifier.sizes),
+            &type_specifier.stem.span(),
+        )
+        .map_err(|e| diagnosed_error!("{msg}: {e}"))
+    } else {
+        let sol_value = match ty {
+            "address" => DynSolValue::Address(EvmValue::to_address(value)?),
+            "uint256" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                256,
+            ), // TODO: test if this is correct
+            "uint8" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                8,
+            ), // TODO: test if this is correct
+            "uint32" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                32,
+            ), // TODO: test if this is correct
+            "bytes" => DynSolValue::Bytes(value.to_bytes()), // TODO: test if this is correct
+            "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_bytes()), 32), // TODO: test if this is correct
+            "bool" => DynSolValue::Bool(value.as_bool().ok_or(diagnosed_error!("{msg}"))?),
+            "string" => DynSolValue::String(value.to_string()),
+            _ => return Err(diagnosed_error!("unsupported primitive abi type: {ty}")),
+        };
+        Ok(sol_value)
+    }
+}
+
+pub fn value_to_array_abi_type(
+    values: &Vec<Value>,
+    sizes: &mut VecDeque<Option<NonZeroUsize>>,
+    stem: &str,
+) -> Result<DynSolValue, Diagnostic> {
+    let Some(size) = sizes.pop_back() else {
+        todo!();
+    };
+    let mut arr = vec![];
+    if let Some(size) = size {
+        let size = size.get();
+        if values.len() != size {
+            return Err(diagnosed_error!(
+                "expected array of length {}, found {}",
+                size,
+                values.len()
+            ));
+        }
+
+        for i in 0..size {
+            if sizes.len() > 0 {
+                let new_value = values[i].clone();
+                let new_values = new_value.as_array().ok_or(diagnosed_error!(
+                    "expected array, found {}",
+                    new_value.get_type().to_string()
+                ))?;
+
+                arr.push(value_to_array_abi_type(&new_values, sizes, stem)?);
+            } else {
+                arr.push(value_to_primitive_abi_type(&values[i], stem)?);
+            }
+        }
+
+        Ok(DynSolValue::FixedArray(arr))
+    } else {
+        for value in values {
+            if sizes.len() > 0 {
+                let new_value = value.clone();
+                let new_values = new_value.as_array().ok_or(diagnosed_error!(
+                    "expected array, found {}",
+                    new_value.get_type().to_string()
+                ))?;
+                arr.push(value_to_array_abi_type(&new_values, sizes, stem)?);
+            } else {
+                arr.push(value_to_primitive_abi_type(value, stem)?);
+            }
+        }
+
+        Ok(DynSolValue::Array(arr))
+    }
+}
+
+pub fn value_to_tuple_abi_type(value: &Value, param: &Param) -> Result<DynSolValue, Diagnostic> {
+    let mut tuple = vec![];
+    let values = value.as_array().ok_or(diagnosed_error!("expected array for tuple"))?;
+    for (i, component) in param.components.iter().enumerate() {
+        let value = values.get(i).ok_or(diagnosed_error!(
+            "expected {} values for tuple argument",
+            param.components.len()
+        ))?;
+        tuple.push(value_to_abi_param(value, &component)?);
+    }
+    let sol_value = DynSolValue::Tuple(tuple);
+    Ok(sol_value)
+}
+
+pub fn value_to_struct_abi_type(value: &Value, param: &Param) -> Result<DynSolValue, Diagnostic> {
+    let mut prop_names = vec![];
+    let mut tuple = vec![];
+    for component in param.components.iter() {
+        let component_name = component.name.clone();
+        let component_value = value_to_abi_param(value, &component)?;
+        tuple.push(component_value);
+        prop_names.push(component_name);
+    }
+    let sol_value = DynSolValue::CustomStruct { name: param.name.clone(), prop_names, tuple };
+    Ok(sol_value)
+}
+
 pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
     let sol_value = match value {
         Value::Bool(value) => DynSolValue::Bool(value.clone()),
@@ -259,7 +436,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
 }
 
 #[allow(dead_code)]
-pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
+pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, Diagnostic> {
     let value = match sol_value {
         DynSolValue::Bool(value) => Value::bool(*value),
         DynSolValue::Int(value, _) => Value::integer(value.as_i64() as i128),
@@ -272,6 +449,7 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, String> {
         DynSolValue::Array(_) => todo!(),
         DynSolValue::FixedArray(_) => todo!(),
         DynSolValue::Tuple(_) => todo!(),
+        DynSolValue::CustomStruct { .. } => todo!(),
     };
     Ok(value)
 }

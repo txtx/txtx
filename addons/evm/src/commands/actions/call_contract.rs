@@ -363,7 +363,10 @@ async fn build_unsigned_contract_call(
     to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        codec::{
+            build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
+            TransactionType,
+        },
         commands::actions::get_common_tx_params_from_args,
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
@@ -380,15 +383,27 @@ async fn build_unsigned_contract_call(
     let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi = values.get_string(CONTRACT_ABI);
     let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = values
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| value_to_sol_value(&v).map_err(to_diag_with_ctx))
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
+
+    let function_args = if let Some(abi_str) = contract_abi {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                let abi: JsonAbi = serde_json::from_str(&abi_str)
+                    .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+                value_to_abi_function_args(&function_name, &v, &abi)
+            })
+            .unwrap_or(Ok(vec![]))?
+    } else {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                v.expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v).map_err(to_diag_with_ctx))
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+            })
+            .unwrap_or(Ok(vec![]))?
+    };
 
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
