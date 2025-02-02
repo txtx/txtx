@@ -26,7 +26,9 @@ use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
 use crate::codec::contract_deployment::{
     create_init_code, AddressAbiMap, ContractDeploymentTransaction,
 };
-use crate::codec::{get_typed_transaction_bytes, value_to_sol_value, TransactionType};
+use crate::codec::{
+    get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value, TransactionType,
+};
 
 use crate::constants::{
     ADDRESS_ABI_MAP, ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS,
@@ -662,6 +664,15 @@ impl ContractDeploymentTransactionRequestBuilder {
 
         let contract = values.get_expected_object("contract").map_err(|e| e.to_string())?;
 
+        let json_abi: Option<JsonAbi> = match contract.get("abi") {
+            Some(abi_string) => {
+                let abi = serde_json::from_str(&abi_string.expect_string())
+                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
+                Some(abi)
+            }
+            None => None,
+        };
+
         let constructor_args = if let Some(function_args) =
             values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
         {
@@ -670,12 +681,25 @@ impl ContractDeploymentTransactionRequestBuilder {
                     "invalid arguments: constructor arguments provided, but contract is a proxy contract"
                 ));
             }
-            let sol_args = function_args
-                .expect_array()
-                .iter()
-                .map(|v| value_to_sol_value(&v))
-                .collect::<Result<Vec<DynSolValue>, String>>()?;
-            Some(sol_args)
+            if let Some(abi) = &json_abi {
+                if let Some(constructor) = &abi.constructor {
+                    Some(
+                        value_to_abi_constructor_args(&function_args, &constructor)
+                            .map_err(|e| e.message)?,
+                    )
+                } else {
+                    return Err(format!(
+                        "constructor args provided, but no constructor found in abi"
+                    ));
+                }
+            } else {
+                let sol_args = function_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v))
+                    .collect::<Result<Vec<DynSolValue>, String>>()?;
+                Some(sol_args)
+            }
         } else {
             None
         };
@@ -684,15 +708,6 @@ impl ContractDeploymentTransactionRequestBuilder {
             contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
         else {
             return Err(format!("contract missing required bytecode"));
-        };
-
-        let json_abi: Option<JsonAbi> = match contract.get("abi") {
-            Some(abi_string) => {
-                let abi = serde_json::from_str(&abi_string.expect_string())
-                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
-                Some(abi)
-            }
-            None => None,
         };
 
         let init_code = create_init_code(bytecode, constructor_args, &json_abi)?;
