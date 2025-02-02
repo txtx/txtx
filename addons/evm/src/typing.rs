@@ -1,5 +1,13 @@
+use std::str::FromStr;
+
 use alloy::primitives::Address;
-use txtx_addon_kit::types::types::{Type, Value};
+use txtx_addon_kit::{
+    hex,
+    types::{
+        diagnostics::Diagnostic,
+        types::{Type, Value},
+    },
+};
 
 pub const EVM_ADDRESS: &str = "evm::address";
 pub const EVM_BYTES: &str = "evm::bytes";
@@ -15,10 +23,38 @@ pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
 
 pub struct EvmValue {}
 
+fn is_hex(str: &str) -> bool {
+    decode_hex(str).map(|_| true).unwrap_or(false)
+}
+
+fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
+    let stripped = if str.starts_with("0x") { &str[2..] } else { &str[..] };
+    hex::decode(stripped)
+        .map_err(|e| diagnosed_error!("string '{}' could not be decoded to hex bytes: {}", str, e))
+}
+
 impl EvmValue {
     pub fn address(address: &Address) -> Value {
         let bytes = address.0 .0.to_vec();
         Value::addon(bytes, EVM_ADDRESS)
+    }
+    pub fn to_address(value: &Value) -> Result<Address, Diagnostic> {
+        match value.as_string() {
+            Some(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e)?;
+                    return Ok(Address::from_slice(&hex));
+                }
+                return Address::from_str(s)
+                    .map_err(|e| diagnosed_error!("could not convert value to address: {e}"));
+            }
+            None => {}
+        };
+        let bytes = value.to_bytes();
+        let bytes: [u8; 32] = bytes[0..32]
+            .try_into()
+            .map_err(|e| diagnosed_error!("could not convert value to address: {e}"))?;
+        Ok(Address::from_slice(&bytes))
     }
 
     pub fn bytes(bytes: Vec<u8>) -> Value {
