@@ -15,7 +15,10 @@ use tokio::sync::RwLock;
 use txtx_addon_network_ovm::OvmNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
-use txtx_core::kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore};
+use txtx_core::{
+    kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
+    templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
+};
 use txtx_core::{
     kit::{
         channel::{self, unbounded},
@@ -49,13 +52,13 @@ use txtx_core::{
 
 use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{
-    cli::templates::{build_manifest_data, build_runbook_data},
     get_addon_by_namespace, get_available_addons,
     web_ui::{
         self,
         cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
     },
 };
+use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_gql::Context as GqlContext;
 use web_ui::cloud_relayer::RelayerContext;
 
@@ -334,8 +337,8 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
     let mut manifest_file = File::create(manifest_location.to_string()).expect("creation failed");
 
     let manifest_file_data = build_manifest_data(&manifest);
-    let template = mustache::compile_str(include_str!("../templates/txtx.yml.mst"))
-        .expect("Failed to compile template");
+    let template =
+        mustache::compile_str(TXTX_MANIFEST_TEMPLATE).expect("Failed to compile template");
     template
         .render_data(&mut manifest_file, &manifest_file_data)
         .expect("Failed to render template");
@@ -358,8 +361,8 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
         false => {
             let mut readme_file = File::create(readme_file_path).expect("creation failed");
             let readme_file_data = build_manifest_data(&manifest);
-            let template = mustache::compile_str(include_str!("../templates/readme.md.mst"))
-                .expect("Failed to compile template");
+            let template =
+                mustache::compile_str(TXTX_README_TEMPLATE).expect("Failed to compile template");
             template
                 .render_data(&mut readme_file, &readme_file_data)
                 .expect("Failed to render template");
@@ -947,11 +950,8 @@ pub async fn handle_run_command(
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_runbook_state = runbook_state.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_supervised_runbook_runloop(
-            &mut runbook,
-            moved_block_tx,
-            action_item_events_rx,
-        );
+        let runloop_future =
+            start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);

@@ -11,6 +11,7 @@ pub mod manifest;
 // pub mod snapshot;
 pub mod runbook;
 pub mod std;
+pub mod templates;
 pub mod types;
 
 #[cfg(test)]
@@ -202,7 +203,7 @@ pub async fn start_supervised_runbook_runloop(
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
-            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_))=> None,
+            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_)) => None,
             Err(TryRecvError::Closed) => return Ok(()),
         };
 
