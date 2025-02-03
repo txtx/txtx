@@ -143,7 +143,7 @@ lazy_static! {
             example: txtx_addon_kit::indoc! {
                 r#"action "send_sol" "svm::send_token" {
                     description = "Send some SOL"
-                    amount = evm::sol_to_lamports(1)
+                    amount = svm::sol_to_lamports(1)
                     signers = [signer.caller]
                     recipient = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
                     token = "3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6"
