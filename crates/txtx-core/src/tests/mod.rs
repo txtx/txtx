@@ -1,4 +1,3 @@
-use kit::{types::block_id::BlockId, Addon};
 use txtx_addon_kit::types::{
     frontend::{
         ActionItemResponse, ActionItemResponseType, ActionItemStatus, ProvidedInputResponse,
@@ -6,6 +5,7 @@ use txtx_addon_kit::types::{
     },
     types::Value,
 };
+use txtx_addon_kit::{types::block_id::BlockId, Addon};
 use txtx_test_utils::test_harness::setup_test;
 
 use crate::std::StdAddon;

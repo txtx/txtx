@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine};
-use kit::types::AuthorizationContext;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{

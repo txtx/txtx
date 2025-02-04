@@ -8,8 +8,8 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
-use txtx_core::kit::helpers::fs::{FileAccessor, FileLocation};
-use txtx_core::kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 use super::requests::capabilities::{get_capabilities, InitializationOptions};
 

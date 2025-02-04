@@ -1,16 +1,16 @@
-use kit::{
-    hex,
-    types::{
-        functions::{arg_checker_with_ctx, fn_diag_with_ctx},
-        AuthorizationContext,
-    },
-};
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
         types::{Type, Value},
+    },
+};
+use txtx_addon_kit::{
+    hex,
+    types::{
+        functions::{arg_checker_with_ctx, fn_diag_with_ctx},
+        AuthorizationContext,
     },
 };
 

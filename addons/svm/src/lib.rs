@@ -2,7 +2,7 @@
 extern crate lazy_static;
 
 #[macro_use]
-pub extern crate txtx_addon_kit as kit;
+extern crate txtx_addon_kit;
 
 pub mod codec;
 mod commands;

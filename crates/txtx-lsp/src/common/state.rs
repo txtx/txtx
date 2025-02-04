@@ -6,13 +6,13 @@ use lsp_types::{
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 use std::vec;
+use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
+use txtx_addon_kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
+use txtx_addon_kit::types::RunbookId;
+use txtx_addon_kit::Addon;
 use txtx_addon_network_evm::EvmNetworkAddon;
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
-use txtx_core::kit::helpers::fs::{FileAccessor, FileLocation};
-use txtx_core::kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
-use txtx_core::kit::types::RunbookId;
-use txtx_core::kit::Addon;
 use txtx_core::std::StdAddon;
 
 use super::requests::capabilities::InitializationOptions;

@@ -1,18 +1,18 @@
 use super::{FlowContext, RunbookExecutionMode, RunbookTopLevelInputsMap};
-use kit::{
-    helpers::fs::FileLocation,
-    indexmap::IndexMap,
-    types::{
-        diagnostics::Diagnostic, types::Value, ConstructDid, Did, PackageDid, RunbookId,
-        WithEvaluatableInputs,
-    },
-};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use similar::{capture_diff_slices, Algorithm, ChangeTag, DiffOp, TextDiff};
 use std::{
     collections::HashSet,
     time::{SystemTime, UNIX_EPOCH},
+};
+use txtx_addon_kit::{
+    helpers::fs::FileLocation,
+    indexmap::IndexMap,
+    types::{
+        diagnostics::Diagnostic, types::Value, ConstructDid, Did, PackageDid, RunbookId,
+        WithEvaluatableInputs,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

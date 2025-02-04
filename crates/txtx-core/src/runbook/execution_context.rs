@@ -1,31 +1,31 @@
-use kit::channel::unbounded;
-use kit::channel::Sender;
-use kit::hcl::Span;
-use kit::indexmap::IndexMap;
-use kit::types::commands::add_ctx_to_diag;
-use kit::types::commands::add_ctx_to_embedded_runbook_diag;
-use kit::types::commands::DependencyExecutionResultCache;
-use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::EmbeddedRunbookInstance;
-use kit::types::frontend::ActionItemRequest;
-use kit::types::frontend::ActionItemRequestType;
-use kit::types::frontend::ActionItemStatus;
-use kit::types::frontend::BlockEvent;
-use kit::types::frontend::DisplayOutputRequest;
-use kit::types::signers::SignersState;
-use kit::types::stores::AddonDefaults;
-use kit::types::types::ObjectType;
-use kit::types::types::RunbookSupervisionContext;
-use kit::types::types::Value;
-use kit::types::AddonInstance;
-use kit::types::ConstructDid;
-use kit::types::EvaluatableInput;
-use kit::uuid::Uuid;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use txtx_addon_kit::channel::unbounded;
+use txtx_addon_kit::channel::Sender;
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::add_ctx_to_diag;
+use txtx_addon_kit::types::commands::add_ctx_to_embedded_runbook_diag;
 use txtx_addon_kit::types::commands::CommandInputsEvaluationResult;
+use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandInstance};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
+use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::ActionItemRequestType;
+use txtx_addon_kit::types::frontend::ActionItemStatus;
+use txtx_addon_kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::frontend::DisplayOutputRequest;
 use txtx_addon_kit::types::signers::SignerInstance;
+use txtx_addon_kit::types::signers::SignersState;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::types::ObjectType;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::AddonInstance;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::EvaluatableInput;
+use txtx_addon_kit::uuid::Uuid;
 
 use crate::eval::perform_inputs_evaluation;
 use crate::eval::CommandInputEvaluationStatus;
@@ -112,7 +112,7 @@ impl RunbookExecutionContext {
         for construct_did in self.order_for_commands_execution.iter() {
             if let Some(command_instance) = self.commands_instances.get(&construct_did) {
                 match self.collect_command_instance_output(
-                    construct_did,
+                    &construct_did,
                     command_instance,
                     &mut action_items,
                 ) {

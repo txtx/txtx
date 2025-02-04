@@ -19,16 +19,14 @@ addon "svm" {{
     );
 }
 
-pub fn get_interpolated_signer_template(program_name: &str) -> String {
+pub fn get_interpolated_signer_template(keypair_path: &str) -> String {
     return format!(
         r#"
-signer "deployer" "svm::keypair" {{
-    description = "Deploy {} program"
-    program = svm::get_program_from_anchor_project("{}") 
-    signers = [signer.deployer]
+signer "deployer" "svm::secret_key" {{
+    keypair_json = "{}"
 }}
 "#,
-        program_name, program_name
+        keypair_path
     );
 }
 

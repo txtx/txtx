@@ -6,12 +6,12 @@ pub mod hex;
 pub mod json;
 pub mod list;
 pub mod operators;
-use kit::types::{
+use txtx_addon_kit::types::functions::FunctionSpecification;
+use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{arg_checker_with_ctx, fn_diag_with_ctx},
     types::Value,
 };
-use txtx_addon_kit::types::functions::FunctionSpecification;
 
 use crate::constants::NAMESPACE;
 
