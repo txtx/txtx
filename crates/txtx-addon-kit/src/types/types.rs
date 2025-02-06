@@ -10,7 +10,7 @@ use std::fmt::{self, Debug};
 use super::diagnostics::Diagnostic;
 use super::Did;
 
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", content = "value", rename_all = "lowercase")]
 pub enum Value {
     Bool(bool),
@@ -26,6 +26,52 @@ pub enum Value {
     #[serde(serialize_with = "addon_serializer")]
     #[serde(untagged)]
     Addon(AddonData),
+}
+
+impl PartialEq<Value> for Value {
+    fn eq(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Bool(lhs), Value::Bool(rhs)) => lhs == rhs,
+            (Value::Null, Value::Null) => true,
+            (Value::Integer(lhs), Value::Integer(rhs)) => lhs == rhs,
+            (Value::Float(lhs), Value::Float(rhs)) => lhs == rhs,
+            (Value::String(lhs), Value::String(rhs)) => lhs == rhs,
+            (Value::Buffer(lhs), Value::Buffer(rhs)) => lhs == rhs,
+            (Value::Object(lhs), Value::Object(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                for (k, v) in lhs.iter() {
+                    if let Some(r) = rhs.get(k) {
+                        if v != r {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Value::Array(lhs), Value::Array(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                for (l, r) in lhs.iter().zip(rhs.iter()) {
+                    if l != r {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Value::Addon(lhs), Value::Addon(rhs)) => {
+                if lhs.id != rhs.id {
+                    return false;
+                }
+                lhs.bytes == rhs.bytes
+            }
+            _ => false,
+        }
+    }
 }
 
 fn i128_serializer<S>(value: &i128, ser: S) -> Result<S::Ok, S::Error>
