@@ -10,17 +10,17 @@ use crate::commands::actions::get_expected_address;
 use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EvmRpc;
 use crate::typing::{
-    EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256,
-    EVM_UINT32, EVM_UINT8,
+    DecodedLog, EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE,
+    EVM_UINT256, EVM_UINT32, EVM_UINT8,
 };
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::parser::TypeSpecifier;
-use alloy::dyn_abi::{DynSolValue, Word};
+use alloy::dyn_abi::{DynSolValue, EventExt, Word};
 use alloy::hex::{self, FromHex};
 use alloy::json_abi::{Constructor, JsonAbi, Param};
 use alloy::network::TransactionBuilder;
 use alloy::primitives::utils::format_units;
-use alloy::primitives::{Address, FixedBytes, TxKind, U256};
+use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use alloy_rpc_types::{AccessList, Log};
 use contract_deployment::AddressAbiMap;
@@ -296,18 +296,26 @@ pub fn value_to_primitive_abi_type(value: &Value, ty: &str) -> Result<DynSolValu
     } else {
         let sol_value = match ty {
             "address" => DynSolValue::Address(EvmValue::to_address(value)?),
-            "uint256" => DynSolValue::Uint(
-                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
-                256,
-            ), // TODO: test if this is correct
             "uint8" => DynSolValue::Uint(
                 U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
                 8,
-            ), // TODO: test if this is correct
+            ), // TODO: test if this is correct// TODO: test if this is correct
+            "uint16" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                16,
+            ),
             "uint32" => DynSolValue::Uint(
                 U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
                 32,
             ), // TODO: test if this is correct
+            "uint64" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                64,
+            ),
+            "uint256" => DynSolValue::Uint(
+                U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+                256,
+            ),
             "bytes" => DynSolValue::Bytes(value.to_bytes()), // TODO: test if this is correct
             "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_bytes()), 32), // TODO: test if this is correct
             "bool" => DynSolValue::Bool(value.as_bool().ok_or(diagnosed_error!("{msg}"))?),
@@ -599,34 +607,11 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
                 entries.push((event.name.as_ref(), value));
             }
 
-            let obj = ObjectType::from(vec![
-                ("event_name", Value::string(matching_event.name.clone())),
-                ("log_address", EvmValue::address(&log_address)),
-                ("data", ObjectType::from(entries).to_value()),
-            ]);
-            return Some(Ok(obj.to_value()));
-        })
-        .collect::<Result<Vec<Value>, String>>()?;
-    Ok(logs)
-}
-
-pub fn raw_logs_to_value(logs: &[Log]) -> Result<Vec<Value>, String> {
-    let logs = logs
-        .iter()
-        .map(|log| {
-            let log_address = log.address();
-            let topics = log
-                .topics()
-                .iter()
-                .map(|topic| Value::string(hex::encode(topic.0.to_vec())))
-                .collect::<Vec<Value>>();
-            let data = hex::encode(log.data().data.to_vec());
-            let obj = ObjectType::from(vec![
-                ("address", EvmValue::address(&log_address)),
-                ("topics", Value::array(topics)),
-                ("data", Value::string(data)),
-            ]);
-            Ok(obj.to_value())
+            return Some(Ok(DecodedLog::to_value(
+                &matching_event.name,
+                &log_address,
+                ObjectType::from(entries).to_value(),
+            )));
         })
         .collect::<Result<Vec<Value>, String>>()?;
     Ok(logs)
