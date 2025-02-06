@@ -22,10 +22,8 @@ use send_eth::SEND_ETH;
 use sign_transaction::SIGN_TRANSACTION;
 use verify_contract::VERIFY_CONTRACT;
 
-use crate::{
-    constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT},
-    typing::EVM_ADDRESS,
-};
+use crate::constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT};
+use crate::typing::EvmValue;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -40,19 +38,7 @@ lazy_static! {
 }
 
 pub fn get_expected_address(value: &Value) -> Result<Address, String> {
-    match value {
-        Value::Buffer(bytes) => Ok(Address::from_slice(&bytes)),
-        Value::String(address) => {
-            Ok(Address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?)
-        }
-        Value::Addon(addon_data) => {
-            if addon_data.id != EVM_ADDRESS {
-                return Err(format!("invalid data type for address: {}", addon_data.id));
-            }
-            Ok(Address::from_slice(&addon_data.bytes))
-        }
-        value => Err(format!("unexpected address type: {:?}", value)),
-    }
+    EvmValue::to_address(value).map_err(|e| format!("failed to parse address: {}", e.message))
 }
 
 pub fn get_common_tx_params_from_args(
