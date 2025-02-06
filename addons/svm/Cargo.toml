@@ -16,7 +16,7 @@ solana-sdk = { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir 
 spl-token = "=6.0.0"
 spl-associated-token-account = "=4.0.0"
 solana-client = { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir = "solana/client", default-features = false }
-anchor-lang-idl = "0.1.1"
+anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 solana_idl = "0.2.0"
 borsh = "1.5.1"
 tiny-bip39 = "0.8.2"
