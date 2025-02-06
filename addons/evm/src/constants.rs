@@ -61,6 +61,9 @@ pub const ALREADY_DEPLOYED: &str = "already_deployed";
 pub const TRANSACTION_COST: &str = "transaction_cost";
 pub const ADDRESS_ABI_MAP: &str = "address_abi_map";
 pub const IS_PROXIED: &str = "is_proxied";
+pub const RESULT: &str = "result";
+pub const LOGS: &str = "logs";
+pub const RAW_LOGS: &str = "raw_logs";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;

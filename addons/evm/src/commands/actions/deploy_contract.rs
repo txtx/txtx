@@ -38,7 +38,8 @@ use crate::constants::{
 use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
 use crate::typing::{
-    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS,
+    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, DECODED_LOG_OUTPUT, PROXIED_CONTRACT_INITIALIZER,
+    PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
 };
 
 use super::call_contract::{
@@ -236,6 +237,14 @@ lazy_static! {
                     contract_address: {
                         documentation: "The address of the deployed transaction.",
                         typing: Type::string()
+                    },
+                    logs: {
+                        documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                        typing: DECODED_LOG_OUTPUT.clone()
+                    },
+                    raw_logs: {
+                          documentation: "The raw logs of the transaction.",
+                          typing: RAW_LOG_OUTPUT.clone()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
