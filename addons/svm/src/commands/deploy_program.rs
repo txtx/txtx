@@ -182,8 +182,8 @@ impl CommandImplementation for DeployProgram {
         );
 
         let authority_pubkey = {
-            let authority_pubkey_str =
-                authority_signer_state.get_expected_string(CHECKED_PUBLIC_KEY).map_err(|e| {
+            let authority_pubkey_val =
+                authority_signer_state.get_expected_value(CHECKED_PUBLIC_KEY).map_err(|e| {
                     (
                         signers.clone(),
                         authority_signer_state.clone(),
@@ -191,7 +191,7 @@ impl CommandImplementation for DeployProgram {
                     )
                 })?;
 
-            Pubkey::from_str(authority_pubkey_str).map_err(|e| {
+            SvmValue::to_pubkey(&authority_pubkey_val).map_err(|e| {
                 (
                     signers.clone(),
                     authority_signer_state.clone(),
