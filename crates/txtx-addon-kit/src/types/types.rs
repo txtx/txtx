@@ -568,7 +568,7 @@ impl Value {
                     .collect::<Map<String, JsonValue>>(),
             ),
             Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
-            Value::Addon(_) => todo!(),
+            Value::Addon(addon_data) => JsonValue::String(addon_data.to_string()),
         };
         json
     }
@@ -593,7 +593,7 @@ impl Value {
                 let len = obj.len();
                 for (i, (k, v)) in obj.iter().enumerate() {
                     res.push_str(&format!(
-                        "\n\t{}: {}{}",
+                        r#""{}": {}{}"#,
                         k,
                         v.to_string(),
                         if i == (len - 1) { "" } else { "," }
