@@ -43,7 +43,16 @@ impl EvmValue {
             Some(s) => {
                 if is_hex(s) {
                     let hex = decode_hex(s).map_err(|e| e)?;
-                    return Ok(Address::from_slice(&hex));
+                    if hex.len() != 20 {
+                        return Err(diagnosed_error!(
+                            "expected 20 bytes for address, got {}",
+                            hex.len()
+                        ));
+                    }
+                    let bytes: [u8; 20] = hex[0..20]
+                        .try_into()
+                        .map_err(|e| diagnosed_error!("could not convert value to address: {e}"))?;
+                    return Ok(Address::from_slice(&bytes));
                 }
                 return Address::from_str(s)
                     .map_err(|e| diagnosed_error!("could not convert value to address: {e}"));
@@ -51,7 +60,10 @@ impl EvmValue {
             None => {}
         };
         let bytes = value.to_bytes();
-        let bytes: [u8; 32] = bytes[0..32]
+        if bytes.len() != 20 {
+            return Err(diagnosed_error!("expected 20 bytes for address, got {}", bytes.len()));
+        }
+        let bytes: [u8; 20] = bytes[0..20]
             .try_into()
             .map_err(|e| diagnosed_error!("could not convert value to address: {e}"))?;
         Ok(Address::from_slice(&bytes))
