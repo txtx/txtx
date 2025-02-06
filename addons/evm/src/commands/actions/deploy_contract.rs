@@ -285,8 +285,6 @@ impl CommandImplementation for DeployContract {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
-
         use crate::{
             codec::contract_deployment::{
                 ContractDeploymentTransactionStatus, ProxiedDeploymentTransaction,
@@ -307,9 +305,6 @@ impl CommandImplementation for DeployContract {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-
-        let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::deploy_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -339,12 +334,12 @@ impl CommandImplementation for DeployContract {
                 &values,
             )
             .await
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let impl_deploy_tx = deployer
                 .get_implementation_deployment_transaction(&values)
                 .await
-                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let payload = match impl_deploy_tx {
                 ContractDeploymentTransaction::Create(status)
@@ -376,7 +371,7 @@ impl CommandImplementation for DeployContract {
                             Value::integer(tx_cost),
                         );
                         let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
-                            (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
+                            (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
                         })?;
                         let payload = EvmValue::transaction(bytes);
                         payload
@@ -414,7 +409,7 @@ impl CommandImplementation for DeployContract {
                         Value::integer(tx_cost),
                     );
                     let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
-                        (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
+                        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
                     })?;
                     let payload = EvmValue::transaction(bytes);
                     payload

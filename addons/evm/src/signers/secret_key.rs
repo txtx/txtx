@@ -28,7 +28,8 @@ use txtx_addon_kit::types::{
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID,
-    FORMATTED_TRANSACTION, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES, TX_HASH,
+    FORMATTED_TRANSACTION, NAMESPACE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+    TX_HASH,
 };
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
@@ -155,6 +156,7 @@ impl SignerImplementation for EvmSecretKeySigner {
             };
 
         let expected_address: Address = expected_signer.address();
+
         signer_state.insert(
             "signer_field_bytes",
             EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
@@ -233,7 +235,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 ProvideSignedTransactionRequest::new(
                     &signer_state.uuid,
                     &payload,
-                    "stacks",
+                    NAMESPACE,
                     &chain_id.to_string(),
                 )
                 .check_expectation_action_uuid(construct_did)

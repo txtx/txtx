@@ -32,7 +32,7 @@ use crate::rpc::EvmRpc;
 use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
 
-use super::get_signer_did;
+use super::{get_expected_address, get_signer_did};
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -194,8 +194,6 @@ impl CommandImplementation for SignEvmContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
-
         use crate::{
             codec::get_typed_transaction_bytes,
             commands::actions::sign_transaction::SignEvmTransaction,
@@ -211,8 +209,6 @@ impl CommandImplementation for SignEvmContractCall {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-        let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::call_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -223,12 +219,12 @@ impl CommandImplementation for SignEvmContractCall {
                 return Ok((signers, signer_state, Actions::none()));
             }
             let (transaction, transaction_cost) =
-                build_unsigned_contract_call(&signer_state, &spec, &values, &to_diag_with_ctx)
+                build_unsigned_contract_call(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction)
-                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let payload = EvmValue::transaction(bytes);
 
@@ -376,7 +372,6 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-    to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
         codec::{
@@ -415,17 +410,17 @@ async fn build_unsigned_contract_call(
             .map(|v| {
                 v.expect_array()
                     .iter()
-                    .map(|v| value_to_sol_value(&v).map_err(to_diag_with_ctx))
+                    .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
                     .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
             })
             .unwrap_or(Ok(vec![]))?
     };
 
     let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
+        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
     if nonce.is_none() {
         if let Some(signer_nonce) =
-            get_signer_nonce(signer_state, chain_id).map_err(to_diag_with_ctx)?
+            get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
         {
             nonce = Some(signer_nonce + 1);
         }
@@ -433,14 +428,14 @@ async fn build_unsigned_contract_call(
 
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EvmRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
         encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
+            .map_err(|e| diagnosed_error!("{}", e))?
     } else {
         encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
+            .map_err(|e| diagnosed_error!("{}", e))?
     };
 
     let common = CommonTransactionFields {
@@ -455,7 +450,9 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let res = build_unsigned_transaction(rpc, values, common).await.map_err(to_diag_with_ctx)?;
+    let res = build_unsigned_transaction(rpc, values, common)
+        .await
+        .map_err(|e| diagnosed_error!("{}", e))?;
     Ok(res)
 }
 
