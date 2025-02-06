@@ -2,6 +2,7 @@ use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
+use serde_json::Value as JsonValue;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env,
@@ -852,17 +853,18 @@ pub async fn handle_run_command(
             return Ok(());
         }
 
-        let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<String>>> =
+        let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> =
             IndexMap::new();
         for flow_context in runbook.flow_contexts.iter() {
-            let mut running_context_outputs: IndexMap<String, Vec<String>> = IndexMap::new();
+            let mut running_context_outputs: IndexMap<String, Vec<JsonValue>> = IndexMap::new();
             let grouped_actions_items =
                 flow_context.execution_context.collect_outputs_constructs_results();
 
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
                     if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                        let value = output.value.to_string();
+                        let value = output.value.to_json();
+
                         let output_name = output.name.to_string();
                         let display_name = output
                             .description
@@ -889,7 +891,11 @@ pub async fn handle_run_command(
 
         if !collected_outputs.is_empty() {
             if cmd.output_json {
-                println!("{}", serde_json::json!(&collected_outputs));
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&collected_outputs)
+                        .map_err(|e| format!("failed to print outputs: {e}"))?
+                );
             } else {
                 for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
                     if !flow_outputs.is_empty() {
@@ -905,6 +911,7 @@ pub async fn handle_run_command(
                             let mut rows = vec![];
 
                             for (i, value) in values.into_iter().enumerate() {
+                                let value = value.to_string();
                                 let parts = value.split("\n");
                                 for (j, part) in parts.into_iter().enumerate() {
                                     if i == 0 && j == 0 {
@@ -947,11 +954,8 @@ pub async fn handle_run_command(
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_runbook_state = runbook_state.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_supervised_runbook_runloop(
-            &mut runbook,
-            moved_block_tx,
-            action_item_events_rx,
-        );
+        let runloop_future =
+            start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
