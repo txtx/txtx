@@ -88,8 +88,7 @@ The txtx CLI tool can be installed via our install script or through a manual bu
 To install txtx on a macOS system using Homebrew, open a terminal and run:
 
 ```bash
-brew tap txtx/txtx
-brew install txtx
+brew install txtx/taps/txtx
 ```
 
 Other installation options are available and described in our [doc website](https://docs.txtx.sh/install).
