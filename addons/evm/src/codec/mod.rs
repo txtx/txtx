@@ -332,7 +332,7 @@ pub fn value_to_array_abi_type(
     stem: &str,
 ) -> Result<DynSolValue, Diagnostic> {
     let Some(size) = sizes.pop_back() else {
-        todo!();
+        return Err(diagnosed_error!("array dimension mismatch or unspecified dimension"));
     };
     let mut arr = vec![];
     if let Some(size) = size {
