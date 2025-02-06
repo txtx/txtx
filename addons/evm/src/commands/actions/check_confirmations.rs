@@ -134,9 +134,12 @@ impl CommandImplementation for CheckEvmConfirmations {
 
         use crate::{
             codec::abi_decode_logs,
-            constants::{ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
+            constants::{
+                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, RAW_LOGS,
+                TX_HASH,
+            },
             rpc::EvmRpc,
-            typing::EvmValue,
+            typing::{EvmValue, RawLog},
         };
 
         let inputs = inputs.clone();
@@ -283,12 +286,17 @@ impl CommandImplementation for CheckEvmConfirmations {
                     result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
                 };
 
+                let logs = receipt.inner.logs();
                 if let Some(abi) = &address_abi_map {
-                    let logs = receipt.inner.logs();
-                    let logs = abi_decode_logs(&abi, logs)
-                        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
-                    result.outputs.insert("logs".to_string(), Value::array(logs));
+                    let logs = abi_decode_logs(&abi, logs).map_err(|e| diagnosed_error!(" {e}"))?;
+                    result.outputs.insert(LOGS.to_string(), Value::array(logs));
                 }
+                result.outputs.insert(
+                    RAW_LOGS.to_string(),
+                    Value::array(
+                        logs.iter().map(|log| RawLog::to_value(log)).collect::<Vec<Value>>(),
+                    ),
+                );
 
                 if latest_block >= included_block + confirmations_required as u64 {
                     break receipt;

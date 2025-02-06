@@ -574,6 +574,7 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
             let Some(abis) = abi_map.get(&log_address) else {
                 return None;
             };
+
             let topics = log.inner.topics();
             let Some(first_topic) = topics.first() else { return None };
             let Some(matching_event) =
@@ -581,50 +582,52 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
             else {
                 return None;
             };
-            match topics[1..]
-                .iter()
-                .enumerate()
-                .filter_map(|(i, t)| {
-                    let Some(input) = matching_event.inputs.get(i) else {
-                        return None;
-                    };
-                    let ty = input.ty.clone();
-                    match parse_fixed_bytes_to_typed_value(&ty, t) {
-                        Ok(value) => Some(Ok((input.name.as_ref(), value))),
-                        Err(e) => Some(Err(e)),
-                    }
-                })
-                .collect::<Result<Vec<(&str, Value)>, String>>()
+
+            let decoded = match matching_event
+                .decode_log(&log.data(), true)
+                .map_err(|e| format!("failed to decode log: {e}"))
             {
-                Ok(values) => {
-                    let obj = ObjectType::from(vec![
-                        ("event_name", Value::string(matching_event.name.clone())),
-                        ("log_address", EvmValue::address(&log_address)),
-                        ("data", ObjectType::from(values).to_value()),
-                    ]);
-                    return Some(Ok(obj.to_value()));
-                }
+                Ok(decoded) => decoded,
                 Err(e) => return Some(Err(e)),
             };
+            let mut entries = vec![];
+            for (data, event) in decoded.body.iter().zip(matching_event.inputs.iter()) {
+                let value = match sol_value_to_value(data) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e.message)),
+                };
+                entries.push((event.name.as_ref(), value));
+            }
+
+            let obj = ObjectType::from(vec![
+                ("event_name", Value::string(matching_event.name.clone())),
+                ("log_address", EvmValue::address(&log_address)),
+                ("data", ObjectType::from(entries).to_value()),
+            ]);
+            return Some(Ok(obj.to_value()));
         })
         .collect::<Result<Vec<Value>, String>>()?;
     Ok(logs)
 }
 
-/// Takes an expected sol type and a fixed bytes value and returns an [EvmValue].
-fn parse_fixed_bytes_to_typed_value(
-    sol_type: &str,
-    value: &FixedBytes<32>,
-) -> Result<Value, String> {
-    match sol_type {
-        "address" => Ok(EvmValue::address(&Address::from_word(*value))),
-        "bytes32" => Ok(EvmValue::bytes32(value.0.to_vec())),
-        "uint256" => Ok(EvmValue::uint256(value.0.to_vec())),
-        "uint32" => Ok(EvmValue::uint32(value.0.to_vec())),
-        "uint8" => Ok(EvmValue::uint8(value.0.to_vec())),
-        "bytes" => Ok(EvmValue::bytes(value.0.to_vec())),
-        "bool" => Ok(Value::bool(value.0[31] != 0)),
-        "bytes[]" => Ok(EvmValue::bytes(value.0.to_vec())),
-        other => Err(format!("unsupported sol type for decoding: {}", other)),
-    }
+pub fn raw_logs_to_value(logs: &[Log]) -> Result<Vec<Value>, String> {
+    let logs = logs
+        .iter()
+        .map(|log| {
+            let log_address = log.address();
+            let topics = log
+                .topics()
+                .iter()
+                .map(|topic| Value::string(hex::encode(topic.0.to_vec())))
+                .collect::<Vec<Value>>();
+            let data = hex::encode(log.data().data.to_vec());
+            let obj = ObjectType::from(vec![
+                ("address", EvmValue::address(&log_address)),
+                ("topics", Value::array(topics)),
+                ("data", Value::string(data)),
+            ]);
+            Ok(obj.to_value())
+        })
+        .collect::<Result<Vec<Value>, String>>()?;
+    Ok(logs)
 }

@@ -23,12 +23,13 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::contract_deployment::AddressAbiMap;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::{CONTRACT_ABI, RPC_API_URL};
+use crate::constants::{ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RPC_API_URL};
 use crate::rpc::EvmRpc;
-use crate::typing::EVM_ADDRESS;
+use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
@@ -152,6 +153,14 @@ lazy_static! {
               tx_hash: {
                   documentation: "The hash of the transaction.",
                   typing: Type::string()
+              },
+              logs: {
+                  documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                  typing: DECODED_LOG_OUTPUT.clone()
+              },
+              raw_logs: {
+                    documentation: "The raw logs of the transaction.",
+                    typing: RAW_LOG_OUTPUT.clone()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -268,13 +277,20 @@ impl CommandImplementation for SignEvmContractCall {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
-        let mut signers = signers.clone();
+        let signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
-        let signer_did = get_signer_did(&values).unwrap();
-        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+
         let future = async move {
-            signers.push_signer_state(signer_state);
+            let contract_address =
+                get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap()).unwrap();
+
+            let contract_abi = values.get_value(CONTRACT_ABI);
+            let mut address_abi_map = AddressAbiMap::new();
+            address_abi_map.insert_opt(&contract_address, &contract_abi);
+
+            result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
+
             let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
                 &spec,

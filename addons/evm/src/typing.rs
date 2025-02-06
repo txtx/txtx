@@ -1,11 +1,12 @@
 use std::str::FromStr;
 
 use alloy::primitives::Address;
+use alloy_rpc_types::Log;
 use txtx_addon_kit::{
     hex,
     types::{
         diagnostics::Diagnostic,
-        types::{Type, Value},
+        types::{ObjectType, Type, Value},
     },
 };
 
@@ -107,6 +108,37 @@ impl EvmValue {
 
     pub fn function_call(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, EVM_FUNCTION_CALL)
+    }
+}
+
+pub struct RawLog;
+impl RawLog {
+    pub fn to_value(log: &Log) -> Value {
+        let log_address = log.address();
+        let topics = log
+            .topics()
+            .iter()
+            .map(|topic| Value::string(hex::encode(topic.0.to_vec())))
+            .collect::<Vec<Value>>();
+        let data = hex::encode(log.data().data.to_vec());
+        let obj = ObjectType::from(vec![
+            ("address", EvmValue::address(&log_address)),
+            ("topics", Value::array(topics)),
+            ("data", Value::string(data)),
+        ]);
+        obj.to_value()
+    }
+}
+
+pub struct DecodedLog;
+impl DecodedLog {
+    pub fn to_value(event_name: &str, address: &Address, data: Value) -> Value {
+        let obj = ObjectType::from(vec![
+            ("event_name", Value::string(event_name.to_string())),
+            ("address", EvmValue::address(address)),
+            ("data", data),
+        ]);
+        obj.to_value()
     }
 }
 
@@ -294,6 +326,46 @@ lazy_static! {
             documentation: "The arguments to pass to the initializer function.",
             typing: Type::array(Type::string()),
             optional: true,
+            tainting: true
+        }
+    };
+    pub static ref DECODED_LOG_OUTPUT: Type = define_object_type! {
+        event_name: {
+            documentation: "The decoded name of the event.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        address: {
+            documentation: "The address of the contract that emitted the event.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: false,
+            tainting: true
+        },
+        data: {
+            documentation: "The decoded data of the event.",
+            typing: Type::object(vec![]),
+            optional: false,
+            tainting: true
+        }
+    };
+    pub static ref RAW_LOG_OUTPUT: Type = define_object_type! {
+        topics: {
+            documentation: "The event topics.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        address: {
+            documentation: "The address of the contract that emitted the event.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: false,
+            tainting: true
+        },
+        data: {
+            documentation: "The raw data of the event.",
+            typing: Type::string(),
+            optional: false,
             tainting: true
         }
     };
