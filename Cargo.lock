@@ -972,8 +972,10 @@ checksum = "31cf97b4e6f7d6144a05e435660fcf757dbc3446d38d0e2b851d11ed13625bba"
 dependencies = [
  "anchor-lang-idl-spec",
  "anyhow",
+ "heck 0.3.3",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
 ]
 
 [[package]]
