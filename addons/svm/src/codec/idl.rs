@@ -240,7 +240,7 @@ pub fn encode_value_to_idl_type(
         }
         IdlType::Vec(idl_type) => match value {
             Value::String(_) => {
-                let bytes = value.expect_buffer_bytes_result().map_err(|_| mismatch_err("vec"))?;
+                let bytes = value.get_buffer_bytes_result().map_err(|_| mismatch_err("vec"))?;
                 match idl_type.as_ref() {
                     IdlType::U8 => bytes
                         .iter()

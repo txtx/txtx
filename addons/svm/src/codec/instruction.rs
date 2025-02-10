@@ -53,7 +53,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         let data = instruction_data
             .get(DATA)
             .map(|d| {
-                d.expect_buffer_bytes_result()
+                d.get_buffer_bytes_result()
                     .map_err(|e| diagnosed_error!("invalid 'data' for instruction: {e}"))
             })
             .transpose()?
