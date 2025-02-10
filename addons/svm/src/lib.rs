@@ -29,10 +29,6 @@ impl SvmNetworkAddon {
     pub fn new() -> Self {
         Self {}
     }
-
-    pub fn get_deploy_action_spec(&self) -> &FunctionSpecification {
-        &functions::FUNCTIONS[5]
-    }
 }
 
 impl Addon for SvmNetworkAddon {
