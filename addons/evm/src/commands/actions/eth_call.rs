@@ -195,10 +195,12 @@ async fn build_eth_call(
     _spec: &CommandSpecification,
     values: &ValueStore,
 ) -> Result<Value, Diagnostic> {
+    use alloy::json_abi::JsonAbi;
+
     use crate::{
         codec::{
-            build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
-            TransactionType,
+            build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
+            CommonTransactionFields, TransactionType,
         },
         commands::actions::{
             call_contract::{
@@ -230,17 +232,26 @@ async fn build_eth_call(
         .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
 
     let input = if let Some(function_name) = function_name {
-        let function_args: Vec<DynSolValue> = function_args
-            .map(|v| {
-                v.expect_array()
-                    .iter()
-                    .map(|v| {
-                        value_to_sol_value(&v)
-                            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
-                    })
-                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-            })
-            .unwrap_or(Ok(vec![]))?;
+        let function_args = if let Some(abi_str) = contract_abi {
+            values
+                .get_value(CONTRACT_FUNCTION_ARGS)
+                .map(|v| {
+                    let abi: JsonAbi = serde_json::from_str(&abi_str)
+                        .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+                    value_to_abi_function_args(&function_name, &v, &abi)
+                })
+                .unwrap_or(Ok(vec![]))?
+        } else {
+            values
+                .get_value(CONTRACT_FUNCTION_ARGS)
+                .map(|v| {
+                    v.expect_array()
+                        .iter()
+                        .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
+                        .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+                })
+                .unwrap_or(Ok(vec![]))?
+        };
 
         if let Some(abi_str) = contract_abi {
             encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)

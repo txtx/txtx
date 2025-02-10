@@ -28,7 +28,8 @@ impl AnchorProgramArtifacts {
         let idl_bytes = std::fs::read(&idl_path).map_err(|e| {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
-        let idl: Idl = serde_json::from_slice(&idl_bytes).map_err(|e| {
+
+        let idl = anchor_lang_idl::convert::convert_idl(&idl_bytes).map_err(|e| {
             format!("invalid anchor idl at location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 

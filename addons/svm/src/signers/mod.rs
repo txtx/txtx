@@ -1,9 +1,11 @@
 pub mod secret_key;
+pub mod squads;
 pub mod web_wallet;
 
 use secret_key::SVM_SECRET_KEY;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
+use squads::SVM_SQUADS;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     frontend::{
@@ -22,7 +24,7 @@ use crate::constants::{
 
 lazy_static! {
     pub static ref SIGNERS: Vec<SignerSpecification> =
-        vec![SVM_SECRET_KEY.clone(), SVM_WEB_WALLET.clone()];
+        vec![SVM_SECRET_KEY.clone(), SVM_WEB_WALLET.clone(), SVM_SQUADS.clone()];
 }
 
 pub async fn get_additional_actions_for_address(

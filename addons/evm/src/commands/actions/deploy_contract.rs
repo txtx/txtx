@@ -26,7 +26,9 @@ use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
 use crate::codec::contract_deployment::{
     create_init_code, AddressAbiMap, ContractDeploymentTransaction,
 };
-use crate::codec::{get_typed_transaction_bytes, value_to_sol_value, TransactionType};
+use crate::codec::{
+    get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value, TransactionType,
+};
 
 use crate::constants::{
     ADDRESS_ABI_MAP, ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS,
@@ -36,7 +38,8 @@ use crate::constants::{
 use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
 use crate::typing::{
-    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS,
+    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, DECODED_LOG_OUTPUT, PROXIED_CONTRACT_INITIALIZER,
+    PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
 };
 
 use super::call_contract::{
@@ -234,6 +237,14 @@ lazy_static! {
                     contract_address: {
                         documentation: "The address of the deployed transaction.",
                         typing: Type::string()
+                    },
+                    logs: {
+                        documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                        typing: DECODED_LOG_OUTPUT.clone()
+                    },
+                    raw_logs: {
+                          documentation: "The raw logs of the transaction.",
+                          typing: RAW_LOG_OUTPUT.clone()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -274,8 +285,6 @@ impl CommandImplementation for DeployContract {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
-
         use crate::{
             codec::contract_deployment::{
                 ContractDeploymentTransactionStatus, ProxiedDeploymentTransaction,
@@ -296,9 +305,6 @@ impl CommandImplementation for DeployContract {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-
-        let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::deploy_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -328,12 +334,12 @@ impl CommandImplementation for DeployContract {
                 &values,
             )
             .await
-            .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let impl_deploy_tx = deployer
                 .get_implementation_deployment_transaction(&values)
                 .await
-                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let payload = match impl_deploy_tx {
                 ContractDeploymentTransaction::Create(status)
@@ -365,7 +371,7 @@ impl CommandImplementation for DeployContract {
                             Value::integer(tx_cost),
                         );
                         let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
-                            (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
+                            (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
                         })?;
                         let payload = EvmValue::transaction(bytes);
                         payload
@@ -403,7 +409,7 @@ impl CommandImplementation for DeployContract {
                         Value::integer(tx_cost),
                     );
                     let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
-                        (signers.clone(), signer_state.clone(), to_diag_with_ctx(e))
+                        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
                     })?;
                     let payload = EvmValue::transaction(bytes);
                     payload
@@ -662,6 +668,15 @@ impl ContractDeploymentTransactionRequestBuilder {
 
         let contract = values.get_expected_object("contract").map_err(|e| e.to_string())?;
 
+        let json_abi: Option<JsonAbi> = match contract.get("abi") {
+            Some(abi_string) => {
+                let abi = serde_json::from_str(&abi_string.expect_string())
+                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
+                Some(abi)
+            }
+            None => None,
+        };
+
         let constructor_args = if let Some(function_args) =
             values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
         {
@@ -670,12 +685,25 @@ impl ContractDeploymentTransactionRequestBuilder {
                     "invalid arguments: constructor arguments provided, but contract is a proxy contract"
                 ));
             }
-            let sol_args = function_args
-                .expect_array()
-                .iter()
-                .map(|v| value_to_sol_value(&v))
-                .collect::<Result<Vec<DynSolValue>, String>>()?;
-            Some(sol_args)
+            if let Some(abi) = &json_abi {
+                if let Some(constructor) = &abi.constructor {
+                    Some(
+                        value_to_abi_constructor_args(&function_args, &constructor)
+                            .map_err(|e| e.message)?,
+                    )
+                } else {
+                    return Err(format!(
+                        "constructor args provided, but no constructor found in abi"
+                    ));
+                }
+            } else {
+                let sol_args = function_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v))
+                    .collect::<Result<Vec<DynSolValue>, String>>()?;
+                Some(sol_args)
+            }
         } else {
             None
         };
@@ -684,15 +712,6 @@ impl ContractDeploymentTransactionRequestBuilder {
             contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
         else {
             return Err(format!("contract missing required bytecode"));
-        };
-
-        let json_abi: Option<JsonAbi> = match contract.get("abi") {
-            Some(abi_string) => {
-                let abi = serde_json::from_str(&abi_string.expect_string())
-                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
-                Some(abi)
-            }
-            None => None,
         };
 
         let init_code = create_init_code(bytecode, constructor_args, &json_abi)?;

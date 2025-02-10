@@ -23,15 +23,16 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::contract_deployment::AddressAbiMap;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::{CONTRACT_ABI, RPC_API_URL};
+use crate::constants::{ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RPC_API_URL};
 use crate::rpc::EvmRpc;
-use crate::typing::EVM_ADDRESS;
+use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
 
-use super::get_signer_did;
+use super::{get_expected_address, get_signer_did};
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -152,6 +153,14 @@ lazy_static! {
               tx_hash: {
                   documentation: "The hash of the transaction.",
                   typing: Type::string()
+              },
+              logs: {
+                  documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                  typing: DECODED_LOG_OUTPUT.clone()
+              },
+              raw_logs: {
+                    documentation: "The raw logs of the transaction.",
+                    typing: RAW_LOG_OUTPUT.clone()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -185,8 +194,6 @@ impl CommandImplementation for SignEvmContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
-
         use crate::{
             codec::get_typed_transaction_bytes,
             commands::actions::sign_transaction::SignEvmTransaction,
@@ -202,8 +209,6 @@ impl CommandImplementation for SignEvmContractCall {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-        let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::call_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
@@ -214,12 +219,12 @@ impl CommandImplementation for SignEvmContractCall {
                 return Ok((signers, signer_state, Actions::none()));
             }
             let (transaction, transaction_cost) =
-                build_unsigned_contract_call(&signer_state, &spec, &values, &to_diag_with_ctx)
+                build_unsigned_contract_call(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let bytes = get_typed_transaction_bytes(&transaction)
-                .map_err(|e| (signers.clone(), signer_state.clone(), to_diag_with_ctx(e)))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let payload = EvmValue::transaction(bytes);
 
@@ -268,13 +273,20 @@ impl CommandImplementation for SignEvmContractCall {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
-        let mut signers = signers.clone();
+        let signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
-        let signer_did = get_signer_did(&values).unwrap();
-        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+
         let future = async move {
-            signers.push_signer_state(signer_state);
+            let contract_address =
+                get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap()).unwrap();
+
+            let contract_abi = values.get_value(CONTRACT_ABI);
+            let mut address_abi_map = AddressAbiMap::new();
+            address_abi_map.insert_opt(&contract_address, &contract_abi);
+
+            result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
+
             let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
@@ -360,10 +372,12 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-    to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
 ) -> Result<(TransactionRequest, i128), Diagnostic> {
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        codec::{
+            build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
+            TransactionType,
+        },
         commands::actions::get_common_tx_params_from_args,
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
@@ -380,21 +394,33 @@ async fn build_unsigned_contract_call(
     let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi = values.get_string(CONTRACT_ABI);
     let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = values
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| value_to_sol_value(&v).map_err(to_diag_with_ctx))
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
+
+    let function_args = if let Some(abi_str) = contract_abi {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                let abi: JsonAbi = serde_json::from_str(&abi_str)
+                    .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+                value_to_abi_function_args(&function_name, &v, &abi)
+            })
+            .unwrap_or(Ok(vec![]))?
+    } else {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                v.expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+            })
+            .unwrap_or(Ok(vec![]))?
+    };
 
     let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
+        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
     if nonce.is_none() {
         if let Some(signer_nonce) =
-            get_signer_nonce(signer_state, chain_id).map_err(to_diag_with_ctx)?
+            get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
         {
             nonce = Some(signer_nonce + 1);
         }
@@ -402,14 +428,14 @@ async fn build_unsigned_contract_call(
 
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EvmRpc::new(&rpc_api_url).map_err(to_diag_with_ctx)?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
         encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
+            .map_err(|e| diagnosed_error!("{}", e))?
     } else {
         encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(to_diag_with_ctx)?
+            .map_err(|e| diagnosed_error!("{}", e))?
     };
 
     let common = CommonTransactionFields {
@@ -424,7 +450,9 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let res = build_unsigned_transaction(rpc, values, common).await.map_err(to_diag_with_ctx)?;
+    let res = build_unsigned_transaction(rpc, values, common)
+        .await
+        .map_err(|e| diagnosed_error!("{}", e))?;
     Ok(res)
 }
 

@@ -873,7 +873,9 @@ impl UpgradeableProgramDeployer {
             .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_programdata(
                 program_data_length,
             ))
-            .unwrap();
+            .map_err(|e| {
+                diagnosed_error!("failed to get minimum balance for rent exemption: {e}")
+            })?;
 
         create_buffer(
             &self.temp_upgrade_authority_pubkey,

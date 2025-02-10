@@ -1,5 +1,14 @@
+use std::str::FromStr;
+
 use alloy::primitives::Address;
-use txtx_addon_kit::types::types::{Type, Value};
+use alloy_rpc_types::Log;
+use txtx_addon_kit::{
+    hex,
+    types::{
+        diagnostics::Diagnostic,
+        types::{ObjectType, Type, Value},
+    },
+};
 
 pub const EVM_ADDRESS: &str = "evm::address";
 pub const EVM_BYTES: &str = "evm::bytes";
@@ -15,10 +24,50 @@ pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
 
 pub struct EvmValue {}
 
+fn is_hex(str: &str) -> bool {
+    decode_hex(str).map(|_| true).unwrap_or(false)
+}
+
+fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
+    let stripped = if str.starts_with("0x") { &str[2..] } else { &str[..] };
+    hex::decode(stripped)
+        .map_err(|e| diagnosed_error!("string '{}' could not be decoded to hex bytes: {}", str, e))
+}
+
 impl EvmValue {
     pub fn address(address: &Address) -> Value {
         let bytes = address.0 .0.to_vec();
         Value::addon(bytes, EVM_ADDRESS)
+    }
+    pub fn to_address(value: &Value) -> Result<Address, Diagnostic> {
+        match value.as_string() {
+            Some(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e)?;
+                    if hex.len() != 20 {
+                        return Err(diagnosed_error!(
+                            "expected 20 bytes for address, got {}",
+                            hex.len()
+                        ));
+                    }
+                    let bytes: [u8; 20] = hex[0..20]
+                        .try_into()
+                        .map_err(|e| diagnosed_error!("could not convert value to address: {e}"))?;
+                    return Ok(Address::from_slice(&bytes));
+                }
+                return Address::from_str(s)
+                    .map_err(|e| diagnosed_error!("could not convert value to address: {e}"));
+            }
+            None => {}
+        };
+        let bytes = value.to_bytes();
+        if bytes.len() != 20 {
+            return Err(diagnosed_error!("expected 20 bytes for address, got {}", bytes.len()));
+        }
+        let bytes: [u8; 20] = bytes[0..20]
+            .try_into()
+            .map_err(|e| diagnosed_error!("could not convert value to address: {e}"))?;
+        Ok(Address::from_slice(&bytes))
     }
 
     pub fn bytes(bytes: Vec<u8>) -> Value {
@@ -59,6 +108,37 @@ impl EvmValue {
 
     pub fn function_call(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, EVM_FUNCTION_CALL)
+    }
+}
+
+pub struct RawLog;
+impl RawLog {
+    pub fn to_value(log: &Log) -> Value {
+        let log_address = log.address();
+        let topics = log
+            .topics()
+            .iter()
+            .map(|topic| Value::string(hex::encode(topic.0.to_vec())))
+            .collect::<Vec<Value>>();
+        let data = hex::encode(log.data().data.to_vec());
+        let obj = ObjectType::from(vec![
+            ("address", EvmValue::address(&log_address)),
+            ("topics", Value::array(topics)),
+            ("data", Value::string(data)),
+        ]);
+        obj.to_value()
+    }
+}
+
+pub struct DecodedLog;
+impl DecodedLog {
+    pub fn to_value(event_name: &str, address: &Address, data: Value) -> Value {
+        let obj = ObjectType::from(vec![
+            ("event_name", Value::string(event_name.to_string())),
+            ("address", EvmValue::address(address)),
+            ("data", data),
+        ]);
+        obj.to_value()
     }
 }
 
@@ -246,6 +326,46 @@ lazy_static! {
             documentation: "The arguments to pass to the initializer function.",
             typing: Type::array(Type::string()),
             optional: true,
+            tainting: true
+        }
+    };
+    pub static ref DECODED_LOG_OUTPUT: Type = define_object_type! {
+        event_name: {
+            documentation: "The decoded name of the event.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        address: {
+            documentation: "The address of the contract that emitted the event.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: false,
+            tainting: true
+        },
+        data: {
+            documentation: "The decoded data of the event.",
+            typing: Type::object(vec![]),
+            optional: false,
+            tainting: true
+        }
+    };
+    pub static ref RAW_LOG_OUTPUT: Type = define_object_type! {
+        topics: {
+            documentation: "The event topics.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
+        },
+        address: {
+            documentation: "The address of the contract that emitted the event.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: false,
+            tainting: true
+        },
+        data: {
+            documentation: "The raw data of the event.",
+            typing: Type::string(),
+            optional: false,
             tainting: true
         }
     };
