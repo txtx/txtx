@@ -1447,6 +1447,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c59bdb34bc650a32731b31bd8f0829cc15d24a708ee31559e0bb34f2bc320cba"
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1526,7 +1532,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "tracing",
- "uuid 1.13.1",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -2923,7 +2929,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3620,7 +3626,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
- "uuid 1.13.1",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -12663,7 +12669,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
- "uuid 1.13.1",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -13419,7 +13425,7 @@ dependencies = [
  "test-case",
  "tiny-hderive",
  "url",
- "uuid 1.13.1",
+ "uuid 1.7.0",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -13632,7 +13638,7 @@ dependencies = [
  "juniper_codegen",
  "tokio",
  "txtx-addon-kit",
- "uuid 1.13.1",
+ "uuid 1.7.0",
 ]
 
 [[package]]
@@ -13854,11 +13860,12 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.13.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced87ca4be083373936a67f8de945faa23b6b42384bd5b64434850802c6dccd0"
+checksum = "f00cc9702ca12d3c81455259621e676d0f7251cec66a21e98fe2e9a37db93b2a"
 dependencies = [
- "getrandom 0.3.1",
+ "atomic",
+ "getrandom 0.2.15",
  "serde",
 ]
 

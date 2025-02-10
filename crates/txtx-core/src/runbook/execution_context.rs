@@ -455,7 +455,7 @@ impl RunbookExecutionContext {
         LoopEvaluationResult::Continue
     }
 
-    async fn simulate_embedded_runbook(
+    pub async fn simulate_embedded_runbook(
         &mut self,
         construct_did: &ConstructDid,
         pass_result: &mut EvaluationPassResult,
@@ -638,7 +638,7 @@ impl RunbookExecutionContext {
         Ok(())
     }
 
-    async fn simulate_embedded_runbook_instance_inputs_execution(
+    pub async fn simulate_embedded_runbook_instance_inputs_execution(
         &mut self,
         construct_did: &ConstructDid,
         embedded_runbook: &EmbeddedRunbookInstance,

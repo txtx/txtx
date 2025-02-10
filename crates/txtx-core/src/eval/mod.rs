@@ -1459,7 +1459,6 @@ pub fn perform_inputs_evaluation(
     for input in inputs.into_iter() {
         let input_name = input.name();
         let input_typing = input.typing();
-        let input_optional = input.optional();
 
         if simulation {
             // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec
