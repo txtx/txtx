@@ -331,7 +331,7 @@ impl DeploymentTransaction {
     ) -> Result<Option<(String, String)>, Diagnostic> {
         let description = match &self.transaction_type {
             DeploymentTransactionType::CreateTempAuthority(_) => {
-                "This transaction creates a temporary account that will execute the deployment."
+                "This transaction creates an ephemeral account that will execute the deployment."
             }
             DeploymentTransactionType::CreateBuffer => return Ok(None),
             DeploymentTransactionType::WriteToBuffer => return Ok(None),
@@ -450,7 +450,7 @@ impl DeploymentTransaction {
         match &self.transaction_type {
             DeploymentTransactionType::SkipCloseTempAuthority => {
                 status_updater.propagate_info(&format!(
-                    "Temp account has no leftover funds; skipping transaction to close the account",
+                    "Ephemeral authority account has no leftover funds; skipping transaction to close the account",
                 ));
                 return Ok(());
             }
@@ -460,15 +460,15 @@ impl DeploymentTransaction {
                         diagnosed_error!("failed to deserialize temp authority keypair: {}", e)
                     })?;
                 status_updater
-                    .propagate_info("A temporary account will be created and funded to write to the buffer account.");
+                    .propagate_info("An ephemeral authority account will be created and funded to write to the buffer account.");
                 status_updater
                     .propagate_info("Please save the following information in case the deployment fails and the account needs to be recovered:");
                 status_updater.propagate_info(&format!(
-                    "Temporary Authority Public Key: {}",
+                    "Ephemeral authority public key: {}",
                     temp_authority_keypair.pubkey()
                 ));
                 status_updater.propagate_info(&format!(
-                    "Temporary Authority Keypair: {}",
+                    "Ephemeral authority secret key: {}",
                     temp_authority_keypair.to_base58_string()
                 ));
             }
@@ -497,7 +497,7 @@ impl DeploymentTransaction {
                 status_updater.propagate_status(ProgressBarStatus::new_msg(
                     ProgressBarStatusColor::Green,
                     "Account Created",
-                    "Temp account created to write to buffer",
+                    "Ephemeral authority account created to write to buffer",
                 ));
             }
             DeploymentTransactionType::CreateBuffer => {
@@ -525,7 +525,7 @@ impl DeploymentTransaction {
                 status_updater.propagate_status(ProgressBarStatus::new_msg(
                     ProgressBarStatusColor::Green,
                     "Complete",
-                    "Temp account closed and leftover funds returned to payer",
+                    "Ephemeral authority account closed and leftover funds returned to payer",
                 ));
             }
             _ => {}
@@ -565,7 +565,7 @@ impl CloseTempAuthorityTransactionParts {
 ///
 /// ### Actors
 ///  - Final Authority: this is who we want to own the program and program data account at the end of each deployment/upgrade.
-///  - Temp Authority: this is a temporary keypair that we use to write to the buffer account.
+///  - Ephemeral authority: this is a temporary keypair that we use to write to the buffer account.
 ///    - This prevents the user from having to sign many transactions to deploy/upgrade.
 ///    - Once this account is created/funded, we need to be sure to display the keys to the user. If the deployment fails, we don't want them to lose this account
 ///  - Buffer account: this is the account that is created to temporarily write data to before deploying to the final program address
@@ -573,54 +573,54 @@ impl CloseTempAuthorityTransactionParts {
 ///
 /// ## First Deployment
 ///  
-/// ### Transaction 1: Seed Temp Authority
+/// ### Transaction 1: Seed Ephemeral authority
 ///  1. This is signed by the payer
 ///
 /// ### Transaction 2: Create Buffer
 ///  1. First instruction creates the Buffer account
-///     1. Signed by the Temp Authority
-///  2. Second instruction initializes the Buffer, with the Temp Authority as the authority
+///     1. Signed by the Ephemeral authority
+///  2. Second instruction initializes the Buffer, with the Ephemeral authority as the authority
 ///
 /// ### Transaction 3 - X: Write to Buffer
-///  1. Temp Authority writes to Buffer
+///  1. Ephemeral authority writes to Buffer
 ///
 /// ### Transaction X + 1: Deploy Program              
 ///  1. Create final program account
-///     1. Temp Authority signs
+///     1. Ephemeral authority signs
 ///  2. Transfer buffer to final program
-///     1. Temp Authority signs (Buffer authority **must match** program authority)
-///     2. After this, the Temp Authority owns the final program
+///     1. Ephemeral authority signs (Buffer authority **must match** program authority)
+///     2. After this, the Ephemeral authority owns the final program
 ///
-/// ### Transaction X + 2: Transfer Program authority from Temp Authority to Final Authority
-///  1. Temp Authority signs
+/// ### Transaction X + 2: Transfer Program authority from Ephemeral authority to Final Authority
+///  1. Ephemeral authority signs
 ///
-/// ### Transaction X + 3: Transfer leftover Temp Authority funds to the Payer
-///  1. Temp Authority signs
+/// ### Transaction X + 3: Transfer leftover Ephemeral authority funds to the Payer
+///  1. Ephemeral authority signs
 /// ---
 ///
 /// ## Upgrades
 ///
-/// ### Transaction 1: Seed Temp Authority
+/// ### Transaction 1: Seed Ephemeral authority
 ///  1. This is signed by the payer
 ///
 /// ### Transaction 2: Create Buffer
 ///  1. First instruction creates the Buffer account
-///     1. Signed by the Temp Authority
-///  2. Second instruction initializes the Buffer, with the Temp Authority as the authority
+///     1. Signed by the Ephemeral authority
+///  2. Second instruction initializes the Buffer, with the Ephemeral authority as the authority
 ///  3. Third instruction extends the program data account if necessary
-///     1. Payed for by the Temp Authority
+///     1. Payed for by the Ephemeral authority
 ///
 /// ### Transaction 3 - X: Write to Buffer
-///  1. Temp Authority writes to Buffer
+///  1. Ephemeral authority writes to Buffer
 ///
-/// ### Transaction X + 1: Transfer Buffer authority from Temp Authority to Final Authority
-///  1. Temp Authority signs
+/// ### Transaction X + 1: Transfer Buffer authority from Ephemeral authority to Final Authority
+///  1. Ephemeral authority signs
 ///
 /// ### Transaction X + 2: Upgrade Program              
 ///  1. Final Authority signs
 ///
-/// ### Transaction X + 3: Transfer leftover Temp Authority funds to the Payer
-///  1. Temp Authority signs
+/// ### Transaction X + 3: Transfer leftover Ephemeral authority funds to the Payer
+///  1. Ephemeral authority signs
 ///
 pub struct UpgradeableProgramDeployer {
     /// The public key of the program to deploy.
