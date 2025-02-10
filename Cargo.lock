@@ -13502,7 +13502,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anchor-lang-idl",
  "async-recursion",
