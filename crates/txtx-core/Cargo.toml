@@ -12,8 +12,8 @@ categories = { workspace = true }
 daggy = "0.8.0"
 base64 = "0.22.1"
 bs58 = "0.5.1"
-txtx-addon-kit = { version = "0.2.1", default-features = false }
-# txtx-addon-kit = { workspace = true, default-features = false}
+# txtx-addon-kit = { version = "0.2.1", default-features = false }
+txtx-addon-kit = { workspace = true, default-features = false}
 getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
 jaq-interpret = "1.2.1"
