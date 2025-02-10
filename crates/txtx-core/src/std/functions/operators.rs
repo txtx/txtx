@@ -505,31 +505,9 @@ impl FunctionImplementation for BinaryEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        match args.get(0) {
-            Some(Value::Integer(lhs)) => {
-                let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-                Ok(Value::bool(lhs.eq(&rhs)))
-            }
-            Some(Value::Float(lhs)) => {
-                let Some(Value::Float(rhs)) = args.get(1) else { unreachable!() };
-                Ok(Value::bool(lhs.eq(rhs.into())))
-            }
-            Some(Value::Bool(lhs)) => {
-                let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
-                Ok(Value::bool(lhs.eq(rhs.into())))
-            }
-            Some(Value::String(lhs)) => {
-                let Some(Value::String(rhs)) = args.get(1) else { unreachable!() };
-                Ok(Value::bool(lhs.eq(rhs.into())))
-            }
-            Some(Value::Null) => {
-                let Some(Value::Null) = args.get(1) else {
-                    return Ok(Value::bool(false));
-                };
-                Ok(Value::bool(true))
-            }
-            _ => unreachable!(),
-        }
+        let lhs = args.get(0).unwrap();
+        let rhs = args.get(1).unwrap();
+        Ok(Value::bool(lhs.eq(rhs)))
     }
 }
 
