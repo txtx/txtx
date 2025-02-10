@@ -4,23 +4,25 @@ use crate::runbook::embedded_runbook::EmbeddedRunbookInstanceBuilder;
 use crate::runbook::RawHclContent;
 use crate::std::commands;
 use crate::types::PreConstructData;
-use kit::hcl::expr::{Expression, TraversalOperator};
-use kit::hcl::structure::BlockLabel;
-use kit::hcl::Span;
-use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use kit::helpers::hcl::{
+use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
+use txtx_addon_kit::hcl::structure::BlockLabel;
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use txtx_addon_kit::helpers::hcl::{
     visit_optional_untyped_attribute, visit_required_string_literal_attribute,
 };
-use kit::indexmap::IndexMap;
-use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
-use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::{EmbeddedRunbookInputSpecification, EmbeddedRunbookInstance};
-use kit::types::package::Package;
-use kit::types::signers::SignerInstance;
-use kit::types::stores::AddonDefaults;
-use kit::types::types::Value;
-use kit::types::AddonInstance;
-use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::embedded_runbooks::{
+    EmbeddedRunbookInputSpecification, EmbeddedRunbookInstance,
+};
+use txtx_addon_kit::types::package::Package;
+use txtx_addon_kit::types::signers::SignerInstance;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::AddonInstance;
+use txtx_addon_kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 
 use super::{
     get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,

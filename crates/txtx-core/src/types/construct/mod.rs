@@ -1,4 +1,4 @@
-use kit::types::embedded_runbooks::EmbeddedRunbookInstance;
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::{
     hcl::structure::Block,
     types::{commands::CommandInstance, signers::SignerInstance},

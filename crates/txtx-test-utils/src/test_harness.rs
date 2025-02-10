@@ -273,8 +273,7 @@ pub fn setup_test(
     let (block_tx, block_rx) = txtx_addon_kit::channel::unbounded::<BlockEvent>();
     let (action_item_updates_tx, _action_item_updates_rx) =
         txtx_addon_kit::channel::unbounded::<ActionItemRequest>();
-    let (action_item_events_tx, action_item_events_rx) =
-        tokio::sync::broadcast::channel(32);
+    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
 
     let harness = TestHarness {
         block_tx: block_tx.clone(),
@@ -284,11 +283,8 @@ pub fn setup_test(
         action_item_events_rx: action_item_events_rx.resubscribe(),
     };
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_supervised_runbook_runloop(
-            &mut runbook,
-            block_tx,
-            action_item_events_rx,
-        );
+        let runloop_future =
+            start_supervised_runbook_runloop(&mut runbook, block_tx, action_item_events_rx);
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
                 println!("{}", diag);

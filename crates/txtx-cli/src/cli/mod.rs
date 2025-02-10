@@ -9,7 +9,6 @@ mod docs;
 mod lsp;
 mod runbooks;
 mod snapshots;
-mod templates;
 
 #[derive(Clone)]
 pub struct Context {

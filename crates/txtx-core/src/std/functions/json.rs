@@ -1,6 +1,6 @@
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
-use kit::types::AuthorizationContext;
 use serde_json::Value as JsonValue;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{

@@ -1,9 +1,9 @@
-use kit::{
+use serde::{Deserialize, Serialize};
+use txtx_addon_kit::{
     helpers::fs::{get_txtx_files_paths, FileLocation},
     indexmap::IndexMap,
     types::RunbookId,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::runbook::{Runbook, RunbookSources};
 

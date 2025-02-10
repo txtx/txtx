@@ -1,8 +1,8 @@
 use crate::runbook::{RunbookTopLevelInputsMap, DEFAULT_TOP_LEVEL_INPUTS_NAME};
-use kit::helpers::fs::{FileAccessor, FileLocation};
-use kit::indexmap::IndexMap;
-use kit::serde::{Deserialize, Serialize};
-use kit::types::types::Value;
+use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::serde::{Deserialize, Serialize};
+use txtx_addon_kit::types::types::Value;
 
 pub mod file;
 

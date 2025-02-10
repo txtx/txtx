@@ -1,7 +1,10 @@
-use kit::types::commands::DependencyExecutionResultCache;
-use kit::types::stores::AddonDefaults;
-use kit::types::stores::ValueStore;
-use kit::{
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::collections::VecDeque;
+use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::{
     hcl::structure::{Block, BlockLabel},
     helpers::fs::FileLocation,
     types::{
@@ -18,9 +21,6 @@ use kit::{
     },
     Addon,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::collections::VecDeque;
 
 use crate::{
     eval::{self, ExpressionEvaluationStatus},

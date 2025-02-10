@@ -1,15 +1,17 @@
 pub mod publishable;
 
-use kit::hcl::structure::Block;
-use kit::helpers::fs::FileLocation;
-use kit::types::commands::DependencyExecutionResultCache;
-use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
-use kit::types::stores::ValueStore;
-use kit::types::PackageId;
-use kit::types::{commands::CommandExecutionResult, embedded_runbooks::EmbeddedRunbookInstance};
 use publishable::PublishableEmbeddedRunbookSpecification;
 use std::collections::HashMap;
+use txtx_addon_kit::hcl::structure::Block;
+use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::PackageId;
+use txtx_addon_kit::types::{
+    commands::CommandExecutionResult, embedded_runbooks::EmbeddedRunbookInstance,
+};
 
 use super::runtime_context::AddonsContext;
 use super::{
@@ -241,22 +243,22 @@ impl EmbeddedRunbookInstanceBuilder {
 mod tests {
     use std::collections::HashSet;
 
-    use kit::helpers::fs::FileLocation;
-    use kit::helpers::hcl::RawHclContent;
-    use kit::types::commands::CommandInstanceType;
-    use kit::types::embedded_runbooks::EmbeddedRunbookInputSpecification;
-    use kit::types::embedded_runbooks::EmbeddedRunbookValueInputSpecification;
-    use kit::types::package::Package;
-    use kit::types::types::Type;
-    use kit::types::ConstructDid;
-    use kit::types::ConstructId;
-    use kit::types::Did;
+    use txtx_addon_kit::helpers::fs::FileLocation;
+    use txtx_addon_kit::helpers::hcl::RawHclContent;
+    use txtx_addon_kit::types::commands::CommandInstanceType;
+    use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInputSpecification;
+    use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookValueInputSpecification;
+    use txtx_addon_kit::types::package::Package;
+    use txtx_addon_kit::types::stores::ValueStore;
+    use txtx_addon_kit::types::types::Type;
+    use txtx_addon_kit::types::ConstructDid;
+    use txtx_addon_kit::types::ConstructId;
+    use txtx_addon_kit::types::Did;
+    use txtx_addon_kit::types::PackageId;
+    use txtx_addon_kit::types::RunbookId;
 
     use super::publishable::*;
     use super::*;
-    use crate::kit::types::stores::ValueStore;
-    use crate::kit::types::PackageId;
-    use crate::kit::types::RunbookId;
 
     #[test]
     fn make_publishable() {

@@ -1,16 +1,16 @@
 use flow_context::FlowContext;
-use kit::hcl::structure::BlockLabel;
-use kit::hcl::Span;
-use kit::helpers::hcl::RawHclContent;
-use kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
-use kit::types::diagnostics::DiagnosticSpan;
-use kit::types::stores::ValueStore;
-use kit::types::types::RunbookSupervisionContext;
-use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{AuthorizationContext, Did, PackageId, RunbookId};
-use kit::Addon;
 use std::collections::{HashMap, VecDeque};
+use txtx_addon_kit::hcl::structure::BlockLabel;
+use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::helpers::hcl::RawHclContent;
+use txtx_addon_kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
+use txtx_addon_kit::types::diagnostics::DiagnosticSpan;
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
+use txtx_addon_kit::types::{AuthorizationContext, Did, PackageId, RunbookId};
+use txtx_addon_kit::Addon;
 
 mod diffing_context;
 pub mod embedded_runbook;

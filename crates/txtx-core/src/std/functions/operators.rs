@@ -1,4 +1,4 @@
-use kit::types::AuthorizationContext;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -528,7 +528,7 @@ impl FunctionImplementation for BinaryGreater {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.gt(rhs)))
+        Ok(Value::bool(lhs.gt(&rhs)))
     }
 }
 
@@ -549,7 +549,7 @@ impl FunctionImplementation for BinaryGreaterEq {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.ge(rhs)))
+        Ok(Value::bool(lhs.ge(&rhs)))
     }
 }
 
@@ -570,7 +570,7 @@ impl FunctionImplementation for BinaryLess {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.lt(rhs)))
+        Ok(Value::bool(lhs.lt(&rhs)))
     }
 }
 
@@ -591,7 +591,7 @@ impl FunctionImplementation for BinaryLessEq {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.le(rhs)))
+        Ok(Value::bool(lhs.le(&rhs)))
     }
 }
 
@@ -612,7 +612,7 @@ impl FunctionImplementation for BinaryNotEq {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(!lhs.eq(rhs)))
+        Ok(Value::bool(!lhs.eq(&rhs)))
     }
 }
 

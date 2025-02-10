@@ -7,9 +7,10 @@ extern crate txtx_addon_kit;
 pub mod codec;
 mod commands;
 mod constants;
-mod functions;
+pub mod functions;
 pub mod rpc;
 mod signers;
+pub mod templates;
 pub mod typing;
 
 use constants::NAMESPACE;

@@ -64,7 +64,7 @@ pub fn send_transaction_background_task(
         let mut result = CommandExecutionResult::from_value_store(&outputs);
 
         let transaction_bytes = signed_transaction_value
-            .expect_buffer_bytes_result()
+            .get_buffer_bytes_result()
             .map_err(|e| diagnosed_error!("{}", e))?;
         let signature = send_transaction(client.clone(), do_await_confirmation, &transaction_bytes)
             .map_err(|diag| {

@@ -1,8 +1,8 @@
-use kit::keccak_hash::keccak;
-use kit::types::functions::arg_checker_with_ctx;
-use kit::types::AuthorizationContext;
-use kit::{sha2::Sha256 as LibSha256, types::functions::fn_diag_with_ctx};
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
+use txtx_addon_kit::keccak_hash::keccak;
+use txtx_addon_kit::types::functions::arg_checker_with_ctx;
+use txtx_addon_kit::types::AuthorizationContext;
+use txtx_addon_kit::{sha2::Sha256 as LibSha256, types::functions::fn_diag_with_ctx};
 
 use txtx_addon_kit::{
     define_function, indoc,

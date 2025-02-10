@@ -34,9 +34,3 @@ txtx-addon-network-stacks = { path = "addons/stacks" }
 txtx-addon-network-svm = { path = "addons/svm" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
-
-[patch.crates-io]
-solana-curve25519 =  { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir = "curves/curve25519" }
-solana-program = { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir = "sdk/program" }
-solana-zk-sdk = { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir = "zk-sdk" }
-solana-zk-token-sdk = { git = "https://github.com/txtx/solana", branch = "2.1.0", subdir = "zk-token-sdk" }

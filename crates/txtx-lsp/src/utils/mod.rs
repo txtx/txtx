@@ -1,8 +1,8 @@
 use lsp_types::Diagnostic as LspDiagnostic;
 use lsp_types::Url;
 use lsp_types::{DiagnosticSeverity, Position, Range};
-use txtx_core::kit::helpers::fs::FileLocation;
-use txtx_core::kit::types::diagnostics::{
+use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_kit::types::diagnostics::{
     Diagnostic as TxtxDiagnostic, DiagnosticLevel as TxtxLevel,
 };
 

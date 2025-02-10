@@ -314,7 +314,7 @@ impl CommandImplementation for StacksDeployContract {
                             lazy_dependencies.push(contract_id);
                         }
                     }
-                }    
+                }
             }
             Ok(data) => {
                 for (_contract_id, deps) in data.iter() {

@@ -2,38 +2,46 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use super::{Context, GetDocumentation};
+use serde_json::json;
 use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
+#[cfg(feature = "stacks")]
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::helpers::fs::FileLocation;
-use txtx_core::kit::indexmap::{self, indexmap, IndexMap};
+use txtx_core::kit::indexmap::IndexMap;
 use txtx_core::kit::types::commands::{CommandInput, CommandOutput, PreCommandSpecification};
 use txtx_core::kit::types::functions::FunctionSpecification;
 use txtx_core::kit::{
     Addon, DEFAULT_ADDON_ACTIONS_TEMPLATE, DEFAULT_ADDON_FUNCTIONS_TEMPLATE,
     DEFAULT_ADDON_OVERVIEW_TEMPLATE, DEFAULT_ADDON_WALLETS_TEMPLATE,
 };
+use txtx_core::mustache;
 use txtx_core::std::commands::actions::http;
 use txtx_core::std::functions::{base64, crypto, hash, hex, json, list, operators};
 use txtx_core::std::StdAddon;
-use serde_json::json;
 
 pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Result<(), String> {
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
-    let stacks: Box<dyn Addon> = Box::new(StacksNetworkAddon::new());
     let evm: Box<dyn Addon> = Box::new(EvmNetworkAddon::new());
     let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
     let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
 
-    let mut addons = vec![&std, &stacks, &evm, &svm, &telegram];
+    let mut addons = vec![&std, &evm, &svm, &telegram];
     #[cfg(feature = "ovm")]
-    let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
-    #[cfg(feature = "ovm")]
-    addons.push(&ovm);
-
+    let _ovm = {
+        let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
+        addons.push(&ovm);
+        Some(ovm)
+    };
+    #[cfg(feature = "stacks")]
+    let _stacks = {
+        let stacks: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
+        addons.push(&stacks);
+        Some(stacks)
+    };
     display_documentation(&addons);
     generate_mdx(&addons);
     generate_json(&addons).map_err(|e| format!("Failed to generate JSON documentation: {}", e))?;
@@ -54,7 +62,10 @@ pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
             let command = match action {
                 PreCommandSpecification::Atomic(spec) => json!(spec),
                 PreCommandSpecification::Composite(spec) => {
-                    return Err(format!("Composite action '{}' is not supported in JSON output", spec.name))
+                    return Err(format!(
+                        "Composite action '{}' is not supported in JSON output",
+                        spec.name
+                    ))
                 }
             };
             actions.push(command);
@@ -64,9 +75,10 @@ pub fn generate_json(addons: &Vec<&Box<dyn Addon>>) -> Result<(), String> {
     }
     let file = FileLocation::from_path(path);
     let content = json!(docs);
-    let formatted_content = serde_json::to_string_pretty(&content).expect("unable to pretty print docs");
+    let formatted_content =
+        serde_json::to_string_pretty(&content).expect("unable to pretty print docs");
     let _ = file.write_content(formatted_content.as_bytes());
-    return Ok(())
+    return Ok(());
 }
 
 pub fn generate_mdx(addons: &Vec<&Box<dyn Addon>>) {

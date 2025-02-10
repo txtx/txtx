@@ -1,15 +1,15 @@
 use daggy::Walker;
 use daggy::{Dag, NodeIndex};
-use kit::hcl::Span;
-use kit::indexmap::IndexSet;
-use kit::types::diagnostics::Diagnostic;
-use kit::types::ConstructDid;
-use kit::types::Did;
-use kit::types::PackageDid;
-use kit::types::PackageId;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 use std::collections::{HashMap, HashSet};
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::indexmap::IndexSet;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::types::Did;
+use txtx_addon_kit::types::PackageDid;
+use txtx_addon_kit::types::PackageId;
 
 use super::{RunbookExecutionContext, RunbookWorkspaceContext};
 

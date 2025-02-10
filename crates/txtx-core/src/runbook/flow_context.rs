@@ -1,9 +1,9 @@
-use kit::hcl::structure::Attribute;
-use kit::indexmap::IndexMap;
-use kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
-use kit::types::stores::ValueStore;
-use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{Did, PackageId, RunbookId};
+use txtx_addon_kit::hcl::structure::Attribute;
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
+use txtx_addon_kit::types::{Did, PackageId, RunbookId};
 
 use crate::eval::{self, ExpressionEvaluationStatus};
 

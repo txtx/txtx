@@ -2,39 +2,41 @@ use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
-use actix_web::error::ErrorRequestTimeout;
+use crate::cli::Context;
+use crate::get_addon_by_namespace;
+use crate::web_ui::cloud_relayer::{
+    start_relayer_event_runloop, RelayerChannelEvent, RelayerContext,
+};
+use actix_cors::Cors;
+use actix_web::dev::ServerHandle;
+use actix_web::http::header::{self};
 use actix_web::http::StatusCode;
+use actix_web::web::{self, Data, Json};
+use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{Error, HttpResponseBuilder, Responder};
 use juniper_actix::{graphql_handler, subscriptions};
 use juniper_graphql_ws::ConnectionConfig;
+use serde::ser::StdError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::RwLock;
 use txtx_core::kit::channel;
 use txtx_core::kit::helpers::fs::FileLocation;
-use txtx_core::kit::types::frontend::{ActionItemRequest, ActionItemResponse, BlockEvent, ClientType, DiscoveryResponse};
+use txtx_core::kit::types::frontend::{
+    ActionItemRequest, BlockEvent, ClientType, DiscoveryResponse,
+};
 use txtx_core::kit::types::{AuthorizationContext, RunbookId};
 use txtx_core::kit::uuid::Uuid;
 use txtx_core::runbook::RunbookTopLevelInputsMap;
 use txtx_core::start_supervised_runbook_runloop;
 use txtx_core::types::{Runbook, RunbookSources};
-use txtx_gql::{new_graphql_schema, Context as GraphContext, GraphqlSchema};
-use actix_cors::Cors;
-use actix_web::dev::ServerHandle;
-use actix_web::http::header::{self};
-use actix_web::web::{self, Data, Json};
-use actix_web::{Error, HttpResponseBuilder, Responder};
-use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
-use crate::cli::Context;
-use crate::get_addon_by_namespace;
-use crate::web_ui::cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent, RelayerContext};
-use serde::ser::StdError;
 use txtx_gql::Context as GqlContext;
+use txtx_gql::{new_graphql_schema, Context as GraphContext, GraphqlSchema};
 
 pub async fn start_server(
     network_binding: &str,
     ctx: &Context,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
-
     info!(ctx.expect_logger(), "Starting server {}", network_binding);
 
     let boxed_ctx = Data::new(ctx.clone());
@@ -80,7 +82,7 @@ pub async fn start_server(
     tokio::spawn(server);
 
     // Declare a pool of threads
-    // 
+    //
 
     Ok(handle)
 }
@@ -88,13 +90,13 @@ pub async fn start_server(
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RunbookRegistrationRequest {
-    hcl_source: String
+    hcl_source: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RunbookRegistrationResponse {
-    runbook_uuid: Uuid
+    runbook_uuid: Uuid,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -131,14 +133,14 @@ pub enum RunbookExecutionStepState {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RunbookExecutionStep {
-    state: RunbookExecutionStepState
+    state: RunbookExecutionStepState,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RunbookExecutionStateResponse {
     runbook_uuid: Uuid,
-    steps: Vec<RunbookExecutionStep>
+    steps: Vec<RunbookExecutionStep>,
 }
 
 pub async fn check_service_health(
@@ -171,9 +173,9 @@ pub async fn execute_runbook(
     gql_context: Data<RwLock<Option<GraphContext>>>,
 ) -> actix_web::Result<HttpResponse> {
     info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
-    
+
     let mut reconstructed_source = "".to_string();
-    let mut required_addons = HashSet::new(); 
+    let mut required_addons = HashSet::new();
     for construct in payload.constructs.iter() {
         reconstructed_source.push_str(&construct.construct_type);
         reconstructed_source.push_str(&format!(" \"{}\"", &construct.id));
@@ -184,17 +186,17 @@ pub async fn execute_runbook(
             (Some(namespace), Some(id)) => format!("\"{}::{}\"", namespace, id),
             (None, Some(id)) => format!("\"{}\"", id),
             (Some(namespace), None) => format!(" \"{}\"", namespace),
-            (None, None) => format!("")
+            (None, None) => format!(""),
         };
         reconstructed_source.push_str(&format!(" {} {{\n", &command_id));
         if construct.construct_type.eq("variable") || construct.construct_type.eq("output") {
-            reconstructed_source.push_str(&format!("  description = \"{}\"\n", construct.description));
+            reconstructed_source
+                .push_str(&format!("  description = \"{}\"\n", construct.description));
             reconstructed_source.push_str(&format!("  editable = true\n"));
 
             if let Some(ref value) = construct.value {
                 match value {
-                    JsonValue::Null => {
-                    }
+                    JsonValue::Null => {}
                     JsonValue::String(value) if value.starts_with("$") => {
                         reconstructed_source.push_str(&format!("  value = {}\n", &value[1..]));
                     }
@@ -204,19 +206,21 @@ pub async fn execute_runbook(
                     JsonValue::Number(value) => {
                         reconstructed_source.push_str(&format!("  value = {}\n", &value));
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
         } else if construct.construct_type.eq("action") {
             if let Some(ref inputs) = construct.inputs {
                 for (key, value) in inputs.iter() {
                     match value {
-                        JsonValue::Null => {
-                        }
-                        JsonValue::String(value) if value.eq("null") => {
-                        }
+                        JsonValue::Null => {}
+                        JsonValue::String(value) if value.eq("null") => {}
                         JsonValue::String(value) if value.starts_with("$") => {
-                            reconstructed_source.push_str(&format!("  {} = {}\n", key, &value[1..]));
+                            reconstructed_source.push_str(&format!(
+                                "  {} = {}\n",
+                                key,
+                                &value[1..]
+                            ));
                         }
                         JsonValue::String(value) => {
                             reconstructed_source.push_str(&format!("  {} = \"{}\"\n", key, value));
@@ -224,7 +228,7 @@ pub async fn execute_runbook(
                         JsonValue::Number(value) => {
                             reconstructed_source.push_str(&format!("  {} = {}\n", key, &value));
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
                 }
             }
@@ -234,21 +238,23 @@ pub async fn execute_runbook(
     for addon in required_addons.iter() {
         reconstructed_source.push_str(&format!("addon \"{}\" {{\n", addon));
         reconstructed_source.push_str(&format!(" chain_id = 11155111\n"));
-        reconstructed_source.push_str(&format!(" rpc_api_url = \"https://sepolia.infura.io/v3/a063e95957aa4fd29319b2a53c31d481\"\n"));
+        reconstructed_source.push_str(&format!(
+            " rpc_api_url = \"https://sepolia.infura.io/v3/a063e95957aa4fd29319b2a53c31d481\"\n"
+        ));
         reconstructed_source.push_str(&format!("}}\n\n"));
 
-        reconstructed_source.push_str(&format!("signer \"account\" \"{}::web_wallet\" {{\n", addon));
+        reconstructed_source
+            .push_str(&format!("signer \"account\" \"{}::web_wallet\" {{\n", addon));
         reconstructed_source.push_str(&format!(" description = \"Account\"\n"));
         reconstructed_source.push_str(&format!("}}\n\n"));
     }
     println!("{}", reconstructed_source);
 
-
     let runbook_name = payload.name.clone();
     let runbook_description = Some(payload.description.clone());
     let runbook_source = reconstructed_source;
-    let dummy_location = FileLocation::from_path_string("/tmp/file.tx")
-        .map_err(|e| Box::<dyn StdError>::from(e))?;
+    let dummy_location =
+        FileLocation::from_path_string("/tmp/file.tx").map_err(|e| Box::<dyn StdError>::from(e))?;
 
     let mut runbook_sources = RunbookSources::new();
     runbook_sources.add_source(runbook_name.clone(), dummy_location, runbook_source);
@@ -263,7 +269,8 @@ pub async fn execute_runbook(
             runbook_inputs,
             authorization_context,
             get_addon_by_namespace,
-        ).await
+        )
+        .await
         .unwrap();
 
     runbook.enable_full_execution_mode();
@@ -278,7 +285,7 @@ pub async fn execute_runbook(
         .collect::<Vec<_>>();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_updates_tx, _action_item_updates_rx) =
+    let (_action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
@@ -290,11 +297,8 @@ pub async fn execute_runbook(
     let moved_ctx = ctx.clone();
 
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
-        let runloop_future = start_supervised_runbook_runloop(
-            &mut runbook,
-            moved_block_tx,
-            action_item_events_rx,
-        );
+        let runloop_future =
+            start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
             for diag in diags.iter() {
                 error!(moved_ctx.expect_logger(), "Runbook execution failed: {}", diag.message);
@@ -325,7 +329,7 @@ pub async fn execute_runbook(
             action_item_events_tx: action_item_events_tx.clone(),
         });
     }
-    
+
     let channel_data = Arc::new(RwLock::new(None));
     let _relayer_context = RelayerContext {
         relayer_channel_tx: relayer_channel_tx.clone(),

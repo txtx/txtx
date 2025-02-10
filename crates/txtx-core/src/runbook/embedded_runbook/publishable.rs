@@ -1,22 +1,22 @@
-use kit::helpers::hcl::RawHclContent;
-use kit::types::commands::{CommandInstance, CommandInstanceType};
-use kit::types::diagnostics::Diagnostic;
-use kit::types::embedded_runbooks::EmbeddedRunbookInstance;
-use kit::types::embedded_runbooks::{
-    EmbeddedRunbookInputSpecification, EmbeddedRunbookInstanceSpecification,
-    EmbeddedRunbookStaticExecutionContext, EmbeddedRunbookStaticWorkspaceContext, SignerName,
-};
-use kit::types::stores::ValueStore;
-use kit::types::AddonInstance;
-use kit::types::{ConstructDid, ConstructId, PackageId, RunbookId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
+use txtx_addon_kit::helpers::hcl::RawHclContent;
+use txtx_addon_kit::types::commands::{CommandInstance, CommandInstanceType};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
+use txtx_addon_kit::types::embedded_runbooks::{
+    EmbeddedRunbookInputSpecification, EmbeddedRunbookInstanceSpecification,
+    EmbeddedRunbookStaticExecutionContext, EmbeddedRunbookStaticWorkspaceContext, SignerName,
+};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::AddonInstance;
+use txtx_addon_kit::types::{ConstructDid, ConstructId, PackageId, RunbookId};
 
 use crate::runbook::runtime_context::AddonsContext;
 use crate::std::commands;
 use crate::types::Runbook;
-use kit::types::package::Package;
+use txtx_addon_kit::types::package::Package;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublishableEmbeddedRunbookSpecification {

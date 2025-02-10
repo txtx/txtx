@@ -4,29 +4,29 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
-use kit::constants::{
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Display;
+use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
     TX_HASH,
 };
-use kit::hcl::structure::Block as HclBlock;
-use kit::helpers::hcl::visit_optional_untyped_attribute;
-use kit::indexmap::IndexMap;
-use kit::types::commands::{
+use txtx_addon_kit::hcl::structure::Block as HclBlock;
+use txtx_addon_kit::helpers::hcl::visit_optional_untyped_attribute;
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::{
     add_ctx_to_diag, add_ctx_to_embedded_runbook_diag, CommandExecutionFuture,
     DependencyExecutionResultCache, UnevaluatedInputsMap,
 };
-use kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
-use kit::types::frontend::{
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
+use txtx_addon_kit::types::frontend::{
     ActionItemRequestUpdate, ActionItemResponse, ActionItemResponseType, Actions, Block,
     BlockEvent, ErrorPanelData, Panel,
 };
-use kit::types::signers::SignersState;
-use kit::types::stores::AddonDefaults;
-use kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
-use kit::types::{ConstructId, PackageId};
-use kit::types::{EvaluatableInput, WithEvaluatableInputs};
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt::Display;
+use txtx_addon_kit::types::signers::SignersState;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::types::{ObjectProperty, RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::{ConstructId, PackageId};
+use txtx_addon_kit::types::{EvaluatableInput, WithEvaluatableInputs};
 use txtx_addon_kit::{
     hcl::{
         expr::{BinaryOperator, Expression, UnaryOperator},
@@ -1459,7 +1459,6 @@ pub fn perform_inputs_evaluation(
     for input in inputs.into_iter() {
         let input_name = input.name();
         let input_typing = input.typing();
-        let input_optional = input.optional();
 
         if simulation {
             // Hard coding "signer" here is a shortcut - to be improved, we should retrieve a pointer instead that is defined on the spec

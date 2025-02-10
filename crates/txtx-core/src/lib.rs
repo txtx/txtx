@@ -4,6 +4,8 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+pub extern crate mustache;
+
 mod constants;
 pub mod errors;
 pub mod eval;
@@ -11,6 +13,7 @@ pub mod manifest;
 // pub mod snapshot;
 pub mod runbook;
 pub mod std;
+pub mod templates;
 pub mod types;
 
 #[cfg(test)]
@@ -28,34 +31,34 @@ use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
-use kit::constants::ACTION_ITEM_CHECK_ADDRESS;
-use kit::hcl::Span;
-use kit::types::block_id::BlockId;
-use kit::types::commands::CommandExecutionResult;
-use kit::types::frontend::ActionItemRequestType;
-use kit::types::frontend::ActionItemRequestUpdate;
-use kit::types::frontend::ActionItemResponse;
-use kit::types::frontend::ActionItemResponseType;
-use kit::types::frontend::Actions;
-use kit::types::frontend::Block;
-use kit::types::frontend::BlockEvent;
-use kit::types::frontend::ErrorPanelData;
-use kit::types::frontend::NormalizedActionItemRequestUpdate;
-use kit::types::frontend::Panel;
-use kit::types::frontend::PickInputOptionRequest;
-use kit::types::frontend::ProgressBarVisibilityUpdate;
-use kit::types::frontend::ReviewedInputResponse;
-use kit::types::frontend::ValidateBlockData;
-use kit::types::types::RunbookSupervisionContext;
-use kit::types::ConstructDid;
-use kit::uuid::Uuid;
 use runbook::get_source_context_for_diagnostic;
 use tokio::sync::broadcast::error::TryRecvError;
-use txtx_addon_kit::channel::{Receiver, Sender};
+use txtx_addon_kit::channel::Sender;
+use txtx_addon_kit::constants::ACTION_ITEM_CHECK_ADDRESS;
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::types::block_id::BlockId;
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::ActionItemRequestType;
+use txtx_addon_kit::types::frontend::ActionItemRequestUpdate;
+use txtx_addon_kit::types::frontend::ActionItemResponse;
+use txtx_addon_kit::types::frontend::ActionItemResponseType;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
+use txtx_addon_kit::types::frontend::Actions;
+use txtx_addon_kit::types::frontend::Block;
+use txtx_addon_kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::frontend::ErrorPanelData;
 use txtx_addon_kit::types::frontend::InputOption;
+use txtx_addon_kit::types::frontend::NormalizedActionItemRequestUpdate;
+use txtx_addon_kit::types::frontend::Panel;
+use txtx_addon_kit::types::frontend::PickInputOptionRequest;
+use txtx_addon_kit::types::frontend::ProgressBarVisibilityUpdate;
+use txtx_addon_kit::types::frontend::ReviewedInputResponse;
+use txtx_addon_kit::types::frontend::ValidateBlockData;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::uuid::Uuid;
 use types::Runbook;
 
 lazy_static! {
@@ -82,6 +85,7 @@ pub async fn start_unsupervised_runbook_runloop(
         review_input_values: false,
         is_supervised: false,
     };
+
     for flow_context in runbook.flow_contexts.iter_mut() {
         if !flow_context.is_enabled() {
             continue;
@@ -202,7 +206,7 @@ pub async fn start_supervised_runbook_runloop(
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
-            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_))=> None,
+            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_)) => None,
             Err(TryRecvError::Closed) => return Ok(()),
         };
 
@@ -742,7 +746,7 @@ pub async fn process_background_tasks(
     }
 
     let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
-        kit::futures::future::join_all(background_tasks_futures).await;
+        txtx_addon_kit::futures::future::join_all(background_tasks_futures).await;
     for ((nested_construct_did, construct_did), result) in
         background_tasks_contructs_dids.into_iter().zip(results)
     {

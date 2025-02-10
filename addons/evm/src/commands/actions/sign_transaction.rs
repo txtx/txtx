@@ -263,7 +263,7 @@ impl CommandImplementation for SignEvmTransaction {
         {
             let mut result = CommandExecutionResult::new();
             if !already_deployed {
-                let tx_hash_bytes = tx_hash.expect_buffer_bytes_result().map_err(|e| {
+                let tx_hash_bytes = tx_hash.get_buffer_bytes_result().map_err(|e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
