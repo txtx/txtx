@@ -291,7 +291,6 @@ impl Value {
         }
     }
 
-    #[deprecated(note = "use `expect_buffer_bytes_result` instead")]
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
     }

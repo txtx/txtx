@@ -2,6 +2,7 @@ use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
+#[cfg(feature = "stacks")]
 use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
 #[cfg(feature = "sp1")]
@@ -25,6 +26,7 @@ pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
         Box::new(StdAddon::new()),
         Box::new(SvmNetworkAddon::new()),
+        #[cfg(feature = "stacks")]
         Box::new(StacksNetworkAddon::new()),
         Box::new(EvmNetworkAddon::new()),
         Box::new(BitcoinNetworkAddon::new()),

@@ -38,11 +38,9 @@ use txtx_addon_kit::types::frontend::ProgressBarStatus;
 use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
-use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 
-use crate::commands::get_custom_signer_did;
 use crate::constants::AUTHORITY;
 use crate::constants::PAYER;
 use crate::typing::SvmValue;

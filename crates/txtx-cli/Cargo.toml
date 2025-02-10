@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 txtx-core = { workspace = true }
 txtx-addon-network-svm = { workspace = true }
-txtx-addon-network-stacks = { workspace = true }
+txtx-addon-network-stacks = { workspace = true, optional = true }
 txtx-addon-network-evm = { workspace = true }
 txtx-addon-network-ovm = { workspace = true, optional = true }
 txtx-addon-network-bitcoin = { workspace = true }
@@ -73,6 +73,7 @@ release = ["hiro-system-kit/release"]
 # This issue needs to be figured out.
 sp1 = ["txtx-addon-sp1"]
 ovm = ["txtx-addon-network-ovm"]
+stacks = ["txtx-addon-network-stacks"]
 
 [build-dependencies]
 npm_rs="1.0.0"

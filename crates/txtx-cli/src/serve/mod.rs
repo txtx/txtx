@@ -9,7 +9,6 @@ use crate::web_ui::cloud_relayer::{
 };
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
-use actix_web::error::ErrorRequestTimeout;
 use actix_web::http::header::{self};
 use actix_web::http::StatusCode;
 use actix_web::web::{self, Data, Json};
@@ -24,7 +23,7 @@ use tokio::sync::RwLock;
 use txtx_core::kit::channel;
 use txtx_core::kit::helpers::fs::FileLocation;
 use txtx_core::kit::types::frontend::{
-    ActionItemRequest, ActionItemResponse, BlockEvent, ClientType, DiscoveryResponse,
+    ActionItemRequest, BlockEvent, ClientType, DiscoveryResponse,
 };
 use txtx_core::kit::types::{AuthorizationContext, RunbookId};
 use txtx_core::kit::uuid::Uuid;
@@ -286,7 +285,7 @@ pub async fn execute_runbook(
         .collect::<Vec<_>>();
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_updates_tx, _action_item_updates_rx) =
+    let (_action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));

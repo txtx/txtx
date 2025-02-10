@@ -4,6 +4,8 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+pub extern crate mustache;
+
 mod constants;
 pub mod errors;
 pub mod eval;

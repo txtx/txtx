@@ -2,6 +2,7 @@ use crate::manifest::WorkspaceManifest;
 
 pub const TXTX_MANIFEST_TEMPLATE: &str = include_str!("../templates/txtx.yml.mst");
 pub const TXTX_README_TEMPLATE: &str = include_str!("../templates/readme.md.mst");
+pub const TXTX_RUNBOOK_TEMPLATE: &str = include_str!("../templates/runbook.tx.mst");
 
 pub fn build_manifest_data(manifest: &WorkspaceManifest) -> mustache::Data {
     let doc_builder = mustache::MapBuilder::new()

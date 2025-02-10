@@ -18,6 +18,7 @@ use txtx_addon_network_ovm::OvmNetworkAddon;
 use txtx_addon_sp1::Sp1Addon;
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
+    mustache,
     templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
 };
 use txtx_core::{
@@ -29,10 +30,7 @@ use txtx_core::{
         types::{
             commands::{CommandId, CommandInputsEvaluationResult},
             diagnostics::Diagnostic,
-            frontend::{
-                ActionItemRequest, ActionItemRequestType, ActionItemResponse, BlockEvent,
-                ProgressBarStatusColor,
-            },
+            frontend::{ActionItemRequestType, BlockEvent, ProgressBarStatusColor},
             stores::AddonDefaults,
             types::Value,
             AuthorizationContext, Did, PackageId,
@@ -402,7 +400,7 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
             let mut runbook_file =
                 File::create(runbook_file_path.clone()).expect("creation failed");
             let runbook_file_data = build_runbook_data(&runbook_name);
-            let template = mustache::compile_str(include_str!("../templates/runbook.tx.mst"))
+            let template = mustache::compile_str(txtx_core::templates::TXTX_RUNBOOK_TEMPLATE)
                 .expect("Failed to compile template");
             template
                 .render_data(&mut runbook_file, &runbook_file_data)

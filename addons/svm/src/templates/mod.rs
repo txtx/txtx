@@ -42,9 +42,9 @@ pub fn get_interpolated_mainnet_signer_template(_keypair_path: &str) -> String {
 # signer "deployer" "svm::squads" {{
 #   address = "YOUR_SQUAD_PUBLIC_KEY"
 # }}
-"#);
+"#
+    );
 }
-
 
 pub fn get_interpolated_anchor_program_deployment_template(program_name: &str) -> String {
     return format!(
