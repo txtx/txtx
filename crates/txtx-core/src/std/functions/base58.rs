@@ -1,3 +1,4 @@
+use super::{arg_checker, to_diag};
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -6,24 +7,7 @@ use txtx_addon_kit::{
         types::{Type, Value},
     },
 };
-use txtx_addon_kit::{
-    hex,
-    types::{
-        functions::{arg_checker_with_ctx, fn_diag_with_ctx},
-        AuthorizationContext,
-    },
-};
-
-use crate::constants::NAMESPACE;
-
-pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
-    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
-    checker(fn_spec, args)
-}
-pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
-    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
-    error_fn(fn_spec, e)
-}
+use txtx_addon_kit::{hex, types::AuthorizationContext};
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {

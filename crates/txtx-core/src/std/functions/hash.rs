@@ -1,8 +1,7 @@
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
 use txtx_addon_kit::keccak_hash::keccak;
-use txtx_addon_kit::types::functions::arg_checker_with_ctx;
+use txtx_addon_kit::sha2::Sha256 as LibSha256;
 use txtx_addon_kit::types::AuthorizationContext;
-use txtx_addon_kit::{sha2::Sha256 as LibSha256, types::functions::fn_diag_with_ctx};
 
 use txtx_addon_kit::{
     define_function, indoc,
@@ -13,17 +12,8 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::constants::NAMESPACE;
+use super::{arg_checker, to_diag};
 use crate::std::typing::StdValue;
-
-pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
-    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
-    checker(fn_spec, args)
-}
-pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
-    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
-    error_fn(fn_spec, e)
-}
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
