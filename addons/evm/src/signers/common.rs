@@ -31,6 +31,16 @@ pub async fn get_additional_actions_for_address(
 
     let rpc = EvmRpc::new(&rpc_api_url)?;
 
+    let actual_chain_id = rpc.get_chain_id().await.map_err(|e| {
+        format!("unable to retrieve chain id from RPC {}: {}", rpc_api_url, e.to_string())
+    })?;
+    if actual_chain_id != chain_id {
+        return Err(format!(
+            "chain id mismatch: expected {}, got {} from the provided rpc",
+            chain_id, actual_chain_id
+        ));
+    }
+
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
             &Some(signer_did.clone()),
