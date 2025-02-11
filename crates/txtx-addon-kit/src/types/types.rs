@@ -939,9 +939,9 @@ impl TryFrom<String> for Type {
             "buffer" => Type::Buffer,
             "object" => Type::Object(vec![]),
             other => {
-                if other.starts_with("array<") && other.ends_with(">") {
-                    let mut inner = other.replace("array<", "");
-                    inner = inner.replace(">", "");
+                if other.starts_with("array[") && other.ends_with("]") {
+                    let mut inner = other.replace("array[", "");
+                    inner = inner.replace("]", "");
                     return Type::try_from(inner);
                 } else if other.contains("::") {
                     Type::addon(other)
@@ -959,18 +959,7 @@ impl Serialize for Type {
     where
         S: Serializer,
     {
-        match self {
-            Type::String => serializer.serialize_str("string"),
-            Type::Integer => serializer.serialize_str("integer"),
-            Type::Float => serializer.serialize_str("float"),
-            Type::Bool => serializer.serialize_str("bool"),
-            Type::Null => serializer.serialize_str("null"),
-            Type::Buffer => serializer.serialize_str("buffer"),
-            Type::Object(_) => serializer.serialize_str("object"), // todo: add properties
-            Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
-            Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
-            Type::Map(_) => serializer.serialize_str("map"), // todo: add properties
-        }
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -980,23 +969,7 @@ impl<'de> Deserialize<'de> for Type {
         D: Deserializer<'de>,
     {
         let type_str: String = serde::Deserialize::deserialize(deserializer)?;
-        let t = match type_str.as_str() {
-            "string" => Type::string(),
-            "integer" => Type::integer(),
-            "float" => Type::float(),
-            "bool" => Type::bool(),
-            "null" => Type::null(),
-            "buffer" => Type::buffer(),
-            "object" => Type::object(vec![]), //todo: add properties
-            "array" => todo!(),
-            other => {
-                if other.contains("::") {
-                    Type::Addon(other.to_string())
-                } else {
-                    return Err(D::Error::custom("unsupported type"));
-                }
-            }
-        };
+        let t = Type::try_from(type_str).map_err(serde::de::Error::custom)?;
         Ok(t)
     }
 }
