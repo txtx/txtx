@@ -171,7 +171,7 @@ impl RunbookExecutionContext {
                 ActionItemRequest::new(
                     &Some(construct_did.clone()),
                     &command_instance.name,
-                    None,
+                    description.clone(),
                     ActionItemStatus::Todo,
                     ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
                         name: command_instance.name.to_string(),
