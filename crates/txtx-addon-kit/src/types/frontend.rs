@@ -1802,7 +1802,7 @@ pub struct ProvideSignedTransactionRequest {
     pub skippable: bool,
     pub only_approval_needed: bool,
     pub payload: Value,
-    pub formatted_payload: Option<String>,
+    pub formatted_payload: Option<Value>,
     pub namespace: String,
     pub network_id: String,
 }
@@ -1842,8 +1842,8 @@ impl ProvideSignedTransactionRequest {
         self
     }
 
-    pub fn formatted_payload(&mut self, display_payload: Option<String>) -> &mut Self {
-        self.formatted_payload = display_payload;
+    pub fn formatted_payload(&mut self, display_payload: Option<&Value>) -> &mut Self {
+        self.formatted_payload = display_payload.cloned();
         self
     }
 
@@ -1859,7 +1859,7 @@ pub struct SendTransactionRequest {
     pub signer_uuid: ConstructDid,
     pub expected_signer_address: Option<String>,
     pub payload: Value,
-    pub formatted_payload: Option<String>,
+    pub formatted_payload: Option<Value>,
     pub namespace: String,
     pub network_id: String,
 }
@@ -1887,8 +1887,8 @@ impl SendTransactionRequest {
         self
     }
 
-    pub fn formatted_payload(&mut self, display_payload: Option<String>) -> &mut Self {
-        self.formatted_payload = display_payload;
+    pub fn formatted_payload(&mut self, display_payload: Option<&Value>) -> &mut Self {
+        self.formatted_payload = display_payload.cloned();
         self
     }
 
