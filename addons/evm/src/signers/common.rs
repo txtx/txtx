@@ -34,7 +34,7 @@ pub async fn get_additional_actions_for_address(
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
             &Some(signer_did.clone()),
-            &format!("Connect wallet {instance_name}"),
+            &format!("Connect wallet '{instance_name}'"),
             None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
@@ -51,7 +51,7 @@ pub async fn get_additional_actions_for_address(
         if do_request_address_check {
             action_items.push(ActionItemRequest::new(
                 &Some(signer_did.clone()),
-                &format!("Check {} expected address", instance_name),
+                &format!("Check '{}' expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
@@ -77,7 +77,7 @@ pub async fn get_additional_actions_for_address(
             };
             let check_balance = ActionItemRequest::new(
                 &Some(signer_did.clone()),
-                "Check signer balance",
+                "Check signer balance (ETH)",
                 None,
                 action_status,
                 ReviewInputRequest::new("", &value).to_action_type(),
@@ -89,7 +89,7 @@ pub async fn get_additional_actions_for_address(
         if do_request_balance {
             let check_balance = ActionItemRequest::new(
                 &Some(signer_did.clone()),
-                "Check signer balance",
+                "Check signer balance (ETH)",
                 None,
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
