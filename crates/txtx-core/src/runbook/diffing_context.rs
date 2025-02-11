@@ -417,6 +417,7 @@ impl RunbookSnapshotContext {
                     {
                         let mut sorted_outputs = command_instance.specification.outputs.clone();
                         sorted_outputs.sort_by(|a, b| a.name.cmp(&b.name));
+                        command_to_update.executed = true;
 
                         for output in sorted_outputs {
                             let Some(value) = outputs_results.outputs.get(&output.name) else {
@@ -445,6 +446,8 @@ impl RunbookSnapshotContext {
                                 }
                             }
                         }
+                    } else {
+                        command_to_update.executed = false;
                     }
                 }
             }
