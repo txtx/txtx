@@ -420,7 +420,7 @@ impl CommandImplementation for DeployProgram {
                     )
                 })?;
             if let Some((formatted_transaction, description)) = formatted_transaction {
-                values.insert(FORMATTED_TRANSACTION, Value::string(formatted_transaction));
+                values.insert(FORMATTED_TRANSACTION, formatted_transaction);
                 values.insert(DESCRIPTION, Value::string(description));
             }
             return SignTransaction::check_signed_executability(

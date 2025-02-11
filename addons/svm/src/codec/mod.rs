@@ -9,7 +9,6 @@ use bip39::MnemonicType;
 use bip39::Seed;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::account_utils::StateMut;
 use solana_sdk::bpf_loader_upgradeable::create_buffer;
@@ -38,6 +37,7 @@ use txtx_addon_kit::types::frontend::ProgressBarStatus;
 use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
+use txtx_addon_kit::types::types::ObjectType;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 
@@ -326,7 +326,7 @@ impl DeploymentTransaction {
         &self,
         signer_dids: Vec<ConstructDid>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-    ) -> Result<Option<(String, String)>, Diagnostic> {
+    ) -> Result<Option<(Value, String)>, Diagnostic> {
         let description = match &self.transaction_type {
             DeploymentTransactionType::CreateTempAuthority(_) => {
                 "This transaction creates an ephemeral account that will execute the deployment."
@@ -384,25 +384,44 @@ impl DeploymentTransaction {
                     let Some(account) = message_account_keys.get(*a as usize) else {
                         return None;
                     };
-                    Some(account.to_string())
+                    Some(Value::string(account.to_string()))
                 })
-                .collect::<Vec<String>>();
+                .collect::<Vec<Value>>();
             let account_name = account.to_string();
 
-            instructions.push(json!({
-                "program_id": account_name,
-                "instruction_data": format!("0x{}", hex::encode(&instruction.data)),
-                "accounts": accounts
-            }));
+            instructions.push(
+                ObjectType::from(vec![
+                    ("program_id", Value::string(account_name)),
+                    (
+                        "instruction_data",
+                        Value::string(format!("0x{}", hex::encode(&instruction.data))),
+                    ),
+                    ("accounts", Value::array(accounts)),
+                ])
+                .to_value(),
+            );
         }
-        let formatted_transaction = json!({
-            "instructions": instructions,
-            "num_required_signatures": self.transaction.message.header.num_required_signatures,
-            "num_readonly_signed_accounts": self.transaction.message.header.num_readonly_signed_accounts,
-            "num_readonly_unsigned_accounts": self.transaction.message.header.num_readonly_unsigned_accounts,
-        });
+        let formatted_transaction = ObjectType::from(vec![
+            ("instructions", Value::array(instructions)),
+            (
+                "num_required_signatures",
+                Value::integer(self.transaction.message.header.num_required_signatures as i128),
+            ),
+            (
+                "num_readonly_signed_accounts",
+                Value::integer(
+                    self.transaction.message.header.num_readonly_signed_accounts as i128,
+                ),
+            ),
+            (
+                "num_readonly_unsigned_accounts",
+                Value::integer(
+                    self.transaction.message.header.num_readonly_unsigned_accounts as i128,
+                ),
+            ),
+        ]);
 
-        Ok(Some((serde_json::to_string_pretty(&formatted_transaction).unwrap(), description)))
+        Ok(Some((formatted_transaction.to_value(), description)))
     }
 
     pub fn get_keypairs(&self) -> Result<Vec<Keypair>, Diagnostic> {
