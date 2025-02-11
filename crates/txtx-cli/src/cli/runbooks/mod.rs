@@ -87,7 +87,7 @@ pub fn load_runbook_execution_snapshot(
     runbook_id: &str,
     environment_selector: &str,
 ) -> Result<RunbookExecutionSnapshot, String> {
-    // Are we resuming an interrupted workflow or excuting from scratch?
+    // Are we resuming an interrupted workflow or executing from scratch?
     // If we're resuming a stateful workflow, we need to:
     // - retrieve the transient state
     // - compare it with a new simulation
@@ -1265,7 +1265,7 @@ fn write_runbook_state(
     if let Some(state_file_location) = runbook_state {
         let previous_snapshot = match load_runbook_execution_snapshot(
             &state_file_location,
-            false,
+            true,
             &runbook.runbook_id.name,
             &runbook.top_level_inputs_map.current_top_level_input_name(),
         ) {
