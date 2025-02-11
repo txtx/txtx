@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - improve-ci
+      - fix/release-build
   workflow_dispatch:
 
 concurrency:
@@ -55,7 +55,7 @@ jobs:
         include:
           - os: ubuntu-20.04
             platform: linux
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
             architecture: x64
           # - os: windows-latest
           #   platform: windows
@@ -125,25 +125,17 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      # build for linux-musl
-      - name: Build-musl
-        if: matrix.os == 'ubuntu-20.04'
-        uses: txtx/rust-musl-action@v1.1.3
-        with:
-          args: cargo build --manifest-path ./txtx/Cargo.toml --target ${{ matrix.target }} --release --features web_ui
-
-      # set up rust for non linux-musl
+      # set up rust for all targets
       - name: Install Rust toolchain
-        if: matrix.os != 'ubuntu-20.04'
         run: rustup toolchain install 1.79 --profile minimal --target ${{ matrix.target }}
 
       - name: Install Rust Target
         if: matrix.os != 'ubuntu-20.04'
         run: rustup target add ${{ matrix.target }}
 
-      # env vars darwin
+      # env vars unix
       - name: "Get Rust version (darwin)"
-        if: matrix.os != 'windows-latest' && matrix.ox != 'ubuntu-20.04'
+        if: matrix.os != 'windows-latest'
         run: echo "RUST_VERSION_HASH=$(rustc --version | shasum -a 256 | awk '{print $1}')" >> $GITHUB_ENV
 
       # env vars windows
@@ -174,8 +166,7 @@ jobs:
           echo "SHORT_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}" >> $GITHUB_ENV
           echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-unknown" >> $GITHUB_ENV
         
-      - name: Build - Cargo (not linux-musl)
-        if: matrix.os != 'ubuntu-20.04'
+      - name: Build - Cargo
         run: 
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features web_ui
 
