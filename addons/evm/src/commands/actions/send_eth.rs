@@ -186,7 +186,7 @@ impl CommandImplementation for SendEth {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let (transaction, transaction_cost) =
+            let (transaction, transaction_cost, _) =
                 build_unsigned_transfer(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
@@ -330,7 +330,7 @@ async fn build_unsigned_transfer(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,

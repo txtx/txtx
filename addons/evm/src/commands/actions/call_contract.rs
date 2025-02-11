@@ -27,7 +27,7 @@ use crate::codec::contract_deployment::AddressAbiMap;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::{ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RPC_API_URL};
+use crate::constants::{ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RESULT, RPC_API_URL};
 use crate::rpc::EvmRpc;
 use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
@@ -161,6 +161,10 @@ lazy_static! {
               raw_logs: {
                     documentation: "The raw logs of the transaction.",
                     typing: RAW_LOG_OUTPUT.clone()
+              },
+              result: {
+                    documentation: "The result of simulating the execution of the transaction directly before its execution.",
+                    typing: Type::string()
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -197,7 +201,7 @@ impl CommandImplementation for SignEvmContractCall {
         use crate::{
             codec::get_typed_transaction_bytes,
             commands::actions::sign_transaction::SignEvmTransaction,
-            constants::{TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
+            constants::{RESULT, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
         };
 
@@ -218,10 +222,16 @@ impl CommandImplementation for SignEvmContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let (transaction, transaction_cost) =
+            let (transaction, transaction_cost, sim_result) =
                 build_unsigned_contract_call(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                RESULT,
+                Value::String(sim_result),
+            );
 
             let bytes = get_typed_transaction_bytes(&transaction)
                 .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
@@ -280,6 +290,13 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             let contract_address =
                 get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap()).unwrap();
+
+            let signer_did = get_signer_did(&values).unwrap();
+            let signer_state = signers.get_signer_state(&signer_did).unwrap();
+            let call_result = signer_state
+                .get_expected_scoped_value(&construct_did.to_string(), RESULT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            result.outputs.insert(RESULT.to_string(), call_result.clone());
 
             let contract_abi = values.get_value(CONTRACT_ABI);
             let mut address_abi_map = AddressAbiMap::new();
@@ -345,6 +362,8 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+            let call_result = outputs.get_expected_value(RESULT)?;
+            result.outputs.insert(RESULT.to_string(), call_result.clone());
             if let Some(contract_abi) = outputs.get_value(CONTRACT_ABI) {
                 result.outputs.insert(CONTRACT_ABI.to_string(), contract_abi.clone());
             }
@@ -372,7 +391,7 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String), Diagnostic> {
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,

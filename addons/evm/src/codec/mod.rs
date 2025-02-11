@@ -24,8 +24,6 @@ use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::TransactionRequest;
 use alloy_rpc_types::{AccessList, Log};
 use contract_deployment::AddressAbiMap;
-use serde_json::json;
-use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{ObjectType, Value};
@@ -82,7 +80,7 @@ pub async fn build_unsigned_transaction(
     rpc: EvmRpc,
     args: &ValueStore,
     fields: CommonTransactionFields,
-) -> Result<(TransactionRequest, i128), String> {
+) -> Result<(TransactionRequest, i128, String), String> {
     let from = get_expected_address(&fields.from)
         .map_err(|e| format!("failed to parse to address: {e}"))?;
     let to = if let Some(to) = fields.to {
@@ -130,7 +128,9 @@ pub async fn build_unsigned_transaction(
     let typed_transaction =
         tx.clone().build_unsigned().map_err(|e| format!("failed to build transaction: {e}"))?;
     let cost = get_transaction_cost(&typed_transaction, &rpc).await?;
-    Ok((tx, cost))
+
+    let sim = rpc.call(&tx).await.map_err(|e| format!("failed to simulate transaction: {e}"))?;
+    Ok((tx, cost, sim))
 }
 
 async fn build_unsigned_legacy_transaction(

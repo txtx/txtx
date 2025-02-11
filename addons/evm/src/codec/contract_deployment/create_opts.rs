@@ -164,7 +164,7 @@ impl CreateDeploymentOpts {
             deploy_code: Some(self.init_code.clone()),
         };
 
-        let (tx, tx_cost) = build_unsigned_transaction(rpc.clone(), values, common).await?;
+        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
         let sender_address = get_expected_address(sender_address)?;
         let expected_address = self.calculate_deployed_contract_address(&sender_address, nonce)?;
 
@@ -329,7 +329,7 @@ impl Create2DeploymentOpts {
             deploy_code: None,
         };
 
-        let (tx, tx_cost) = build_unsigned_transaction(rpc.clone(), values, common).await?;
+        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
         let expected_address = self.calculate_deployed_contract_address()?;
 
         Ok(ContractDeploymentTransaction::Create2(
