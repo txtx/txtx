@@ -224,12 +224,11 @@ async fn build_eth_call(
     let function_name = values.get_string(CONTRACT_FUNCTION_NAME);
     let function_args = values.get_value(CONTRACT_FUNCTION_ARGS);
 
-    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+    let (amount, gas_limit, nonce) =
+        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{e}"))?;
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EvmRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
 
     let input = if let Some(function_name) = function_name {
         let function_args = if let Some(abi_str) = contract_abi {
@@ -255,10 +254,10 @@ async fn build_eth_call(
 
         if let Some(abi_str) = contract_abi {
             encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+                .map_err(|e| diagnosed_error!("{e}"))?
         } else {
             encode_contract_call_inputs_from_selector(function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+                .map_err(|e| diagnosed_error!("{e}"))?
         }
     } else {
         // todo(hack): assume yul contract if no function name
@@ -276,12 +275,9 @@ async fn build_eth_call(
         input: Some(input),
         deploy_code: None,
     };
-    let (tx, _) = build_unsigned_transaction(rpc.clone(), values, common)
+    let (_, _, call_result) = build_unsigned_transaction(rpc.clone(), values, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
-
-    let call_result =
-        rpc.call(&tx).await.map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+        .map_err(|e| diagnosed_error!("{e}"))?;
 
     Ok(Value::string(call_result))
 }

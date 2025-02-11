@@ -146,7 +146,7 @@ impl ProxiedCreationOpts {
             deploy_code: None,
         };
 
-        let (tx, tx_cost) = build_unsigned_transaction(rpc.clone(), values, common).await?;
+        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
         let expected_proxy_address = self.calculate_deployed_proxy_contract_address()?;
         let expected_impl_address = self.calculate_deployed_impl_contract_address()?;
 
