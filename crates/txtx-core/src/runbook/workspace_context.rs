@@ -6,6 +6,7 @@ use crate::std::commands;
 use crate::types::PreConstructData;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 use txtx_addon_kit::hcl::structure::BlockLabel;
+use txtx_addon_kit::hcl::template::Element;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::{get_txtx_files_paths, FileLocation};
 use txtx_addon_kit::helpers::hcl::{
@@ -597,14 +598,16 @@ impl RunbookWorkspaceContext {
         for input in command_instance.specification.inputs.iter() {
             let res = visit_optional_untyped_attribute(&input.name, &command_instance.block);
             if let Some(expr) = res {
-                if let Some(input_name) =
+                if let Some(input_names) =
                     self.get_top_level_input_name_from_expression_reference(&expr)
                 {
-                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
-                        &input_name,
-                        &input.typing,
-                        &input.documentation,
-                    ));
+                    for input_name in input_names {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &input.typing,
+                            &input.documentation,
+                        ));
+                    }
                 }
             }
         }
@@ -628,18 +631,21 @@ impl RunbookWorkspaceContext {
         let mut embedded_runbook_inputs = vec![];
         for attribute in addon_instance.block.body.attributes() {
             let expr = &attribute.value;
-            if let Some(input_name) = self.get_top_level_input_name_from_expression_reference(&expr)
+            if let Some(input_names) =
+                self.get_top_level_input_name_from_expression_reference(&expr)
             {
                 let addon_defaults = self.get_addon_defaults(&(
                     addon_instance.package_id.did(),
                     addon_instance.addon_id.clone(),
                 ));
-                if let Some(value) = addon_defaults.store.get_value(&input_name) {
-                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
-                        &input_name,
-                        &value.get_type(),
-                        &"".into(),
-                    ));
+                for input_name in input_names {
+                    if let Some(value) = addon_defaults.store.get_value(&input_name) {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &value.get_type(),
+                            &"".into(),
+                        ));
+                    }
                 }
             }
         }
@@ -668,14 +674,16 @@ impl RunbookWorkspaceContext {
             let res =
                 visit_optional_untyped_attribute(&input.name, &embedded_runbook_instance.block);
             if let Some(expr) = res {
-                if let Some(input_name) =
+                if let Some(input_names) =
                     self.get_top_level_input_name_from_expression_reference(&expr)
                 {
-                    embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
-                        &input_name,
-                        &input.typing,
-                        &input.documentation,
-                    ));
+                    for input_name in input_names {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &input.typing,
+                            &input.documentation,
+                        ));
+                    }
                 }
             }
         }
@@ -685,23 +693,58 @@ impl RunbookWorkspaceContext {
     fn get_top_level_input_name_from_expression_reference(
         &self,
         expression: &Expression,
-    ) -> Option<String> {
-        let Some(traversal) = expression.as_traversal() else {
-            return None;
-        };
-        let Some(root) = traversal.expr.as_variable() else {
-            return None;
-        };
-        if root.eq_ignore_ascii_case("input") {
-            let Some(TraversalOperator::GetAttr(value)) =
-                traversal.operators.first().map(|op| op.value())
-            else {
+    ) -> Option<Vec<String>> {
+        if let Some(traversal) = expression.as_traversal() {
+            let Some(root) = traversal.expr.as_variable() else {
                 return None;
             };
-            let top_level_input_name = value.to_string();
-            if let Some(_) = self.top_level_inputs_did_lookup.get(&top_level_input_name) {
-                return Some(top_level_input_name);
-            };
+            if root.eq_ignore_ascii_case("input") {
+                let Some(TraversalOperator::GetAttr(value)) =
+                    traversal.operators.first().map(|op| op.value())
+                else {
+                    return None;
+                };
+                let top_level_input_name = value.to_string();
+                if let Some(_) = self.top_level_inputs_did_lookup.get(&top_level_input_name) {
+                    return Some(vec![top_level_input_name]);
+                };
+            }
+        } else if let Some(arr) = expression.as_array() {
+            let mut res = vec![];
+            for expr in arr.iter() {
+                if let Some(mut input_name) =
+                    self.get_top_level_input_name_from_expression_reference(expr)
+                {
+                    res.append(&mut input_name);
+                }
+            }
+            return Some(res);
+        } else if let Some(obj) = expression.as_object() {
+            let mut res = vec![];
+            for (_, object_value) in obj.iter() {
+                if let Some(mut input_name) =
+                    self.get_top_level_input_name_from_expression_reference(object_value.expr())
+                {
+                    res.append(&mut input_name);
+                }
+            }
+            return Some(res);
+        } else if let Some(string_template) = expression.as_string_template() {
+            let mut res = vec![];
+            for element in string_template.into_iter() {
+                match element {
+                    Element::Literal(_) => {}
+                    Element::Interpolation(interpolation) => {
+                        if let Some(mut input_name) = self
+                            .get_top_level_input_name_from_expression_reference(&interpolation.expr)
+                        {
+                            res.append(&mut input_name);
+                        }
+                    }
+                    Element::Directive(_) => {}
+                }
+            }
+            return Some(res);
         }
         None
     }
