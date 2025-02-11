@@ -483,67 +483,74 @@ pub fn typed_transaction_bytes(typed_transaction: &TypedTransaction) -> Vec<u8> 
     }
     bytes
 }
-pub fn format_transaction_for_display(typed_transaction: &TypedTransaction) -> String {
-    let mut base = json!({
-                "kind": match typed_transaction.to() {
-                    TxKind::Create => "create".to_string(),
-                    TxKind::Call(address) => format!("to:{}", address.to_string()),
-                },
-                "chain_id": typed_transaction.chain_id(),
-                "nonce": typed_transaction.nonce(),
-                "gas_limit": typed_transaction.gas_limit(),
-                "input": hex::encode(&typed_transaction.input()),
-                "value": format_units(typed_transaction.value(), "ether").unwrap(),
-                "type": typed_transaction.tx_type().to_string(),
-    })
-    .as_object()
-    .unwrap()
-    .clone();
+pub fn format_transaction_for_display(typed_transaction: &TypedTransaction) -> Value {
+    let mut res = ObjectType::from(vec![
+        (
+            "kind",
+            match typed_transaction.to() {
+                TxKind::Create => Value::string("create".to_string()),
+                TxKind::Call(address) => Value::string(format!("to:{}", address.to_string())),
+            },
+        ),
+        ("nonce", Value::integer(typed_transaction.nonce() as i128)),
+        ("gas_limit", Value::integer(typed_transaction.gas_limit() as i128)),
+        ("input", Value::string(hex::encode(&typed_transaction.input()))),
+        ("value", Value::string(format_units(typed_transaction.value(), "ether").unwrap())),
+        ("type", Value::string(typed_transaction.tx_type().to_string())),
+    ]);
+    if let Some(chain_id) = typed_transaction.chain_id() {
+        res.insert("chain_id", Value::integer(chain_id as i128));
+    }
     match typed_transaction {
         TypedTransaction::Legacy(tx) => {
-            base.insert("gas_price".to_string(), tx.gas_price().into());
+            if let Some(gas_price) = tx.gas_price() {
+                res.insert("gas_price", Value::integer(gas_price as i128));
+            }
         }
         TypedTransaction::Eip2930(tx) => {
-            base.insert(
-                "access_list".to_string(),
-                JsonValue::Array(format_access_list_for_display(&tx.access_list)),
+            res.insert(
+                "access_list",
+                Value::array(format_access_list_for_display(&tx.access_list)),
             );
         }
         TypedTransaction::Eip1559(tx) => {
-            base.insert(
-                "access_list".to_string(),
-                JsonValue::Array(format_access_list_for_display(&tx.access_list)),
+            res.insert(
+                "access_list",
+                Value::array(format_access_list_for_display(&tx.access_list)),
             );
-            base.insert("max_fee_per_gas".to_string(), tx.max_fee_per_gas.into());
-            base.insert("max_priority_fee_per_gas".to_string(), tx.max_priority_fee_per_gas.into());
+            res.insert("max_fee_per_gas", Value::integer(tx.max_fee_per_gas as i128));
+            res.insert(
+                "max_priority_fee_per_gas",
+                Value::integer(tx.max_priority_fee_per_gas as i128),
+            );
         }
         TypedTransaction::Eip4844(_tx) => {
             unimplemented!("EIP-4844 is not supported");
         }
     }
-    // we constructed this object, so we should be safe to unwrap here
-    serde_json::to_string_pretty(&base).unwrap()
+    res.to_value()
 }
 
-pub fn format_access_list_for_display(access_list: &AccessList) -> Vec<JsonValue> {
+pub fn format_access_list_for_display(access_list: &AccessList) -> Vec<Value> {
     access_list
         .0
         .iter()
         .map(|item| {
-            JsonValue::Object(serde_json::Map::from_iter(vec![
-                ("address".to_string(), JsonValue::String(item.address.to_string())),
+            ObjectType::from(vec![
+                ("address", Value::string(item.address.to_string())),
                 (
-                    "storage_keys".to_string(),
-                    JsonValue::Array(
+                    "storage_keys",
+                    Value::array(
                         item.storage_keys
                             .iter()
-                            .map(|key| hex::encode(key.0).into())
-                            .collect::<Vec<JsonValue>>(),
+                            .map(|key| Value::string(hex::encode(key.0)))
+                            .collect::<Vec<Value>>(),
                     ),
                 ),
-            ]))
+            ])
+            .to_value()
         })
-        .collect::<Vec<JsonValue>>()
+        .collect::<Vec<Value>>()
 }
 
 pub async fn get_transaction_cost(
