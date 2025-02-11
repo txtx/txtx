@@ -502,7 +502,7 @@ impl SignerImplementation for StacksConnect {
                 signer_wallet_state.insert_scoped_value(
                     &origin_uuid.to_string(),
                     FORMATTED_TRANSACTION,
-                    Value::string(formatted_payload),
+                    formatted_payload,
                 );
 
                 let (mut updated_wallets, signer_wallet_state, mut actions) =
