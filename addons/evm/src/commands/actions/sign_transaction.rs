@@ -183,10 +183,11 @@ impl CommandImplementation for SignEvmTransaction {
                     web_wallet_payload.clone(),
                 );
                 let display_payload = format_transaction_for_display(&transaction);
+
                 signer_state.insert_scoped_value(
                     &construct_did.to_string(),
                     FORMATTED_TRANSACTION,
-                    Value::string(display_payload),
+                    display_payload,
                 );
 
                 let mut action_items = vec![ActionItemRequest::new(
@@ -211,8 +212,8 @@ impl CommandImplementation for SignEvmTransaction {
                     })?;
                     action_items.push(ActionItemRequest::new(
                         &Some(construct_did.clone()),
-                        "Wei".into(),
-                        Some(format!("Check transaction cost")),
+                        "Check transaction cost (Wei)",
+                        None,
                         ActionItemStatus::Todo,
                         ReviewInputRequest::new("", &Value::string(formatted_cost))
                             .to_action_type(),

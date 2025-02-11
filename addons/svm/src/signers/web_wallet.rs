@@ -250,10 +250,8 @@ impl SignerImplementation for SvmWebWallet {
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
 
-        let formatted_payload = signer_state
-            .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
-            .and_then(|v| v.as_string())
-            .and_then(|v| Some(v.to_string()));
+        let formatted_payload =
+            signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
         let request = ActionItemRequest::new(
             &Some(construct_did.clone()),

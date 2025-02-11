@@ -309,9 +309,8 @@ impl SignerImplementation for SvmSecretKey {
                 .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let formatted_payload = signer_state
-                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
-                .and_then(|v| v.as_string().map(|s| s.to_string()));
+            let formatted_payload =
+                signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
             let request = ActionItemRequest::new(
                 &Some(construct_did.clone()),
