@@ -83,6 +83,13 @@ impl EvmRpc {
         Ok(Self { url, provider })
     }
 
+    pub async fn get_chain_id(&self) -> Result<u64, RpcError> {
+        self.provider
+            .get_chain_id()
+            .await
+            .map_err(|e| RpcError::Message(format!("error getting chain id: {}", e.to_string())))
+    }
+
     pub async fn get_nonce(&self, address: &Address) -> Result<u64, RpcError> {
         self.provider.get_transaction_count(address.clone()).await.map_err(|e| {
             RpcError::Message(format!("error getting transaction count: {}", e.to_string()))
