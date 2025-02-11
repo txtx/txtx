@@ -8,6 +8,8 @@ use txtx_addon_kit::{
     },
 };
 
+use super::arg_checker;
+
 lazy_static! {
     pub static ref OPERATORS_FUNCTIONS: Vec<FunctionSpecification> = vec![
         define_function! {
@@ -100,12 +102,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        documentation: "Any value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
                     },
                     rhs: {
-                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        documentation: "Any value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
                     }
                 ],
                 output: {
@@ -501,10 +503,11 @@ impl FunctionImplementation for BinaryEq {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
         let lhs = args.get(0).unwrap();
         let rhs = args.get(1).unwrap();
         Ok(Value::bool(lhs.eq(rhs)))
