@@ -31,17 +31,14 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
 
     let mut addons = vec![&std, &evm, &svm, &telegram];
     #[cfg(feature = "ovm")]
-    let _ovm = {
-        let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
-        addons.push(&ovm);
-        Some(ovm)
-    };
+    let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
+    #[cfg(feature = "ovm")]
+    addons.push(&ovm);
     #[cfg(feature = "stacks")]
-    let _stacks = {
-        let stacks: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
-        addons.push(&stacks);
-        Some(stacks)
-    };
+    let stacks: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
+    #[cfg(feature = "stacks")]
+    addons.push(&stacks);
+
     display_documentation(&addons);
     generate_mdx(&addons);
     generate_json(&addons).map_err(|e| format!("Failed to generate JSON documentation: {}", e))?;
