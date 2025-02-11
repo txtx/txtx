@@ -662,12 +662,7 @@ pub async fn build_genesis_panel(
     .await;
 
     if pass_result.has_diagnostics() {
-        pass_result.fill_diagnostic_span(&runbook.sources);
-
-        println!("Diagnostics");
-        for diag in pass_result.diagnostics().iter() {
-            println!("- {}", diag);
-        }
+        return Err(pass_result.with_spans_filled(&runbook.sources));
     }
 
     actions.append(&mut pass_result.actions);
