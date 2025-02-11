@@ -199,14 +199,14 @@ fn test_multisig_runbook_no_env() {
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET ALICE");
+        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET 'ALICE'");
 
         assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
         let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET BOB");
+        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET 'BOB'");
     }
 
     let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
