@@ -10,7 +10,7 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::std::functions::{arg_checker, hash::to_diag};
+use crate::std::functions::{arg_checker, to_diag};
 
 lazy_static! {
     pub static ref JSON_FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
