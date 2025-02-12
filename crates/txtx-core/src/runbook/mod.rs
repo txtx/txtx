@@ -1,5 +1,8 @@
+use diffing_context::ConsolidatedPlanChanges;
 use flow_context::FlowContext;
-use std::collections::{HashMap, VecDeque};
+use kit::indexmap::IndexMap;
+use kit::types::ConstructDid;
+use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl::structure::BlockLabel;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -26,6 +29,8 @@ pub use execution_context::{RunbookExecutionContext, RunbookExecutionMode};
 pub use graph_context::RunbookGraphContext;
 pub use runtime_context::{AddonConstructFactory, RuntimeContext};
 pub use workspace_context::RunbookWorkspaceContext;
+
+use crate::manifest::{RunbookStateLocation, RunbookTransientStateLocation};
 
 #[derive(Debug)]
 pub struct Runbook {
@@ -309,6 +314,268 @@ impl Runbook {
 
     pub fn get_active_inputs_selector(&self) -> Option<String> {
         self.top_level_inputs_map.current_environment.clone()
+    }
+
+    pub fn backup_execution_contexts(&self) -> HashMap<String, RunbookExecutionContext> {
+        let mut execution_context_backups = HashMap::new();
+        for flow_context in self.flow_contexts.iter() {
+            let execution_context_backup = flow_context.execution_context.clone();
+            execution_context_backups.insert(flow_context.name.clone(), execution_context_backup);
+        }
+        execution_context_backups
+    }
+
+    pub async fn simulate_and_snapshot_flows(
+        &mut self,
+        old_snapshot: &RunbookExecutionSnapshot,
+    ) -> Result<RunbookExecutionSnapshot, String> {
+        let ctx = RunbookSnapshotContext::new();
+
+        for flow_context in self.flow_contexts.iter_mut() {
+            let frontier = HashSet::new();
+            let _res = flow_context
+                .execution_context
+                .simulate_execution(
+                    &self.runtime_context,
+                    &flow_context.workspace_context,
+                    &self.supervision_context,
+                    &frontier,
+                )
+                .await;
+
+            let Some(flow_snapshot) = old_snapshot.flows.get(&flow_context.name) else {
+                continue;
+            };
+
+            // since our simulation results are limited, apply the old snapshot on top of the gaps in
+            // our simulated execution context
+            flow_context
+                .execution_context
+                .apply_snapshot_to_execution_context(flow_snapshot, &flow_context.workspace_context)
+                .map_err(|e| e.message)?;
+        }
+
+        let new = ctx
+            .snapshot_runbook_execution(
+                &self.runbook_id,
+                &self.flow_contexts,
+                None,
+                &self.top_level_inputs_map,
+            )
+            .map_err(|e| e.message)?;
+        Ok(new)
+    }
+
+    pub fn prepare_flows_for_new_plans(
+        &mut self,
+        new_plans_to_add: &Vec<String>,
+        execution_context_backups: HashMap<String, RunbookExecutionContext>,
+    ) {
+        for flow_context_key in new_plans_to_add.iter() {
+            let flow_context = self.find_expected_flow_context_mut(&flow_context_key);
+            flow_context.execution_context.execution_mode = RunbookExecutionMode::Full;
+            let pristine_execution_context =
+                execution_context_backups.get(flow_context_key).unwrap();
+            flow_context.execution_context = pristine_execution_context.clone();
+        }
+    }
+
+    pub fn prepared_flows_for_updated_plans(
+        &mut self,
+        plans_to_update: &IndexMap<String, ConsolidatedPlanChanges>,
+    ) -> (
+        IndexMap<String, Vec<(String, Option<String>)>>,
+        IndexMap<String, Vec<(String, Option<String>)>>,
+    ) {
+        let mut actions_to_re_execute = IndexMap::new();
+        let mut actions_to_execute = IndexMap::new();
+
+        for (flow_context_key, changes) in plans_to_update.iter() {
+            let critical_edits = changes
+                .constructs_to_update
+                .iter()
+                .filter(|c| !c.description.is_empty() && c.critical)
+                .collect::<Vec<_>>();
+
+            let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
+            let mut unexecuted =
+                changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
+
+            let flow_context = self.find_expected_flow_context_mut(&flow_context_key);
+
+            if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
+                flow_context.execution_context.execution_mode = RunbookExecutionMode::Ignored;
+                continue;
+            }
+
+            let mut added_construct_dids: Vec<ConstructDid> =
+                additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
+
+            let mut descendants_of_critically_changed_commands = critical_edits
+                .iter()
+                .filter_map(|c| {
+                    if let Some(construct_did) = &c.construct_did {
+                        let mut segment = vec![];
+                        segment.push(construct_did.clone());
+                        let mut deps = flow_context
+                            .graph_context
+                            .get_downstream_dependencies_for_construct_did(&construct_did, true);
+                        segment.append(&mut deps);
+                        Some(segment)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .filter(|d| !added_construct_dids.contains(d))
+                .collect::<Vec<_>>();
+            descendants_of_critically_changed_commands.sort();
+            descendants_of_critically_changed_commands.dedup();
+
+            let actions: Vec<(String, Option<String>)> = descendants_of_critically_changed_commands
+                .iter()
+                .map(|construct_did| {
+                    let documentation = flow_context
+                        .execution_context
+                        .commands_inputs_evaluation_results
+                        .get(construct_did)
+                        .and_then(|r| r.inputs.get_string("description"))
+                        .and_then(|d| Some(d.to_string()));
+                    let command = flow_context
+                        .execution_context
+                        .commands_instances
+                        .get(construct_did)
+                        .unwrap();
+                    (command.name.to_string(), documentation)
+                })
+                .collect();
+            actions_to_re_execute.insert(flow_context_key.clone(), actions);
+
+            let added_actions: Vec<(String, Option<String>)> = added_construct_dids
+                .iter()
+                .map(|construct_did| {
+                    let documentation = flow_context
+                        .execution_context
+                        .commands_inputs_evaluation_results
+                        .get(construct_did)
+                        .and_then(|r| r.inputs.get_string("description"))
+                        .and_then(|d| Some(d.to_string()));
+                    let command = flow_context
+                        .execution_context
+                        .commands_instances
+                        .get(construct_did)
+                        .unwrap();
+                    (command.name.to_string(), documentation)
+                })
+                .collect();
+            actions_to_execute.insert(flow_context_key.clone(), added_actions);
+
+            let mut great_filter = descendants_of_critically_changed_commands;
+            great_filter.append(&mut added_construct_dids);
+            great_filter.append(&mut unexecuted);
+
+            for construct_did in great_filter.iter() {
+                let _ =
+                    flow_context.execution_context.commands_execution_results.remove(construct_did);
+            }
+
+            flow_context.execution_context.order_for_commands_execution = flow_context
+                .execution_context
+                .order_for_commands_execution
+                .clone()
+                .into_iter()
+                .filter(|c| great_filter.contains(&c))
+                .collect();
+
+            flow_context.execution_context.execution_mode =
+                RunbookExecutionMode::Partial(great_filter);
+        }
+
+        (actions_to_re_execute, actions_to_execute)
+    }
+
+    pub fn write_runbook_state(
+        &self,
+        runbook_state_location: Option<RunbookStateLocation>,
+    ) -> Result<Option<FileLocation>, String> {
+        if let Some(state_file_location) = runbook_state_location {
+            let previous_snapshot = match state_file_location.load_execution_snapshot(
+                true,
+                &self.runbook_id.name,
+                &self.top_level_inputs_map.current_top_level_input_name(),
+            ) {
+                Ok(snapshot) => Some(snapshot),
+                Err(_e) => None,
+            };
+
+            let state_file_location = state_file_location.get_location_for_ctx(
+                &self.runbook_id.name,
+                Some(&self.top_level_inputs_map.current_top_level_input_name()),
+            );
+            if let Some(RunbookTransientStateLocation(lock_file)) =
+                RunbookTransientStateLocation::from_state_file_location(&state_file_location)
+            {
+                let _ = std::fs::remove_file(&lock_file.to_string());
+            }
+
+            let diff = RunbookSnapshotContext::new();
+            let snapshot = diff
+                .snapshot_runbook_execution(
+                    &self.runbook_id,
+                    &self.flow_contexts,
+                    previous_snapshot,
+                    &self.top_level_inputs_map,
+                )
+                .map_err(|e| e.message)?;
+            state_file_location
+                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                .expect("unable to save state");
+            Ok(Some(state_file_location))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn mark_failed_and_write_transient_state(
+        &mut self,
+        runbook_state_location: Option<RunbookStateLocation>,
+    ) -> Result<Option<FileLocation>, String> {
+        for running_context in self.flow_contexts.iter_mut() {
+            running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
+        }
+
+        if let Some(runbook_state_location) = runbook_state_location {
+            let previous_snapshot = match runbook_state_location.load_execution_snapshot(
+                false,
+                &self.runbook_id.name,
+                &self.top_level_inputs_map.current_top_level_input_name(),
+            ) {
+                Ok(snapshot) => Some(snapshot),
+                Err(_e) => None,
+            };
+
+            let lock_file = RunbookTransientStateLocation::get_location_from_state_file_location(
+                &runbook_state_location.get_location_for_ctx(
+                    &self.runbook_id.name,
+                    Some(&self.top_level_inputs_map.current_top_level_input_name()),
+                ),
+            );
+            let diff = RunbookSnapshotContext::new();
+            let snapshot = diff
+                .snapshot_runbook_execution(
+                    &self.runbook_id,
+                    &self.flow_contexts,
+                    previous_snapshot,
+                    &self.top_level_inputs_map,
+                )
+                .map_err(|e| e.message)?;
+            lock_file
+                .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
+                .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
+            Ok(Some(lock_file))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -1,4 +1,6 @@
-use crate::runbook::{RunbookTopLevelInputsMap, DEFAULT_TOP_LEVEL_INPUTS_NAME};
+use crate::runbook::{
+    RunbookExecutionSnapshot, RunbookTopLevelInputsMap, DEFAULT_TOP_LEVEL_INPUTS_NAME,
+};
 use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::serde::{Deserialize, Serialize};
@@ -96,7 +98,7 @@ impl WorkspaceManifest {
                                 location
                                     .append_path(&f)
                                     .expect("unable to create state destination path");
-                                RunbookState::Location(location)
+                                RunbookStateLocation::Location(location)
                             })
                         })
                         .unwrap_or(None),
@@ -145,18 +147,18 @@ fn normalize_user_input(input: &str) -> String {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum RunbookState {
+pub enum RunbookStateLocation {
     Location(FileLocation),
 }
 
-impl RunbookState {
+impl RunbookStateLocation {
     pub fn get_location_for_ctx(
         &self,
         runbook_id: &str,
         environment: Option<&str>,
     ) -> FileLocation {
         match &self {
-            RunbookState::Location(location) => {
+            RunbookStateLocation::Location(location) => {
                 let mut location = location.clone();
                 location
                     .append_path(&format!(
@@ -169,6 +171,57 @@ impl RunbookState {
             }
         }
     }
+
+    pub fn load_execution_snapshot(
+        &self,
+        load_lock_file_if_exists: bool,
+        runbook_id: &str,
+        environment_selector: &str,
+    ) -> Result<RunbookExecutionSnapshot, String> {
+        let state_file_location = self.get_location_for_ctx(runbook_id, Some(environment_selector));
+        let file_to_load = if load_lock_file_if_exists {
+            match RunbookTransientStateLocation::from_state_file_location(&state_file_location) {
+                Some(RunbookTransientStateLocation(lockfile_location)) => lockfile_location,
+                None => state_file_location.clone(),
+            }
+        } else {
+            state_file_location.clone()
+        };
+
+        let snapshot_bytes = file_to_load.read_content()?;
+        if snapshot_bytes.is_empty() {
+            return Err(format!("unable to read {}: file empty", file_to_load));
+        }
+        let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
+            .map_err(|e| format!("unable to read {}: {}", file_to_load, e.to_string()))?;
+        Ok(snapshot)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RunbookTransientStateLocation(pub FileLocation);
+
+impl RunbookTransientStateLocation {
+    pub fn get_location_from_state_file_location(
+        state_file_location: &FileLocation,
+    ) -> FileLocation {
+        let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
+        let mut lock_file_location = state_file_location.get_parent_location().unwrap();
+        lock_file_location.append_path(&lock_file_name).unwrap();
+        lock_file_location
+    }
+
+    pub fn from_state_file_location(state_file_location: &FileLocation) -> Option<Self> {
+        let lock_file_location =
+            RunbookTransientStateLocation::get_location_from_state_file_location(
+                state_file_location,
+            );
+        if lock_file_location.exists() {
+            Some(Self(lock_file_location))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -176,7 +229,7 @@ pub struct RunbookMetadata {
     pub location: String,
     pub description: Option<String>,
     pub name: String,
-    pub state: Option<RunbookState>,
+    pub state: Option<RunbookStateLocation>,
 }
 
 impl RunbookMetadata {
