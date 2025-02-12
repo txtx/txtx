@@ -4,7 +4,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
 use serde_json::Value as JsonValue;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     env,
     fs::{self, File},
     io::Write,
@@ -39,11 +39,10 @@ use txtx_core::{
     },
     manifest::{
         file::{read_runbook_from_location, read_runbooks_from_manifest},
-        RunbookMetadata, RunbookState, WorkspaceManifest,
+        RunbookMetadata, RunbookStateLocation, WorkspaceManifest,
     },
     runbook::{
-        AddonConstructFactory, ConsolidatedChanges, RunbookExecutionMode, RunbookExecutionSnapshot,
-        RunbookTopLevelInputsMap, SynthesizedChange,
+        AddonConstructFactory, ConsolidatedChanges, RunbookTopLevelInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
@@ -64,55 +63,6 @@ use web_ui::cloud_relayer::RelayerContext;
 pub const DEFAULT_BINDING_PORT: &str = "8488";
 pub const SERVE_BINDING_PORT: &str = "18488";
 pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
-
-pub fn get_lock_file_location(state_file_location: &FileLocation) -> FileLocation {
-    let lock_file_name = format!("{}.lock", state_file_location.get_file_name().unwrap());
-    let mut lock_file_location = state_file_location.get_parent_location().unwrap();
-    lock_file_location.append_path(&lock_file_name).unwrap();
-    lock_file_location
-}
-
-pub fn get_lock_file(state_file_location: &FileLocation) -> Option<FileLocation> {
-    let lock_file_location = get_lock_file_location(state_file_location);
-    if lock_file_location.exists() {
-        Some(lock_file_location)
-    } else {
-        None
-    }
-}
-
-pub fn load_runbook_execution_snapshot(
-    state_file_location: &RunbookState,
-    load_lock_file_if_exists: bool,
-    runbook_id: &str,
-    environment_selector: &str,
-) -> Result<RunbookExecutionSnapshot, String> {
-    // Are we resuming an interrupted workflow or executing from scratch?
-    // If we're resuming a stateful workflow, we need to:
-    // - retrieve the transient state
-    // - compare it with a new simulation
-    // - taint the executed nodes
-    // - execute
-
-    let state_file_location =
-        state_file_location.get_location_for_ctx(runbook_id, Some(environment_selector));
-    let file_to_load = if load_lock_file_if_exists {
-        match get_lock_file(&state_file_location) {
-            Some(location) => location,
-            None => state_file_location.clone(),
-        }
-    } else {
-        state_file_location.clone()
-    };
-
-    let snapshot_bytes = file_to_load.read_content()?;
-    if snapshot_bytes.is_empty() {
-        return Err(format!("unable to read {}: file empty", file_to_load));
-    }
-    let snapshot: RunbookExecutionSnapshot = serde_json::from_slice(&snapshot_bytes)
-        .map_err(|e| format!("unable to read {}: {}", file_to_load, e.to_string()))?;
-    Ok(snapshot)
-}
 
 pub fn display_snapshot_diffing(
     consolidated_changes: ConsolidatedChanges,
@@ -202,8 +152,7 @@ pub async fn handle_check_command(
     match &runbook_state {
         Some(state_file_location) => {
             let ctx = RunbookSnapshotContext::new();
-            let old = load_runbook_execution_snapshot(
-                state_file_location,
+            let old = state_file_location.load_execution_snapshot(
                 true,
                 &runbook.runbook_id.name,
                 &runbook.top_level_inputs_map.current_top_level_input_name(),
@@ -514,9 +463,9 @@ pub async fn handle_run_command(
         buffer_stdin.clone(),
     )
     .await;
-    let (runbook_name, mut runbook, runbook_state) = match res {
-        Ok((_manifest, runbook_name, runbook, runbook_state)) => {
-            (runbook_name, runbook, runbook_state)
+    let (runbook_name, mut runbook, runbook_state_location) = match res {
+        Ok((_manifest, runbook_name, runbook, state_file_location)) => {
+            (runbook_name, runbook, state_file_location)
         }
         Err(_) => {
             let (runbook_name, runbook) =
@@ -525,9 +474,8 @@ pub async fn handle_run_command(
         }
     };
 
-    let previous_state_opt = if let Some(state_file_location) = runbook_state.clone() {
-        match load_runbook_execution_snapshot(
-            &state_file_location,
+    let previous_state_opt = if let Some(state_file_location) = runbook_state_location.clone() {
+        match state_file_location.load_execution_snapshot(
             true,
             &runbook.runbook_id.name,
             &runbook.top_level_inputs_map.current_top_level_input_name(),
@@ -548,50 +496,18 @@ pub async fn handle_run_command(
         if let Some(old) = previous_state_opt {
             let ctx = RunbookSnapshotContext::new();
 
-            let mut execution_context_backups = HashMap::new();
+            let execution_context_backups = runbook.backup_execution_contexts();
+            let new = runbook.simulate_and_snapshot_flows(&old).await?;
 
-            for flow_context in runbook.flow_contexts.iter_mut() {
-                let frontier = HashSet::new();
-                let execution_context_backup = flow_context.execution_context.clone();
-                let _res = flow_context
-                    .execution_context
-                    .simulate_execution(
-                        &runbook.runtime_context,
-                        &flow_context.workspace_context,
-                        &runbook.supervision_context,
-                        &frontier,
-                    )
-                    .await;
-
-                execution_context_backups
-                    .insert(flow_context.name.clone(), execution_context_backup);
-
-                let Some(flow_snapshot) = old.flows.get(&flow_context.name) else {
+            for flow_context in runbook.flow_contexts.iter() {
+                if old.flows.get(&flow_context.name).is_none() {
                     println!(
                         "{} Previous snapshot not found for flow {}",
                         yellow!("!"),
                         flow_context.name
                     );
-                    continue;
                 };
-
-                flow_context
-                    .execution_context
-                    .apply_snapshot_to_execution_context(
-                        flow_snapshot,
-                        &flow_context.workspace_context,
-                    )
-                    .map_err(|e| e.message)?;
             }
-
-            let new = ctx
-                .snapshot_runbook_execution(
-                    &runbook.runbook_id,
-                    &runbook.flow_contexts,
-                    None,
-                    &runbook.top_level_inputs_map,
-                )
-                .map_err(|e| e.message)?;
 
             let consolidated_changes = ctx.diff(old, new);
 
@@ -599,126 +515,13 @@ pub async fn handle_run_command(
                 return Ok(());
             };
 
-            let theme =
-                ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
+            runbook.prepare_flows_for_new_plans(
+                &consolidated_changes.new_plans_to_add,
+                execution_context_backups,
+            );
 
-            let mut actions_to_re_execute = IndexMap::new();
-            let mut actions_to_execute = IndexMap::new();
-
-            for flow_context_key in consolidated_changes.new_plans_to_add.iter() {
-                let flow_context = runbook.find_expected_flow_context_mut(&flow_context_key);
-                flow_context.execution_context.execution_mode = RunbookExecutionMode::Full;
-                let pristine_execution_context =
-                    execution_context_backups.remove(flow_context_key).unwrap();
-                flow_context.execution_context = pristine_execution_context;
-            }
-
-            for (flow_context_key, changes) in consolidated_changes.plans_to_update.iter() {
-                let critical_edits = changes
-                    .constructs_to_update
-                    .iter()
-                    .filter(|c| !c.description.is_empty() && c.critical)
-                    .collect::<Vec<_>>();
-
-                let additions = changes.new_constructs_to_add.iter().collect::<Vec<_>>();
-                let mut unexecuted =
-                    changes.constructs_to_run.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>();
-
-                let flow_context = runbook.find_expected_flow_context_mut(&flow_context_key);
-
-                if critical_edits.is_empty() && additions.is_empty() && unexecuted.is_empty() {
-                    flow_context.execution_context.execution_mode = RunbookExecutionMode::Ignored;
-                    continue;
-                }
-
-                let mut added_construct_dids: Vec<ConstructDid> =
-                    additions.into_iter().map(|(construct_did, _)| construct_did.clone()).collect();
-
-                let descendants_of_critically_changed_commands = critical_edits
-                    .iter()
-                    .filter_map(|c| {
-                        if let Some(construct_did) = &c.construct_did {
-                            let mut segment = vec![];
-                            segment.push(construct_did.clone());
-                            let mut deps = flow_context
-                                .graph_context
-                                .get_downstream_dependencies_for_construct_did(
-                                    &construct_did,
-                                    true,
-                                );
-                            segment.append(&mut deps);
-                            Some(segment)
-                        } else {
-                            None
-                        }
-                    })
-                    .flatten()
-                    .filter(|d| !added_construct_dids.contains(d))
-                    .sorted()
-                    .dedup()
-                    .collect::<Vec<_>>();
-
-                let actions: Vec<(String, Option<String>)> =
-                    descendants_of_critically_changed_commands
-                        .iter()
-                        .map(|construct_did| {
-                            let documentation = flow_context
-                                .execution_context
-                                .commands_inputs_evaluation_results
-                                .get(construct_did)
-                                .and_then(|r| r.inputs.get_string("description"))
-                                .and_then(|d| Some(d.to_string()));
-                            let command = flow_context
-                                .execution_context
-                                .commands_instances
-                                .get(construct_did)
-                                .unwrap();
-                            (command.name.to_string(), documentation)
-                        })
-                        .collect();
-                actions_to_re_execute.insert(flow_context_key, actions);
-
-                let added_actions: Vec<(String, Option<String>)> = added_construct_dids
-                    .iter()
-                    .map(|construct_did| {
-                        let documentation = flow_context
-                            .execution_context
-                            .commands_inputs_evaluation_results
-                            .get(construct_did)
-                            .and_then(|r| r.inputs.get_string("description"))
-                            .and_then(|d| Some(d.to_string()));
-                        let command = flow_context
-                            .execution_context
-                            .commands_instances
-                            .get(construct_did)
-                            .unwrap();
-                        (command.name.to_string(), documentation)
-                    })
-                    .collect();
-                actions_to_execute.insert(flow_context_key, added_actions);
-
-                let mut great_filter = descendants_of_critically_changed_commands;
-                great_filter.append(&mut added_construct_dids);
-                great_filter.append(&mut unexecuted);
-
-                for construct_did in great_filter.iter() {
-                    let _ = flow_context
-                        .execution_context
-                        .commands_execution_results
-                        .remove(construct_did);
-                }
-
-                flow_context.execution_context.order_for_commands_execution = flow_context
-                    .execution_context
-                    .order_for_commands_execution
-                    .clone()
-                    .into_iter()
-                    .filter(|c| great_filter.contains(&c))
-                    .collect();
-
-                flow_context.execution_context.execution_mode =
-                    RunbookExecutionMode::Partial(great_filter);
-            }
+            let (actions_to_re_execute, actions_to_execute) =
+                runbook.prepared_flows_for_updated_plans(&consolidated_changes.plans_to_update);
 
             let has_actions =
                 actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
@@ -755,6 +558,9 @@ pub async fn handle_run_command(
                 }
                 println!("\n");
             }
+
+            let theme =
+                ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
 
             let confirm = Confirm::with_theme(&theme)
                 .with_prompt("Do you want to continue?")
@@ -850,7 +656,11 @@ pub async fn handle_run_command(
             for diag in diags.iter() {
                 println!("{}", red!(format!("- {}", diag)));
             }
-            write_runbook_transient_state(&mut runbook, runbook_state)?;
+            if let Some(location) =
+                runbook.mark_failed_and_write_transient_state(runbook_state_location)?
+            {
+                println!("{} Saving transient state to {}", yellow!("!"), location);
+            };
             return Ok(());
         }
 
@@ -888,7 +698,9 @@ pub async fn handle_run_command(
             collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
         }
 
-        write_runbook_state(&mut runbook, runbook_state)?;
+        if let Some(location) = runbook.write_runbook_state(runbook_state_location)? {
+            println!("\n{} Saved execution state to {}", green!("✓"), location);
+        }
 
         if !collected_outputs.is_empty() {
             if cmd.output_json {
@@ -953,7 +765,7 @@ pub async fn handle_run_command(
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
-    let moved_runbook_state = runbook_state.clone();
+    let moved_runbook_state = runbook_state_location.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future =
             start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
@@ -961,12 +773,24 @@ pub async fn handle_run_command(
             for diag in diags.iter() {
                 println!("{} {}", red!("x"), diag);
             }
-            if let Err(e) = write_runbook_transient_state(&mut runbook, moved_runbook_state) {
-                println!("{} Failed to write transient runbook state: {}", red!("x"), e);
+            match runbook.mark_failed_and_write_transient_state(moved_runbook_state) {
+                Ok(Some(location)) => {
+                    println!("{} Saving transient state to {}", yellow!("!"), location);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    println!("{} Failed to write transient runbook state: {}", red!("x"), e);
+                }
             };
         } else {
-            if let Err(e) = write_runbook_state(&mut runbook, moved_runbook_state) {
-                println!("{} Failed to write runbook state: {}", red!("x"), e);
+            match runbook.write_runbook_state(moved_runbook_state) {
+                Ok(Some(location)) => {
+                    println!("\n{} Saved execution state to {}", green!("✓"), location);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    println!("{} Failed to write runbook state: {}", red!("x"), e);
+                }
             };
         }
         if let Err(_e) = moved_kill_loops_tx.send(true) {
@@ -1135,7 +959,8 @@ pub async fn load_runbooks_from_manifest(
     manifest: &WorkspaceManifest,
     manifest_path: &str,
     environment_selector: &Option<String>,
-) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
+) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookStateLocation>)>, String>
+{
     let runbooks = read_runbooks_from_manifest(&manifest, environment_selector, None)?;
     println!("\n{} Processing manifest '{}'", purple!("→"), manifest_path);
     Ok(runbooks)
@@ -1147,7 +972,7 @@ pub async fn load_runbook_from_manifest(
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
     buffer_stdin: Option<String>,
-) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookState>), String> {
+) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookStateLocation>), String> {
     let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
     let top_level_inputs_map =
         manifest.get_runbook_inputs(environment_selector, cli_inputs, buffer_stdin)?;
@@ -1216,84 +1041,4 @@ pub async fn load_runbook_from_file_path(
 
     // Select first runbook by default
     Ok((runbook_name, runbook))
-}
-
-fn write_runbook_transient_state(
-    runbook: &mut Runbook,
-    runbook_state: Option<RunbookState>,
-) -> Result<(), String> {
-    for running_context in runbook.flow_contexts.iter_mut() {
-        running_context.execution_context.execution_mode = RunbookExecutionMode::FullFailed;
-    }
-
-    if let Some(state_file_location) = runbook_state {
-        let previous_snapshot = match load_runbook_execution_snapshot(
-            &state_file_location,
-            false,
-            &runbook.runbook_id.name,
-            &runbook.top_level_inputs_map.current_top_level_input_name(),
-        ) {
-            Ok(snapshot) => Some(snapshot),
-            Err(_e) => None,
-        };
-
-        let lock_file = get_lock_file_location(&state_file_location.get_location_for_ctx(
-            &runbook.runbook_id.name,
-            Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
-        ));
-        println!("{} Saving transient state to {}", yellow!("!"), lock_file);
-        let diff = RunbookSnapshotContext::new();
-        let snapshot = diff
-            .snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.flow_contexts,
-                previous_snapshot,
-                &runbook.top_level_inputs_map,
-            )
-            .map_err(|e| e.message)?;
-        lock_file
-            .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-            .map_err(|e| format!("unable to save state ({})", e.to_string()))?;
-    }
-    Ok(())
-}
-
-fn write_runbook_state(
-    runbook: &mut Runbook,
-    runbook_state: Option<RunbookState>,
-) -> Result<(), String> {
-    if let Some(state_file_location) = runbook_state {
-        let previous_snapshot = match load_runbook_execution_snapshot(
-            &state_file_location,
-            true,
-            &runbook.runbook_id.name,
-            &runbook.top_level_inputs_map.current_top_level_input_name(),
-        ) {
-            Ok(snapshot) => Some(snapshot),
-            Err(_e) => None,
-        };
-
-        let state_file_location = state_file_location.get_location_for_ctx(
-            &runbook.runbook_id.name,
-            Some(&runbook.top_level_inputs_map.current_top_level_input_name()),
-        );
-        if let Some(lock_file) = get_lock_file(&state_file_location) {
-            let _ = std::fs::remove_file(&lock_file.to_string());
-        }
-
-        println!("\n{} Saving execution state to {}", green!("✓"), state_file_location);
-        let diff = RunbookSnapshotContext::new();
-        let snapshot = diff
-            .snapshot_runbook_execution(
-                &runbook.runbook_id,
-                &runbook.flow_contexts,
-                previous_snapshot,
-                &runbook.top_level_inputs_map,
-            )
-            .map_err(|e| e.message)?;
-        state_file_location
-            .write_content(serde_json::to_string_pretty(&snapshot).unwrap().as_bytes())
-            .expect("unable to save state");
-    }
-    Ok(())
 }

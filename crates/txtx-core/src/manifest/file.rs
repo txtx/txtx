@@ -7,7 +7,7 @@ use txtx_addon_kit::{
 
 use crate::runbook::{Runbook, RunbookSources};
 
-use super::{RunbookState, WorkspaceManifest};
+use super::{RunbookStateLocation, WorkspaceManifest};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceManifestFile {
@@ -48,7 +48,7 @@ pub fn read_runbooks_from_manifest(
     manifest: &WorkspaceManifest,
     environment_selector: &Option<String>,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
+) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookStateLocation>)>, String> {
     let mut runbooks = IndexMap::new();
 
     let root_path =

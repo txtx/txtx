@@ -11,6 +11,7 @@ use txtx_addon_kit::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
             ModalPanelData, NormalizedActionItemRequestUpdate, ProgressBarVisibilityUpdate,
         },
+        types::Value,
         AuthorizationContext, RunbookId,
     },
     Addon,
@@ -216,7 +217,7 @@ impl TestHarness {
     pub fn assert_provide_signature_formatted_payload(
         &self,
         action: &ActionItemRequest,
-        formatted_payload: Option<String>,
+        formatted_payload: Option<Value>,
     ) {
         let Some(action) = action.action_type.as_provide_signed_tx() else {
             panic!("expected sign transaction payload, found {:?}", action);
