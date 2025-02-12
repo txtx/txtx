@@ -12006,21 +12006,6 @@ dependencies = [
 
 [[package]]
 name = "spl-token"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e9e171cbcb4b1f72f6d78ed1e975cb467f56825c27d09b8dd2608e4e7fc8b3b"
-dependencies = [
- "arrayref",
- "bytemuck",
- "num-derive",
- "num-traits",
- "num_enum 0.7.3",
- "solana-program",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "spl-token"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a0f06ac7f23dc0984931b1fe309468f14ea58e32660439c1cef19456f5d0e3"
@@ -13516,7 +13501,7 @@ dependencies = [
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
- "spl-token 4.0.2",
+ "spl-token 7.0.0",
  "tiny-bip39",
  "txtx-addon-kit",
  "txtx-test-utils",
