@@ -84,4 +84,4 @@ jobs:
         run: cargo build --workspace --exclude txtx-addon-network-stacks --release
 
       - name: Run Tests
-        run: cargo --workspace --exclude txtx-addon-network-stacks 
+        run: cargo test --workspace --exclude txtx-addon-network-stacks 
