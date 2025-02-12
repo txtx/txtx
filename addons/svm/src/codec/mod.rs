@@ -492,8 +492,6 @@ impl DeploymentTransaction {
             _ => {}
         };
 
-        // to prevent overloading the supervisor with a ton of status updates,
-        // only send for every 10 of the buffer writes
         status_updater.propagate_pending_status(&format!(
             "Sending transaction {}/{}",
             transaction_index + 1,
