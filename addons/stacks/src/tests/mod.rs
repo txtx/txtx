@@ -4,7 +4,7 @@ use txtx_addon_kit::{
             ActionItemRequestType, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
             ProvidePublicKeyResponse, ProvideSignedTransactionResponse, ReviewedInputResponse,
         },
-        types::Value,
+        types::{ObjectType, Value},
     },
     Addon,
 };
@@ -293,10 +293,61 @@ fn test_multisig_runbook_no_env() {
     );
 
     let sign_tx_alice = &sign_tx_modal.groups[0].sub_groups[0].action_items[0];
-    harness.assert_provide_signature_formatted_payload(sign_tx_alice, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": []\n  }\n}".into()));
+    let payload = ObjectType::from(vec![
+        ("version", Value::string("testnet".to_string())),
+        ("chain_id", Value::string("2147483648".to_string())),
+        (
+            "payload",
+            ObjectType::from(vec![
+                ("type", Value::string("Contract Call".to_string())),
+                ("contract_address", Value::string("ST000000000000000000002AMW42H".to_string())),
+                ("contract_name", Value::string("bns".to_string())),
+                ("function_name", Value::string("name-register".to_string())),
+                (
+                    "function_args",
+                    Value::array(vec![
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                    ]),
+                ),
+            ])
+            .to_value(),
+        ),
+        ("post_condition_mode", Value::string("Deny".to_string())),
+        ("post_conditions", Value::array(vec![]).to_value()),
+        (
+            "auth",
+            ObjectType::from(vec![
+                ("spending_condition", Value::string("multisig".to_string())),
+                ("signer", Value::string("8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f".to_string())),
+                ("nonce", Value::integer(0)),
+                ("tx_fee", Value::integer(195)),
+                ("signatures_required", Value::integer(2)),
+                ("fields", Value::array(vec![])),
+            ])
+            .to_value(),
+        ),
+    ])
+    .to_value();
+
+    harness.assert_provide_signature_formatted_payload(sign_tx_alice, Some(payload));
 
     let sign_tx_bob = &sign_tx_modal.groups[0].sub_groups[1].action_items[0];
-    harness.assert_provide_signature_formatted_payload(sign_tx_bob, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": [\n      \"02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33\"\n    ]\n  }\n}".into()));
+
+    let mut obj = payload.expect_object();
+    let mut auth = obj.get("auth").unwrap().expect_object().clone();
+    auth.insert(
+        "fields".to_string(),
+        Value::array(vec![Value::string(
+            "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33".to_string(),
+        )]),
+    );
+    obj.insert("auth".to_string(), auth.to_value());
+
+    harness
+        .assert_provide_signature_formatted_payload(sign_tx_bob, Some(ObjectType::from_map(obj)));
 
     // I don't know why this update is sent here, this feels extraneous
     harness.expect_action_item_update(
