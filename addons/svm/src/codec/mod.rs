@@ -494,16 +494,11 @@ impl DeploymentTransaction {
 
         // to prevent overloading the supervisor with a ton of status updates,
         // only send for every 10 of the buffer writes
-        if match &self.transaction_type {
-            DeploymentTransactionType::WriteToBuffer => (transaction_index + 1) % 10 == 0,
-            _ => true,
-        } {
-            status_updater.propagate_pending_status(&format!(
-                "Sending transaction {}/{}",
-                transaction_index + 1,
-                transaction_count
-            ));
-        }
+        status_updater.propagate_pending_status(&format!(
+            "Sending transaction {}/{}",
+            transaction_index + 1,
+            transaction_count
+        ));
 
         Ok(())
     }

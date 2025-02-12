@@ -12006,21 +12006,6 @@ dependencies = [
 
 [[package]]
 name = "spl-token"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e9e171cbcb4b1f72f6d78ed1e975cb467f56825c27d09b8dd2608e4e7fc8b3b"
-dependencies = [
- "arrayref",
- "bytemuck",
- "num-derive",
- "num-traits",
- "num_enum 0.7.3",
- "solana-program",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "spl-token"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a0f06ac7f23dc0984931b1fe309468f14ea58e32660439c1cef19456f5d0e3"
@@ -13397,7 +13382,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "crossbeam-channel",
  "dirs",
@@ -13502,7 +13487,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anchor-lang-idl",
  "async-recursion",
@@ -13516,7 +13501,7 @@ dependencies = [
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
- "spl-token 4.0.2",
+ "spl-token 7.0.0",
  "tiny-bip39",
  "txtx-addon-kit",
  "txtx-test-utils",
@@ -13542,7 +13527,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -13600,7 +13585,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -13629,7 +13614,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-stream",
  "futures",
@@ -13643,7 +13628,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
