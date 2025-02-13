@@ -664,6 +664,7 @@ pub async fn handle_run_command(
             return Ok(());
         }
 
+        let mut json_outputs = vec![];
         let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> =
             IndexMap::new();
         for flow_context in runbook.flow_contexts.iter() {
@@ -683,6 +684,11 @@ pub async fn handle_run_command(
                             .and_then(|d| Some(d.as_str()))
                             .unwrap_or(output_name.as_str());
 
+                        json_outputs.push(DisplayableRunbookOutput {
+                            title: output_name.to_string(),
+                            description: output.description.clone(),
+                            value: output.value.to_string(),
+                        });
                         match running_context_outputs.get_mut(&output.name) {
                             Some(entries) => {
                                 entries.push(value);
@@ -703,12 +709,26 @@ pub async fn handle_run_command(
         }
 
         if !collected_outputs.is_empty() {
-            if cmd.output_json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&collected_outputs)
-                        .map_err(|e| format!("failed to print outputs: {e}"))?
-                );
+            if let Some(output_loc) = cmd.output_json.as_ref() {
+                let output = serde_json::to_string_pretty(&json_outputs)
+                    .map_err(|e| format!("failed to print outputs: {e}"))?;
+                if let Some(output_loc) = output_loc {
+                    let mut output_location = runbook
+                        .runtime_context
+                        .authorization_context
+                        .workspace_location
+                        .get_parent_location()
+                        .map_err(|e| format!("failed to write to output file: {e}"))?;
+                    output_location
+                        .append_path(output_loc)
+                        .map_err(|e| format!("invalid output file location: {e}"))?;
+                    output_location
+                        .write_content(output.as_bytes())
+                        .map_err(|e| format!("failed to write to output file: {e}"))?;
+                    println!("{} {}", green!("✓"), format!("Outputs written to {}", output_loc));
+                } else {
+                    println!("{}", output);
+                }
             } else {
                 for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
                     if !flow_outputs.is_empty() {
@@ -1041,4 +1061,11 @@ pub async fn load_runbook_from_file_path(
 
     // Select first runbook by default
     Ok((runbook_name, runbook))
+}
+
+#[derive(serde::Serialize)]
+pub struct DisplayableRunbookOutput {
+    pub title: String,
+    pub description: Option<String>,
+    pub value: String,
 }

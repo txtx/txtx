@@ -231,9 +231,9 @@ pub struct ExecuteRunbook {
     /// Execute the runbook with supervision via the terminal console (coming soon)
     #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
-    /// When running in unsupervised mode, print outputs in JSON format
-    #[arg(long = "output-json", action=ArgAction::SetTrue)]
-    pub output_json: bool,
+    /// When running in unsupervised mode, print outputs in JSON format. If a path is provided, the output will be written to that path.
+    #[arg(long = "output-json")]
+    pub output_json: Option<Option<String>>,
     /// Pick a specific output to stdout at the end of the execution
     #[arg(long = "output", conflicts_with = "output_json")]
     pub output: Option<String>,
