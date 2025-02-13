@@ -7,13 +7,13 @@ runbooks:
     description: 
     location: runbooks/deployments/deploy-abcde.tx
     state:
-      file: abcde.devnet.json
+      location: abcde.devnet.json
   - name: deploy-token
     id: deploy-token
     description: 
     location: runbooks/deployments/deploy-token.tx
     state:
-      file: token.devnet.json
+      location: token.devnet.json
 environments:
   devnet:
     stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
