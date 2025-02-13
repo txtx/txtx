@@ -31,6 +31,8 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
+pub const SVM_SUBGRAPH_DATA_SOURCE: &str = "svm::subgraph_data_source";
+pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
 
 pub struct SvmValue {}
 
@@ -323,6 +325,21 @@ lazy_static! {
             documentation: "The signature of the close temp authority transaction.",
             typing: Type::array(Type::string()),
             optional: false,
+            tainting: true
+        }
+    };
+
+    pub static ref SUBGRAPH_FIELD: Type = define_map_type! {
+        name: {
+            documentation: "The name of the field.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        source: {
+            documentation: "A key from the subgraph `source` field, indicating which argument from the data source to map to this field. By default, the field name is used.",
+            typing: Type::string(),
+            optional: true,
             tainting: true
         }
     };

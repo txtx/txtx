@@ -57,6 +57,14 @@ pub const SOURCE_TOKEN_ADDRESS: &str = "source_token_address";
 pub const TOKEN_MINT_ADDRESS: &str = "token_mint_address";
 pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
 
+// Subgraph keys
+pub const BLOCK_HEIGHT: &str = "block_height";
+pub const FIELD: &str = "field";
+pub const SOURCE: &str = "source";
+pub const SUBGRAPH_NAME: &str = "subgraph_name";
+pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
+pub const SUBGRAPH_URL: &str = "subgraph_url";
+
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
 pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";

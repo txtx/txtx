@@ -1,6 +1,7 @@
 use crate::constants::{SIGNER, SIGNERS};
 // use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
+use deploy_subraph::DEPLOY_SUBGRAPH;
 use process_instructions::PROCESS_INSTRUCTIONS;
 use send_sol::SEND_SOL;
 use send_token::SEND_TOKEN;
@@ -10,6 +11,7 @@ use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
 
 pub mod deploy_program;
+pub mod deploy_subraph;
 pub mod process_instructions;
 pub mod send_sol;
 pub mod send_token;
@@ -44,5 +46,6 @@ lazy_static! {
         DEPLOY_PROGRAM.clone(),
         SEND_SOL.clone(),
         SEND_TOKEN.clone(),
+        DEPLOY_SUBGRAPH.clone()
     ];
 }
