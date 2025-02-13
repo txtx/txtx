@@ -31,7 +31,7 @@ impl SubgraphRequestClient {
     }
 
     pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
-        let params = serde_json::to_value(self.plugin_config.clone())
+        let params = serde_json::to_value(vec![self.plugin_config.clone()])
             .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
         let res = self
             .rpc_client
