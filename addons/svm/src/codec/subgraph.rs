@@ -1,5 +1,6 @@
 use anchor_lang_idl::types::Idl;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::types::{
@@ -31,7 +32,8 @@ impl SubgraphRequestClient {
     }
 
     pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
-        let params = serde_json::to_value(vec![self.plugin_config.clone()])
+        let stringified_config = json![self.plugin_config.clone()];
+        let params = serde_json::to_value(vec![stringified_config.to_string()])
             .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
         let res = self
             .rpc_client
