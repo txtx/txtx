@@ -1277,9 +1277,6 @@ pub fn eval_expression(
                     return Ok(ExpressionEvaluationStatus::DependencyNotComputed)
                 }
             };
-            if !lhs.is_type_eq(&rhs) {
-                unimplemented!() // todo(lgalabru): return diagnostic
-            }
 
             let func = match &binary_op.operator.value() {
                 BinaryOperator::And => "and_bool",
