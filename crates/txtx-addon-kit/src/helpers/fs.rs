@@ -389,36 +389,55 @@ pub fn get_txtx_files_paths(
     dir: &str,
     environment_selector: &Option<String>,
 ) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
-    let paths = std::fs::read_dir(dir)?
-        .filter_map(|res| res.ok())
-        .map(|dir_entry| dir_entry.path())
-        .filter_map(|path| {
-            if path
-                .extension()
-                .map_or(false, |ext| ["tx", "txvars"].contains(&ext.to_str().unwrap()))
-            {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .filter_map(|path| {
-            if path.file_name().map(|f| f.to_str().unwrap_or("")).map_or(false, |filename| {
-                let comps = filename.split(".").collect::<Vec<_>>();
-                if comps.len() > 2 {
-                    let Some(env) = environment_selector else {
-                        return false;
-                    };
-                    return comps[comps.len() - 2].eq(env);
-                } else {
-                    return true;
+    let dir = std::fs::read_dir(dir)?;
+    let mut files_paths = vec![];
+    for res in dir.into_iter() {
+        let Ok(dir_entry) = res else {
+            continue;
+        };
+        let path = dir_entry.path();
+
+        // if our path is a file with an extension
+        if let Some(ext) = path.extension() {
+            // and that extension is either "tx" or "txvars"
+            if ["tx", "txvars"].contains(&ext.to_str().unwrap()) {
+                // and it has a filename (always true if we have an extension)
+                if let Some(file_name) = path.file_name() {
+                    let comps = file_name.to_str().unwrap().split(".").collect::<Vec<_>>();
+                    // if it has more than two components
+                    if comps.len() > 2 {
+                        // then we require that the second component match the environment (i.e. signers.devnet.tx)
+                        let Some(env) = environment_selector else {
+                            continue;
+                        };
+                        if comps[comps.len() - 2].eq(env) {
+                            files_paths.push(path);
+                        }
+                    // it it doesn't have more than two components, include the file
+                    } else {
+                        files_paths.push(path);
+                    }
                 }
-            }) {
-                Some(path)
-            } else {
-                None
             }
-        })
-        .collect::<Vec<_>>();
-    Ok(paths)
+        }
+        // otherwise, if the path is a directory
+        else if path.is_dir() {
+            let component = path.components().last().expect("dir has no components");
+            if let Some(folder) = component.as_os_str().to_str() {
+                // and that directory's top folder matches the env (such as devnet/signers.tx)
+                if let Some(env) = environment_selector {
+                    if folder.eq(env) {
+                        // then we recurse into that directory
+                        let mut sub_files_paths = get_txtx_files_paths(
+                            &path.to_str().expect("couldn't turn path back to string"),
+                            environment_selector,
+                        )?;
+                        files_paths.append(&mut sub_files_paths);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(files_paths)
 }
