@@ -127,7 +127,7 @@ impl CommandImplementation for DeployProgram {
         let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
-        let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or("");
+        let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or(&values.name);
 
         let subgraph_request =
             SubgraphRequest::new(subgraph_name, &program_id, source, fields, block_height)?;
