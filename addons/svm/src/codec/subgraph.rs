@@ -1,3 +1,5 @@
+use std::path::Display;
+
 use anchor_lang_idl::types::Idl;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -73,6 +75,18 @@ impl PluginConfig {
 #[serde(rename_all = "kebab-case")]
 pub enum SubgraphPluginType {
     SurfpoolSubgraph,
+}
+impl SubgraphPluginType {
+    pub fn to_string(&self) -> String {
+        match self {
+            SubgraphPluginType::SurfpoolSubgraph => "surfpool-subgraph".to_string(),
+        }
+    }
+}
+impl std::fmt::Display for SubgraphPluginType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
