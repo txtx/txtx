@@ -885,7 +885,6 @@ pub async fn handle_run_command(
                         .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("\n{}", green!("Runbook complete!"));
-                        break;
                     }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
