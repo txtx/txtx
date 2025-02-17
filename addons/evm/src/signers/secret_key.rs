@@ -118,7 +118,7 @@ impl SignerImplementation for EvmSecretKeySigner {
 
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
-        _construct_id: &ConstructDid,
+        construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -130,8 +130,9 @@ impl SignerImplementation for EvmSecretKeySigner {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use crate::codec::crypto::{
-            mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer,
+        use crate::{
+            codec::crypto::{mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer},
+            constants::CHECKED_ADDRESS,
         };
 
         let mut actions = Actions::none();
@@ -157,25 +158,35 @@ impl SignerImplementation for EvmSecretKeySigner {
 
         let expected_address: Address = expected_signer.address();
 
-        signer_state.insert(
-            "signer_field_bytes",
-            EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
-        );
-        signer_state.insert("signer_address", Value::string(expected_address.to_string()));
-
         if supervision_context.review_input_values {
-            actions.push_sub_group(
-                None,
-                vec![ActionItemRequest::new(
-                    &None,
-                    &format!("Check {} expected address", instance_name),
+            if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
+                signer_state.insert(
+                    "signer_field_bytes",
+                    EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
+                );
+                signer_state.insert("signer_address", Value::string(expected_address.to_string()));
+                signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+            } else {
+                actions.push_sub_group(
                     None,
-                    ActionItemStatus::Todo,
-                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                        .to_action_type(),
-                    ACTION_ITEM_CHECK_ADDRESS,
-                )],
+                    vec![ActionItemRequest::new(
+                        &Some(construct_did.clone()),
+                        &format!("Check {} expected address", instance_name),
+                        None,
+                        ActionItemStatus::Todo,
+                        ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                            .to_action_type(),
+                        ACTION_ITEM_CHECK_ADDRESS,
+                    )],
+                );
+            }
+        } else {
+            signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+            signer_state.insert(
+                "signer_field_bytes",
+                EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
             );
+            signer_state.insert("signer_address", Value::string(expected_address.to_string()));
         }
         let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))
