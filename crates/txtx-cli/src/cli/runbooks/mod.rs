@@ -19,6 +19,7 @@ use txtx_addon_sp1::Sp1Addon;
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
+    runbook::flow_context::FlowContext,
     templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
 };
 use txtx_core::{
@@ -664,71 +665,21 @@ pub async fn handle_run_command(
             return Ok(());
         }
 
-        let mut json_outputs = vec![];
-        let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> =
-            IndexMap::new();
-        for flow_context in runbook.flow_contexts.iter() {
-            let mut running_context_outputs: IndexMap<String, Vec<JsonValue>> = IndexMap::new();
-            let grouped_actions_items =
-                flow_context.execution_context.collect_outputs_constructs_results();
-
-            for (_, items) in grouped_actions_items.iter() {
-                for item in items.iter() {
-                    if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                        let value = output.value.to_json();
-
-                        let output_name = output.name.to_string();
-                        let display_name = output
-                            .description
-                            .as_ref()
-                            .and_then(|d| Some(d.as_str()))
-                            .unwrap_or(output_name.as_str());
-
-                        json_outputs.push(DisplayableRunbookOutput {
-                            title: output_name.to_string(),
-                            description: output.description.clone(),
-                            value: output.value.to_string(),
-                        });
-                        match running_context_outputs.get_mut(&output.name) {
-                            Some(entries) => {
-                                entries.push(value);
-                            }
-                            None => {
-                                running_context_outputs
-                                    .insert(display_name.to_string(), vec![value]);
-                            }
-                        }
-                    }
-                }
-            }
-            collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
-        }
+        let (mut collected_outputs, json_outputs) =
+            collect_formatted_outputs(&runbook.flow_contexts);
 
         if let Some(location) = runbook.write_runbook_state(runbook_state_location)? {
             println!("\n{} Saved execution state to {}", green!("✓"), location);
         }
 
         if !collected_outputs.is_empty() {
-            if let Some(output_loc) = cmd.output_json.as_ref() {
-                let output = serde_json::to_string_pretty(&json_outputs)
-                    .map_err(|e| format!("failed to print outputs: {e}"))?;
-                if let Some(output_loc) = output_loc {
-                    let mut output_location = runbook
-                        .runtime_context
-                        .authorization_context
-                        .workspace_location
-                        .get_parent_location()
-                        .map_err(|e| format!("failed to write to output file: {e}"))?;
-                    output_location
-                        .append_path(output_loc)
-                        .map_err(|e| format!("invalid output file location: {e}"))?;
-                    output_location
-                        .write_content(output.as_bytes())
-                        .map_err(|e| format!("failed to write to output file: {e}"))?;
-                    println!("{} {}", green!("✓"), format!("Outputs written to {}", output_loc));
-                } else {
-                    println!("{}", output);
-                }
+            if let Some(_) = cmd.output_json.as_ref() {
+                try_display_json_output(
+                    cmd.output_json.clone(),
+                    json_outputs,
+                    &runbook.runtime_context.authorization_context.workspace_location,
+                )
+                .map_err(|e| format!("failed to print runbook outputs: {e}"))?;
             } else {
                 for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
                     if !flow_outputs.is_empty() {
@@ -786,6 +737,7 @@ pub async fn handle_run_command(
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_runbook_state = runbook_state_location.clone();
+    let output_json = cmd.output_json.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future =
             start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
@@ -803,6 +755,22 @@ pub async fn handle_run_command(
                 }
             };
         } else {
+            println!("completed supervised loop");
+            let (_, json_outputs) = collect_formatted_outputs(&runbook.flow_contexts);
+
+            if !json_outputs.is_empty() {
+                match try_display_json_output(
+                    output_json,
+                    json_outputs,
+                    &runbook.runtime_context.authorization_context.workspace_location,
+                ) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("{} failed to write runbook outputs{}", red!("x"), e);
+                    }
+                }
+            }
+
             match runbook.write_runbook_state(moved_runbook_state) {
                 Ok(Some(location)) => {
                     println!("\n{} Saved execution state to {}", green!("✓"), location);
@@ -1068,4 +1036,73 @@ pub struct DisplayableRunbookOutput {
     pub title: String,
     pub description: Option<String>,
     pub value: String,
+}
+
+pub fn collect_formatted_outputs(
+    flow_contexts: &Vec<FlowContext>,
+) -> (IndexMap<String, IndexMap<String, Vec<JsonValue>>>, Vec<DisplayableRunbookOutput>) {
+    let mut json_outputs = vec![];
+    let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> = IndexMap::new();
+    for flow_context in flow_contexts.iter() {
+        let mut running_context_outputs: IndexMap<String, Vec<JsonValue>> = IndexMap::new();
+        let grouped_actions_items =
+            flow_context.execution_context.collect_outputs_constructs_results();
+
+        for (_, items) in grouped_actions_items.iter() {
+            for item in items.iter() {
+                if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                    let value = output.value.to_json();
+
+                    let output_name = output.name.to_string();
+                    let display_name = output
+                        .description
+                        .as_ref()
+                        .and_then(|d| Some(d.as_str()))
+                        .unwrap_or(output_name.as_str());
+
+                    json_outputs.push(DisplayableRunbookOutput {
+                        title: output_name.to_string(),
+                        description: output.description.clone(),
+                        value: output.value.to_string(),
+                    });
+                    match running_context_outputs.get_mut(&output.name) {
+                        Some(entries) => {
+                            entries.push(value);
+                        }
+                        None => {
+                            running_context_outputs.insert(display_name.to_string(), vec![value]);
+                        }
+                    }
+                }
+            }
+        }
+        collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
+    }
+    (collected_outputs, json_outputs)
+}
+
+pub fn try_display_json_output(
+    output_json: Option<Option<String>>,
+    json_outputs: Vec<DisplayableRunbookOutput>,
+    workspace_location: &FileLocation,
+) -> Result<(), String> {
+    if let Some(output_loc) = output_json.as_ref() {
+        let output = serde_json::to_string_pretty(&json_outputs)
+            .map_err(|e| format!("failed to serialize outputs: {e}"))?;
+        if let Some(output_loc) = output_loc {
+            let mut output_location = workspace_location
+                .get_parent_location()
+                .map_err(|e| format!("failed to write to output file: {e}"))?;
+            output_location
+                .append_path(output_loc)
+                .map_err(|e| format!("invalid output file location: {e}"))?;
+            output_location
+                .write_content(output.as_bytes())
+                .map_err(|e| format!("failed to write to output file: {e}"))?;
+            println!("{} {}", green!("✓"), format!("Outputs written to {}", output_loc));
+        } else {
+            println!("{}", output);
+        }
+    }
+    Ok(())
 }
