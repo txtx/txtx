@@ -215,7 +215,14 @@ async fn set_gas_limit(
     if let Some(gas_limit) = gas_limit {
         tx = tx.with_gas_limit(gas_limit.into());
     } else {
-        let gas_limit = rpc.estimate_gas(&tx).await.map_err(|e| e.to_string())?;
+        let call_res = rpc.call(&tx).await;
+        let gas_limit = rpc.estimate_gas(&tx).await.map_err(|e| {
+            if let Ok(res) = call_res {
+                format!("failed to estimate gas: {}; simulation results: {}", e.to_string(), res)
+            } else {
+                e.to_string()
+            }
+        })?;
         tx = tx.with_gas_limit(gas_limit.into());
     }
     Ok(tx)

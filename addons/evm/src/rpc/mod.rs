@@ -1,5 +1,8 @@
 use std::fmt::Debug;
+use std::future::Future;
 use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
 
 use alloy::consensus::TxEnvelope;
 use alloy::hex;
@@ -77,6 +80,25 @@ pub struct EvmRpc {
 }
 
 impl EvmRpc {
+    async fn retry_async<F, Fut, T>(mut operation: F) -> Result<T, RpcError>
+    where
+        F: FnMut() -> Fut,
+        Fut: Future<Output = Result<T, RpcError>>,
+    {
+        let mut attempts = 0;
+        let max_retries = 5;
+
+        loop {
+            match operation().await {
+                Ok(result) => return Ok(result),
+                Err(_) if attempts < max_retries => {
+                    attempts += 1;
+                    sleep(Duration::from_secs(2));
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
     pub fn new(url: &str) -> Result<Self, String> {
         let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
         let provider = ProviderBuilder::new().on_http(url.clone());
@@ -91,46 +113,64 @@ impl EvmRpc {
     }
 
     pub async fn get_nonce(&self, address: &Address) -> Result<u64, RpcError> {
-        self.provider.get_transaction_count(address.clone()).await.map_err(|e| {
-            RpcError::Message(format!("error getting transaction count: {}", e.to_string()))
+        EvmRpc::retry_async(|| async {
+            self.provider.get_transaction_count(address.clone()).await.map_err(|e| {
+                RpcError::Message(format!("error getting transaction count: {}", e.to_string()))
+            })
         })
+        .await
     }
 
     pub async fn get_gas_price(&self) -> Result<u128, RpcError> {
-        self.provider
-            .get_gas_price()
-            .await
-            .map_err(|e| RpcError::Message(format!("error getting gas price: {}", e.to_string())))
+        EvmRpc::retry_async(|| async {
+            self.provider.get_gas_price().await.map_err(|e| {
+                RpcError::Message(format!("error getting gas price: {}", e.to_string()))
+            })
+        })
+        .await
     }
 
     pub async fn estimate_gas(&self, tx: &TransactionRequest) -> Result<u128, RpcError> {
-        self.provider.estimate_gas(&tx).await.map_err(|e| {
-            RpcError::Message(format!("error getting gas estimate: {}", e.to_string()))
+        EvmRpc::retry_async(|| async {
+            self.provider.estimate_gas(&tx).await.map_err(|e| {
+                RpcError::Message(format!("error getting gas estimate: {}", e.to_string()))
+            })
         })
+        .await
     }
 
     pub async fn estimate_eip1559_fees(&self) -> Result<Eip1559Estimation, RpcError> {
-        self.provider.estimate_eip1559_fees(None).await.map_err(|e| {
-            RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
+        EvmRpc::retry_async(|| async {
+            self.provider.estimate_eip1559_fees(None).await.map_err(|e| {
+                RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
+            })
         })
+        .await
     }
 
     pub async fn get_fee_history(&self) -> Result<FeeHistory, RpcError> {
-        self.provider
-            .get_fee_history(
-                EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
-                BlockNumberOrTag::Latest,
-                &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
-            )
-            .await
-            .map_err(|e| RpcError::Message(format!("error getting fee history: {}", e.to_string())))
+        EvmRpc::retry_async(|| async {
+            self.provider
+                .get_fee_history(
+                    EIP1559_FEE_ESTIMATION_PAST_BLOCKS,
+                    BlockNumberOrTag::Latest,
+                    &[EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE],
+                )
+                .await
+                .map_err(|e| {
+                    RpcError::Message(format!("error getting fee history: {}", e.to_string()))
+                })
+        })
+        .await
     }
 
     pub async fn get_base_fee_per_gas(&self) -> Result<u128, RpcError> {
-        let fee_history = self
-            .get_fee_history()
-            .await
-            .map_err(|e| RpcError::Message(format!("error getting base fee per gas: {}", e)))?;
+        let fee_history = EvmRpc::retry_async(|| async {
+            self.get_fee_history()
+                .await
+                .map_err(|e| RpcError::Message(format!("error getting base fee per gas: {}", e)))
+        })
+        .await?;
 
         fee_history
             .latest_block_base_fee()
@@ -138,13 +178,24 @@ impl EvmRpc {
     }
 
     pub async fn get_balance(&self, address: &Address) -> Result<Uint<256, 4>, RpcError> {
-        self.provider.get_balance(address.clone()).await.map_err(|e| {
-            RpcError::Message(format!("error getting account balance: {}", e.to_string()))
+        EvmRpc::retry_async(|| async {
+            self.provider.get_balance(address.clone()).await.map_err(|e| {
+                RpcError::Message(format!("error getting account balance: {}", e.to_string()))
+            })
         })
+        .await
     }
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
-        let result = match self.provider.call(tx).block(BlockId::pending()).await {
+        let result = match EvmRpc::retry_async(|| async {
+            self.provider
+                .call(tx)
+                .block(BlockId::pending())
+                .await
+                .map_err(|e| RpcError::Message(e.to_string()))
+        })
+        .await
+        {
             Ok(res) => res,
             Err(e) => {
                 let err = format!("received error result from RPC API during eth_call: {}", e);
@@ -160,26 +211,35 @@ impl EvmRpc {
     }
 
     pub async fn get_code(&self, address: &Address) -> Result<Bytes, RpcError> {
-        self.provider.get_code_at(address.clone()).await.map_err(|e| {
-            RpcError::Message(format!(
-                "error getting code at address {}: {}",
-                address.to_string(),
-                e.to_string()
-            ))
+        EvmRpc::retry_async(|| async {
+            self.provider.get_code_at(address.clone()).await.map_err(|e| {
+                RpcError::Message(format!(
+                    "error getting code at address {}: {}",
+                    address.to_string(),
+                    e.to_string()
+                ))
+            })
         })
+        .await
     }
 
     pub async fn trace_transaction(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
-        let result = self
-            .provider
-            .debug_trace_transaction(
-                FixedBytes::from_slice(&tx_hash),
-                GethDebugTracingOptions::default(),
-            )
-            .await
-            .map_err(|e| {
-                format!("received error result from RPC API during debug_trace_transaction: {}", e)
-            })?;
+        let result = EvmRpc::retry_async(|| async {
+            self.provider
+                .debug_trace_transaction(
+                    FixedBytes::from_slice(&tx_hash),
+                    GethDebugTracingOptions::default(),
+                )
+                .await
+                .map_err(|e| {
+                    RpcError::Message(format!(
+                        "received error result from RPC API during debug_trace_transaction: {}",
+                        e
+                    ))
+                })
+        })
+        .await
+        .map_err(|e| e.to_string())?;
 
         let result = serde_json::to_string(&result)
             .map_err(|e| format!("failed to serialize debug_trace_transaction response: {}", e))?;
@@ -187,11 +247,19 @@ impl EvmRpc {
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
-        let result = self
-            .provider
-            .debug_trace_call(tx.clone(), Latest, GethDebugTracingCallOptions::default())
-            .await
-            .map_err(|e| format!("received error result from RPC API during trace_call: {}", e))?;
+        let result = EvmRpc::retry_async(|| async {
+            self.provider
+                .debug_trace_call(tx.clone(), Latest, GethDebugTracingCallOptions::default())
+                .await
+                .map_err(|e| {
+                    RpcError::Message(format!(
+                        "received error result from RPC API during trace_call: {}",
+                        e
+                    ))
+                })
+        })
+        .await
+        .map_err(|e| e.to_string())?;
 
         let result = serde_json::to_string(&result)
             .map_err(|e| format!("failed to serialize trace response: {}", e))?;
@@ -208,24 +276,36 @@ impl EvmRpc {
     }
 
     pub async fn get_block_number(&self) -> Result<u64, RpcError> {
-        self.provider.get_block_number().await.map_err(|e| {
-            RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
+        EvmRpc::retry_async(|| async {
+            self.provider.get_block_number().await.map_err(|e| {
+                RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
+            })
         })
+        .await
     }
 
     pub async fn get_block_by_hash(&self, block_hash: &str) -> Result<Option<Block>, RpcError> {
         let block_hash = BlockHash::from_str(&block_hash).map_err(|e| {
             RpcError::Message(format!("error parsing block hash: {}", e.to_string()))
         })?;
-        self.provider.get_block_by_hash(block_hash, BlockTransactionsKind::Hashes).await.map_err(
-            |e| RpcError::Message(format!("error getting block by hash: {}", e.to_string())),
-        )
+        EvmRpc::retry_async(|| async {
+            self.provider
+                .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
+                .await
+                .map_err(|e| {
+                    RpcError::Message(format!("error getting block by hash: {}", e.to_string()))
+                })
+        })
+        .await
     }
 
     pub async fn get_latest_block(&self) -> Result<Option<Block>, RpcError> {
-        self.provider
-            .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
-            .await
-            .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
+        EvmRpc::retry_async(|| async {
+            self.provider
+                .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+                .await
+                .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
+        })
+        .await
     }
 }
