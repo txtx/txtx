@@ -15,11 +15,14 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    codec::{anchor::AnchorProgramArtifacts, idl::IdlRef, subgraph::SubgraphDataSource},
+    codec::{
+        anchor::AnchorProgramArtifacts, idl::IdlRef, native::ClassicRustProgramArtifacts,
+        subgraph::SubgraphDataSource,
+    },
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
     typing::{
-        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, PDA_RESULT, SVM_ADDRESS, SVM_IDL, SVM_PUBKEY,
-        SVM_SUBGRAPH_DATA_SOURCE,
+        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, CLASSIC_RUST_PROGRAM_ARTIFACTS, PDA_RESULT,
+        SVM_ADDRESS, SVM_IDL, SVM_PUBKEY, SVM_SUBGRAPH_DATA_SOURCE,
     },
 };
 
@@ -195,7 +198,7 @@ lazy_static! {
                 documentation: "`svm::get_program_from_anchor_project` retrieves the program deployment artifacts for a program in an Anchor project.",
                 example: indoc! {r#"
                     variable "contract" {
-                        value = evm::get_program_from_anchor_project("my_program")
+                        value = svm::get_program_from_anchor_project("my_program")
                     }
                     output "idl" {
                         value = variable.contract.idl
@@ -216,6 +219,33 @@ lazy_static! {
                 output: {
                     documentation: "An object containing the anchor program artifacts.",
                     typing: ANCHOR_PROGRAM_ARTIFACTS.clone()
+                },
+            }
+        },
+        define_function! {
+            GetProgramFromNativeProject => {
+                name: "get_program_from_native_project",
+                documentation: "`svm::get_program_from_native_project` retrieves the program deployment artifacts for a program in a classic Rust project.",
+                example: indoc! {r#"
+                    variable "contract" {
+                        value = svm::get_program_from_native_project("./bin/loc", "./keypair/loc")
+                    }
+                "#},
+                inputs: [
+                    binary_location: {
+                        documentation: "The path, relative to the txtx.yml, to the compiled program binary.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    },
+                    program_keypair_path: {
+                        documentation: "The path, relative to the txtx.yml, to the program keypair.",
+                        typing: vec![Type::string()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "An object containing the rust program artifacts.",
+                    typing: CLASSIC_RUST_PROGRAM_ARTIFACTS.clone()
                 },
             }
         },
@@ -503,6 +533,41 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
                 .map_err(|e| to_diag(fn_spec, e))?;
 
         let value = anchor_program_artifacts.to_value().map_err(|e| to_diag(fn_spec, e))?;
+        Ok(value)
+    }
+}
+
+pub struct GetProgramFromNativeProject;
+impl FunctionImplementation for GetProgramFromNativeProject {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let bin_path = args.get(0).unwrap().as_string().unwrap();
+        let keypair_path = args.get(1).unwrap().as_string().unwrap();
+
+        let bin_path = auth_ctx
+            .get_path_from_str(bin_path)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
+
+        let keypair_path = auth_ctx
+            .get_path_from_str(keypair_path)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get program keypair path: {e}")))?;
+
+        let classic_program_artifacts = ClassicRustProgramArtifacts::new(bin_path, keypair_path)
+            .map_err(|e| to_diag(fn_spec, e.message))?;
+
+        let value = classic_program_artifacts.to_value();
         Ok(value)
     }
 }

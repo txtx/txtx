@@ -1,6 +1,7 @@
 pub mod anchor;
 pub mod idl;
 pub mod instruction;
+pub mod native;
 pub mod send_transaction;
 pub mod subgraph;
 

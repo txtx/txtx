@@ -206,6 +206,26 @@ lazy_static! {
             tainting: true
         }
     };
+    pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_object_type! {
+        binary: {
+            documentation: "The program binary.",
+            typing: Type::addon(SVM_BINARY),
+            optional: false,
+            tainting: false
+        },
+        keypair: {
+            documentation: "The program keypair.",
+            typing: Type::addon(SVM_KEYPAIR),
+            optional: false,
+            tainting: true
+        },
+        program_id: {
+            documentation: "The program id.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        }
+    };
 
     pub static ref PDA_RESULT: Type = define_object_type! {
         pda: {

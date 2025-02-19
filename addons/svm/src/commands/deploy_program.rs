@@ -26,13 +26,13 @@ use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, 
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::anchor::AnchorProgramArtifacts;
+use crate::codec::native::ClassicRustProgramArtifacts;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::{DeploymentTransaction, DeploymentTransactionType, UpgradeableProgramDeployer};
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
-    FORMATTED_TRANSACTION, IS_DEPLOYMENT, KEYPAIR, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
-    PROGRAM_ID, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
+    FORMATTED_TRANSACTION, IS_DEPLOYMENT, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID,
+    RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, DEPLOYMENT_TRANSACTION_SIGNATURES};
 
@@ -147,14 +147,15 @@ impl CommandImplementation for DeployProgram {
             (_payer_signer_did, mut payer_signer_state),
         ) = pop_deployment_signers(values, &mut signers);
 
-        let program_artifacts_map = match values.get_expected_object(PROGRAM) {
+        let program_artifacts_map = match values.get_expected_value(PROGRAM) {
             Ok(a) => a,
             Err(e) => return Err((signers, authority_signer_state, e)),
         };
-        let program_artifacts = match AnchorProgramArtifacts::from_map(&program_artifacts_map) {
-            Ok(a) => a,
-            Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
-        };
+        let program_artifacts =
+            match ClassicRustProgramArtifacts::from_value(&program_artifacts_map) {
+                Ok(a) => a,
+                Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
+            };
 
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
@@ -167,7 +168,7 @@ impl CommandImplementation for DeployProgram {
         let auto_extend = values.get_bool(AUTO_EXTEND);
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
-        let keypair = program_artifacts_map.get(KEYPAIR).unwrap();
+        let keypair = SvmValue::keypair(program_artifacts.keypair.to_bytes().to_vec());
 
         insert_to_payer_or_authority(
             &mut payer_signer_state,
