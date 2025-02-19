@@ -1,14 +1,15 @@
 use std::{path::PathBuf, str::FromStr};
 
+use crate::typing::SvmValue;
 use anchor_lang_idl::types::{
     Idl, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlInstructionAccount,
     IdlInstructionAccounts, IdlType, IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
 };
+use serde_json::Value as JsonValue;
 use solana_idl::Idl as ClassicIdl;
+use solana_sdk::{bs58, pubkey::Pubkey};
 use spl_token::solana_program;
 use txtx_addon_kit::{helpers::fs::FileLocation, types::types::Value};
-
-use crate::typing::SvmValue;
 
 pub struct IdlRef {
     pub idl: Idl,
@@ -455,6 +456,239 @@ pub fn encode_value_to_idl_type(
             }
         }
         t => return Err(format!("IDL type {:?} is not yet supported", t)),
+    }
+}
+
+/// Parses a byte array into a JSON value based on the expected IDL type.
+/// **Not used internally, but is used by crate consumers.**
+pub fn parse_bytes_to_value_with_expected_idl_type(
+    mut data: &[u8],
+    expected_type: &IdlTypeDefTy,
+) -> Result<JsonValue, String> {
+    match &expected_type {
+        IdlTypeDefTy::Struct { fields } => {
+            if let Some(fields) = fields {
+                match fields {
+                    IdlDefinedFields::Named(idl_fields) => {
+                        let mut map = serde_json::Map::new();
+                        for field in idl_fields {
+                            let field_name = field.name.clone();
+                            let value = match &field.ty {
+                                IdlType::U8 => {
+                                    let (v, rest) = data.split_at(1);
+                                    data = rest;
+                                    Ok(serde_json::json!(u8::try_from(v[0])
+                                        .map_err(|e| format!("unable to decode u8: {e}"))))
+                                }
+                                IdlType::U16 => {
+                                    let (v, rest) = data.split_at(2);
+                                    data = rest;
+                                    Ok(serde_json::json!(u16::from_le_bytes(
+                                        <[u8; 2]>::try_from(v)
+                                            .map_err(|e| format!("unable to decode u16: {e}"))?
+                                    )))
+                                }
+                                IdlType::U32 => {
+                                    let (v, rest) = data.split_at(4);
+                                    data = rest;
+                                    Ok(serde_json::json!(u32::from_le_bytes(
+                                        <[u8; 4]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode u32: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::U64 => {
+                                    let (v, rest) = data.split_at(8);
+                                    data = rest;
+                                    Ok(serde_json::json!(u64::from_le_bytes(
+                                        <[u8; 8]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode u64: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::U128 => {
+                                    let (v, rest) = data.split_at(16);
+                                    data = rest;
+                                    Ok(serde_json::json!(u128::from_le_bytes(
+                                        <[u8; 16]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode u128: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::I8 => {
+                                    let (v, rest) = data.split_at(1);
+                                    data = rest;
+                                    Ok(serde_json::json!(i8::try_from(v[0])
+                                        .map_err(|e| { format!("unable to decode i8: {e}") })?))
+                                }
+                                IdlType::I16 => {
+                                    let (v, rest) = data.split_at(2);
+                                    data = rest;
+                                    Ok(serde_json::json!(i16::from_le_bytes(
+                                        <[u8; 2]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode i16: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::I32 => {
+                                    let (v, rest) = data.split_at(4);
+                                    data = rest;
+                                    Ok(serde_json::json!(i32::from_le_bytes(
+                                        <[u8; 4]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode i32: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::I64 => {
+                                    let (v, rest) = data.split_at(8);
+                                    data = rest;
+                                    Ok(serde_json::json!(i64::from_le_bytes(
+                                        <[u8; 8]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode i64: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::I128 => {
+                                    let (v, rest) = data.split_at(16);
+                                    data = rest;
+                                    Ok(serde_json::json!(i128::from_le_bytes(
+                                        <[u8; 16]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode i128: {e}")
+                                        })?
+                                    )))
+                                }
+                                IdlType::Bool => {
+                                    let (v, rest) = data.split_at(1);
+                                    data = rest;
+                                    Ok(serde_json::json!(v[0] != 0))
+                                }
+                                IdlType::Pubkey => {
+                                    let (v, rest) = data.split_at(32);
+                                    data = rest;
+                                    Ok(serde_json::json!(Pubkey::new_from_array(
+                                        <[u8; 32]>::try_from(v).map_err(|e| {
+                                            format!("unable to decode pubkey: {e}")
+                                        })?
+                                    )
+                                    .to_string()))
+                                }
+                                IdlType::String => {
+                                    let string_len = u32::from_le_bytes(
+                                        <[u8; 4]>::try_from(&data[..4]).map_err(|e| {
+                                            format!("unable to decode string length: {e}")
+                                        })?,
+                                    ) as usize;
+                                    data = &data[4..]; // Move past length bytes
+                                    let (string_bytes, rest) = data.split_at(string_len);
+                                    data = rest;
+                                    let string_value =
+                                        String::from_utf8_lossy(string_bytes).to_string();
+                                    Ok(serde_json::json!(string_value))
+                                }
+                                IdlType::Bytes => {
+                                    let vec_len = u32::from_le_bytes(
+                                        <[u8; 4]>::try_from(&data[..4]).map_err(|e| {
+                                            format!("unable to decode bytes length: {e}")
+                                        })?,
+                                    ) as usize;
+                                    data = &data[4..]; // Move past length bytes
+                                    let (vec_bytes, rest) = data.split_at(vec_len);
+                                    data = rest;
+                                    Ok(serde_json::json!(vec_bytes.to_vec()))
+                                }
+                                _ => Err(format!("Unsupported type: {:?}", field.ty)),
+                            }?;
+                            map.insert(field_name, value);
+                        }
+                        Ok(JsonValue::Object(map))
+                    }
+                    IdlDefinedFields::Tuple(idl_types) => todo!(),
+                }
+            } else {
+                todo!()
+            }
+        }
+        IdlTypeDefTy::Enum { variants } => todo!(),
+        IdlTypeDefTy::Type { alias } => match alias {
+            IdlType::Bool => {
+                let value = borsh::from_slice::<bool>(&data)
+                    .map_err(|e| format!("unable to decode bool: {e}"))?;
+                Ok(JsonValue::Bool(value))
+            }
+            IdlType::U8 => Ok(JsonValue::Number(
+                borsh::from_slice::<u8>(&data)
+                    .map_err(|e| format!("unable to decode u8: {e}"))?
+                    .into(),
+            )),
+            IdlType::I8 => Ok(JsonValue::Number(
+                borsh::from_slice::<i8>(&data)
+                    .map_err(|e| format!("unable to decode i8: {e}"))?
+                    .into(),
+            )),
+            IdlType::U16 => Ok(JsonValue::Number(
+                borsh::from_slice::<u16>(&data)
+                    .map_err(|e| format!("unable to decode u16: {e}"))?
+                    .into(),
+            )),
+            IdlType::I16 => Ok(JsonValue::Number(
+                borsh::from_slice::<i16>(&data)
+                    .map_err(|e| format!("unable to decode i16: {e}"))?
+                    .into(),
+            )),
+            IdlType::U32 => Ok(JsonValue::Number(
+                borsh::from_slice::<u32>(&data)
+                    .map_err(|e| format!("unable to decode u32: {e}"))?
+                    .into(),
+            )),
+            IdlType::I32 => Ok(JsonValue::Number(
+                borsh::from_slice::<i32>(&data)
+                    .map_err(|e| format!("unable to decode i32: {e}"))?
+                    .into(),
+            )),
+            IdlType::U64 => Ok(JsonValue::Number(
+                borsh::from_slice::<u64>(&data)
+                    .map_err(|e| format!("unable to decode u64: {e}"))?
+                    .into(),
+            )),
+            IdlType::I64 => Ok(JsonValue::Number(
+                borsh::from_slice::<i64>(&data)
+                    .map_err(|e| format!("unable to decode i64: {e}"))?
+                    .into(),
+            )),
+            IdlType::F64 => Ok(JsonValue::Number(
+                borsh::from_slice::<i64>(&data)
+                    .map_err(|e| format!("unable to decode i64: {e}"))?
+                    .into(),
+            )),
+            // IdlType::I128 => Ok(JsonValue::Number(
+            //     borsh::from_slice::<i128>(&data)
+            //         .map_err(|e| format!("unable to decode i128: {e}"))?
+            //         .into(),
+            // )),
+            IdlType::Bytes => {
+                let bytes = borsh::from_slice::<Vec<u8>>(&data)
+                    .map_err(|e| format!("unable to decode bytes: {e}"));
+
+                let encoded = bs58::encode(bytes?).into_string();
+                Ok(JsonValue::String(encoded))
+            }
+            IdlType::String => borsh::from_slice::<String>(&data)
+                .map(JsonValue::String)
+                .map_err(|e| format!("unable to decode string: {e}")),
+            IdlType::Pubkey => {
+                let value = borsh::from_slice::<Pubkey>(&data)
+                    .map_err(|e| format!("unable to decode pubkey: {e}"))?;
+                Ok(JsonValue::String(value.to_string()))
+            }
+            IdlType::Option(idl_type) => todo!(),
+            IdlType::Vec(idl_type) => {
+                todo!()
+            }
+            IdlType::Array(idl_type, idl_array_len) => todo!(),
+            IdlType::Defined { name, generics } => todo!(),
+            IdlType::Generic(_) => todo!(),
+            _ => return Err(format!("Unsupported type: {:?}", alias)),
+        },
     }
 }
 
