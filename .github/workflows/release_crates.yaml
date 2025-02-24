@@ -41,7 +41,7 @@ jobs:
 
       - name: Build - Cargo
         run: 
-          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
+          cargo build --release --locked
 
       - name: Publish txtx-addon-kit to crates.io
         uses: katyo/publish-crates@v2
