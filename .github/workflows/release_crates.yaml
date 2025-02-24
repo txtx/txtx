@@ -1,0 +1,60 @@
+name: Release Crates
+on:
+  push:
+    branches:
+      - main
+      - ci/release
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release_crates:
+    name: Release to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup rust actions
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            override: true
+
+      - name: Publish txtx-addon-kit to crates.io
+        uses: katyo/publish-crates@v2
+        with:
+            dry-run: ${{ github.event_name != 'push' }}
+            ignore-unpublished-changes: true
+            registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+            path: './crates/txtx-addon-kit'
+
+      - name: Publish txtx-core to crates.io
+        uses: katyo/publish-crates@v2
+        with:
+            dry-run: ${{ github.event_name != 'push' }}
+            ignore-unpublished-changes: true
+            registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+            path: './crates/txtx-core'
+
+      - name: Publish txtx-gql to crates.io
+        uses: katyo/publish-crates@v2
+        with:
+            dry-run: ${{ github.event_name != 'push' }}
+            ignore-unpublished-changes: true
+            registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+            path: './crates/txtx-gql'
+
+      - name: Publish txtx-addon-network-svm to crates.io
+        uses: katyo/publish-crates@v2
+        with:
+            dry-run: ${{ github.event_name != 'push' }}
+            ignore-unpublished-changes: true
+            registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+            path: './addons/svm'
