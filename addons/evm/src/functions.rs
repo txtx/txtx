@@ -3,6 +3,7 @@ use std::{path::Path, str::FromStr};
 use alloy::{
     dyn_abi::DynSolValue,
     hex::FromHex,
+    json_abi::JsonAbi,
     primitives::{Address, Bytes, B256},
 };
 use alloy_chains::ChainKind;
@@ -26,7 +27,7 @@ use crate::{
         contract_deployment::{create_init_code, create_opts::generate_create2_address},
         foundry::FoundryConfig,
         hardhat::HardhatBuildArtifacts,
-        string_to_address, value_to_sol_value,
+        string_to_address, value_to_abi_function_args, value_to_sol_value,
     },
     commands::actions::call_contract::{
         encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
@@ -813,14 +814,7 @@ impl FunctionImplementation for EncodeFunctionCall {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let function_name = args.get(0).unwrap().as_string().unwrap();
-        let function_args = args
-            .get(1)
-            .unwrap()
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| value_to_sol_value(&v).map_err(|e| to_diag(fn_spec, e)))
-            .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
+        let function_args = args.get(1).unwrap();
 
         let abi = args
             .get(2)
@@ -833,9 +827,22 @@ impl FunctionImplementation for EncodeFunctionCall {
             .transpose()?;
 
         let input = if let Some(abi_str) = abi {
+            let abi: JsonAbi = serde_json::from_str(&abi_str)
+                .map_err(|e| to_diag(fn_spec, format!("invalid contract abi: {}", e)))?;
+
+            let function_args = value_to_abi_function_args(&function_name, &function_args, &abi)
+                .map_err(|e| to_diag(fn_spec, e.message))?;
+
             encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         } else {
+            let function_args = function_args
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| value_to_sol_value(&v).map_err(|e| to_diag(fn_spec, e)))
+                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
+
             encode_contract_call_inputs_from_selector(function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         };
