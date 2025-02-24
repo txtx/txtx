@@ -1,4 +1,4 @@
-name: Build Binaries
+name: Build & Release CLI Binaries
 on:
   push:
     branches:
@@ -270,7 +270,6 @@ jobs:
           bucket-root: /
           public: true
 
-  
   homebrew:
     name: Update Homebrew
     runs-on: ubuntu-latest
