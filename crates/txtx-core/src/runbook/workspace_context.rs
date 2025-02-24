@@ -249,7 +249,7 @@ impl RunbookWorkspaceContext {
                             (block.labels.get(0), block.labels.get(1))
                         else {
                             diagnostics.push(
-                                Diagnostic::error_from_string("action syntax invalid".into())
+                                Diagnostic::error_from_string("invalid action syntax: expected `action \"action_name\" \"namespace::action\"".into())
                                     .location(&location),
                             );
                             continue;
