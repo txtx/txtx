@@ -21,11 +21,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup rust actions
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            override: true
+      - name: Build .env file
+        run: |
+          touch .env
+          echo RELAYER_BASE_URL="https://txtx.link" >> .env
+          echo RELAYER_HOST="txtx.link" >> .env
+          echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
+          echo NHOST_REGION="" >> .env
+          echo NHOST_SUBDOMAIN="" >> .env
+          echo TXTX_CONSOLE_URL="https://txtx.run" >> .env
+          echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
+          cat .env
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.79 --profile minimal --target ${{ matrix.target }}
+
+      - name: Install Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build - Cargo
+        run: 
+          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }}
 
       - name: Publish txtx-addon-kit to crates.io
         uses: katyo/publish-crates@v2
