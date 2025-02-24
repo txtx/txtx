@@ -48,7 +48,8 @@ pub fn read_runbooks_from_manifest(
     manifest: &WorkspaceManifest,
     environment_selector: &Option<String>,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookStateLocation>)>, String> {
+) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookStateLocation>)>, String>
+{
     let mut runbooks = IndexMap::new();
 
     let root_path =
@@ -60,19 +61,25 @@ pub fn read_runbooks_from_manifest(
                 continue;
             }
         }
+
         let mut package_location = root_path.clone();
         package_location.append_path(&runbook_metadata.location)?;
-        let (_, runbook, sources) = read_runbook_from_location(
+        if let Ok((_, runbook, sources)) = read_runbook_from_location(
             &package_location,
             &runbook_metadata.description,
             environment_selector,
             Some(&runbook_metadata.name),
-        )?;
-
-        runbooks.insert(
-            runbook_metadata.name.to_string(),
-            (runbook, sources, runbook_metadata.name.to_string(), runbook_metadata.state.clone()),
-        );
+        ) {
+            runbooks.insert(
+                runbook_metadata.name.to_string(),
+                (
+                    runbook,
+                    sources,
+                    runbook_metadata.name.to_string(),
+                    runbook_metadata.state.clone(),
+                ),
+            );
+        }
     }
     Ok(runbooks)
 }

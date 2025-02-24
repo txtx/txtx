@@ -289,7 +289,7 @@ output "data" {
 
 ```hcl {{ title: 'main.tx' }}
 variable "contract" {
-    value = evm::get_program_from_anchor_project("my_program")
+    value = svm::get_program_from_anchor_project("my_program")
 }
 output "idl" {
     value = variable.contract.idl
