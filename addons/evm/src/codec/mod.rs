@@ -129,7 +129,10 @@ pub async fn build_unsigned_transaction(
         tx.clone().build_unsigned().map_err(|e| format!("failed to build transaction: {e}"))?;
     let cost = get_transaction_cost(&typed_transaction, &rpc).await?;
 
-    let sim = rpc.call(&tx).await.map_err(|e| format!("failed to simulate transaction: {e}"))?;
+    let sim = rpc
+        .call(&tx)
+        .await
+        .map_err(|e| format!("failed to simulate transaction: {}", e.to_string_with_trace()))?;
     Ok((tx, cost, sim))
 }
 
@@ -216,12 +219,18 @@ async fn set_gas_limit(
         tx = tx.with_gas_limit(gas_limit.into());
     } else {
         let call_res = rpc.call(&tx).await;
-        let gas_limit = rpc.estimate_gas(&tx).await.map_err(|e| {
-            if let Ok(res) = call_res {
-                format!("failed to estimate gas: {}; simulation results: {}", e.to_string(), res)
-            } else {
+
+        let gas_limit = rpc.estimate_gas(&tx).await.map_err(|estimate_err| match call_res {
+            Ok(res) => format!(
+                "failed to estimate gas: {};\nsimulation results: {}",
+                estimate_err.to_string(),
+                res
+            ),
+            Err(e) => format!(
+                "failed to estimate gas: {};\nfailed to simulate transaction: {}",
+                estimate_err.to_string(),
                 e.to_string()
-            }
+            ),
         })?;
         tx = tx.with_gas_limit(gas_limit.into());
     }
