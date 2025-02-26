@@ -27,6 +27,7 @@ pub enum RpcError {
     Generic,
     StatusCode(u16),
     Message(String),
+    MessageWithCode(String, i64),
 }
 
 impl std::fmt::Display for RpcError {
@@ -35,6 +36,7 @@ impl std::fmt::Display for RpcError {
             RpcError::Message(e) => write!(f, "{}", e),
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
+            RpcError::MessageWithCode(m, s) => write!(f, "error (code {}): {}", s, m),
         }
     }
 }
@@ -186,25 +188,33 @@ impl EvmRpc {
         .await
     }
 
-    pub async fn call(&self, tx: &TransactionRequest) -> Result<String, String> {
+    pub async fn call(&self, tx: &TransactionRequest) -> Result<String, CallFailureResult> {
         let result = match EvmRpc::retry_async(|| async {
-            self.provider
-                .call(tx)
-                .block(BlockId::pending())
-                .await
-                .map_err(|e| RpcError::Message(e.to_string()))
+            self.provider.call(tx).block(BlockId::pending()).await.map_err(|e| {
+                if let Some(e) = e.as_error_resp() {
+                    RpcError::MessageWithCode(e.message.clone(), e.code)
+                } else {
+                    RpcError::Message(e.to_string())
+                }
+            })
         })
         .await
         {
             Ok(res) => res,
-            Err(e) => {
-                let err = format!("received error result from RPC API during eth_call: {}", e);
-                if let Ok(trace) = self.trace_call(&tx).await {
-                    return Err(format!("{}\ncall trace: {}", err, trace));
-                } else {
-                    return Err(format!("{}", err));
+            Err(e) => match e {
+                RpcError::MessageWithCode(message, code) => {
+                    // code 3 for revert
+                    if code == 3 {
+                        let trace = self.trace_call(&tx).await.ok();
+                        return Err(CallFailureResult::RevertData { reason: message, trace });
+                    } else {
+                        return Err(CallFailureResult::Error(message));
+                    }
                 }
-            }
+                e => {
+                    return Err(CallFailureResult::Error(e.to_string()));
+                }
+            },
         };
 
         Ok(hex::encode(result))
@@ -307,5 +317,35 @@ impl EvmRpc {
                 .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
         })
         .await
+    }
+}
+
+#[derive(Debug)]
+pub enum CallFailureResult {
+    RevertData { reason: String, trace: Option<String> },
+    Error(String),
+}
+
+impl CallFailureResult {
+    pub fn to_string(&self) -> String {
+        match self {
+            CallFailureResult::RevertData { reason, .. } => {
+                format!("{}", reason)
+            }
+            CallFailureResult::Error(e) => e.clone(),
+        }
+    }
+
+    pub fn to_string_with_trace(&self) -> String {
+        match self {
+            CallFailureResult::RevertData { reason, trace } => {
+                if let Some(trace) = trace {
+                    format!("{}\ntrace: {}", reason, trace)
+                } else {
+                    format!(" {}", reason)
+                }
+            }
+            CallFailureResult::Error(e) => e.clone(),
+        }
     }
 }
