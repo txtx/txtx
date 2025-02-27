@@ -10,7 +10,7 @@ categories = { workspace = true }
 
 [dependencies]
 # txtx-addon-kit = { version = "0.2.2", default-features = false }
-txtx-addon-kit = { workspace = true, default-features = false }
+txtx-addon-kit = { workspace = true, default-features = false, version = "0.2.3" }
 lazy_static = "1.4.0"
 serde_json = "1.0.113"
 serde = "1"
