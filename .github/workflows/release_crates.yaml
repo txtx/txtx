@@ -39,7 +39,7 @@ jobs:
       - name: Publish Crates
         run: |
           for loc in addons/svm crates/txtx-gql crates/txtx-core crates/txtx-addon-kit; do
-            manifest="$loc/Cargo.toml"
+            manifest=$loc/Cargo.toml
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
