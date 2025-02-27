@@ -37,7 +37,9 @@ jobs:
         run: cargo login ${{ secrets.CRATES_API_TOKEN }}
 
       - name: Write resolved versions to file
-        run: jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
+        run: | 
+          jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
+          cat resolved_versions.txt
 
       - name: Publish Crates
         run: |
@@ -53,8 +55,10 @@ jobs:
                 continue
               fi
 
+              cat resolved_versions.txt
               # Resolve dependencies
               while IFS= read -r dep; do
+                echo "Resolving $dep..."
                 DEP_NAME=$(echo "$dep" | awk '{print $1}')
                 DEP_VERSION=$(echo "$dep" | awk '{print $2}')
                 sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
