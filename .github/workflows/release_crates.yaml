@@ -16,6 +16,9 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+          
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install cargo-binstall
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
@@ -57,7 +60,6 @@ jobs:
 
               # Resolve dependencies
               while IFS= read -r dep; do
-                echo "Resolving $dep..."
                 DEP_NAME=$(echo "$dep" | awk '{print $1}')
                 DEP_VERSION=$(echo "$dep" | awk '{print $2}')
                 sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
