@@ -43,8 +43,8 @@ jobs:
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
-              CRATE_NAME=$(tomlq -r .package.name "$manifest")
-              VERSION=$(tomlq -r .package.version "$manifest")
+              CRATE_NAME=$(tq -r .package.name "$manifest")
+              VERSION=$(tq -r .package.version "$manifest")
 
               if cargo search "$CRATE_NAME" | grep -q "$VERSION"; then
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
