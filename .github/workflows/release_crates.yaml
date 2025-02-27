@@ -68,7 +68,7 @@ jobs:
               if [ "${{ github.event_name }}" = "pull_request" ]; then
                 cargo publish --package $CRATE_NAME --dry-run --allow-dirty
               else
-                cargo publish --package $CRATE_NAME --dry-run
+                cargo publish --package $CRATE_NAME --allow-dirty
               fi
             else
               echo "Skipping $manifest, Cargo.toml not found."
