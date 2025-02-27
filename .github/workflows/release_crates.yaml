@@ -63,6 +63,7 @@ jobs:
                 DEP_NAME=$(echo "$dep" | awk '{print $1}')
                 DEP_VERSION=$(echo "$dep" | awk '{print $2}')
                 sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
+                sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
               done < resolved_versions.txt
               cat $manifest
 
