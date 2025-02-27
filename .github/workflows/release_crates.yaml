@@ -45,7 +45,7 @@ jobs:
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
-              CRATE_NAME=$(tq -f "$manifest" .package.name)
+              CRATE_NAME=$(tq -f "$manifest" .package.name | sed 's/"//g') # remove quotes around package name
               VERSION=$(tq -f "$manifest" .package.version)
 
               if cargo search -q "$CRATE_NAME" | grep "$VERSION"; then
