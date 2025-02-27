@@ -36,6 +36,9 @@ jobs:
         if: github.event_name == 'push'
         run: cargo login ${{ secrets.CRATES_API_TOKEN }}
 
+      - name: Resolve dependencies
+        run: jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
+
       - name: Publish Crates
         run: |
           for loc in addons/svm crates/txtx-gql crates/txtx-core crates/txtx-addon-kit; do
@@ -50,6 +53,13 @@ jobs:
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
                 continue
               fi
+
+              # Resolve dependencies
+              while IFS= read -r dep; do
+                DEP_NAME=$(echo "$dep" | awk '{print $1}')
+                DEP_VERSION=$(echo "$dep" | awk '{print $2}')
+                sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
+              done < resolved_versions.txt
 
               echo "Publishing $CRATE_NAME from $manifest..."
               if [ "${{ github.event_name }}" = "pull_request" ]; then
