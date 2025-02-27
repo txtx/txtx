@@ -2,7 +2,7 @@ fn main() {
     // evm contract builds
     {
         use std::process::Command;
-        let contracts_dir = "../../addons/evm/src/contracts";
+        let contracts_dir = "./src/contracts";
 
         println!("cargo:rerun-if-changed=build.rs");
         println!("cargo:rerun-if-changed={}", contracts_dir);
