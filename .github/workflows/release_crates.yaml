@@ -28,7 +28,7 @@ jobs:
 
       - name: Login to crates.io
         if: github.event_name == 'push'
-        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
+        run: cargo login ${{ secrets.CRATES_API_TOKEN }}
 
       - name: Publish Crates
         run: |
@@ -53,4 +53,4 @@ jobs:
             fi
           done
         env:
-          CARGO_API_TOKEN: ${{ secrets.CARGO_API_TOKEN }}
+          CRATES_API_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
