@@ -17,8 +17,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install yq (for parsing toml)
-        run: sudo apt-get install -y jq
+      - name: Install cargo-binstall
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+      - name: Install tq
+        run: cargo binstall -y tomlq
 
       - name: Cache Cargo registry and index
         uses: actions/cache@v3
