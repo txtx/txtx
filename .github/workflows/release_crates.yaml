@@ -39,7 +39,7 @@ jobs:
       - name: Write resolved versions to file
         run: | 
           jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
-          cat resolved_versions.txt
+
 
       - name: Publish Crates
         run: |
@@ -55,8 +55,6 @@ jobs:
                 continue
               fi
 
-              cat resolved_versions.txt
-              cat $manifest
               # Resolve dependencies
               while IFS= read -r dep; do
                 echo "Resolving $dep..."
@@ -65,13 +63,12 @@ jobs:
                 sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
                 sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
               done < resolved_versions.txt
-              cat $manifest
 
               echo "Publishing $CRATE_NAME from $manifest..."
               if [ "${{ github.event_name }}" = "pull_request" ]; then
                 cargo publish --package $CRATE_NAME --dry-run --allow-dirty
               else
-                cargo publish --package $CRATE_NAME --dry-run --allow-dirty
+                cargo publish --package $CRATE_NAME --dry-run
               fi
             else
               echo "Skipping $manifest, Cargo.toml not found."
