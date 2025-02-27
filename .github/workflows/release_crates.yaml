@@ -56,6 +56,7 @@ jobs:
               fi
 
               cat resolved_versions.txt
+              cat $manifest
               # Resolve dependencies
               while IFS= read -r dep; do
                 echo "Resolving $dep..."
@@ -63,6 +64,7 @@ jobs:
                 DEP_VERSION=$(echo "$dep" | awk '{print $2}')
                 sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
               done < resolved_versions.txt
+              cat $manifest
 
               echo "Publishing $CRATE_NAME from $manifest..."
               if [ "${{ github.event_name }}" = "pull_request" ]; then
