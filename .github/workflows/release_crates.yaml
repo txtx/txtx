@@ -36,13 +36,12 @@ jobs:
         if: github.event_name == 'push'
         run: cargo login ${{ secrets.CRATES_API_TOKEN }}
 
-      - name: Resolve dependencies
+      - name: Write resolved versions to file
         run: jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
 
       - name: Publish Crates
         run: |
-          for loc in addons/svm crates/txtx-gql crates/txtx-core crates/txtx-addon-kit; do
-            manifest=$loc/Cargo.toml
+          for manifest in addons/svm/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-addon-kit/Cargo.toml; do
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
