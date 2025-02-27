@@ -53,9 +53,9 @@ jobs:
 
               echo "Publishing $CRATE_NAME from $manifest..."
               if [ "${{ github.event_name }}" = "pull_request" ]; then
-                cargo publish --package "$CRATE_NAME" --dry-run
+                cargo publish --package $CRATE_NAME --dry-run
               else
-                cargo publish --package "$CRATE_NAME" --dry-run
+                cargo publish --package $CRATE_NAME --dry-run
               fi
             else
               echo "Skipping $manifest, Cargo.toml not found."
