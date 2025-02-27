@@ -17,6 +17,9 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install yq (for parsing toml)
+        run: sudo apt-get install -y jq
+
       - name: Cache Cargo registry and index
         uses: actions/cache@v3
         with:
@@ -32,24 +35,27 @@ jobs:
 
       - name: Publish Crates
         run: |
-          for crate in addons/svm crates/txtx-gql crates/txtx-core crates/txtx-addon-kit; do
-            if [ -f "$crate/Cargo.toml" ]; then
-              echo "Checking $crate for changes..."
-              VERSION=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.manifest_path | startswith("'"$crate"'")) | .version')
+          for loc in addons/svm crates/txtx-gql crates/txtx-core crates/txtx-addon-kit; do
+            manifest="$loc/Cargo.toml"
+            if [ -f "$manifest" ]; then
+              echo "Checking $manifest for changes..."
               
-              if cargo search $(basename $crate) | grep -q "$VERSION"; then
-                echo "$crate is already published with version $VERSION, skipping..."
+              CRATE_NAME=$(tomlq -r .package.name "$manifest")
+              VERSION=$(tomlq -r .package.version "$manifest")
+
+              if cargo search "$CRATE_NAME" | grep -q "$VERSION"; then
+                echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
                 continue
               fi
-              
-              echo "Publishing $crate..."
+
+              echo "Publishing $CRATE_NAME from $manifest..."
               if [ "${{ github.event_name }}" = "pull_request" ]; then
-                cargo publish --manifest-path "$crate/Cargo.toml" --dry-run
+                cargo publish --manifest-path "$manifest" --dry-run
               else
-                cargo publish --manifest-path "$crate/Cargo.toml"
+                cargo publish --manifest-path "$manifest"
               fi
             else
-              echo "Skipping $crate, Cargo.toml not found."
+              echo "Skipping $manifest, Cargo.toml not found."
             fi
           done
         env:
