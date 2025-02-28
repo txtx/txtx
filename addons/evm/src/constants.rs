@@ -105,6 +105,7 @@ lazy_static! {
 
     pub static ref CONTRACTS_BUILD_DIR: String = format!("{}/contracts", OUT_DIR);
     static ref PROXY_OUTPUT_PATH: String = format!("{}/out/ERC1967Proxy.sol/ERC1967Proxy.json", &CONTRACTS_BUILD_DIR.to_string());
+    static ref PROXY_FACTORY_PATH: String = format!("{}/out/AtomicProxyDeploymentFactory.sol/AtomicProxyDeploymentFactory.json", &CONTRACTS_BUILD_DIR.to_string());
 
     pub static ref ERC1967_PROXY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&std::fs::read_to_string(PROXY_OUTPUT_PATH.to_string()).unwrap()).unwrap();
     pub static ref ERC1967_PROXY_BYTECODE: String = ERC1967_PROXY_COMPILED_OUTPUT.bytecode.object.clone();
@@ -112,7 +113,7 @@ lazy_static! {
     pub static ref ERC_1967_PROXY_ABI_VALUE: Value = Value::string(serde_json::to_string(&ERC1967_PROXY_COMPILED_OUTPUT.abi).unwrap());
     pub static ref ERC1967_PROXY_ABI_INTERFACE: Interface = Interface::new(ERC1967_PROXY_ABI.clone());
 
-    pub static ref PROXY_FACTORY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&include_str!("./contracts/out/AtomicProxyDeploymentFactory.sol/AtomicProxyDeploymentFactory.json")).unwrap();
+    pub static ref PROXY_FACTORY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&std::fs::read_to_string(PROXY_FACTORY_PATH.to_string()).unwrap()).unwrap();
     pub static ref PROXY_FACTORY_ABI: JsonAbi = PROXY_FACTORY_COMPILED_OUTPUT.abi.clone();
     pub static ref PROXY_FACTORY_ABI_VALUE: Value = Value::string(serde_json::to_string(&PROXY_FACTORY_COMPILED_OUTPUT.abi).unwrap());
     pub static ref PROXY_FACTORY_ABI_INTERFACE: Interface = Interface::new(PROXY_FACTORY_ABI.clone());
