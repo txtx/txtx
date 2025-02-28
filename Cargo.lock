@@ -13438,7 +13438,6 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-signer-local",
  "async-recursion",
- "dotenvy_macro",
  "foundry-block-explorers",
  "hmac 0.12.1",
  "lazy_static",

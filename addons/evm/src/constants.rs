@@ -2,9 +2,8 @@ use alloy::{contract::Interface, json_abi::JsonAbi, primitives::Address};
 use txtx_addon_kit::{hex, indexmap::IndexMap, types::types::Value};
 
 use crate::codec::foundry::FoundryCompiledOutputJson;
-use dotenvy_macro::dotenv;
 
-pub const OUT_DIR: &str = dotenv!("OUT_DIR");
+pub const OUT_DIR: &str = env!("OUT_DIR");
 
 pub const NAMESPACE: &str = "evm";
 
