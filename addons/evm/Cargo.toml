@@ -23,6 +23,7 @@ thiserror = "1.0.62"
 toml = "0.5"
 foundry-block-explorers = "0.5.0"
 alloy-chains = "0.1.23"
+dotenvy_macro = "0.15.7"
 
 [features]
 default = ["txtx-addon-kit/default"]
