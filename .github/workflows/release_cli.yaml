@@ -1,9 +1,9 @@
-name: Build Binaries
+name: Build & Release CLI Binaries
 on:
   push:
     branches:
       - main
-      - fix/release-build
+      - ci/release
   workflow_dispatch:
 
 concurrency:
@@ -130,7 +130,6 @@ jobs:
         run: rustup toolchain install 1.79 --profile minimal --target ${{ matrix.target }}
 
       - name: Install Rust Target
-        if: matrix.os != 'ubuntu-20.04'
         run: rustup target add ${{ matrix.target }}
 
       # env vars unix
@@ -270,7 +269,6 @@ jobs:
           bucket-root: /
           public: true
 
-  
   homebrew:
     name: Update Homebrew
     runs-on: ubuntu-latest
