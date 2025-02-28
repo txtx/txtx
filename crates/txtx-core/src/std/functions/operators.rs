@@ -311,11 +311,13 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "The first `integer` operand.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     },
                     rhs: {
                         documentation: "The second `integer` operand.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -672,13 +674,14 @@ impl FunctionImplementation for BinaryMul {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
-        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::integer(lhs.saturating_mul(*rhs)))
+        arg_checker(fn_spec, args)?;
+        let lhs = args.get(0).unwrap().as_integer().unwrap();
+        let rhs = args.get(1).unwrap().as_integer().unwrap();
+        Ok(Value::integer(lhs.saturating_mul(rhs)))
     }
 }
 
