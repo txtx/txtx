@@ -15,14 +15,11 @@ use txtx_addon_kit::{
 };
 
 use crate::{
-    codec::{
-        anchor::AnchorProgramArtifacts, idl::IdlRef, native::ClassicRustProgramArtifacts,
-        subgraph::SubgraphDataSource,
-    },
+    codec::{anchor::AnchorProgramArtifacts, idl::IdlRef, native::ClassicRustProgramArtifacts},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
     typing::{
         SvmValue, ANCHOR_PROGRAM_ARTIFACTS, CLASSIC_RUST_PROGRAM_ARTIFACTS, PDA_RESULT,
-        SVM_ADDRESS, SVM_IDL, SVM_PUBKEY, SVM_SUBGRAPH_DATA_SOURCE,
+        SVM_ADDRESS, SVM_IDL, SVM_PUBKEY,
     },
 };
 
@@ -327,33 +324,6 @@ lazy_static! {
                 output: {
                     documentation: "An object containing the PDA address and associated bump seed.",
                     typing: PDA_RESULT.clone()
-                },
-            }
-        },
-        define_function! {
-            GetIdlEvent => {
-                name: "get_idl_event",
-                documentation: "`svm::get_idl_event` finds a valid pda using the provided program id and seeds.",
-                example: indoc! {r#"
-                    variable "message_event" {
-                        value = svm::get_idl_event(program.idl, "MessageEvent")
-                    }
-                "#},
-                inputs: [
-                    idl: {
-                        documentation: "The program IDL, encoded as a string.",
-                        typing: vec![Type::string()],
-                        optional: false
-                    },
-                    event: {
-                        documentation: "The name of the event as indexed in the IDL.",
-                        typing: vec![Type::string()],
-                        optional: true
-                    }
-                ],
-                output: {
-                    documentation: "A serialized struct containing the data needed create a subgraph of the event.",
-                    typing: Type::addon(SVM_SUBGRAPH_DATA_SOURCE)
                 },
             }
         }
@@ -698,30 +668,5 @@ impl FunctionImplementation for FindPda {
         ])
         .to_value();
         Ok(obj)
-    }
-}
-
-pub struct GetIdlEvent;
-impl FunctionImplementation for GetIdlEvent {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        arg_checker(fn_spec, args)?;
-        let idl = args.get(0).unwrap().as_string().unwrap();
-        let event_name = args.get(1).unwrap().as_string().unwrap();
-        SubgraphDataSource::event_source(idl, event_name)
-            .map_err(|e| to_diag(fn_spec, e.message))?
-            .to_value()
-            .map_err(|e| to_diag(fn_spec, e.message))
     }
 }

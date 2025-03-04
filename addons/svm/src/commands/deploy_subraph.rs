@@ -14,7 +14,7 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::subgraph::{SubgraphPluginType, SubgraphRequest, SubgraphRequestClient};
 use crate::constants::{PROGRAM_ID, RPC_API_URL, SUBGRAPH_REQUEST, SUBGRAPH_URL};
-use crate::typing::{SvmValue, SUBGRAPH_FIELD, SVM_SUBGRAPH_DATA_SOURCE};
+use crate::typing::{SvmValue, SUBGRAPH_EVENT};
 
 lazy_static! {
     pub static ref DEPLOY_SUBGRAPH: PreCommandSpecification = {
@@ -53,6 +53,14 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
+                    program_idl: {
+                        documentation: "The IDL of the program, used to decode subgraph types.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
                     block_height: {
                         documentation: "The block height to start indexing from.",
                         typing: Type::integer(),
@@ -61,17 +69,9 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    source: {
-                        documentation: "The data source for the subgraph. This should be a reference to an IDL instruction, account, or event.",
-                        typing: Type::addon(SVM_SUBGRAPH_DATA_SOURCE),
-                        optional: false,
-                        tainting: true,
-                        internal: false,
-                        sensitive: false
-                    },
-                    field: {
-                        documentation: "A map of fields to index.",
-                        typing: SUBGRAPH_FIELD.clone(),
+                    event: {
+                        documentation: "A map of events to index in the subgraph.",
+                        typing: SUBGRAPH_EVENT.clone(),
                         optional: false,
                         tainting: true,
                         internal: false,
@@ -115,22 +115,31 @@ impl CommandImplementation for DeployProgram {
         values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::types::commands::return_synchronous_ok;
+        use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
 
         use crate::{
-            codec::subgraph::{SubgraphDataSource, SubgraphField, SubgraphRequest},
-            constants::{BLOCK_HEIGHT, FIELD, SOURCE, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
+            codec::subgraph::{SubgraphEventDefinition, SubgraphRequest},
+            constants::{BLOCK_HEIGHT, EVENT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
         };
         let _rpc = values.get_expected_string(RPC_API_URL)?;
-        let fields = SubgraphField::parse_map_values(values.get_expected_map(FIELD)?)?;
-        let source = SubgraphDataSource::from_value(values.get_expected_value(SOURCE)?)?;
+        let events = SubgraphEventDefinition::parse_map_values(values.get_expected_map(EVENT)?)?;
+
         let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
-        let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or(&values.name);
+        let idl_str = values.get_expected_string(PROGRAM_IDL)?;
 
-        let subgraph_request =
-            SubgraphRequest::new(subgraph_name, &program_id, source, fields, block_height)?;
+        let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or(&values.name);
+        let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));
+
+        let subgraph_request = SubgraphRequest::new(
+            subgraph_name,
+            description,
+            &program_id,
+            idl_str,
+            events,
+            block_height,
+        )?;
 
         let mut result = CommandExecutionResult::new();
         result.insert(SUBGRAPH_REQUEST, subgraph_request.to_value()?);

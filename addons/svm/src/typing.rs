@@ -31,7 +31,6 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
-pub const SVM_SUBGRAPH_DATA_SOURCE: &str = "svm::subgraph_data_source";
 pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
 
 pub struct SvmValue {}
@@ -349,15 +348,36 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_FIELD: Type = define_map_type! {
+    pub static ref SUBGRAPH_EVENT: Type = define_map_type! {
         name: {
-            documentation: "The name of the field.",
+            documentation: "The name of the event, as indexed by the IDL, whose occurrences should be added to the subgraph.",
             typing: Type::string(),
             optional: false,
             tainting: true
         },
-        source: {
-            documentation: "A key from the subgraph `source` field, indicating which argument from the data source to map to this field. By default, the field name is used.",
+        field: {
+            documentation: "A map of fields to index.",
+            typing: SUBGRAPH_EVENT_FIELD.clone(),
+            optional: false,
+            tainting: true
+        }
+    };
+
+    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_map_type! {
+        name: {
+            documentation: "The name of the field as it should appear in the subgraph.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        description: {
+            documentation: "A description of the field as it should appear in the subgraph schema.",
+            typing: Type::string(),
+            optional: true,
+            tainting: false
+        },
+        idl_key: {
+            documentation: "A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.",
             typing: Type::string(),
             optional: true,
             tainting: true

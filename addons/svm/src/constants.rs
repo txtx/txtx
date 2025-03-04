@@ -27,6 +27,7 @@ pub const KEYPAIR_JSON: &str = "keypair_json";
 // Defaults keys
 pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
+pub const PROGRAM_IDL: &str = "program_idl";
 pub const PROGRAM: &str = "program";
 pub const KEYPAIR: &str = "keypair";
 pub const DATA: &str = "data";
@@ -59,8 +60,8 @@ pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
+pub const EVENT: &str = "event";
 pub const FIELD: &str = "field";
-pub const SOURCE: &str = "source";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
 pub const SUBGRAPH_URL: &str = "subgraph_url";

@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use jaq_interpret::Val;
-use serde::de::{self, Error, MapAccess, Visitor};
+use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value as JsonValue};
@@ -943,8 +943,10 @@ impl TryFrom<String> for Type {
                     let mut inner = other.replace("array[", "");
                     inner = inner.replace("]", "");
                     return Type::try_from(inner);
-                } else if other.contains("::") {
-                    Type::addon(other)
+                } else if other.starts_with("addon(") {
+                    let mut inner = other.replace("addon(", "");
+                    inner = inner.replace(")", "");
+                    Type::addon(&inner)
                 } else {
                     return Err(format!("invalid type: {}", other));
                 }
