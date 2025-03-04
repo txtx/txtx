@@ -12,6 +12,7 @@ pub mod rpc;
 mod signers;
 pub mod templates;
 pub mod typing;
+pub use solana_sdk::pubkey::Pubkey;
 
 use constants::NAMESPACE;
 use txtx_addon_kit::{
