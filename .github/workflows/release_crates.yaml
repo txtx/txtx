@@ -46,7 +46,7 @@ jobs:
 
       - name: Publish Crates
         run: |
-          for manifest in addons/evm/Cargo.toml addons/svm/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-addon-kit/Cargo.toml; do
+          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-gql/Cargo.toml addons/evm/Cargo.toml addons/svm/Cargo.toml; do
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
@@ -61,9 +61,21 @@ jobs:
               # Resolve dependencies
               while IFS= read -r dep; do
                 DEP_NAME=$(echo "$dep" | awk '{print $1}')
-                DEP_VERSION=$(echo "$dep" | awk '{print $2}')
-                sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
-                sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$DEP_VERSION\"/" "$manifest"
+                RESOLVED_VERSION=$(echo "$dep" | awk '{print $2}')
+
+                # Check if resolved version exists on crates.io
+                if cargo search -q "$DEP_NAME" | grep -q "$RESOLVED_VERSION"; then
+                  FINAL_VERSION="$RESOLVED_VERSION"
+                else
+                  # Get the latest published version from crates.io
+                  FINAL_VERSION=$(cargo search -q "$DEP_NAME" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+                  echo "Resolved version $RESOLVED_VERSION for $DEP_NAME is not published. Using latest published version $FINAL_VERSION instead."
+                fi
+
+                # Replace workspace dependencies with the determined version
+                sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
+                sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
+
               done < resolved_versions.txt
 
               echo "Publishing $CRATE_NAME from $manifest..."
@@ -78,3 +90,4 @@ jobs:
           done
         env:
           CRATES_API_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
+
