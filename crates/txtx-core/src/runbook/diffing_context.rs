@@ -463,7 +463,7 @@ impl RunbookSnapshotContext {
         &self,
         old: RunbookExecutionSnapshot,
         new: RunbookExecutionSnapshot,
-    ) -> ConsolidatedChanges {
+    ) -> Result<ConsolidatedChanges, String> {
         let old_ref = old.clone();
         let new_ref = new.clone();
 
@@ -633,7 +633,7 @@ impl RunbookSnapshotContext {
                     &new_run,
                     &new_signer.downstream_constructs_dids,
                     &mut visited_constructs,
-                );
+                )?;
 
                 plan_changes.new_constructs_to_add.append(&mut inner_changes.new_constructs_to_add);
                 plan_changes.old_constructs_to_rem.append(&mut inner_changes.old_constructs_to_rem);
@@ -643,7 +643,7 @@ impl RunbookSnapshotContext {
             consolidated_changes.plans_to_update.insert(new_run_id.into(), plan_changes);
         }
 
-        consolidated_changes
+        Ok(consolidated_changes)
     }
 }
 
@@ -653,7 +653,7 @@ pub fn diff_command_snapshots(
     new_run: &RunbookFlowSnapshot,
     new_construct_dids: &Vec<ConstructDid>,
     visited_constructs: &mut HashSet<ConstructDid>,
-) -> ConsolidatedPlanChanges {
+) -> Result<ConsolidatedPlanChanges, String> {
     let mut consolidated_changes = ConsolidatedPlanChanges::new();
 
     let empty_string = "".to_string();
@@ -712,8 +712,22 @@ pub fn diff_command_snapshots(
         }
         visited_constructs.insert(old_construct_did.clone());
 
-        let old_command = old_run.commands.get(old_construct_did).unwrap().clone();
-        let new_command = new_run.commands.get(new_construct_did).unwrap().clone();
+        let old_command = old_run
+            .commands
+            .get(old_construct_did)
+            .ok_or(format!(
+                "Command {} not found in the previous runbook snapshot",
+                old_construct_did.to_string()
+            ))?
+            .clone();
+        let new_command = new_run
+            .commands
+            .get(new_construct_did)
+            .ok_or(format!(
+                "Command {} not found in the current runbook snapshot",
+                new_construct_did.to_string()
+            ))?
+            .clone();
 
         if !old_command.executed {
             consolidated_changes
@@ -929,13 +943,13 @@ pub fn diff_command_snapshots(
             new_run,
             &new_command.upstream_constructs_dids,
             visited_constructs,
-        );
+        )?;
 
         consolidated_changes.new_constructs_to_add.append(&mut inner_changes.new_constructs_to_add);
         consolidated_changes.old_constructs_to_rem.append(&mut inner_changes.old_constructs_to_rem);
         consolidated_changes.constructs_to_update.append(&mut inner_changes.constructs_to_update);
     }
-    consolidated_changes
+    Ok(consolidated_changes)
 }
 
 #[derive(Debug)]

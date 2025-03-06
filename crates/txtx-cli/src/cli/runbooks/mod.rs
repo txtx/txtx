@@ -180,7 +180,13 @@ pub async fn handle_check_command(
                 )
                 .map_err(|e| e.message)?;
 
-            let consolidated_changes = ctx.diff(old, new);
+            let consolidated_changes = match ctx.diff(old, new) {
+                Ok(changes) => changes,
+                Err(e) => {
+                    println!("{} Failed to process snapshot: {}", red!("x"), e);
+                    return Ok(());
+                }
+            };
 
             display_snapshot_diffing(consolidated_changes);
         }
@@ -510,7 +516,13 @@ pub async fn handle_run_command(
                 };
             }
 
-            let consolidated_changes = ctx.diff(old, new);
+            let consolidated_changes = match ctx.diff(old, new) {
+                Ok(changes) => changes,
+                Err(e) => {
+                    println!("{} Failed to process snapshot: {}", red!("x"), e);
+                    return Ok(());
+                }
+            };
 
             let Some(consolidated_changes) = display_snapshot_diffing(consolidated_changes) else {
                 return Ok(());
