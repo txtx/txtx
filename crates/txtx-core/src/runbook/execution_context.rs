@@ -150,16 +150,16 @@ impl RunbookExecutionContext {
     ) -> LoopEvaluationResult {
         if command_instance.specification.name.to_lowercase().eq("output") {
             let Some(execution_result) = self.commands_execution_results.get(&construct_did) else {
-                return LoopEvaluationResult::Bail;
+                return LoopEvaluationResult::Continue;
             };
             let Some(input_evaluations) =
                 self.commands_inputs_evaluation_results.get(&construct_did)
             else {
-                return LoopEvaluationResult::Bail;
+                return LoopEvaluationResult::Continue;
             };
 
             let Some(value) = execution_result.outputs.get("value") else {
-                return LoopEvaluationResult::Bail;
+                return LoopEvaluationResult::Continue;
             };
 
             let description = input_evaluations
