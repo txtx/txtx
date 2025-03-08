@@ -593,6 +593,12 @@ impl CommandImplementation for DeployContract {
         let future = async move {
             let mut result = CommandExecutionResult::new();
 
+            // If the deployment is done through create2, it could have already been deployed,
+            // which means we don't have a tx_hash
+            if let Some(tx_hash) = inputs.get_value(TX_HASH) {
+                result.insert(TX_HASH, tx_hash.clone());
+            };
+
             if let Some(impl_contract_address) = outputs.get_value(IMPL_CONTRACT_ADDRESS) {
                 result.insert(IMPL_CONTRACT_ADDRESS, impl_contract_address.clone());
             }
