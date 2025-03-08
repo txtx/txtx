@@ -38,7 +38,7 @@ use crate::{
     },
     typing::{
         EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
-        EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT32, EVM_UINT8,
+        EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256, EVM_UINT32, EVM_UINT8,
     },
 };
 const INFURA_API_KEY: &str = "";
@@ -92,6 +92,52 @@ lazy_static! {
             }
         },
         define_function! {
+            EncodeToAbiType => {
+                name: "to_abi_type",
+                documentation: "`evm::to_abi_type` is coming soon",
+                example: indoc! {r#"
+                        
+                "#},
+                inputs: [
+                    value: {
+                        documentation: "Coming soon.",
+                        typing: vec![Type::string(), Type::addon(""), Type::array(Type::string())]
+                    },
+                    abi: {
+                        documentation: "Coming soon.",
+                        typing: vec![Type::string()]
+                    },
+                    typing: {
+                        documentation: "Coming soon.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: Type::addon(EVM_BYTES32)
+                },
+            }
+        },
+        define_function! {
+            AbiEncode => {
+                name: "abi_encode",
+                documentation: "`evm::abi_encode` is coming soon",
+                example: indoc! {r#"
+                        
+                "#},
+                inputs: [
+                    input: {
+                        documentation: "Coming soon.",
+                        typing: vec![Type::array(Type::string())]
+                    }
+                ],
+                output: {
+                    documentation: "Coming Soon",
+                    typing: Type::addon(EVM_BYTES32)
+                },
+            }
+        },
+        define_function! {
             EncodeEvmBytes32 => {
                 name: "bytes32",
                 documentation: "`evm::bytes32` encodes a hex string as a 32-byte buffer.",
@@ -124,12 +170,33 @@ lazy_static! {
                 inputs: [
                     input: {
                         documentation: "The hex string to encode.",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string(), Type::array(Type::string()), Type::addon(""), Type::buffer()]
                     }
                 ],
                 output: {
                     documentation: "The input string encoded as a buffer.",
                     typing: Type::addon(EVM_BYTES)
+                },
+            }
+        },
+        define_function! {
+            EncodeEvmUint256 => {
+                name: "uint256",
+                documentation: "`evm::uint256` encodes a number as a Solidity uint256 value.",
+                example: indoc! {r#"
+                        output "uint256" {
+                            value = evm::uint256(1)
+                        }
+                        "#},
+                inputs: [
+                    input: {
+                        documentation: "The number to encode.",
+                        typing: vec![Type::string(), Type::array(Type::string()), Type::addon(""), Type::buffer()]
+                    }
+                ],
+                output: {
+                    documentation: "The number encoded as a Solidity uint256.",
+                    typing: Type::addon(EVM_UINT256)
                 },
             }
         },
@@ -408,6 +475,103 @@ impl FunctionImplementation for EvmZeroAddress {
 }
 
 #[derive(Clone)]
+pub struct AbiEncode;
+impl FunctionImplementation for AbiEncode {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let array = args.get(0).unwrap().as_array().unwrap();
+
+        let sol_values = array
+            .iter()
+            .enumerate()
+            .map(|(i, val)| {
+                value_to_sol_value(val)
+                    .map_err(|e| diagnosed_error!("failed to encode value #{}: {}", i + 1, e))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+        // the solidity abi.encode function doesn't just concatenate each entry's encoded bytes.
+        // it has dynamic data encoding rules. so, we need to wrap the values in a Tuple type,
+        // then encode as a sequence (which removes the Tuple wrapper)
+        Ok(EvmValue::bytes(DynSolValue::Tuple(sol_values).abi_encode_sequence().unwrap()))
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodeToAbiType;
+impl FunctionImplementation for EncodeToAbiType {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap();
+        let abi = args.get(1).unwrap().as_string().unwrap();
+        let type_name = args.get(2).unwrap().as_string().unwrap();
+        let abi: JsonAbi = serde_json::from_str(abi)
+            .map_err(|e| diagnosed_error!("failed to parse abi: {}", e))?;
+
+        // look through all of the abi functions to find an internal type
+        // (either in the function inputs or outputs) that matches our type_name
+        let fn_param_matches = abi
+            .functions
+            .values()
+            .flat_map(|fs| {
+                fs.iter()
+                    .filter_map(|f| {
+                        if let Some(found_input_ty) = f.inputs.iter().find(|i| {
+                            i.internal_type
+                                .as_ref()
+                                .map(|i| i.to_string() == type_name)
+                                .unwrap_or(false)
+                        }) {
+                            return Some(found_input_ty);
+                        }
+
+                        if let Some(found_output_ty) = f.outputs.iter().find(|i| {
+                            i.internal_type
+                                .as_ref()
+                                .map(|i| i.to_string() == type_name)
+                                .unwrap_or(false)
+                        }) {
+                            return Some(found_output_ty);
+                        }
+                        None
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        if !fn_param_matches.is_empty() {
+            let param = fn_param_matches.get(0).unwrap();
+            return Ok(EvmValue::known_sol_param(value, param));
+        }
+        Err(diagnosed_error!("no type found in abi matching type name: {}", type_name))
+    }
+}
+
+#[derive(Clone)]
 pub struct EncodeEvmBytes32;
 impl FunctionImplementation for EncodeEvmBytes32 {
     fn check_instantiability(
@@ -455,20 +619,19 @@ impl FunctionImplementation for EncodeEvmBytes {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let bytes = match args.get(0) {
-            Some(Value::String(val)) => Bytes::from_hex(&val).map_err(|e| {
+        arg_checker(fn_spec, args)?;
+        let bytes = match args.get(0).unwrap() {
+            Value::String(val) => Bytes::from_hex(&val).map_err(|e| {
                 diagnosed_error!("'evm::bytes function: failed to parse string: {:?}", e)
             })?,
-            Some(Value::Addon(addon_value)) => Bytes::copy_from_slice(&addon_value.bytes[..]),
+            Value::Addon(addon_value) => Bytes::copy_from_slice(&addon_value.bytes[..]),
             other => {
-                return Err(diagnosed_error!(
-                    "'evm::bytes' function: expected string, got {:?}",
-                    other
-                ))
+                let bytes = other.to_bytes();
+                Bytes::copy_from_slice(&bytes)
             }
         };
         Ok(EvmValue::bytes(bytes.to_vec()))
@@ -495,6 +658,29 @@ impl FunctionImplementation for EncodeEvmUint32 {
         let value = args.get(0).unwrap().as_integer().unwrap();
 
         Ok(EvmValue::uint32(value.to_be_bytes().as_slice().to_vec()))
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodeEvmUint256;
+impl FunctionImplementation for EncodeEvmUint256 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap();
+
+        Ok(EvmValue::uint256(value.to_bytes()))
     }
 }
 
