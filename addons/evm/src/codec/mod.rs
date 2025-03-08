@@ -11,11 +11,11 @@ use crate::constants::{GAS_PRICE, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS};
 use crate::rpc::EvmRpc;
 use crate::typing::{
     DecodedLog, EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE,
-    EVM_UINT256, EVM_UINT32, EVM_UINT8,
+    EVM_KNOWN_SOL_PARAM, EVM_SIM_RESULT, EVM_UINT256, EVM_UINT32, EVM_UINT8,
 };
 use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
 use alloy::dyn_abi::parser::TypeSpecifier;
-use alloy::dyn_abi::{DynSolValue, EventExt, Word};
+use alloy::dyn_abi::{DynSolValue, EventExt, FunctionExt, Word};
 use alloy::hex::{self, FromHex};
 use alloy::json_abi::{Constructor, JsonAbi, Param};
 use alloy::network::TransactionBuilder;
@@ -132,7 +132,7 @@ pub async fn build_unsigned_transaction(
     let sim = rpc
         .call(&tx)
         .await
-        .map_err(|e| format!("failed to simulate transaction: {}", e.to_string_with_trace()))?;
+        .map_err(|e| format!("failed to simulate transaction: {}", e.to_string()))?;
     Ok((tx, cost, sim))
 }
 
@@ -294,10 +294,13 @@ pub fn value_to_abi_param(value: &Value, param: &Param) -> Result<DynSolValue, D
     let type_specifier = TypeSpecifier::try_from(param.ty.as_str())
         .map_err(|e| diagnosed_error!("{msg}:failed to parse type specifier: {e}"))?;
     let is_array = type_specifier.sizes.len() > 0;
+
     if is_array {
         let values = value.as_array().ok_or(diagnosed_error!("{msg}: expected array"))?;
-        value_to_array_abi_type(values, &mut VecDeque::from(type_specifier.sizes), &param)
-            .map_err(|e| diagnosed_error!("{msg}: {e}"))
+        let arr_res =
+            value_to_array_abi_type(values, &mut VecDeque::from(type_specifier.sizes), &param)
+                .map_err(|e| diagnosed_error!("{msg}: {e}"))?;
+        Ok(arr_res)
     } else {
         value_to_primitive_abi_type(value, &param)
     }
@@ -313,14 +316,36 @@ pub fn value_to_primitive_abi_type(
         param.ty.as_str()
     );
 
+    if let Some(addon_data) = value.as_addon_data() {
+        if addon_data.id == EVM_SIM_RESULT {
+            let (result, fn_spec) = EvmValue::to_sim_result(value)?;
+            if let Some(fn_spec) = fn_spec {
+                let res = fn_spec.abi_decode_output(&result, false).map_err(|e| {
+                    diagnosed_error!("{msg}: failed to decode function output: {e}")
+                })?;
+                if res.len() == 1 {
+                    return Ok(res.get(0).unwrap().clone());
+                } else {
+                    return Ok(DynSolValue::Tuple(res));
+                }
+            }
+        } else if addon_data.id == EVM_KNOWN_SOL_PARAM {
+            let (value, param) = EvmValue::to_known_sol_param(value)?;
+            return value_to_abi_param(&value, &param).map_err(|e| {
+                diagnosed_error!("{msg}: failed to encode known Solidity type: {e}",)
+            });
+        }
+    }
+
     let type_specifier = TypeSpecifier::try_from(param.ty.as_str())
-        .map_err(|e| diagnosed_error!("{msg}:failed to parse type specifier: {e}"))?;
+        .map_err(|e| diagnosed_error!("{msg}: failed to parse type specifier: {e}"))?;
+
     let sol_value = match type_specifier.stem.span() {
         "address" => DynSolValue::Address(EvmValue::to_address(value)?),
         "uint8" => DynSolValue::Uint(
             U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             8,
-        ), // TODO: test if this is correct// TODO: test if this is correct
+        ),
         "uint16" => DynSolValue::Uint(
             U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             16,
@@ -328,7 +353,7 @@ pub fn value_to_primitive_abi_type(
         "uint32" => DynSolValue::Uint(
             U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             32,
-        ), // TODO: test if this is correct
+        ),
         "uint64" => DynSolValue::Uint(
             U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             64,
@@ -341,13 +366,14 @@ pub fn value_to_primitive_abi_type(
             U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             256,
         ),
-        "bytes" => DynSolValue::Bytes(value.to_bytes()), // TODO: test if this is correct
-        "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_bytes()), 32), // TODO: test if this is correct
+        "bytes" => DynSolValue::Bytes(value.to_bytes()),
+        "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_bytes()), 32),
         "bool" => DynSolValue::Bool(value.as_bool().ok_or(diagnosed_error!("{msg}"))?),
         "string" => DynSolValue::String(value.to_string()),
         "tuple" => {
             let mut tuple = vec![];
-            let values = value.as_array().ok_or(diagnosed_error!("expected array for tuple"))?;
+            let values =
+                value.as_array().ok_or(diagnosed_error!("expected array for tuple"))?.clone();
             for (i, component) in param.components.iter().enumerate() {
                 let value = values.get(i).ok_or(diagnosed_error!(
                     "expected {} values for tuple argument",
@@ -362,9 +388,10 @@ pub fn value_to_primitive_abi_type(
                     )
                 })?);
             }
+
             DynSolValue::Tuple(tuple)
         }
-        "strict" => value_to_struct_abi_type(value, param)?,
+        "struct" => value_to_struct_abi_type(value, param)?,
         _ => return Err(diagnosed_error!("unsupported primitive abi type: {}", param.ty)),
     };
     Ok(sol_value)
@@ -465,8 +492,30 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
                 || addon.id == EVM_FUNCTION_CALL
             {
                 DynSolValue::Bytes(addon.bytes.clone())
+            } else if addon.id == EVM_SIM_RESULT {
+                let (result, fn_spec) =
+                    EvmValue::to_sim_result(value).map_err(|e| format!("{}", e))?;
+                if let Some(fn_spec) = fn_spec {
+                    let res = fn_spec
+                        .abi_decode_output(&result, false)
+                        .map_err(|e| format!("failed to decode function output: {}", e))?;
+                    if res.len() == 1 {
+                        res.get(0).unwrap().clone()
+                    } else {
+                        DynSolValue::Tuple(res)
+                    }
+                } else {
+                    DynSolValue::Bytes(result)
+                }
+            } else if addon.id == EVM_KNOWN_SOL_PARAM {
+                let (value, param) =
+                    EvmValue::to_known_sol_param(value).map_err(|e| format!("{}", e))?;
+                value_to_abi_param(&value, &param).map_err(|e| format!("{}", e))?
             } else {
-                return Err(format!("unsupported addon type for encoding sol value: {}", addon.id));
+                return Err(format!(
+                    "unsupported addon type for encoding Solidity value: {}",
+                    addon.id
+                ));
             }
         }
     };
