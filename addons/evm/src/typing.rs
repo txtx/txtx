@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use alloy::primitives::Address;
+use alloy::{
+    json_abi::{Function, Param},
+    primitives::Address,
+};
 use alloy_rpc_types::Log;
 use txtx_addon_kit::{
     hex,
@@ -21,6 +24,8 @@ pub const EVM_UINT256: &str = "evm::uint256";
 pub const EVM_UINT32: &str = "evm::uint32";
 pub const EVM_UINT8: &str = "evm::uint8";
 pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
+pub const EVM_SIM_RESULT: &str = "evm::sim_result";
+pub const EVM_KNOWN_SOL_PARAM: &str = "evm::known_sol_param";
 
 pub struct EvmValue {}
 
@@ -108,6 +113,60 @@ impl EvmValue {
 
     pub fn function_call(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, EVM_FUNCTION_CALL)
+    }
+
+    /// The result from a transaction simulation. Stored with the ABI's function specification bytes,
+    /// if available. This allows for decoding the result in the future.
+    pub fn sim_result(sim_result_bytes: Vec<u8>, function_spec: Option<Vec<u8>>) -> Value {
+        let bytes = serde_json::to_vec(&(sim_result_bytes, function_spec)).unwrap();
+        Value::addon(bytes, EVM_SIM_RESULT)
+    }
+
+    pub fn to_sim_result(value: &Value) -> Result<(Vec<u8>, Option<Function>), Diagnostic> {
+        let err_msg = "could not convert value to sim result";
+        let addon_data = value
+            .as_addon_data()
+            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
+        if addon_data.id != EVM_SIM_RESULT {
+            return Err(diagnosed_error!(
+                "{err_msg}: expected type {EVM_SIM_RESULT}, got {}",
+                addon_data.id
+            ));
+        }
+        let (sim_result_bytes, function_spec): (Vec<u8>, Option<Vec<u8>>) =
+            serde_json::from_slice(&addon_data.bytes)
+                .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
+        let fn_spec = if let Some(fn_spec) = function_spec {
+            let fn_spec: Function = serde_json::from_slice(&fn_spec).map_err(|e| {
+                diagnosed_error!("{err_msg}: could not deserialize expected type: {e}")
+            })?;
+            Some(fn_spec)
+        } else {
+            None
+        };
+        Ok((sim_result_bytes, fn_spec))
+    }
+
+    /// A value with a known Solidity Param that it should be decoded as.
+    pub fn known_sol_param(value: &Value, param: &Param) -> Value {
+        let bytes = serde_json::to_vec(&(value, param)).unwrap();
+        Value::addon(bytes, EVM_KNOWN_SOL_PARAM)
+    }
+
+    pub fn to_known_sol_param(value: &Value) -> Result<(Value, Param), Diagnostic> {
+        let err_msg = "could not convert value to known sol type";
+        let addon_data = value
+            .as_addon_data()
+            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
+        if addon_data.id != EVM_KNOWN_SOL_PARAM {
+            return Err(diagnosed_error!(
+                "{err_msg}: expected type {EVM_KNOWN_SOL_PARAM}, got {}",
+                addon_data.id
+            ));
+        }
+        let (value, ty): (Value, Param) = serde_json::from_slice(&addon_data.bytes)
+            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
+        Ok((value, ty))
     }
 }
 
