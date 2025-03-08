@@ -529,6 +529,7 @@ pub fn typed_transaction_bytes(typed_transaction: &TypedTransaction) -> Vec<u8> 
         TypedTransaction::Eip2930(tx) => tx.encode_for_signing(&mut bytes),
         TypedTransaction::Eip1559(tx) => tx.encode_for_signing(&mut bytes),
         TypedTransaction::Eip4844(tx) => tx.encode_for_signing(&mut bytes),
+        TypedTransaction::Eip7702(tx) => tx.encode_for_signing(&mut bytes),
     }
     bytes
 }
@@ -537,8 +538,8 @@ pub fn format_transaction_for_display(typed_transaction: &TypedTransaction) -> V
         (
             "kind",
             match typed_transaction.to() {
-                TxKind::Create => Value::string("create".to_string()),
-                TxKind::Call(address) => Value::string(format!("to:{}", address.to_string())),
+                None => Value::string("create".to_string()),
+                Some(address) => Value::string(format!("to:{}", address.to_string())),
             },
         ),
         ("nonce", Value::integer(typed_transaction.nonce() as i128)),
@@ -575,6 +576,9 @@ pub fn format_transaction_for_display(typed_transaction: &TypedTransaction) -> V
         }
         TypedTransaction::Eip4844(_tx) => {
             unimplemented!("EIP-4844 is not supported");
+        }
+        TypedTransaction::Eip7702(_tx) => {
+            unimplemented!("EIP-7702 is not supported");
         }
     }
     res.to_value()
@@ -614,6 +618,7 @@ pub async fn get_transaction_cost(
             tx.effective_gas_price(Some(base_fee as u64))
         }
         TypedTransaction::Eip4844(_tx) => unimplemented!("EIP-4844 is not supported"),
+        TypedTransaction::Eip7702(_tx) => unimplemented!("EIP-7702 is not supported"),
     };
     let gas_limit = transaction.gas_limit();
     let cost: i128 = effective_gas_price as i128 * gas_limit as i128;

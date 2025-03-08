@@ -6,21 +6,21 @@ use std::time::Duration;
 
 use alloy::consensus::TxEnvelope;
 use alloy::hex;
-use alloy::network::{Ethereum, EthereumWallet};
+use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, BlockHash, Bytes, FixedBytes, Uint};
 use alloy::providers::utils::Eip1559Estimation;
 use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
-use alloy::transports::http::Http;
-use alloy_provider::fillers::{FillProvider, JoinFill, WalletFiller};
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
+};
 use alloy_provider::utils::{
     EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
 };
 use alloy_provider::Identity;
 use alloy_rpc_types::trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions};
-use alloy_rpc_types::BlockNumberOrTag::Latest;
-use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, BlockTransactionsKind, FeeHistory};
-use txtx_addon_kit::reqwest::{Client, Url};
+use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, FeeHistory};
+use txtx_addon_kit::reqwest::Url;
 
 #[derive(Debug)]
 pub enum RpcError {
@@ -48,21 +48,31 @@ impl Into<String> for RpcError {
 }
 
 pub type WalletProvider = FillProvider<
-    JoinFill<Identity, WalletFiller<EthereumWallet>>,
-    RootProvider<Http<Client>>,
-    Http<Client>,
-    Ethereum,
+    JoinFill<
+        Identity,
+        JoinFill<
+            EthereumWallet,
+            JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+        >,
+    >,
+    RootProvider,
 >;
 pub struct EvmWalletRpc {
     pub url: Url,
     pub wallet: EthereumWallet,
-    pub provider: WalletProvider,
+    pub provider: FillProvider<
+        JoinFill<
+            Identity,
+            JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+        >,
+        RootProvider,
+    >,
 }
 impl EvmWalletRpc {
     pub fn new(url: &str, wallet: EthereumWallet) -> Result<Self, String> {
         let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
 
-        let provider = ProviderBuilder::new().wallet(wallet.clone()).on_http(url.clone());
+        let provider = ProviderBuilder::new().on_http(url.clone());
         Ok(Self { url, wallet, provider })
     }
     pub async fn sign_and_send_tx(&self, tx_envelope: TxEnvelope) -> Result<[u8; 32], RpcError> {
@@ -78,7 +88,13 @@ impl EvmWalletRpc {
 #[derive(Clone, Debug)]
 pub struct EvmRpc {
     pub url: Url,
-    pub provider: RootProvider<Http<Client>>,
+    pub provider: FillProvider<
+        JoinFill<
+            Identity,
+            JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+        >,
+        RootProvider,
+    >,
 }
 
 impl EvmRpc {
@@ -132,9 +148,9 @@ impl EvmRpc {
         .await
     }
 
-    pub async fn estimate_gas(&self, tx: &TransactionRequest) -> Result<u128, RpcError> {
+    pub async fn estimate_gas(&self, tx: &TransactionRequest) -> Result<u64, RpcError> {
         EvmRpc::retry_async(|| async {
-            self.provider.estimate_gas(&tx).await.map_err(|e| {
+            self.provider.estimate_gas(tx.clone()).await.map_err(|e| {
                 RpcError::Message(format!("error getting gas estimate: {}", e.to_string()))
             })
         })
@@ -143,7 +159,7 @@ impl EvmRpc {
 
     pub async fn estimate_eip1559_fees(&self) -> Result<Eip1559Estimation, RpcError> {
         EvmRpc::retry_async(|| async {
-            self.provider.estimate_eip1559_fees(None).await.map_err(|e| {
+            self.provider.estimate_eip1559_fees().await.map_err(|e| {
                 RpcError::Message(format!("error getting EIP 1559 fees: {}", e.to_string()))
             })
         })
@@ -190,9 +206,9 @@ impl EvmRpc {
 
     pub async fn call(&self, tx: &TransactionRequest) -> Result<String, CallFailureResult> {
         let result = match EvmRpc::retry_async(|| async {
-            self.provider.call(tx).block(BlockId::pending()).await.map_err(|e| {
+            self.provider.call(tx.clone()).block(BlockId::pending()).await.map_err(|e| {
                 if let Some(e) = e.as_error_resp() {
-                    RpcError::MessageWithCode(e.message.clone(), e.code)
+                    RpcError::MessageWithCode(e.message.to_string(), e.code)
                 } else {
                     RpcError::Message(e.to_string())
                 }
@@ -259,7 +275,11 @@ impl EvmRpc {
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
         let result = EvmRpc::retry_async(|| async {
             self.provider
-                .debug_trace_call(tx.clone(), Latest, GethDebugTracingCallOptions::default())
+                .debug_trace_call(
+                    tx.clone(),
+                    BlockId::latest(),
+                    GethDebugTracingCallOptions::default(),
+                )
                 .await
                 .map_err(|e| {
                     RpcError::Message(format!(
@@ -299,12 +319,9 @@ impl EvmRpc {
             RpcError::Message(format!("error parsing block hash: {}", e.to_string()))
         })?;
         EvmRpc::retry_async(|| async {
-            self.provider
-                .get_block_by_hash(block_hash, BlockTransactionsKind::Hashes)
-                .await
-                .map_err(|e| {
-                    RpcError::Message(format!("error getting block by hash: {}", e.to_string()))
-                })
+            self.provider.get_block_by_hash(block_hash).await.map_err(|e| {
+                RpcError::Message(format!("error getting block by hash: {}", e.to_string()))
+            })
         })
         .await
     }
@@ -312,7 +329,7 @@ impl EvmRpc {
     pub async fn get_latest_block(&self) -> Result<Option<Block>, RpcError> {
         EvmRpc::retry_async(|| async {
             self.provider
-                .get_block(BlockId::latest(), BlockTransactionsKind::Hashes)
+                .get_block(BlockId::latest())
                 .await
                 .map_err(|e| RpcError::Message(format!("error getting block: {}", e.to_string())))
         })

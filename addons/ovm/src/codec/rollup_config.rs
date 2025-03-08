@@ -485,7 +485,7 @@ impl RollupConfig {
                 .await
                 .map_err(|e| diagnosed_error!("failed to fetch block latest tag from rpc: {e}"))?
                 .unwrap();
-            self.l1_starting_block_tag = block.header.hash.unwrap().to_string();
+            self.l1_starting_block_tag = block.header.hash.to_string();
             self.l2_output_oracle_starting_timestamp = block.header.timestamp;
         }
 
