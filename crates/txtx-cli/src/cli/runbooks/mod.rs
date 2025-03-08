@@ -690,6 +690,8 @@ pub async fn handle_run_command(
                     cmd.output_json.clone(),
                     json_outputs,
                     &runbook.runtime_context.authorization_context.workspace_location,
+                    &runbook.runbook_id.name,
+                    &runbook.top_level_inputs_map.current_top_level_input_name(),
                 )
                 .map_err(|e| format!("failed to print runbook outputs: {e}"))?;
             } else {
@@ -775,6 +777,8 @@ pub async fn handle_run_command(
                     output_json,
                     json_outputs,
                     &runbook.runtime_context.authorization_context.workspace_location,
+                    &runbook.runbook_id.name,
+                    &runbook.top_level_inputs_map.current_top_level_input_name(),
                 ) {
                     Ok(_) => {}
                     Err(e) => {
@@ -1096,6 +1100,8 @@ pub fn try_display_json_output(
     output_json: Option<Option<String>>,
     json_outputs: Vec<DisplayableRunbookOutput>,
     workspace_location: &FileLocation,
+    runbook_id: &str,
+    environment: &str,
 ) -> Result<(), String> {
     if let Some(output_loc) = output_json.as_ref() {
         let output = serde_json::to_string_pretty(&json_outputs)
@@ -1106,11 +1112,25 @@ pub fn try_display_json_output(
                 .map_err(|e| format!("failed to write to output file: {e}"))?;
             output_location
                 .append_path(output_loc)
-                .map_err(|e| format!("invalid output file location: {e}"))?;
+                .map_err(|e| format!("invalid output directory: {e}"))?;
+            output_location
+                .append_path(environment)
+                .map_err(|e| format!("invalid output directory: {e}"))?;
+
+            let now = chrono::Local::now();
+            let formatted = now.format("%Y-%m-%d--%H-%M-%S").to_string();
+            output_location
+                .append_path(&format!("{}_{}.output.json", runbook_id, formatted))
+                .map_err(|e| format!("invalid output file path: {e}"))?;
+
             output_location
                 .write_content(output.as_bytes())
                 .map_err(|e| format!("failed to write to output file: {e}"))?;
-            println!("{} {}", green!("✓"), format!("Outputs written to {}", output_loc));
+            println!(
+                "{} {}",
+                green!("✓"),
+                format!("Outputs written to {}", output_location.to_string())
+            );
         } else {
             println!("{}", output);
         }
