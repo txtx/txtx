@@ -27,9 +27,11 @@ use crate::codec::contract_deployment::AddressAbiMap;
 use crate::codec::CommonTransactionFields;
 use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
-use crate::constants::{ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RESULT, RPC_API_URL};
+use crate::constants::{
+    ABI_ENCODED_RESULT, ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RESULT, RPC_API_URL,
+};
 use crate::rpc::EvmRpc;
-use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, RAW_LOG_OUTPUT};
+use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, EVM_SIM_RESULT, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
 
 use super::{get_expected_address, get_signer_did};
@@ -165,6 +167,10 @@ lazy_static! {
               result: {
                     documentation: "The result of simulating the execution of the transaction directly before its execution.",
                     typing: Type::string()
+              },
+              abi_encoded_result: {
+                    documentation: "The simulation result with ABI context for using in other function calls.",
+                    typing: Type::addon(EVM_SIM_RESULT)
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
@@ -201,7 +207,7 @@ impl CommandImplementation for SignEvmContractCall {
         use crate::{
             codec::get_typed_transaction_bytes,
             commands::actions::sign_transaction::SignEvmTransaction,
-            constants::{RESULT, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
+            constants::{ABI_ENCODED_RESULT, RESULT, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
         };
 
@@ -222,15 +228,19 @@ impl CommandImplementation for SignEvmContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let (transaction, transaction_cost, sim_result) =
+            let (transaction, transaction_cost, sim_result_raw, sim_result_with_encoding) =
                 build_unsigned_contract_call(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
                 RESULT,
-                Value::String(sim_result),
+                Value::String(sim_result_raw),
+            );
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                ABI_ENCODED_RESULT,
+                sim_result_with_encoding,
             );
 
             let bytes = get_typed_transaction_bytes(&transaction)
@@ -298,6 +308,11 @@ impl CommandImplementation for SignEvmContractCall {
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             result.outputs.insert(RESULT.to_string(), call_result.clone());
 
+            let encoded_result = signer_state
+                .get_expected_scoped_value(&construct_did.to_string(), ABI_ENCODED_RESULT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            result.outputs.insert(ABI_ENCODED_RESULT.to_string(), encoded_result.clone());
+
             let contract_abi = values.get_value(CONTRACT_ABI);
             let mut address_abi_map = AddressAbiMap::new();
             address_abi_map.insert_opt(&contract_address, &contract_abi);
@@ -362,8 +377,13 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+
             let call_result = outputs.get_expected_value(RESULT)?;
             result.outputs.insert(RESULT.to_string(), call_result.clone());
+
+            let encoded_result = outputs.get_expected_value(ABI_ENCODED_RESULT)?;
+            result.outputs.insert(ABI_ENCODED_RESULT.to_string(), encoded_result.clone());
+
             if let Some(contract_abi) = outputs.get_value(CONTRACT_ABI) {
                 result.outputs.insert(CONTRACT_ABI.to_string(), contract_abi.clone());
             }
@@ -391,7 +411,7 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128, String), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String, Value), Diagnostic> {
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
@@ -403,6 +423,7 @@ async fn build_unsigned_contract_call(
             CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
         },
         signers::common::get_signer_nonce,
+        typing::EvmValue,
     };
 
     let from = signer_state.get_expected_value("signer_address")?;
@@ -469,10 +490,33 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let res = build_unsigned_transaction(rpc, values, common)
+    let function_spec = if let Some(abi_str) = contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str)
+            .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+
+        if let Some(function) = abi.function(&function_name).and_then(|f| f.first()) {
+            if let Ok(out) = serde_json::to_vec(&function) {
+                Some(out)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let (tx, cost, sim_result_raw) = build_unsigned_transaction(rpc, values, common)
         .await
         .map_err(|e| diagnosed_error!("{}", e))?;
-    Ok(res)
+
+    let sim_result_bytes = hex::decode(&sim_result_raw)
+        .map_err(|e| diagnosed_error!("invalid simulation result: {}", e))?;
+
+    let sim_result = EvmValue::sim_result(sim_result_bytes, function_spec);
+
+    Ok((tx, cost, sim_result_raw, sim_result))
 }
 
 pub fn encode_contract_call_inputs_from_selector(

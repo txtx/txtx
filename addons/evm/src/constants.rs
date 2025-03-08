@@ -64,6 +64,7 @@ pub const TRANSACTION_COST: &str = "transaction_cost";
 pub const ADDRESS_ABI_MAP: &str = "address_abi_map";
 pub const IS_PROXIED: &str = "is_proxied";
 pub const RESULT: &str = "result";
+pub const ABI_ENCODED_RESULT: &str = "abi_encoded_result";
 pub const LOGS: &str = "logs";
 pub const RAW_LOGS: &str = "raw_logs";
 
