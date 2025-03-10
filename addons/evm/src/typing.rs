@@ -29,11 +29,11 @@ pub const EVM_KNOWN_SOL_PARAM: &str = "evm::known_sol_param";
 
 pub struct EvmValue {}
 
-fn is_hex(str: &str) -> bool {
+pub fn is_hex(str: &str) -> bool {
     decode_hex(str).map(|_| true).unwrap_or(false)
 }
 
-fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
+pub fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
     let stripped = if str.starts_with("0x") { &str[2..] } else { &str[..] };
     hex::decode(stripped)
         .map_err(|e| diagnosed_error!("string '{}' could not be decoded to hex bytes: {}", str, e))
