@@ -254,6 +254,13 @@ pub fn value_to_abi_function_args(
     let values =
         value.as_array().ok_or(diagnosed_error!("expected array for function argument"))?;
 
+    if values.len() != function.inputs.len() {
+        return Err(diagnosed_error!(
+            "expected {} values for function arguments, found {}",
+            function.inputs.len(),
+            values.len()
+        ));
+    }
     value_to_abi_params(values, &function.inputs)
         .map_err(|e| diagnosed_error!("failed to encode function arguments: {e}"))
 }
@@ -264,6 +271,15 @@ pub fn value_to_abi_constructor_args(
 ) -> Result<Vec<DynSolValue>, Diagnostic> {
     let values =
         value.as_array().ok_or(diagnosed_error!("expected array for constructor argument"))?;
+
+    if values.len() != abi_constructor.inputs.len() {
+        return Err(diagnosed_error!(
+            "expected {} values for constructor arguments, found {}",
+            abi_constructor.inputs.len(),
+            values.len()
+        ));
+    }
+
     value_to_abi_params(values, &abi_constructor.inputs)
         .map_err(|e| diagnosed_error!("failed to encode constructor arguments: {e}"))
 }
@@ -274,9 +290,7 @@ pub fn value_to_abi_params(
 ) -> Result<Vec<DynSolValue>, Diagnostic> {
     let mut sol_values = vec![];
     for (i, param) in params.iter().enumerate() {
-        let value = values
-            .get(i)
-            .ok_or(diagnosed_error!("expected {} values for constructor argument", params.len()))?;
+        let value = values.get(i).ok_or(diagnosed_error!("expected {} arguments", params.len()))?;
         let sol_value = value_to_abi_param(value, param).map_err(|e| {
             diagnosed_error!("failed to encode param #{} (name '{}'): {}", i + 1, param.name, e)
         })?;
