@@ -37,8 +37,8 @@ use crate::{
         DEFAULT_HARDHAT_ARTIFACTS_DIR, DEFAULT_HARDHAT_SOURCE_DIR, NAMESPACE,
     },
     typing::{
-        EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32,
-        EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256, EVM_UINT32, EVM_UINT8,
+        decode_hex, EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES,
+        EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256, EVM_UINT32, EVM_UINT8,
     },
 };
 const INFURA_API_KEY: &str = "";
@@ -679,8 +679,19 @@ impl FunctionImplementation for EncodeEvmUint256 {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap();
-
-        Ok(EvmValue::uint256(value.to_bytes()))
+        match value {
+            Value::String(s) => {
+                let normalized = if s.starts_with("0x") {
+                    decode_hex(&s)?
+                } else {
+                    let u = alloy::primitives::U256::from_str_radix(&s, 10)
+                        .map_err(|e| diagnosed_error!("failed to parse string as number: {}", e))?;
+                    u.to_be_bytes_vec()
+                };
+                Ok(EvmValue::uint256(normalized))
+            }
+            _ => Ok(EvmValue::uint256(value.to_bytes())),
+        }
     }
 }
 
