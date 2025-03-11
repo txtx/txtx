@@ -20,7 +20,6 @@ pub fn build_manifest_data(manifest: &WorkspaceManifest) -> mustache::Data {
                 runbooks = runbooks.push_map(|function| {
                     function
                         .insert_str("name", &runbook_spec.name)
-                        .insert_str("id", &runbook_spec.name)
                         .insert_str(
                             "description",
                             &runbook_spec
